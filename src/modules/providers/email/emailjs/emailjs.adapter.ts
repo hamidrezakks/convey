@@ -1,0 +1,113 @@
+import type { ProviderAdapter } from '../../core/provider-adapter';
+import {
+  Channel,
+  ErrorCategory,
+  NormalizedStatus,
+  type NormalizedWebhookEvent,
+  type ProviderCapabilities,
+  type ProviderSendOptions,
+  type ProviderSendResult,
+} from '../../core/provider-types';
+import { emailjsTransformer } from './emailjs.transformer';
+import type { EmailjsApiRequest, EmailjsApiResponse, EmailjsEmailAdapterConfig, EmailjsWebhookPayload } from './types';
+
+export class EmailjsEmailAdapter
+  implements ProviderAdapter<EmailjsEmailAdapterConfig, EmailjsApiRequest, EmailjsApiResponse>
+{
+  readonly id = 'emailjs';
+  readonly name = 'EmailJS Email';
+  readonly channel = Channel.EMAIL;
+
+  readonly capabilities: ProviderCapabilities = {
+    supportsBulk: false,
+    supportsDeliveryReceipts: false,
+    supportsReadReceipts: false,
+    supportsAttachments: false,
+    supportsTemplates: true,
+    supportsMedia: false,
+  };
+
+  private config?: EmailjsEmailAdapterConfig;
+
+  constructor(config?: EmailjsEmailAdapterConfig) {
+    this.config = config;
+  }
+
+  hasSetup(configOverride?: EmailjsEmailAdapterConfig): boolean {
+    const config = { ...this.config, ...configOverride };
+    return Boolean(config && Object.keys(config).length > 0);
+  }
+
+  transformRequest(options: ProviderSendOptions, config?: EmailjsEmailAdapterConfig): EmailjsApiRequest {
+    return emailjsTransformer.transformRequest(options, config || this.config);
+  }
+
+  transformResponse(response: EmailjsApiResponse, statusCode?: number, rawBody?: unknown): ProviderSendResult {
+    return emailjsTransformer.transformResponse(response, statusCode, rawBody);
+  }
+
+  async send(options: ProviderSendOptions, configOverride?: EmailjsEmailAdapterConfig): Promise<ProviderSendResult> {
+    const config = { ...this.config, ...configOverride };
+
+    const reqPayload = this.transformRequest(options, config);
+
+    if (!reqPayload.template_params.to_email) {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_RECIPIENT',
+          message: 'Recipient email is required for EmailJS',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
+
+    if (!reqPayload.service_id || !reqPayload.user_id) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'EmailJS serviceId or publicKey (userId) is missing',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
+
+    const endpoint = 'https://api.emailjs.com/api/v1.0/email/send';
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reqPayload),
+      });
+
+      const responseText = await response.text();
+      const responseJson: EmailjsApiResponse = { status: response.status, text: responseText };
+
+      return this.transformResponse(responseJson, response.status, responseText);
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+      };
+    }
+  }
+
+  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    const webhookData = payload as EmailjsWebhookPayload;
+    if (!webhookData?.messageId) return [];
+
+    return [
+      {
+        providerId: this.id,
+        providerMessageId: webhookData.messageId,
+        normalizedStatus: NormalizedStatus.DELIVERED,
+        rawPayload: payload,
+        timestamp: new Date(),
+      },
+    ];
+  }
+}
