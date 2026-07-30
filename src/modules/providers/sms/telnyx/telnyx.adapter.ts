@@ -1,0 +1,114 @@
+import type { ProviderAdapter } from '../../core/provider-adapter';
+import {
+  Channel,
+  ErrorCategory,
+  NormalizedStatus,
+  type NormalizedWebhookEvent,
+  type ProviderCapabilities,
+  type ProviderSendOptions,
+  type ProviderSendResult,
+} from '../../core/provider-types';
+import { telnyxTransformer } from './telnyx.transformer';
+import type { TelnyxAdapterConfig, TelnyxApiRequest, TelnyxApiResponse, TelnyxWebhookPayload } from './types';
+
+export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, TelnyxApiRequest, TelnyxApiResponse> {
+  readonly id = 'telnyx';
+  readonly name = 'Telnyx';
+  readonly channel = Channel.SMS;
+
+  readonly capabilities: ProviderCapabilities = {
+    supportsBulk: false,
+    supportsDeliveryReceipts: true,
+    supportsReadReceipts: false,
+    supportsAttachments: false,
+    supportsTemplates: true,
+    supportsMedia: true,
+  };
+
+  private config?: TelnyxAdapterConfig;
+
+  constructor(config?: TelnyxAdapterConfig) {
+    this.config = config;
+  }
+
+  hasSetup(configOverride?: TelnyxAdapterConfig): boolean {
+    const config = { ...this.config, ...configOverride };
+    return Boolean(config.apiKey || config.baseUrl);
+  }
+
+  transformRequest(options: ProviderSendOptions, config?: TelnyxAdapterConfig): TelnyxApiRequest {
+    return telnyxTransformer.transformRequest(options, config || this.config);
+  }
+
+  transformResponse(response: TelnyxApiResponse, statusCode?: number, rawBody?: unknown): ProviderSendResult {
+    return telnyxTransformer.transformResponse(response, statusCode, rawBody);
+  }
+
+  async send(options: ProviderSendOptions, configOverride?: TelnyxAdapterConfig): Promise<ProviderSendResult> {
+    const config = { ...this.config, ...configOverride };
+    const apiKey = config.apiKey || '';
+
+    const reqPayload = this.transformRequest(options, config);
+
+    if (!reqPayload.to) {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_RECIPIENT',
+          message: 'Recipient phone number is required for Telnyx',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
+
+    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(reqPayload),
+      });
+
+      const responseText = await response.text();
+      let responseJson: TelnyxApiResponse = {};
+
+      try {
+        responseJson = JSON.parse(responseText) as TelnyxApiResponse;
+      } catch {
+        responseJson = { errors: [{ detail: responseText }] };
+      }
+
+      return this.transformResponse(responseJson, response.status, responseText);
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+      };
+    }
+  }
+
+  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    const webhookData = payload as TelnyxWebhookPayload;
+    const msgId = webhookData.data?.payload?.id || webhookData.data?.id;
+    if (!msgId) return [];
+
+    let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
+    const status = (webhookData.data?.event_type || '').toLowerCase();
+    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+
+    return [
+      {
+        providerId: this.id,
+        providerMessageId: msgId,
+        normalizedStatus,
+        rawPayload: payload,
+        timestamp: new Date(),
+      },
+    ];
+  }
+}
