@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -12,6 +11,7 @@ import {
   Sliders,
   Webhook,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '../ui/dialog';
 
 export interface CommandPaletteProps {
@@ -28,7 +28,12 @@ export function CommandPalette({ open, onOpenChange, onSelectTab }: CommandPalet
     { id: 'messages', title: 'Universal Message & Trace Explorer', category: 'Navigation', icon: Inbox },
     { id: 'providers', title: 'Provider Matrix & Circuit Breaker Cockpit', category: 'Navigation', icon: Radio },
     { id: 'dlq', title: 'Dead-Letter Queue (DLQ) & Surgical Replay', category: 'Navigation', icon: AlertTriangle },
-    { id: 'deliverability', title: 'Deliverability Autopilot & Suppressions', category: 'Navigation', icon: ShieldCheck },
+    {
+      id: 'deliverability',
+      title: 'Deliverability Autopilot & Suppressions',
+      category: 'Navigation',
+      icon: ShieldCheck,
+    },
     { id: 'policies', title: 'DRR Multi-Tenant SLA & Policy Studio', category: 'Navigation', icon: Sliders },
     { id: 'composer', title: 'Omnichannel Composer & Live Sandbox', category: 'Navigation', icon: Send },
     { id: 'webhooks', title: 'Webhook Subscriptions & Delivery Inspector', category: 'Navigation', icon: Webhook },
@@ -36,8 +41,8 @@ export function CommandPalette({ open, onOpenChange, onSelectTab }: CommandPalet
     { id: 'audit', title: 'Security & Compliance Audit Ledger', category: 'Navigation', icon: BookOpen },
   ];
 
-  const filteredCommands = commands.filter((c) =>
-    c.title.toLowerCase().includes(query.toLowerCase()) || c.id.toLowerCase().includes(query.toLowerCase()),
+  const filteredCommands = commands.filter(
+    (c) => c.title.toLowerCase().includes(query.toLowerCase()) || c.id.toLowerCase().includes(query.toLowerCase()),
   );
 
   useEffect(() => {

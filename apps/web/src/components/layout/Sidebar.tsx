@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -12,6 +11,7 @@ import {
   Sliders,
   Webhook,
 } from 'lucide-react';
+import type React from 'react';
 import { cn } from '../../lib/utils';
 
 export interface NavItem {

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
 import { Channel } from '@convey/shared';
 import { Bell, Check, Laptop, MessageSquare, Phone, Smartphone } from 'lucide-react';
+import { useState } from 'react';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/badge';
 
@@ -12,13 +12,7 @@ export interface OmnichannelPreviewProps {
   variables?: Record<string, string | number | boolean>;
 }
 
-export function OmnichannelPreview({
-  channel,
-  recipient,
-  subject,
-  body,
-  variables = {},
-}: OmnichannelPreviewProps) {
+export function OmnichannelPreview({ channel, recipient, subject, body, variables = {} }: OmnichannelPreviewProps) {
   const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
 
   // Interpolate variables {{var}}
@@ -55,7 +49,9 @@ export function OmnichannelPreview({
               onClick={() => setDeviceViewport('desktop')}
               className={cn(
                 'p-1.5 rounded text-xs transition-colors',
-                deviceViewport === 'desktop' ? 'bg-sky-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white',
+                deviceViewport === 'desktop'
+                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  : 'text-slate-400 hover:text-white',
               )}
               title="Desktop View"
             >
@@ -78,7 +74,9 @@ export function OmnichannelPreview({
         {channel === Channel.SMS && (
           <div className="text-[11px] font-mono text-slate-400">
             <span>{smsLength} chars</span> •{' '}
-            <span className="text-sky-400 font-semibold">{segmentsCount} segment{segmentsCount > 1 ? 's' : ''}</span>
+            <span className="text-sky-400 font-semibold">
+              {segmentsCount} segment{segmentsCount > 1 ? 's' : ''}
+            </span>
           </div>
         )}
       </div>
@@ -107,7 +105,9 @@ export function OmnichannelPreview({
             {/* Email HTML Body */}
             <div
               className="p-5 text-sm text-slate-200 prose prose-invert max-w-none min-h-[220px]"
-              dangerouslySetInnerHTML={{ __html: renderedBody || '<p class="text-slate-500">Compose an email message...</p>' }}
+              dangerouslySetInnerHTML={{
+                __html: renderedBody || '<p class="text-slate-500">Compose an email message...</p>',
+              }}
             />
           </div>
         )}
@@ -205,7 +205,9 @@ export function OmnichannelPreview({
 
                 <div className="p-3 rounded-lg bg-slate-950/80 border-l-4 border-sky-500 text-xs text-slate-200 space-y-2">
                   <p className="font-semibold text-white">{renderedSubject || 'System Alert: High Priority Event'}</p>
-                  <p className="text-slate-300">{renderedBody || 'Traffic surge detected on cluster node #us-east-1a.'}</p>
+                  <p className="text-slate-300">
+                    {renderedBody || 'Traffic surge detected on cluster node #us-east-1a.'}
+                  </p>
                   <div className="flex gap-2 pt-2">
                     <button
                       type="button"
@@ -240,7 +242,9 @@ export function OmnichannelPreview({
             </div>
             <div>
               <p className="text-xs font-semibold text-white">{renderedSubject || 'Order Confirmation'}</p>
-              <p className="text-xs text-slate-300 mt-0.5">{renderedBody || 'Your order has been placed successfully.'}</p>
+              <p className="text-xs text-slate-300 mt-0.5">
+                {renderedBody || 'Your order has been placed successfully.'}
+              </p>
             </div>
           </div>
         )}

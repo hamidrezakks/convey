@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import { Toaster } from 'sonner';
 import { CommandPalette } from './CommandPalette';
 import { Navbar } from './Navbar';
@@ -12,13 +13,7 @@ export interface AppLayoutProps {
   isLiveStreaming?: boolean;
 }
 
-export function AppLayout({
-  activeTab,
-  onSelectTab,
-  children,
-  onRefresh,
-  isLiveStreaming = true,
-}: AppLayoutProps) {
+export function AppLayout({ activeTab, onSelectTab, children, onRefresh, isLiveStreaming = true }: AppLayoutProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   return (
@@ -35,17 +30,11 @@ export function AppLayout({
         />
 
         {/* Scrollable Workspace */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-grid-pattern">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-grid-pattern">{children}</main>
       </div>
 
       {/* ⌘K Command Palette Modal */}
-      <CommandPalette
-        open={commandPaletteOpen}
-        onOpenChange={setCommandPaletteOpen}
-        onSelectTab={onSelectTab}
-      />
+      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} onSelectTab={onSelectTab} />
 
       {/* Toast Notification Container */}
       <Toaster position="bottom-right" theme="dark" richColors />

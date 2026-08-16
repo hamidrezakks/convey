@@ -1,28 +1,22 @@
-import React, { useEffect, useState } from 'react';
 import { Channel, CircuitState, type ProviderHealthDto } from '@convey/shared';
-import {
-  Activity,
-  AlertOctagon,
-  CheckCircle2,
-  Cpu,
-  HelpCircle,
-  Play,
-  Radio,
-  RefreshCw,
-  ShieldAlert,
-  Sliders,
-  Sparkles,
-} from 'lucide-react';
+import { Radio, RefreshCw, Sliders, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { Slider } from '../components/ui/slider';
-import { Switch } from '../components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { api } from '../lib/api';
-import { formatDurationMs, formatNumber } from '../lib/utils';
+import { formatDurationMs } from '../lib/utils';
 
 export function ProvidersPage() {
   const [providers, setProviders] = useState<ProviderHealthDto[]>([]);
@@ -72,7 +66,7 @@ export function ProvidersPage() {
       toast.success(`Circuit state for ${activeProvider.displayName} set to ${overrideAction}`);
       setActiveProvider(null);
       fetchProviders();
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to update circuit state');
     } finally {
       setIsUpdating(false);
@@ -85,16 +79,14 @@ export function ProvidersPage() {
       const res = await api.triggerCanary(providerId);
       toast.success(`Synthetic canary probe passed for ${providerId} (Latency: ${res.result?.latencyMs || 45}ms)`);
       fetchProviders();
-    } catch (err) {
+    } catch (_err) {
       toast.error(`Canary probe failed for ${providerId}`);
     } finally {
       setProbingProviderId(null);
     }
   };
 
-  const filteredProviders = providers.filter(
-    (p) => selectedChannel === 'ALL' || p.channel === selectedChannel,
-  );
+  const filteredProviders = providers.filter((p) => selectedChannel === 'ALL' || p.channel === selectedChannel);
 
   const closedCount = providers.filter((p) => p.state === CircuitState.CLOSED).length;
   const halfOpenCount = providers.filter((p) => p.state === CircuitState.HALF_OPEN).length;
@@ -110,7 +102,8 @@ export function ProvidersPage() {
             Provider Matrix & Circuit Breaker Cockpit
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time circuit states, stepped half-open traffic ramps, autonomous self-healing canary probes, and EMA latency scorecards.
+            Real-time circuit states, stepped half-open traffic ramps, autonomous self-healing canary probes, and EMA
+            latency scorecards.
           </p>
         </div>
 
@@ -254,9 +247,7 @@ export function ProvidersPage() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-sky-300">
-                      {formatDurationMs(p.emaLatencyMs)}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs text-sky-300">{formatDurationMs(p.emaLatencyMs)}</TableCell>
 
                     <TableCell className="font-mono text-xs text-emerald-400">
                       {p.rollingSuccessRatePercent.toFixed(1)}%
@@ -265,18 +256,14 @@ export function ProvidersPage() {
                     <TableCell className="font-mono text-xs">
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] ${
-                          p.anomalyZScore > 3.0
-                            ? 'bg-rose-500/20 text-rose-400 font-bold'
-                            : 'text-slate-400'
+                          p.anomalyZScore > 3.0 ? 'bg-rose-500/20 text-rose-400 font-bold' : 'text-slate-400'
                         }`}
                       >
                         Z: {p.anomalyZScore.toFixed(2)}
                       </span>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-slate-400">
-                      ${p.unitCostUsd.toFixed(5)}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-400">${p.unitCostUsd.toFixed(5)}</TableCell>
 
                     <TableCell className="text-right space-x-2">
                       {/* Synthetic Canary Probe Button */}
@@ -362,13 +349,7 @@ export function ProvidersPage() {
                   <span className="text-slate-300 font-semibold">Gradual Traffic Ramp</span>
                   <span className="font-mono text-sky-400 font-bold">{rampPercent}%</span>
                 </div>
-                <Slider
-                  value={rampPercent}
-                  min={5}
-                  max={100}
-                  step={5}
-                  onValueChange={setRampPercent}
-                />
+                <Slider value={rampPercent} min={5} max={100} step={5} onValueChange={setRampPercent} />
                 <p className="text-[11px] text-slate-400">
                   Admit {rampPercent}% of traffic to verify recovery before 100% full restoration.
                 </p>

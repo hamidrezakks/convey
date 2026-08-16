@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import { cn } from '../../lib/utils';
 
 export interface DialogProps {
@@ -60,5 +61,7 @@ export function DialogDescription({ className, ...props }: React.HTMLAttributes<
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex items-center justify-end gap-2 pt-4 border-t border-slate-800', className)} {...props} />;
+  return (
+    <div className={cn('flex items-center justify-end gap-2 pt-4 border-t border-slate-800', className)} {...props} />
+  );
 }

@@ -1,24 +1,12 @@
-import React, { useEffect, useState } from 'react';
 import type { LiveTelemetrySnapshot } from '@convey/shared';
-import {
-  Activity,
-  AlertCircle,
-  ArrowUpRight,
-  CheckCircle2,
-  Cpu,
-  Database,
-  DollarSign,
-  Layers,
-  Radio,
-  Server,
-  Zap,
-} from 'lucide-react';
+import { Activity, ArrowUpRight, CheckCircle2, Database, DollarSign, Layers, Radio, Server, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
   Area,
   AreaChart,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -32,11 +20,33 @@ export interface OverviewPageProps {
   onNavigateTab: (tabId: string) => void;
 }
 
+interface OverviewStatsData {
+  status: string;
+  uptimeSeconds: number;
+  deliverySuccessRatePercent: number;
+  metrics24h: {
+    totalIngested: number;
+    delivered: number;
+    failed: number;
+    dlqPending: number;
+    activeSuppressions: number;
+  };
+  latencyPercentiles: {
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    slaThresholdMs: number;
+  };
+  whatsappCostSavings: {
+    templateConvertedToSessionCount: number;
+    estimatedUsdSaved: number;
+  };
+}
+
 export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
   const [telemetry, setTelemetry] = useState<LiveTelemetrySnapshot | null>(null);
-  const [overviewStats, setOverviewStats] = useState<any>(null);
+  const [overviewStats, setOverviewStats] = useState<OverviewStatsData | null>(null);
   const [chartData, setChartData] = useState<Array<{ time: string; rps: number; p95: number }>>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Poll live telemetry snapshot every 1.5s
   useEffect(() => {
@@ -48,7 +58,6 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
         if (isMounted) {
           setTelemetry(tel);
           setOverviewStats(ov);
-          setIsLoading(false);
 
           const timeLabel = new Date().toLocaleTimeString();
           setChartData((prev) => {
@@ -81,7 +90,8 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             </Badge>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Global real-time ingestion, transactional outbox relays, multi-tenant DRR scheduling, and 80+ provider matrix.
+            Global real-time ingestion, transactional outbox relays, multi-tenant DRR scheduling, and 80+ provider
+            matrix.
           </p>
         </div>
 
@@ -90,7 +100,12 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             <Layers className="w-3.5 h-3.5 text-sky-400" />
             <span>Explore Messages</span>
           </Button>
-          <Button variant="glow" size="sm" onClick={() => onNavigateTab('composer')} className="text-xs gap-1.5 font-bold">
+          <Button
+            variant="glow"
+            size="sm"
+            onClick={() => onNavigateTab('composer')}
+            className="text-xs gap-1.5 font-bold"
+          >
             <Zap className="w-3.5 h-3.5" />
             <span>Open Sandbox</span>
           </Button>
@@ -138,7 +153,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-emerald-400 font-semibold font-mono">SLA: &lt;350ms</span>
-              <span className="text-slate-400">P99: {telemetry ? formatDurationMs(telemetry.latency.p99Ms) : '28.7ms'}</span>
+              <span className="text-slate-400">
+                P99: {telemetry ? formatDurationMs(telemetry.latency.p99Ms) : '28.7ms'}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -161,9 +178,7 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
               <span className="text-slate-300 font-mono">
                 {formatNumber(overviewStats?.metrics24h?.totalIngested || 12450)} total
               </span>
-              <span className="text-rose-400 font-mono">
-                {overviewStats?.metrics24h?.failed || 19} failed
-              </span>
+              <span className="text-rose-400 font-mono">{overviewStats?.metrics24h?.failed || 19} failed</span>
             </div>
           </CardContent>
         </Card>
@@ -202,7 +217,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
                 <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
                 Live Ingestion Throughput (RPS) & P95 Latency
               </CardTitle>
-              <CardDescription>Continuous 1.5-second live telemetry window with real-time sliding ticks.</CardDescription>
+              <CardDescription>
+                Continuous 1.5-second live telemetry window with real-time sliding ticks.
+              </CardDescription>
             </div>
             <Badge variant="cyan">Real-Time (1.5s)</Badge>
           </CardHeader>
@@ -272,7 +289,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-400 font-mono">outbox-relay</span>
-                <span className="font-mono text-sky-400 font-semibold">{telemetry?.queues?.outboxRelayDepth ?? 12} jobs</span>
+                <span className="font-mono text-sky-400 font-semibold">
+                  {telemetry?.queues?.outboxRelayDepth ?? 12} jobs
+                </span>
               </div>
               <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div
@@ -286,7 +305,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-400 font-mono">message-dispatch</span>
-                <span className="font-mono text-indigo-400 font-semibold">{telemetry?.queues?.messageDispatchDepth ?? 34} jobs</span>
+                <span className="font-mono text-indigo-400 font-semibold">
+                  {telemetry?.queues?.messageDispatchDepth ?? 34} jobs
+                </span>
               </div>
               <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div
@@ -300,7 +321,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-400 font-mono">provider-send</span>
-                <span className="font-mono text-purple-400 font-semibold">{telemetry?.queues?.providerSendDepth ?? 58} jobs</span>
+                <span className="font-mono text-purple-400 font-semibold">
+                  {telemetry?.queues?.providerSendDepth ?? 58} jobs
+                </span>
               </div>
               <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div
@@ -314,12 +337,15 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
             <div className="pt-3 border-t border-slate-800/80 space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-400">Worker Concurrency:</span>
-                <span className="text-white font-mono font-bold">{telemetry?.queues?.activeWorkersCount ?? 24} workers</span>
+                <span className="text-white font-mono font-bold">
+                  {telemetry?.queues?.activeWorkersCount ?? 24} workers
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">V8 Heap Guard:</span>
                 <span className="text-emerald-400 font-mono font-semibold">
-                  {telemetry?.runtimeGuard?.v8HeapUsedMb ?? 340}MB / {telemetry?.runtimeGuard?.v8HeapTotalMb ?? 512}MB ({telemetry?.runtimeGuard?.v8HeapSaturationPercent ?? 66}%)
+                  {telemetry?.runtimeGuard?.v8HeapUsedMb ?? 340}MB / {telemetry?.runtimeGuard?.v8HeapTotalMb ?? 512}MB (
+                  {telemetry?.runtimeGuard?.v8HeapSaturationPercent ?? 66}%)
                 </span>
               </div>
               <div className="flex justify-between">
@@ -363,7 +389,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
                 <span className="text-xs font-semibold text-slate-200">Monthly Partition Window</span>
               </div>
-              <span className="text-[11px] font-mono text-sky-400">{telemetry?.subsystems?.activePartition || 'messages_y2026m08'}</span>
+              <span className="text-[11px] font-mono text-sky-400">
+                {telemetry?.subsystems?.activePartition || 'messages_y2026m08'}
+              </span>
             </div>
 
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
@@ -372,7 +400,8 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
                 <span className="text-xs font-semibold text-slate-200">Provider Circuit Breakers</span>
               </div>
               <span className="text-[11px] font-mono text-emerald-400">
-                {telemetry?.subsystems?.circuitBreakers?.closed ?? 82} closed / {telemetry?.subsystems?.circuitBreakers?.total ?? 84} total
+                {telemetry?.subsystems?.circuitBreakers?.closed ?? 82} closed /{' '}
+                {telemetry?.subsystems?.circuitBreakers?.total ?? 84} total
               </span>
             </div>
           </CardContent>
@@ -386,7 +415,9 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
                 <Radio className="w-4 h-4 text-sky-400 animate-pulse" />
                 Real-Time Planetary Dispatch Ticker
               </CardTitle>
-              <CardDescription>Live stream of message dispatches, outbox commitments, and provider responses.</CardDescription>
+              <CardDescription>
+                Live stream of message dispatches, outbox commitments, and provider responses.
+              </CardDescription>
             </div>
             <Badge variant="cyan">SSE Live</Badge>
           </CardHeader>

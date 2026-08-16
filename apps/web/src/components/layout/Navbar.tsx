@@ -1,5 +1,4 @@
-import React from 'react';
-import { Command, Globe, RefreshCw, Sparkles, Terminal } from 'lucide-react';
+import { Command, Globe, RefreshCw, Terminal } from 'lucide-react';
 import { Button } from '../ui/button';
 
 export interface NavbarProps {

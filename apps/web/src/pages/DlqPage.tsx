@@ -1,31 +1,22 @@
-import React, { useState } from 'react';
 import { Channel, type DlqFailureCategory, type DlqReplayResult } from '@convey/shared';
 import confetti from 'canvas-confetti';
-import {
-  AlertOctagon,
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  DollarSign,
-  HelpCircle,
-  Play,
-  RefreshCw,
-  RotateCcw,
-  ShieldAlert,
-  Sparkles,
-  Users,
-  Zap,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Play, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { api } from '../lib/api';
-import { formatDurationMs } from '../lib/utils';
 
 export function DlqPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -97,7 +88,7 @@ export function DlqPage() {
         category: selectedCategory !== 'ALL' ? (selectedCategory as DlqFailureCategory) : undefined,
       });
       setSimulationResult(res);
-    } catch (err) {
+    } catch (_err) {
       toast.error('Dry-run simulation failed');
     } finally {
       setIsSimulating(false);
@@ -119,7 +110,7 @@ export function DlqPage() {
       toast.success(`Successfully replayed ${res.replayedCount || 84} DLQ messages with zero errors!`);
       setIsSimulatorOpen(false);
       setSimulationResult(null);
-    } catch (err) {
+    } catch (_err) {
       toast.error('Live DLQ replay failed');
     } finally {
       setIsExecuting(false);
@@ -151,7 +142,8 @@ export function DlqPage() {
             Dead-Letter Queue (DLQ) & Dry-Run Blast-Radius Simulator
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Analyze failure clusters, preview blast-radius simulations, and perform zero-downtime surgical batch replays.
+            Analyze failure clusters, preview blast-radius simulations, and perform zero-downtime surgical batch
+            replays.
           </p>
         </div>
 
@@ -173,9 +165,7 @@ export function DlqPage() {
         ].map((cluster) => (
           <Card key={cluster.label} className="glass-card">
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-[11px] font-semibold text-slate-400 uppercase">
-                {cluster.label}
-              </CardTitle>
+              <CardTitle className="text-[11px] font-semibold text-slate-400 uppercase">{cluster.label}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold font-mono text-white">{cluster.count}</div>
@@ -249,7 +239,8 @@ export function DlqPage() {
               <DialogTitle>Dry-Run Blast-Radius Replay Simulator</DialogTitle>
             </div>
             <DialogDescription>
-              Predictive simulation analyzes provider circuit recovery, tenant quotas, and idempotency locks before executing live wire calls.
+              Predictive simulation analyzes provider circuit recovery, tenant quotas, and idempotency locks before
+              executing live wire calls.
             </DialogDescription>
           </DialogHeader>
 
@@ -302,7 +293,8 @@ export function DlqPage() {
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-white">Safe Execution Verification: </span>
-                  All 84 target messages have valid idempotency records and provider circuits are fully CLOSED. No double-billing risk detected.
+                  All 84 target messages have valid idempotency records and provider circuits are fully CLOSED. No
+                  double-billing risk detected.
                 </div>
               </div>
             </div>

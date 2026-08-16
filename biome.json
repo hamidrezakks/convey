@@ -10,13 +10,26 @@
     "enabled": true,
     "rules": {
       "recommended": true,
+      "a11y": {
+        "useKeyWithClickEvents": "off",
+        "noLabelWithoutControl": "off",
+        "noAutofocus": "off",
+        "noSvgWithoutTitle": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      },
       "correctness": {
+        "useExhaustiveDependencies": "off",
         "noUnusedVariables": "error",
         "noUnusedImports": "error"
       },
       "style": {
         "useConst": "error",
         "useTemplate": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error"
       }
     }
   },

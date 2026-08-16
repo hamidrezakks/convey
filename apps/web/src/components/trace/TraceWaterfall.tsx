@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
 import type { TraceSpan } from '@convey/shared';
 import { Check, Clock, Copy, Info, Layers } from 'lucide-react';
+import { useState } from 'react';
 import { cn, formatDurationMs } from '../../lib/utils';
 import { Badge } from '../ui/badge';
 
@@ -26,9 +26,12 @@ export function TraceWaterfall({ traceparent, spans }: TraceWaterfallProps) {
 
   const getServiceColor = (serviceName: string) => {
     if (serviceName.includes('api')) return 'bg-sky-500/20 text-sky-400 border-sky-500/30';
-    if (serviceName.includes('postgres') || serviceName.includes('db')) return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
-    if (serviceName.includes('worker') || serviceName.includes('queue')) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-    if (serviceName.includes('router') || serviceName.includes('scheduler')) return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
+    if (serviceName.includes('postgres') || serviceName.includes('db'))
+      return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
+    if (serviceName.includes('worker') || serviceName.includes('queue'))
+      return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+    if (serviceName.includes('router') || serviceName.includes('scheduler'))
+      return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
     if (serviceName.includes('webhook')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
     return 'bg-slate-700/30 text-slate-300 border-slate-700';
   };
@@ -56,9 +59,7 @@ export function TraceWaterfall({ traceparent, spans }: TraceWaterfallProps) {
               <span className="text-xs font-semibold text-white">W3C Distributed Trace</span>
               <Badge variant="cyan">{spans.length} Spans</Badge>
             </div>
-            {traceparent && (
-              <p className="text-[11px] font-mono text-slate-400 truncate max-w-md">{traceparent}</p>
-            )}
+            {traceparent && <p className="text-[11px] font-mono text-slate-400 truncate max-w-md">{traceparent}</p>}
           </div>
         </div>
 
@@ -127,12 +128,8 @@ export function TraceWaterfall({ traceparent, spans }: TraceWaterfallProps) {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-slate-400">
-                      {formatDurationMs(span.durationMs)}
-                    </span>
-                    <Badge variant={span.status === 'OK' ? 'success' : 'destructive'}>
-                      {span.status}
-                    </Badge>
+                    <span className="text-[11px] font-mono text-slate-400">{formatDurationMs(span.durationMs)}</span>
+                    <Badge variant={span.status === 'OK' ? 'success' : 'destructive'}>{span.status}</Badge>
                   </div>
                 </div>
 
@@ -159,7 +156,10 @@ export function TraceWaterfall({ traceparent, spans }: TraceWaterfallProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-2 mt-1">
                       {Object.entries(span.attributes).map(([k, v]) => (
-                        <div key={k} className="flex items-center justify-between bg-slate-900/80 px-2 py-1 rounded border border-slate-800/80">
+                        <div
+                          key={k}
+                          className="flex items-center justify-between bg-slate-900/80 px-2 py-1 rounded border border-slate-800/80"
+                        >
                           <span className="text-slate-400">{k}:</span>
                           <span className="text-sky-300 font-semibold">{String(v)}</span>
                         </div>

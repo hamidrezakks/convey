@@ -1,19 +1,7 @@
-import React, { useEffect, useState } from 'react';
 import { Channel, type MessageDetailDto, MessageStatus, type MessageSummaryDto } from '@convey/shared';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  Filter,
-  Inbox,
-  Layers,
-  Lock,
-  RefreshCw,
-  Search,
-  ShieldAlert,
-} from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, Inbox, Layers, Lock, RefreshCw, Search } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { TraceWaterfall } from '../components/trace/TraceWaterfall';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -270,9 +258,7 @@ export function MessagesPage() {
                       ${msg.costUsd?.toFixed(4) ?? '0.0001'}
                     </TableCell>
 
-                    <TableCell className="text-xs text-slate-400 font-mono">
-                      {formatTimeAgo(msg.createdAt)}
-                    </TableCell>
+                    <TableCell className="text-xs text-slate-400 font-mono">{formatTimeAgo(msg.createdAt)}</TableCell>
 
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(msg.status)} dot>
@@ -371,10 +357,7 @@ export function MessagesPage() {
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Distributed Trace Lifecycle
                 </h3>
-                <TraceWaterfall
-                  traceparent={messageDetails.traceparent}
-                  spans={messageDetails.spans}
-                />
+                <TraceWaterfall traceparent={messageDetails.traceparent} spans={messageDetails.spans} />
               </div>
 
               {/* Message Payload View */}
@@ -423,8 +406,12 @@ export function MessagesPage() {
                           <Badge variant={att.status === 'DELIVERED' ? 'success' : 'default'}>{att.status}</Badge>
                         </TableCell>
                         <TableCell className="font-mono text-xs text-slate-300">{att.responseCode || 200}</TableCell>
-                        <TableCell className="font-mono text-xs text-emerald-400">{formatDurationMs(att.latencyMs)}</TableCell>
-                        <TableCell className="text-xs text-slate-400 font-mono">{formatTimeAgo(att.attemptedAt)}</TableCell>
+                        <TableCell className="font-mono text-xs text-emerald-400">
+                          {formatDurationMs(att.latencyMs)}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-400 font-mono">
+                          {formatTimeAgo(att.attemptedAt)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

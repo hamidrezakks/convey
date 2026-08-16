@@ -1,23 +1,19 @@
-import React, { useEffect, useState } from 'react';
 import { Channel, type SuppressionDto, SuppressionReason } from '@convey/shared';
-import {
-  Check,
-  CheckCircle2,
-  Lock,
-  Plus,
-  RefreshCw,
-  Search,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  Trash2,
-  UserX,
-} from 'lucide-react';
+import { Plus, RefreshCw, Search, Shield, ShieldCheck, Trash2 } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -71,7 +67,7 @@ export function DeliverabilityPage() {
       setIsAddOpen(false);
       setNewRecipient('');
       fetchSuppressions();
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to add suppression');
     } finally {
       setIsSubmitting(false);
@@ -83,7 +79,7 @@ export function DeliverabilityPage() {
       await api.removeSuppression(id);
       toast.success(`Unblocked ${recipient}`);
       fetchSuppressions();
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to remove suppression');
     }
   };
@@ -286,10 +282,7 @@ export function DeliverabilityPage() {
 
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-300">Reason</label>
-                  <Select
-                    value={newReason}
-                    onChange={(e) => setNewReason(e.target.value as SuppressionReason)}
-                  >
+                  <Select value={newReason} onChange={(e) => setNewReason(e.target.value as SuppressionReason)}>
                     <option value={SuppressionReason.MANUAL_BLOCK}>Manual Block</option>
                     <option value={SuppressionReason.SPAM_COMPLAINT}>Spam Complaint</option>
                     <option value={SuppressionReason.HARD_BOUNCE}>Hard Bounce</option>
