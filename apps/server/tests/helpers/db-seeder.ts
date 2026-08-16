@@ -1,4 +1,4 @@
-import { db } from '../../src/db';
+import { db, queryClient } from '../../src/db';
 import {
   apiKeys,
   budgetPolicies,
@@ -19,7 +19,7 @@ export async function seedDatabaseWithRealisticData() {
   const currentMonth = now.toISOString().substring(0, 7);
   const tenantId = '10000000-0000-0000-0000-000000000001';
 
-  await db.execute(`
+  await queryClient.unsafe(`
     ALTER TABLE providers ALTER COLUMN tenant_id DROP NOT NULL;
     ALTER TABLE providers ALTER COLUMN provider_id DROP NOT NULL;
     ALTER TABLE providers ALTER COLUMN name DROP NOT NULL;
@@ -96,7 +96,7 @@ export async function seedDatabaseWithRealisticData() {
     const state = c === 9 ? 'paused' : c === 10 ? 'cancelled' : 'active';
     const metadata = JSON.stringify({ targetAudience: 'VIP Customers', batch: c });
 
-    await db.execute(
+    await queryClient.unsafe(
       `INSERT INTO campaigns (id, tenant_id, external_id, team, name, state, status, metadata, created_at, updated_at) 
        VALUES ('${id}', '${tenantId}', '${extId}', '${team}', '${name}', '${state}', '${state}', '${metadata}', NOW(), NOW())
        ON CONFLICT (id) DO NOTHING;`,
@@ -273,12 +273,12 @@ export async function seedDatabaseWithRealisticData() {
   // 8. Seed Budget Ledger with Raw SQL
   const ledger1 = generateMessageId();
   const ledger2 = generateMessageId();
-  await db.execute(
+  await queryClient.unsafe(
     `INSERT INTO budget_ledger (id, tenant_id, message_id, team, amount, amount_usd, channel, provider_id, created_at)
      VALUES ('${ledger1}', '${tenantId}', 'msg_01JYQ81NE7XK47PAV6MQR2P9NK', 'payments', 0.005, '0.0050', 'sms', 'twilio', NOW())
      ON CONFLICT DO NOTHING;`,
   );
-  await db.execute(
+  await queryClient.unsafe(
     `INSERT INTO budget_ledger (id, tenant_id, message_id, team, amount, amount_usd, channel, provider_id, created_at)
      VALUES ('${ledger2}', '${tenantId}', 'msg_01JYQ81NE7XK47PAV6MQR2P9NL', 'orders', 0.0025, '0.0025', 'email', 'ses', NOW())
      ON CONFLICT DO NOTHING;`,
@@ -287,12 +287,12 @@ export async function seedDatabaseWithRealisticData() {
   // 9. Seed Suppressions with Raw SQL
   const suppressedEmail = 'bounced_user@example.com';
   const suppressedPhone = '+19998887766';
-  await db.execute(
+  await queryClient.unsafe(
     `INSERT INTO suppressions (id, target_type, identifier_type, identifier_hash, recipient, channel, team, category, reason, starts_at, created_at)
      VALUES ('supp_bounced_email_01', 'recipient', 'email', '${hashString(suppressedEmail)}', '${suppressedEmail}', 'email', 'payments', 'transactional', 'bounce', NOW(), NOW())
      ON CONFLICT (id) DO NOTHING;`,
   );
-  await db.execute(
+  await queryClient.unsafe(
     `INSERT INTO suppressions (id, target_type, identifier_type, identifier_hash, recipient, channel, team, category, reason, starts_at, created_at)
      VALUES ('supp_unsub_phone_02', 'recipient', 'phone', '${hashString(suppressedPhone)}', '${suppressedPhone}', 'sms', 'payments', 'otp', 'unsubscribe', NOW(), NOW())
      ON CONFLICT (id) DO NOTHING;`,

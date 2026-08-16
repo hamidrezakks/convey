@@ -2,4 +2,4 @@
 exact = true
 
 [test]
-coverage = true
+coverage = false

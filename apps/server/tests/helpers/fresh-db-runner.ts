@@ -1,4 +1,4 @@
-import { db } from '../../src/db';
+import { db, queryClient } from '../../src/db';
 import {
   apiKeys,
   auditLogs,
@@ -30,7 +30,7 @@ export interface IsolatedDbSetup {
 export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise<IsolatedDbSetup> {
   const prefix = customPrefix || `e2e_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  await db.execute(`
+  await queryClient.unsafe(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -158,7 +158,7 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
   }
 
   // 3. Routing Rules (Same-channel failover + Cross-channel fallbacks)
-  await db.execute(
+  await queryClient.unsafe(
     `INSERT INTO provider_routes (id, team, category, country, channel, primary_provider_id, secondary_provider_id, priority, created_at, updated_at)
      VALUES 
       ('${prefix}_route_email', 'benchmark_team', 'transactional', 'ALL', 'email', 'ses', 'sendgrid', 1, NOW(), NOW()),

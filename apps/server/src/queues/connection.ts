@@ -5,12 +5,16 @@ import { logger } from '../utils/logger';
 export interface BunRedisPipeline {
   get(key: string): this;
   set(key: string, value: string, ...args: (string | number)[]): this;
-  del(...keys: string[]): this;
+  del(...keys: (string | string[])[]): this;
+  mget(...keys: (string | string[])[]): this;
+  exists(...keys: (string | string[])[]): this;
   hset(key: string, fieldOrObj: string | Record<string, unknown>, value?: unknown): this;
   hget(key: string, field: string): this;
+  hgetall(key: string): this;
   hincrby(key: string, field: string, increment: number): this;
   expire(key: string, seconds: number): this;
   sadd(key: string, ...members: (string | number)[]): this;
+  srem(key: string, ...members: (string | number)[]): this;
   publish(channel: string, message: string): this;
   exec(): Promise<[Error | null, unknown][]>;
 }
@@ -38,7 +42,7 @@ export class BunNativeRedis {
     if (args.length === 0) {
       return (await this.client.set(key, String(value))) as string;
     }
-    return (await this.client.send('SET', key, String(value), ...args.map(String))) as string | boolean | null;
+    return (await this.client.send('SET', [key, String(value), ...args.map(String)])) as string | boolean | null;
   }
 
   async setnx(key: string, value: string | number): Promise<number | boolean> {
@@ -49,9 +53,10 @@ export class BunNativeRedis {
     return (await this.client.setex(key, seconds, String(value))) as string;
   }
 
-  async del(...keys: string[]): Promise<number> {
-    if (keys.length === 0) return 0;
-    return (await this.client.del(...keys)) as number;
+  async del(...keys: (string | string[])[]): Promise<number> {
+    const flatKeys = (keys as unknown[]).flat() as string[];
+    if (flatKeys.length === 0) return 0;
+    return (await this.client.del(...flatKeys)) as number;
   }
 
   async incr(key: string): Promise<number> {
@@ -70,10 +75,17 @@ export class BunNativeRedis {
     return (await this.client.ttl(key)) as number;
   }
 
-  async mget(...keys: string[]): Promise<(string | null)[]> {
-    if (keys.length === 0) return [];
-    const res = (await this.client.mget(...keys)) as (string | null)[] | null;
+  async mget(...keys: (string | string[])[]): Promise<(string | null)[]> {
+    const flatKeys = (keys as unknown[]).flat() as string[];
+    if (flatKeys.length === 0) return [];
+    const res = (await this.client.mget(...flatKeys)) as (string | null)[] | null;
     return (res || []).map((v) => (v !== null && v !== undefined ? String(v) : null));
+  }
+
+  async exists(...keys: (string | string[])[]): Promise<number> {
+    const flatKeys = (keys as unknown[]).flat() as string[];
+    if (flatKeys.length === 0) return 0;
+    return (await this.client.exists(...flatKeys)) as number;
   }
 
   async hget(key: string, field: string): Promise<string | null> {
@@ -88,7 +100,7 @@ export class BunNativeRedis {
         entries.push(k, String(v ?? ''));
       }
       if (entries.length === 0) return 0;
-      return (await this.client.send('HSET', key, ...entries)) as number;
+      return (await this.client.send('HSET', [key, ...entries])) as number;
     }
     return (await this.client.hset(key, fieldOrObj, String(value ?? ''))) as number;
   }
@@ -99,7 +111,7 @@ export class BunNativeRedis {
       entries.push(k, String(v ?? ''));
     }
     if (entries.length === 0) return 'OK';
-    return (await this.client.send('HSET', key, ...entries)) as string;
+    return (await this.client.send('HSET', [key, ...entries])) as string;
   }
 
   async hgetall(key: string): Promise<Record<string, string>> {
@@ -167,11 +179,24 @@ export class BunNativeRedis {
   }
 
   async eval(script: string, numkeys: number, ...keysAndArgs: (string | number)[]): Promise<unknown> {
-    return await this.client.send('EVAL', script, String(numkeys), ...keysAndArgs.map(String));
+    return await this.client.send('EVAL', [script, String(numkeys), ...keysAndArgs.map(String)]);
   }
 
   async send(command: string, ...args: (string | number)[]): Promise<unknown> {
-    return await this.client.send(command, ...args.map(String));
+    return await this.client.send(command, args.map(String));
+  }
+
+  async flushall(): Promise<string> {
+    return (await this.client.send('FLUSHALL', [])) as string;
+  }
+
+  async flushdb(): Promise<string> {
+    return (await this.client.send('FLUSHDB', [])) as string;
+  }
+
+  async keys(pattern = '*'): Promise<string[]> {
+    const res = (await this.client.send('KEYS', [pattern])) as string[] | null;
+    return res || [];
   }
 
   pipeline(): BunRedisPipeline {
@@ -185,8 +210,16 @@ export class BunNativeRedis {
         operations.push(() => this.set(key, value, ...args));
         return pipe;
       },
-      del: (...keys: string[]) => {
+      del: (...keys: (string | string[])[]) => {
         operations.push(() => this.del(...keys));
+        return pipe;
+      },
+      mget: (...keys: (string | string[])[]) => {
+        operations.push(() => this.mget(...keys));
+        return pipe;
+      },
+      exists: (...keys: (string | string[])[]) => {
+        operations.push(() => this.exists(...keys));
         return pipe;
       },
       hset: (key: string, fieldOrObj: string | Record<string, unknown>, value?: unknown) => {
@@ -197,6 +230,10 @@ export class BunNativeRedis {
         operations.push(() => this.hget(key, field));
         return pipe;
       },
+      hgetall: (key: string) => {
+        operations.push(() => this.hgetall(key));
+        return pipe;
+      },
       hincrby: (key: string, field: string, increment: number) => {
         operations.push(() => this.hincrby(key, field, increment));
         return pipe;
@@ -205,8 +242,12 @@ export class BunNativeRedis {
         operations.push(() => this.expire(key, seconds));
         return pipe;
       },
-      sadd: (key: string, ...members: (string | number)[]) => {
+      sadd: (key: string, ...members: (string | number)[]): BunRedisPipeline => {
         operations.push(() => this.sadd(key, ...members));
+        return pipe;
+      },
+      srem: (key: string, ...members: (string | number)[]): BunRedisPipeline => {
+        operations.push(() => this.srem(key, ...members));
         return pipe;
       },
       publish: (channel: string, message: string) => {
@@ -225,7 +266,10 @@ export class BunNativeRedis {
     return new BunNativeRedis(this.url);
   }
 
-  async ping(): Promise<string> {
+  async ping(message?: string): Promise<string> {
+    if (message) {
+      return (await this.client.send('PING', [message])) as string;
+    }
     return (await this.client.ping()) as string;
   }
 
@@ -264,28 +308,16 @@ export class BunNativeRedis {
   }
 }
 
-// Parse Redis URL for standard connection options
-function parseRedisUrl(urlStr: string) {
-  try {
-    const parsed = new URL(urlStr);
-    return {
-      host: parsed.hostname || 'localhost',
-      port: parsed.port ? Number.parseInt(parsed.port, 10) : 6379,
-      username: parsed.username || undefined,
-      password: parsed.password || undefined,
-      db: parsed.pathname && parsed.pathname.length > 1 ? Number.parseInt(parsed.pathname.slice(1), 10) : 0,
-      tls: parsed.protocol === 'rediss:' ? {} : undefined,
-    };
-  } catch {
-    return { host: 'localhost', port: 6379 };
-  }
-}
+export const redisClient = new BunNativeRedis();
 
-// Global Singleton Instance using Bun Native Redis
-export const redisClient = new BunNativeRedis(env.REDIS_URL);
-
-// Connection Options for BullMQ Queues and Workers
+const parsedRedisUrl = new URL(env.REDIS_URL);
 export const redisConnectionOptions = {
-  ...parseRedisUrl(env.REDIS_URL),
   url: env.REDIS_URL,
+  host: parsedRedisUrl.hostname || 'localhost',
+  port: Number.parseInt(parsedRedisUrl.port || '6379', 10),
+  password: parsedRedisUrl.password || undefined,
+  username: parsedRedisUrl.username || undefined,
+  db: parsedRedisUrl.pathname ? Number.parseInt(parsedRedisUrl.pathname.replace('/', ''), 10) || 0 : 0,
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
 };
