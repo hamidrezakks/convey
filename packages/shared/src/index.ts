@@ -242,6 +242,57 @@ export interface ProviderCatalogItem {
   defaultWeight: number;
 }
 
+export interface ProviderFeatureConfigs {
+  // WhatsApp Cost Saving & Interactive Features
+  whatsapp?: {
+    costSaving24hSession?: boolean; // Converts template to free session plain text within 24h
+    autoTemplateValidation?: boolean;
+    interactiveButtons?: boolean;
+    webhookVerifyToken?: string;
+  };
+  // Email Deliverability & Tracking
+  email?: {
+    openTracking?: boolean;
+    clickTracking?: boolean;
+    tlsPolicy?: 'REQUIRE' | 'OPPORTUNISTIC';
+    sandboxMode?: boolean;
+    customHeaders?: Record<string, string>;
+    dkimSelector?: string;
+    ipPoolName?: string;
+  };
+  // SMS Carrier Optimization
+  sms?: {
+    smartGsmPacking?: boolean; // Strip invisible unicode to avoid segment double billing
+    dlrTimeoutSeconds?: number;
+    alphanumericSenderId?: boolean;
+    shortUrlTracking?: boolean;
+  };
+  // Push Notification Protocol
+  push?: {
+    timeToLiveSeconds?: number;
+    collapseKey?: string;
+    apnsPushType?: 'alert' | 'background';
+    fcmHighPriority?: boolean;
+    sound?: string;
+    badgeIncrement?: boolean;
+  };
+  // Slack & Chat
+  slack?: {
+    unfurlLinks?: boolean;
+    unfurlMedia?: boolean;
+    threadBroadcast?: boolean;
+    mrkdwn?: boolean;
+  };
+  // Webhook & Tool
+  tool?: {
+    hmacSignatureHeader?: string;
+    retryCount?: number;
+    timeoutMs?: number;
+    mutualTlsEnabled?: boolean;
+  };
+  custom?: Record<string, unknown>;
+}
+
 export interface ConfiguredProviderDto {
   id: string;
   providerId: string;
@@ -253,6 +304,7 @@ export interface ConfiguredProviderDto {
   fallbackProviderId?: string;
   status: 'ACTIVE' | 'DISABLED' | 'ERROR';
   credentialsMasked: Record<string, string>;
+  config?: ProviderFeatureConfigs;
   envSnippet: string;
   createdAt: string;
   updatedAt: string;
@@ -262,6 +314,7 @@ export interface RegisterProviderRequest {
   providerId: string;
   channel: Channel;
   credentials: Record<string, string>;
+  config?: ProviderFeatureConfigs;
   isPrimary?: boolean;
   priority?: number;
   weight?: number;

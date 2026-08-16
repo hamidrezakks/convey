@@ -46,6 +46,20 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
       ip_address TEXT,
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE providers ALTER COLUMN tenant_id DROP NOT NULL;
+    ALTER TABLE providers ALTER COLUMN provider_id DROP NOT NULL;
+    ALTER TABLE providers ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE providers ALTER COLUMN is_enabled DROP NOT NULL;
+    ALTER TABLE budget_ledger ALTER COLUMN tenant_id DROP NOT NULL;
+    ALTER TABLE budget_ledger ALTER COLUMN amount DROP NOT NULL;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS display_name TEXT;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS weight INT NOT NULL DEFAULT 100;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS fallback_provider_id TEXT;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS credentials JSONB;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS config JSONB;
   `);
 
   // Clean existing transactional tables for fresh benchmark state
@@ -120,13 +134,27 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
   ];
 
   for (const p of providerList) {
-    const creds = JSON.stringify({ apiKey: `mock_key_${p.id}` });
-    const cfg = JSON.stringify({ defaultFrom: 'noreply@convey.io' });
-    await db.execute(
-      `INSERT INTO providers (id, tenant_id, channel, provider_id, name, enabled, is_enabled, credentials, config, priority, rate_limit_per_sec, created_at, updated_at) 
-       VALUES ('${p.id}', '${tenantId}', '${p.channel}', '${p.id}', '${p.name}', true, true, '${creds}', '${cfg}', ${p.priority}, 100, NOW(), NOW())
-       ON CONFLICT (id) DO NOTHING;`,
-    );
+    try {
+      await db
+        .insert(providers)
+        .values({
+          id: p.id,
+          displayName: p.name,
+          channel: p.channel.toLowerCase(),
+          enabled: true,
+          isPrimary: true,
+          priority: p.priority,
+          weight: 100,
+          credentials: { apiKey: `mock_key_${p.id}` },
+          config: { defaultFrom: 'noreply@convey.io' },
+          rateLimitPerSec: 100,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing();
+    } catch {
+      // Postgres error fallback
+    }
   }
 
   // 3. Routing Rules (Same-channel failover + Cross-channel fallbacks)

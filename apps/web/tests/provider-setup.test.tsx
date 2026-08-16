@@ -1,6 +1,6 @@
 import './setup';
 import { describe, expect, it } from 'bun:test';
-import { Channel } from '@convey/shared';
+import { Channel, type ProviderFeatureConfigs } from '@convey/shared';
 
 describe('Provider Registration & Env Setup Logic Test Suite', () => {
   it('masks API credentials safely without exposing full secrets', () => {
@@ -26,5 +26,28 @@ describe('Provider Registration & Env Setup Logic Test Suite', () => {
     const envLines = Object.entries(providerConfig.credentials).map(([k, v]) => `${k}=${v}`);
     expect(envLines).toContain('SENDGRID_API_KEY=SG.1234567890');
     expect(envLines).toContain('SENDGRID_FROM_EMAIL=alerts@domain.com');
+  });
+
+  it('configures WhatsApp 24-hour cost saving and interactive feature settings', () => {
+    const configs: ProviderFeatureConfigs = {
+      whatsapp: {
+        costSaving24hSession: true,
+        autoTemplateValidation: true,
+        interactiveButtons: true,
+      },
+      sms: {
+        smartGsmPacking: true,
+        dlrTimeoutSeconds: 30,
+      },
+      email: {
+        openTracking: true,
+        clickTracking: true,
+        tlsPolicy: 'REQUIRE',
+      },
+    };
+
+    expect(configs.whatsapp?.costSaving24hSession).toBe(true);
+    expect(configs.sms?.smartGsmPacking).toBe(true);
+    expect(configs.email?.tlsPolicy).toBe('REQUIRE');
   });
 });

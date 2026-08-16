@@ -73,7 +73,17 @@ export async function migrate() {
       updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE providers ALTER COLUMN tenant_id DROP NOT NULL;
+    ALTER TABLE providers ALTER COLUMN provider_id DROP NOT NULL;
+    ALTER TABLE providers ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE providers ALTER COLUMN is_enabled DROP NOT NULL;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS display_name TEXT;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS weight INT NOT NULL DEFAULT 100;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS fallback_provider_id TEXT;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS credentials JSONB;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS config JSONB;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS rate_limit_per_sec INT DEFAULT 100;
 
@@ -130,6 +140,8 @@ export async function migrate() {
       PRIMARY KEY (id, created_at)
     ) PARTITION BY RANGE (created_at);
 
+    ALTER TABLE budget_ledger ALTER COLUMN tenant_id DROP NOT NULL;
+    ALTER TABLE budget_ledger ALTER COLUMN amount DROP NOT NULL;
     ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS message_id TEXT NOT NULL DEFAULT '';
     ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS team TEXT NOT NULL DEFAULT 'default';
     ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS amount_usd NUMERIC(12, 4) NOT NULL DEFAULT '0.0000';

@@ -101,7 +101,12 @@ bun --filter @convey/web build
 
 ### 4. Provider Registration & Environment Setup Studio (`ProviderConfigPage` / `/providers/configure`)
 - **88+ Turnkey Provider Catalog**: Browse and register adapters across Email (SendGrid, Resend, AWS SES, Postmark), SMS (Twilio, Telnyx, Sinch, Infobip), WhatsApp (Meta Cloud API), Push (FCM, APNs), Slack, Discord, and Webhooks.
-- **Dynamic Credential Setup Wizard**: Guided modal with automatic validation of required API keys, account tokens, sender signatures, and regions.
+- **PostgreSQL Database Storage**: All provider records, credentials, and feature configs are stored and updated in the Postgres `providers` table.
+- **Advanced Feature Configs & Cost Savers**:
+  - **WhatsApp 24-Hour Session Cost Saver**: Automatically converts pre-approved template messages to free plain text when the recipient is within the 24-hour service conversation window (saving ~$0.05/message on Meta fees).
+  - **SMS Smart GSM-7 Packing**: Auto-sanitizes non-GSM characters into standard 7-bit ASCII to prevent 160-char SMS splitting into double-billed 70-char UCS-2 segments.
+  - **Email Open & Click Tracking**: Configurable pixel injection, link rewriting, and strict TLS 1.3 enforcement.
+  - **Push Protocol Optimizations**: FCM High-Priority queue and APNs background silent push toggles.
 - **Multi-Tier Routing & Fallback Chains**: Configure routing priority (Tier #1 to #5), traffic load share weights (10% to 100%), and automatic failover targets.
 - **Live Connection Test Probes**: Test live authentication against provider endpoints with instant latency feedback before saving.
 - **Unified Environment Variable Vault (`.env`)**: Auto-generated, unified `.env` vault with 1-click clipboard copy and direct file download (`.env.convey`).

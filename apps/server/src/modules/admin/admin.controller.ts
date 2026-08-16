@@ -136,8 +136,8 @@ export function adminController(app: Elysia) {
         return jsonResponse(catalog, 200);
       })
 
-      .get('/providers/configured', () => {
-        const configured = adminService.getConfiguredProviders();
+      .get('/providers/configured', async () => {
+        const configured = await adminService.getConfiguredProviders();
         return jsonResponse(configured, 200);
       })
 
@@ -150,19 +150,20 @@ export function adminController(app: Elysia) {
             providerId: string;
             channel: Channel;
             credentials: Record<string, string>;
+            config?: Record<string, unknown>;
             isPrimary?: boolean;
             priority?: number;
             weight?: number;
             fallbackProviderId?: string;
           };
         }) => {
-          const res = adminService.registerProvider(body);
+          const res = await adminService.registerProvider(body);
           return jsonResponse(res, 200);
         },
       )
 
       .delete('/providers/configured/:id', async ({ params }: { params: { id: string } }) => {
-        const res = adminService.deleteConfiguredProvider(params.id);
+        const res = await adminService.deleteConfiguredProvider(params.id);
         return jsonResponse(res, 200);
       })
 

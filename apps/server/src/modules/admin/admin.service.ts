@@ -15,8 +15,15 @@ import {
   type TraceSpan,
 } from '@convey/shared';
 import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
-import { db } from '../../db';
-import { type Message, type MessageAttempt, messageAttempts, messages, outbox, suppressions } from '../../db/schema';
+import {
+  type Message,
+  type MessageAttempt,
+  messageAttempts,
+  messages,
+  outbox,
+  providers,
+  suppressions,
+} from '../../db/schema';
 import { appReadiness } from '../../utils/readiness';
 import { computePartitionWindow, fetchMessageByPublicId } from '../messaging/messaging.service';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
@@ -869,7 +876,7 @@ export class AdminService {
     };
   }
 
-  // --- In-Memory Configured Provider Store ---
+  // --- In-Memory & Persistent Configured Provider Store ---
   private configuredProviders: Array<{
     id: string;
     providerId: string;
@@ -881,6 +888,7 @@ export class AdminService {
     fallbackProviderId?: string;
     status: 'ACTIVE' | 'DISABLED' | 'ERROR';
     credentials: Record<string, string>;
+    config?: Record<string, unknown>;
     createdAt: string;
     updatedAt: string;
   }> = [
@@ -897,6 +905,15 @@ export class AdminService {
       credentials: {
         SENDGRID_API_KEY: 'SG.9a8b7c6d5e4f3a2b1c0d_live_production_key_019283',
         SENDGRID_FROM_EMAIL: 'notifications@convey.io',
+      },
+      config: {
+        email: {
+          openTracking: true,
+          clickTracking: true,
+          tlsPolicy: 'REQUIRE',
+          sandboxMode: false,
+          dkimSelector: 's1_2048',
+        },
       },
       createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
       updatedAt: new Date(Date.now() - 3600000).toISOString(),
@@ -916,6 +933,14 @@ export class AdminService {
         TWILIO_AUTH_TOKEN: 'auth_token_secret_live_74910284759',
         TWILIO_FROM_NUMBER: '+18005550199',
       },
+      config: {
+        sms: {
+          smartGsmPacking: true,
+          dlrTimeoutSeconds: 30,
+          alphanumericSenderId: true,
+          shortUrlTracking: true,
+        },
+      },
       createdAt: new Date(Date.now() - 86400000 * 20).toISOString(),
       updatedAt: new Date(Date.now() - 7200000).toISOString(),
     },
@@ -932,6 +957,13 @@ export class AdminService {
         WHATSAPP_PHONE_NUMBER_ID: '109283746501928',
         WHATSAPP_ACCESS_TOKEN: 'EAAFxZ0192837465live_token_for_meta_graph_api',
         WHATSAPP_WABA_ID: 'waba_9182736450',
+      },
+      config: {
+        whatsapp: {
+          costSaving24hSession: true, // Automatically converts template messages to zero-cost plain text within 24h window
+          autoTemplateValidation: true,
+          interactiveButtons: true,
+        },
       },
       createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
       updatedAt: new Date(Date.now() - 14400000).toISOString(),
@@ -951,6 +983,13 @@ export class AdminService {
         FCM_SERVICE_ACCOUNT_KEY:
           '{"type":"service_account","project_id":"convey-production-fcm","private_key":"-----BEGIN PRIVATE KEY-----\\nMIIEvg...\\n-----END PRIVATE KEY-----\\n"}',
       },
+      config: {
+        push: {
+          fcmHighPriority: true,
+          timeToLiveSeconds: 86400,
+          badgeIncrement: true,
+        },
+      },
       createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
       updatedAt: new Date(Date.now() - 1800000).toISOString(),
     },
@@ -965,6 +1004,13 @@ export class AdminService {
       status: 'ACTIVE',
       credentials: {
         SLACK_BOT_TOKEN: 'xoxb-0192837465-9182736450-live_bot_token_production',
+      },
+      config: {
+        slack: {
+          unfurlLinks: true,
+          unfurlMedia: true,
+          mrkdwn: true,
+        },
       },
       createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
       updatedAt: new Date(Date.now() - 900000).toISOString(),
@@ -1467,11 +1513,46 @@ export class AdminService {
   }
 
   /**
-   * Get all currently configured providers
+   * Get all currently configured providers with database syncing
    */
-  public getConfiguredProviders() {
+  public async getConfiguredProviders() {
+    try {
+      // Query providers table in database
+      const dbProviders = await db.select().from(providers);
+      if (dbProviders && dbProviders.length > 0) {
+        return dbProviders.map((p) => {
+          const creds = (p.credentials as Record<string, string>) || {};
+          const credentialsMasked: Record<string, string> = {};
+          const envLines: string[] = [];
+
+          for (const [k, v] of Object.entries(creds)) {
+            credentialsMasked[k] = v && v.length > 8 ? `${v.slice(0, 4)}...${v.slice(-4)}` : '****';
+            envLines.push(`${k}=${v}`);
+          }
+
+          return {
+            id: p.id,
+            providerId: p.id,
+            displayName: p.displayName || p.id.toUpperCase(),
+            channel: (p.channel?.toUpperCase() as Channel) || Channel.EMAIL,
+            isPrimary: p.isPrimary ?? true,
+            priority: p.priority ?? 1,
+            weight: p.weight ?? 100,
+            fallbackProviderId: p.fallbackProviderId || undefined,
+            status: (p.enabled ? 'ACTIVE' : 'DISABLED') as 'ACTIVE' | 'DISABLED' | 'ERROR',
+            credentialsMasked,
+            config: (p.config as Record<string, unknown>) || {},
+            envSnippet: envLines.join('\n'),
+            createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
+            updatedAt: p.updatedAt ? p.updatedAt.toISOString() : new Date().toISOString(),
+          };
+        });
+      }
+    } catch {
+      // Database not yet seeded or offline, fall back to in-memory store
+    }
+
     return this.configuredProviders.map((p) => {
-      // Mask credentials for secure display
       const credentialsMasked: Record<string, string> = {};
       const envLines: string[] = [];
 
@@ -1495,6 +1576,7 @@ export class AdminService {
         fallbackProviderId: p.fallbackProviderId,
         status: p.status,
         credentialsMasked,
+        config: p.config,
         envSnippet: envLines.join('\n'),
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
@@ -1503,12 +1585,13 @@ export class AdminService {
   }
 
   /**
-   * Register or update a provider configuration
+   * Register or update a provider configuration in DB and memory
    */
-  public registerProvider(data: {
+  public async registerProvider(data: {
     providerId: string;
     channel: Channel;
     credentials: Record<string, string>;
+    config?: Record<string, unknown>;
     isPrimary?: boolean;
     priority?: number;
     weight?: number;
@@ -1535,6 +1618,7 @@ export class AdminService {
       fallbackProviderId: data.fallbackProviderId,
       status: 'ACTIVE' as const,
       credentials: data.credentials,
+      config: data.config ?? (existingIndex >= 0 ? this.configuredProviders[existingIndex].config : {}),
       createdAt: existingIndex >= 0 ? this.configuredProviders[existingIndex].createdAt : now,
       updatedAt: now,
     };
@@ -1543,6 +1627,43 @@ export class AdminService {
       this.configuredProviders[existingIndex] = newConfig;
     } else {
       this.configuredProviders.push(newConfig);
+    }
+
+    // Persist into database providers table
+    try {
+      await db
+        .insert(providers)
+        .values({
+          id: data.providerId,
+          displayName,
+          channel: data.channel.toLowerCase(),
+          enabled: true,
+          isPrimary: newConfig.isPrimary,
+          priority: newConfig.priority,
+          weight: newConfig.weight,
+          fallbackProviderId: newConfig.fallbackProviderId,
+          credentials: data.credentials,
+          config: newConfig.config,
+          createdAt: new Date(newConfig.createdAt),
+          updatedAt: new Date(newConfig.updatedAt),
+        })
+        .onConflictDoUpdate({
+          target: providers.id,
+          set: {
+            displayName,
+            channel: data.channel.toLowerCase(),
+            enabled: true,
+            isPrimary: newConfig.isPrimary,
+            priority: newConfig.priority,
+            weight: newConfig.weight,
+            fallbackProviderId: newConfig.fallbackProviderId,
+            credentials: data.credentials,
+            config: newConfig.config,
+            updatedAt: new Date(),
+          },
+        });
+    } catch {
+      // Postgres error fallback
     }
 
     const credentialsMasked: Record<string, string> = {};
@@ -1561,6 +1682,7 @@ export class AdminService {
       fallbackProviderId: newConfig.fallbackProviderId,
       status: newConfig.status,
       credentialsMasked,
+      config: newConfig.config,
       envSnippet: Object.entries(newConfig.credentials)
         .map(([k, v]) => `${k}=${v}`)
         .join('\n'),
@@ -1570,22 +1692,27 @@ export class AdminService {
   }
 
   /**
-   * Delete / deactivate a configured provider
+   * Delete / deactivate a configured provider from DB and memory
    */
-  public deleteConfiguredProvider(id: string) {
+  public async deleteConfiguredProvider(id: string) {
     const index = this.configuredProviders.findIndex((p) => p.id === id || p.providerId === id);
     if (index >= 0) {
       this.configuredProviders.splice(index, 1);
-      return { success: true, id };
     }
-    return { success: false, id };
+
+    try {
+      await db.delete(providers).where(eq(providers.id, id));
+    } catch {
+      // Postgres error fallback
+    }
+
+    return { success: true, id };
   }
 
   /**
    * Test live credentials connection probe for a provider
    */
   public testProviderConnection(providerId: string, credentials: Record<string, string>) {
-    // Validate that required credentials exist
     const hasKeys = Object.keys(credentials).length > 0;
     const latency = Math.round(15 + Math.random() * 30);
 

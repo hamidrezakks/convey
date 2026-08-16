@@ -1,9 +1,15 @@
-import { Channel, type ConfiguredProviderDto, type ProviderCatalogItem } from '@convey/shared';
+import {
+  Channel,
+  type ConfiguredProviderDto,
+  type ProviderCatalogItem,
+  type ProviderFeatureConfigs,
+} from '@convey/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   Code2,
   Copy,
+  DollarSign,
   Download,
   ExternalLink,
   Key,
@@ -18,6 +24,7 @@ import {
   Sliders,
   Sparkles,
   Trash2,
+  Zap,
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -36,6 +43,7 @@ import {
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Slider } from '../components/ui/slider';
+import { Switch } from '../components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { api } from '../lib/api';
@@ -415,6 +423,40 @@ export function ProviderConfigPage() {
   const [fallbackProviderId, setFallbackProviderId] = useState('');
   const [isPrimary, setIsPrimary] = useState(true);
 
+  // Advanced Feature Configs State
+  const [featureConfigs, setFeatureConfigs] = useState<ProviderFeatureConfigs>({
+    whatsapp: {
+      costSaving24hSession: true,
+      autoTemplateValidation: true,
+      interactiveButtons: true,
+    },
+    email: {
+      openTracking: true,
+      clickTracking: true,
+      tlsPolicy: 'REQUIRE',
+      sandboxMode: false,
+    },
+    sms: {
+      smartGsmPacking: true,
+      dlrTimeoutSeconds: 30,
+      alphanumericSenderId: true,
+      shortUrlTracking: true,
+    },
+    push: {
+      fcmHighPriority: true,
+      timeToLiveSeconds: 86400,
+      badgeIncrement: true,
+    },
+    slack: {
+      unfurlLinks: true,
+      unfurlMedia: true,
+      mrkdwn: true,
+    },
+  });
+
+  // Modal Inner Tab (Credentials vs Features vs Routing)
+  const [modalTab, setModalTab] = useState<'creds' | 'features' | 'routing'>('creds');
+
   // Test Connection Modal / State
   const [testResult, setTestResult] = useState<{ success: boolean; latencyMs: number; message: string } | null>(null);
 
@@ -469,13 +511,14 @@ export function ProviderConfigPage() {
       providerId: string;
       channel: Channel;
       credentials: Record<string, string>;
+      config?: ProviderFeatureConfigs;
       isPrimary?: boolean;
       priority?: number;
       weight?: number;
       fallbackProviderId?: string;
     }) => api.registerProvider(data),
     onSuccess: (res) => {
-      toast.success(`Registered and configured ${res.displayName}!`);
+      toast.success(`Registered and configured ${res.displayName} in database!`);
       queryClient.invalidateQueries({ queryKey: providerKeys.all });
       setIsRegisterOpen(false);
       setTestResult(null);
@@ -489,7 +532,7 @@ export function ProviderConfigPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteConfiguredProvider(id),
     onSuccess: () => {
-      toast.success('Provider configuration deactivated');
+      toast.success('Provider configuration deactivated from database');
       queryClient.invalidateQueries({ queryKey: providerKeys.all });
     },
     onError: () => {
@@ -515,12 +558,12 @@ export function ProviderConfigPage() {
   });
 
   // Open Registration modal with chosen catalog item
-  const handleOpenRegister = (item?: ProviderCatalogItem) => {
+  const handleOpenRegister = (item?: ProviderCatalogItem, existingConfig?: ConfiguredProviderDto) => {
     const targetItem =
       item || selectedCatalogItem || effectiveCatalog.find((c) => c.id === 'sendgrid') || effectiveCatalog[0];
     setSelectedCatalogItem(targetItem);
 
-    // Populate initial default credentials
+    // Populate initial credentials
     const initialCreds: Record<string, string> = {};
     if (targetItem?.requiredEnvVars) {
       for (const spec of targetItem.requiredEnvVars) {
@@ -531,10 +574,14 @@ export function ProviderConfigPage() {
     }
 
     setCredentials(initialCreds);
-    setPriority(targetItem?.defaultPriority || 1);
-    setWeight(targetItem?.defaultWeight || 100);
-    setFallbackProviderId('');
-    setIsPrimary(true);
+    setPriority(existingConfig?.priority || targetItem?.defaultPriority || 1);
+    setWeight(existingConfig?.weight || targetItem?.defaultWeight || 100);
+    setFallbackProviderId(existingConfig?.fallbackProviderId || '');
+    setIsPrimary(existingConfig?.isPrimary ?? true);
+    if (existingConfig?.config) {
+      setFeatureConfigs(existingConfig.config);
+    }
+    setModalTab('creds');
     setTestResult(null);
     setIsRegisterOpen(true);
   };
@@ -576,6 +623,7 @@ export function ProviderConfigPage() {
       providerId: selectedCatalogItem.id,
       channel: selectedCatalogItem.channel,
       credentials,
+      config: featureConfigs,
       isPrimary,
       priority,
       weight,
@@ -635,12 +683,12 @@ export function ProviderConfigPage() {
               Provider Registration & Configuration Studio
             </h1>
             <Badge variant="cyan" dot>
-              88+ Turnkey Ecosystem
+              PostgreSQL Persisted
             </Badge>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Register provider credentials, configure priority weights & fallback chains, test live connection probes,
-            and generate `.env` vaults.
+            Configure API credentials, environment variables, WhatsApp 24h cost savings & carrier features stored
+            directly in the `providers` table.
           </p>
         </div>
 
@@ -677,11 +725,24 @@ export function ProviderConfigPage() {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Configured Adapters</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Database Providers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-400">{configured.length} Active</div>
-            <p className="text-[11px] text-slate-400 mt-1">Ready for Outbound Dispatch</p>
+            <div className="text-2xl font-bold font-mono text-emerald-400">{configured.length} Persisted</div>
+            <p className="text-[11px] text-slate-400 mt-1">Stored in Postgres `providers` Table</p>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">WhatsApp 24h Cost Saver</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-sky-400 flex items-center gap-1.5">
+              <DollarSign className="w-5 h-5 text-emerald-400" />
+              <span>Active</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Saves ~$0.05/msg on Active Sessions</p>
           </CardContent>
         </Card>
 
@@ -690,31 +751,21 @@ export function ProviderConfigPage() {
             <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Turnkey Catalog</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-sky-400">{effectiveCatalog.length} Providers</div>
-            <p className="text-[11px] text-slate-400 mt-1">5 Core Channels Supported</p>
+            <div className="text-2xl font-bold font-mono text-indigo-400">{effectiveCatalog.length} Adapters</div>
+            <p className="text-[11px] text-slate-400 mt-1">Multi-Channel Turnkey Ecosystem</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Failover Redundancy</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono text-indigo-400">100% Guaranteed</div>
-            <p className="text-[11px] text-slate-400 mt-1">Automatic Waterfall Fallback</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Vault Security</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Environment Vault</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono text-emerald-400 flex items-center gap-1.5">
               <Lock className="w-4 h-4" />
               <span>AES-256-GCM</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">BYOK KMS Enveloped Storage</p>
+            <p className="text-[11px] text-slate-400 mt-1">KMS Key Enveloped Secrets</p>
           </CardContent>
         </Card>
       </div>
@@ -741,7 +792,7 @@ export function ProviderConfigPage() {
           <Card className="glass-panel overflow-hidden">
             <CardHeader className="py-3">
               <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Active Provider Configurations & Fallback Routing
+                Postgres `providers` Table Ledger & Feature Configs
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -750,7 +801,8 @@ export function ProviderConfigPage() {
                   <TableRow>
                     <TableHead>Provider</TableHead>
                     <TableHead>Channel</TableHead>
-                    <TableHead>Priority & Weight</TableHead>
+                    <TableHead>Active Feature Configs</TableHead>
+                    <TableHead>Priority & Load</TableHead>
                     <TableHead>Failover Target</TableHead>
                     <TableHead>Credentials Mask</TableHead>
                     <TableHead>Status</TableHead>
@@ -760,95 +812,136 @@ export function ProviderConfigPage() {
                 <TableBody>
                   {isConfiguredLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-slate-500">
+                      <TableCell colSpan={8} className="text-center py-12 text-slate-500">
                         <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-400" />
-                        Loading configurations...
+                        Loading configurations from database...
                       </TableCell>
                     </TableRow>
                   ) : configured.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                        No providers configured yet. Click "Register Provider" or select from the Catalog!
+                      <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+                        No providers stored in database yet. Click "Register Provider" or choose from the Catalog!
                       </TableCell>
                     </TableRow>
                   ) : (
-                    configured.map((p: ConfiguredProviderDto) => (
-                      <TableRow key={p.id} className="group">
-                        <TableCell>
-                          <div>
-                            <div className="text-xs font-bold text-white flex items-center gap-2">
-                              <span>{p.displayName}</span>
-                              {p.isPrimary && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold">
-                                  Primary
+                    configured.map((p: ConfiguredProviderDto) => {
+                      const cfg = p.config as ProviderFeatureConfigs | undefined;
+
+                      return (
+                        <TableRow key={p.id} className="group">
+                          <TableCell>
+                            <div>
+                              <div className="text-xs font-bold text-white flex items-center gap-2">
+                                <span>{p.displayName}</span>
+                                {p.isPrimary && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold">
+                                    Primary
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-400">{p.providerId}</span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge variant="cyan">{p.channel}</Badge>
+                          </TableCell>
+
+                          {/* Active Feature Config Badges */}
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {p.channel === Channel.WHATSAPP && cfg?.whatsapp?.costSaving24hSession && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold flex items-center gap-1">
+                                  <DollarSign className="w-3 h-3 text-emerald-400" />
+                                  24h Cost Saver
+                                </span>
+                              )}
+                              {p.channel === Channel.EMAIL && cfg?.email?.openTracking && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono">
+                                  Open Track
+                                </span>
+                              )}
+                              {p.channel === Channel.EMAIL && cfg?.email?.clickTracking && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono">
+                                  Click Track
+                                </span>
+                              )}
+                              {p.channel === Channel.SMS && cfg?.sms?.smartGsmPacking && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-mono">
+                                  Smart GSM-7
+                                </span>
+                              )}
+                              {p.channel === Channel.PUSH && cfg?.push?.fcmHighPriority && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono">
+                                  High Priority
+                                </span>
+                              )}
+                              {p.channel === Channel.SLACK && cfg?.slack?.unfurlLinks && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-purple-300 font-mono">
+                                  Unfurl Media
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] font-mono text-slate-400">{p.providerId}</span>
-                          </div>
-                        </TableCell>
+                          </TableCell>
 
-                        <TableCell>
-                          <Badge variant="cyan">{p.channel}</Badge>
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-300">
+                            <span>Tier #{p.priority}</span> • <span className="text-emerald-400">{p.weight}%</span>
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-slate-300">
-                          <span>Tier #{p.priority}</span> • <span className="text-emerald-400">{p.weight}% Load</span>
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-400">
+                            {p.fallbackProviderId ? (
+                              <span className="text-indigo-300">➔ {p.fallbackProviderId}</span>
+                            ) : (
+                              <span className="text-slate-500">None (Terminal)</span>
+                            )}
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-slate-400">
-                          {p.fallbackProviderId ? (
-                            <span className="text-indigo-300">➔ {p.fallbackProviderId}</span>
-                          ) : (
-                            <span className="text-slate-500">None (Terminal)</span>
-                          )}
-                        </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-400">
+                            {Object.entries(p.credentialsMasked).map(([k, v]) => (
+                              <div key={k} className="text-[11px] truncate max-w-xs">
+                                <span className="text-slate-500">{k}: </span>
+                                <span className="text-slate-300">{v}</span>
+                              </div>
+                            ))}
+                          </TableCell>
 
-                        <TableCell className="font-mono text-xs text-slate-400">
-                          {Object.entries(p.credentialsMasked).map(([k, v]) => (
-                            <div key={k} className="text-[11px] truncate max-w-xs">
-                              <span className="text-slate-500">{k}: </span>
-                              <span className="text-slate-300">{v}</span>
-                            </div>
-                          ))}
-                        </TableCell>
+                          <TableCell>
+                            <Badge variant={p.status === 'ACTIVE' ? 'success' : 'destructive'} dot>
+                              {p.status}
+                            </Badge>
+                          </TableCell>
 
-                        <TableCell>
-                          <Badge variant={p.status === 'ACTIVE' ? 'success' : 'destructive'} dot>
-                            {p.status}
-                          </Badge>
-                        </TableCell>
+                          <TableCell className="text-right space-x-2">
+                            {/* Edit / Config */}
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                const catalogItem = effectiveCatalog.find((c) => c.id === p.providerId);
+                                handleOpenRegister(catalogItem, p);
+                              }}
+                              className="h-7 text-xs gap-1 hover:border-sky-500/40"
+                              title="Edit Credentials & Feature Configs"
+                            >
+                              <Sliders className="w-3 h-3 text-sky-400" />
+                              <span>Config</span>
+                            </Button>
 
-                        <TableCell className="text-right space-x-2">
-                          {/* Test Connection Probe */}
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              const catalogItem = effectiveCatalog.find((c) => c.id === p.providerId);
-                              handleOpenRegister(catalogItem);
-                            }}
-                            className="h-7 text-xs gap-1 hover:border-sky-500/40"
-                            title="Edit or Test Connection"
-                          >
-                            <Sliders className="w-3 h-3 text-sky-400" />
-                            <span>Edit</span>
-                          </Button>
-
-                          {/* Delete Provider */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            isLoading={deleteMutation.isPending && deleteMutation.variables === p.id}
-                            onClick={() => deleteMutation.mutate(p.id)}
-                            className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                            title="Deactivate Provider"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                            {/* Delete Provider */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              isLoading={deleteMutation.isPending && deleteMutation.variables === p.id}
+                              onClick={() => deleteMutation.mutate(p.id)}
+                              className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                              title="Deactivate Provider"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -918,7 +1011,7 @@ export function ProviderConfigPage() {
                           <Badge variant="cyan">{item.channel}</Badge>
                           {isConfigured && (
                             <Badge variant="success" dot>
-                              Active
+                              Active in DB
                             </Badge>
                           )}
                         </div>
@@ -968,7 +1061,7 @@ export function ProviderConfigPage() {
                           className="text-xs gap-1.5 font-bold"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>{isConfigured ? 'Reconfigure' : 'Configure & Register'}</span>
+                          <span>{isConfigured ? 'Configure' : 'Register & Setup'}</span>
                         </Button>
                       </div>
                     </CardContent>
@@ -989,8 +1082,8 @@ export function ProviderConfigPage() {
                   Convey Auto-Generated Environment Variable Vault (.env)
                 </CardTitle>
                 <CardDescription>
-                  Unified environment variables for all active communication adapters. Copy directly to your deployment
-                  secrets or CI/CD pipelines.
+                  Unified environment variables for all active communication adapters stored in Postgres `providers`
+                  table.
                 </CardDescription>
               </div>
 
@@ -1014,9 +1107,9 @@ export function ProviderConfigPage() {
         </TabsContent>
       </Tabs>
 
-      {/* MODAL: Provider Registration & Credential Setup Wizard */}
+      {/* MODAL: Provider Registration & Multi-Tab Config Wizard */}
       <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <form onSubmit={handleSubmitRegistration}>
             <DialogHeader>
               <div className="flex items-center gap-2.5">
@@ -1026,7 +1119,8 @@ export function ProviderConfigPage() {
                 <div>
                   <DialogTitle>Configure & Register Provider</DialogTitle>
                   <DialogDescription>
-                    Configure API credentials, load weight, and live connection test for this messaging adapter.
+                    Configure API credentials, environment variables, WhatsApp 24h cost saver & routing stored in
+                    database.
                   </DialogDescription>
                 </div>
               </div>
@@ -1052,120 +1146,404 @@ export function ProviderConfigPage() {
                 </Select>
               </div>
 
-              {/* Dynamic Credential Inputs based on Provider Spec */}
-              {selectedCatalogItem && (
-                <div className="space-y-3 p-4 rounded-xl bg-slate-950/90 border border-slate-800 shadow-inner">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <Key className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold text-white">
-                        {selectedCatalogItem.displayName} Credentials
+              {/* Sub-Tabs for Modal: Credentials, Features/Cost-Savings, Routing */}
+              <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'creds' | 'features' | 'routing')}>
+                <TabsList className="bg-slate-950 border border-slate-800 p-1 rounded-xl grid grid-cols-3">
+                  <TabsTrigger value="creds" className="text-xs font-semibold gap-1.5">
+                    <Key className="w-3 h-3 text-amber-400" />
+                    <span>Credentials (.env)</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="features" className="text-xs font-semibold gap-1.5">
+                    <Zap className="w-3 h-3 text-emerald-400" />
+                    <span>Feature Configs</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="routing" className="text-xs font-semibold gap-1.5">
+                    <Sliders className="w-3 h-3 text-sky-400" />
+                    <span>Routing & Failover</span>
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* SUB-TAB 1: Credentials & Env Setup */}
+                <TabsContent value="creds" className="space-y-3 pt-3">
+                  {selectedCatalogItem && (
+                    <div className="space-y-3 p-4 rounded-xl bg-slate-950/90 border border-slate-800 shadow-inner">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <Key className="w-4 h-4 text-amber-400" />
+                          <span className="text-xs font-bold text-white">
+                            {selectedCatalogItem.displayName} API Keys
+                          </span>
+                        </div>
+                        <Badge variant="cyan">{selectedCatalogItem.channel}</Badge>
+                      </div>
+
+                      <p className="text-xs text-slate-400">{selectedCatalogItem.description}</p>
+
+                      <div className="space-y-3 pt-1">
+                        {selectedCatalogItem.requiredEnvVars.map((spec) => (
+                          <div key={spec.key} className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <label className="font-semibold text-slate-300">
+                                {spec.label} {spec.required && <span className="text-rose-400">*</span>}
+                              </label>
+                              <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
+                            </div>
+                            <Input
+                              type={spec.isSecret ? 'password' : 'text'}
+                              placeholder={spec.placeholder}
+                              value={credentials[spec.key] || ''}
+                              onChange={(e) => handleCredentialChange(spec.key, e.target.value)}
+                              required={spec.required}
+                            />
+                            <p className="text-[11px] text-slate-500">{spec.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Connection Test Probe */}
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-white block">Validate Credentials Probe</span>
+                      <span className="text-[11px] text-slate-400">
+                        Sends an authenticated ping to verify credentials without sending messages.
                       </span>
                     </div>
-                    <Badge variant="cyan">{selectedCatalogItem.channel}</Badge>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      isLoading={testConnMutation.isPending}
+                      onClick={handleTestProbe}
+                      className="text-xs gap-1.5 font-semibold"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Test Connection</span>
+                    </Button>
                   </div>
 
-                  <p className="text-xs text-slate-400">{selectedCatalogItem.description}</p>
-
-                  <div className="space-y-3 pt-1">
-                    {selectedCatalogItem.requiredEnvVars.map((spec) => (
-                      <div key={spec.key} className="space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <label className="font-semibold text-slate-300">
-                            {spec.label} {spec.required && <span className="text-rose-400">*</span>}
-                          </label>
-                          <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
-                        </div>
-                        <Input
-                          type={spec.isSecret ? 'password' : 'text'}
-                          placeholder={spec.placeholder}
-                          value={credentials[spec.key] || ''}
-                          onChange={(e) => handleCredentialChange(spec.key, e.target.value)}
-                          required={spec.required}
-                        />
-                        <p className="text-[11px] text-slate-500">{spec.description}</p>
+                  {testResult && (
+                    <div
+                      className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
+                        testResult.success
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 shrink-0" />
+                        <span>{testResult.message}</span>
                       </div>
-                    ))}
+                      <span className="font-mono font-bold text-xs">{testResult.latencyMs}ms</span>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* SUB-TAB 2: Advanced Feature Configs & WhatsApp Cost Saver */}
+                <TabsContent value="features" className="space-y-3 pt-3">
+                  {/* WHATSAPP SPECIFIC CONFIGS */}
+                  {selectedCatalogItem?.channel === Channel.WHATSAPP && (
+                    <div className="space-y-3">
+                      {/* WhatsApp 24h Session Cost Saver */}
+                      <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-emerald-400" />
+                            <span className="text-xs font-bold text-emerald-300">
+                              24-Hour Interactive Session Cost Saver
+                            </span>
+                          </div>
+                          <Switch
+                            checked={featureConfigs.whatsapp?.costSaving24hSession ?? true}
+                            onCheckedChange={(checked) =>
+                              setFeatureConfigs((prev) => ({
+                                ...prev,
+                                whatsapp: { ...prev.whatsapp, costSaving24hSession: checked },
+                              }))
+                            }
+                          />
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Automatically converts pre-approved template messages to zero-cost plain text when user is
+                          within the 24-hour service conversation window. Saves up to **$0.05 per message** on Meta
+                          conversation charges.
+                        </p>
+                      </div>
+
+                      {/* Auto Template Parameter Validation */}
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Auto-Template Validation</span>
+                          <span className="text-[11px] text-slate-400">
+                            Validates parameter placeholders before Graph API transmission.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.whatsapp?.autoTemplateValidation ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              whatsapp: { ...prev.whatsapp, autoTemplateValidation: checked },
+                            }))
+                          }
+                        />
+                      </div>
+
+                      {/* Interactive CTA Buttons */}
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Interactive Reply Buttons</span>
+                          <span className="text-[11px] text-slate-400">
+                            Renders native quick-reply and URL action buttons in chat.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.whatsapp?.interactiveButtons ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              whatsapp: { ...prev.whatsapp, interactiveButtons: checked },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EMAIL SPECIFIC CONFIGS */}
+                  {selectedCatalogItem?.channel === Channel.EMAIL && (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Open Tracking Pixel</span>
+                          <span className="text-[11px] text-slate-400">
+                            Injects 1x1 transparent pixel to record email opens.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.email?.openTracking ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              email: { ...prev.email, openTracking: checked },
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Click Tracking Links</span>
+                          <span className="text-[11px] text-slate-400">
+                            Rewrites outbound URLs for click-through telemetry.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.email?.clickTracking ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              email: { ...prev.email, clickTracking: checked },
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Strict TLS (TLSv1.3 Required)</span>
+                          <span className="text-[11px] text-slate-400">
+                            Refuses delivery if recipient MTA does not negotiate TLS encryption.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.email?.tlsPolicy === 'REQUIRE'}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              email: { ...prev.email, tlsPolicy: checked ? 'REQUIRE' : 'OPPORTUNISTIC' },
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Sandbox Mode</span>
+                          <span className="text-[11px] text-slate-400">
+                            Accepts and traces messages without live wire dispatch.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.email?.sandboxMode ?? false}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              email: { ...prev.email, sandboxMode: checked },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SMS SPECIFIC CONFIGS */}
+                  {selectedCatalogItem?.channel === Channel.SMS && (
+                    <div className="space-y-3">
+                      <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-indigo-400" />
+                            <span className="text-xs font-bold text-indigo-300">
+                              Smart GSM-7 Packing (Anti Double-Billing)
+                            </span>
+                          </div>
+                          <Switch
+                            checked={featureConfigs.sms?.smartGsmPacking ?? true}
+                            onCheckedChange={(checked) =>
+                              setFeatureConfigs((prev) => ({
+                                ...prev,
+                                sms: { ...prev.sms, smartGsmPacking: checked },
+                              }))
+                            }
+                          />
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Automatically sanitizes smart quotes, em-dashes and invisible Unicode characters into standard
+                          7-bit ASCII to prevent 160-char SMS splitting into 70-char UCS-2 segments (saves 50% carrier
+                          fees).
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Alphanumeric Sender ID</span>
+                          <span className="text-[11px] text-slate-400">
+                            Replaces numbers with brand name in supported international regions.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.sms?.alphanumericSenderId ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              sms: { ...prev.sms, alphanumericSenderId: checked },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PUSH SPECIFIC CONFIGS */}
+                  {selectedCatalogItem?.channel === Channel.PUSH && (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">FCM High-Priority Queue</span>
+                          <span className="text-[11px] text-slate-400">
+                            Bypasses Android device Doze battery saver.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.push?.fcmHighPriority ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              push: { ...prev.push, fcmHighPriority: checked },
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Auto Badge Increment</span>
+                          <span className="text-[11px] text-slate-400">
+                            Increments app icon unread badge count automatically.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.push?.badgeIncrement ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              push: { ...prev.push, badgeIncrement: checked },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SLACK / TOOL / OTHER CHANNELS */}
+                  {(selectedCatalogItem?.channel === Channel.SLACK ||
+                    selectedCatalogItem?.channel === Channel.TOOL ||
+                    selectedCatalogItem?.channel === Channel.CHAT) && (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-white block">Unfurl Links & Media</span>
+                          <span className="text-[11px] text-slate-400">
+                            Expands URL previews and media attachments in channel stream.
+                          </span>
+                        </div>
+                        <Switch
+                          checked={featureConfigs.slack?.unfurlLinks ?? true}
+                          onCheckedChange={(checked) =>
+                            setFeatureConfigs((prev) => ({
+                              ...prev,
+                              slack: { ...prev.slack, unfurlLinks: checked },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* SUB-TAB 3: Routing & Failover */}
+                <TabsContent value="routing" className="space-y-4 pt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Priority Tier */}
+                    <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-slate-300">Routing Priority Tier</span>
+                        <span className="font-mono text-sky-400 font-bold">Tier #{priority}</span>
+                      </div>
+                      <Slider value={priority} min={1} max={5} step={1} onValueChange={setPriority} />
+                      <p className="text-[10px] text-slate-400">1 = Primary fast-path, 5 = Deep fallback</p>
+                    </div>
+
+                    {/* Load Weight */}
+                    <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-slate-300">Traffic Load Share</span>
+                        <span className="font-mono text-emerald-400 font-bold">{weight}%</span>
+                      </div>
+                      <Slider value={weight} min={10} max={100} step={5} onValueChange={setWeight} />
+                      <p className="text-[10px] text-slate-400">Traffic distribution across same priority tier</p>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {/* Routing Priority & Load Weight Sliders */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Priority Tier */}
-                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-slate-300">Routing Priority Tier</span>
-                    <span className="font-mono text-sky-400 font-bold">Tier #{priority}</span>
+                  {/* Failover Target Provider */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Automatic Failover Target</label>
+                    <Select value={fallbackProviderId} onChange={(e) => setFallbackProviderId(e.target.value)}>
+                      <option value="">None (Terminal on Failure)</option>
+                      {effectiveCatalog
+                        .filter((c) => c.channel === selectedCatalogItem?.channel && c.id !== selectedCatalogItem?.id)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.displayName} ({c.id})
+                          </option>
+                        ))}
+                    </Select>
                   </div>
-                  <Slider value={priority} min={1} max={5} step={1} onValueChange={setPriority} />
-                  <p className="text-[10px] text-slate-400">1 = Primary fast-path, 5 = Deep fallback</p>
-                </div>
-
-                {/* Load Weight */}
-                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-slate-300">Traffic Load Share</span>
-                    <span className="font-mono text-emerald-400 font-bold">{weight}%</span>
-                  </div>
-                  <Slider value={weight} min={10} max={100} step={5} onValueChange={setWeight} />
-                  <p className="text-[10px] text-slate-400">Traffic distribution across same priority tier</p>
-                </div>
-              </div>
-
-              {/* Failover Target Provider */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Automatic Failover Target</label>
-                <Select value={fallbackProviderId} onChange={(e) => setFallbackProviderId(e.target.value)}>
-                  <option value="">None (Terminal on Failure)</option>
-                  {effectiveCatalog
-                    .filter((c) => c.channel === selectedCatalogItem?.channel && c.id !== selectedCatalogItem?.id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.displayName} ({c.id})
-                      </option>
-                    ))}
-                </Select>
-              </div>
-
-              {/* Live Connection Test Probe Bar */}
-              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-white block">Validate Credentials Probe</span>
-                  <span className="text-[11px] text-slate-400">
-                    Sends an authenticated ping to verify credentials without sending messages.
-                  </span>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  isLoading={testConnMutation.isPending}
-                  onClick={handleTestProbe}
-                  className="text-xs gap-1.5 font-semibold"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Test Connection</span>
-                </Button>
-              </div>
-
-              {/* Test Result Display */}
-              {testResult && (
-                <div
-                  className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
-                    testResult.success
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 shrink-0" />
-                    <span>{testResult.message}</span>
-                  </div>
-                  <span className="font-mono font-bold text-xs">{testResult.latencyMs}ms</span>
-                </div>
-              )}
+                </TabsContent>
+              </Tabs>
             </div>
 
             <DialogFooter>
@@ -1173,7 +1551,7 @@ export function ProviderConfigPage() {
                 Cancel
               </Button>
               <Button type="submit" variant="glow" size="sm" isLoading={registerMutation.isPending}>
-                Save & Activate Provider
+                Save & Persist to Database
               </Button>
             </DialogFooter>
           </form>

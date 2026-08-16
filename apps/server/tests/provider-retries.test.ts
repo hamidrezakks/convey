@@ -20,6 +20,7 @@ describe('Provider Retry Policy Unit Tests (3-Attempt Exponential Backoff)', () 
 
   it('Retries transient server errors up to 3 times before failing', async () => {
     const msgId = generateMessageId();
+    const now = new Date();
 
     await db.insert(messages).values({
       id: msgId,
@@ -31,6 +32,8 @@ describe('Provider Retry Policy Unit Tests (3-Attempt Exponential Backoff)', () 
       state: MessageState.ACCEPTED,
       recipients: { email: 'retry_test@example.com' },
       channels: [{ channel: Channel.EMAIL, content: { subject: 'OTP', text: '123456' } }],
+      createdAt: now,
+      updatedAt: now,
     });
 
     // Attempt 1 (Fails transiently)

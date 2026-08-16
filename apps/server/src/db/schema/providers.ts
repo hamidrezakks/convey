@@ -1,12 +1,16 @@
 import { boolean, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const providers = pgTable('providers', {
-  id: text('id').primaryKey(), // e.g. ses, sendgrid, twilio, meta_whatsapp, apns, fcm
-  channel: text('channel').notNull(), // email, sms, whatsapp, telegram, slack, apns, fcm
+  id: text('id').primaryKey(), // e.g. sendgrid, twilio, meta-whatsapp, apns, fcm
+  displayName: text('display_name'),
+  channel: text('channel').notNull(), // email, sms, whatsapp, telegram, slack, push, tool
   enabled: boolean('enabled').notNull().default(true),
-  credentials: jsonb('credentials').notNull(), // Encrypted provider options/tokens
-  config: jsonb('config'),
+  isPrimary: boolean('is_primary').notNull().default(true),
   priority: integer('priority').notNull().default(1),
+  weight: integer('weight').notNull().default(100),
+  fallbackProviderId: text('fallback_provider_id'),
+  credentials: jsonb('credentials').notNull(), // Encrypted provider options/tokens
+  config: jsonb('config'), // Feature configurations (e.g. WhatsApp 24h cost saver, email tracking, sms smart packing)
   rateLimitPerSec: integer('rate_limit_per_sec').default(100),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
