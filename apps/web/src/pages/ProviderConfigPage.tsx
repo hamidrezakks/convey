@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Combobox, type ComboboxGroup, type ComboboxItem } from '../components/ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +43,6 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
-import { Select } from '../components/ui/select';
 import { Slider } from '../components/ui/slider';
 import { Switch } from '../components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -360,8 +360,8 @@ export function ProviderConfigPage() {
     return matchesChannel && matchesSearch;
   });
 
-  // Group catalog by channel for clean dropdown display in modal
-  const groupedCatalog = useMemo(() => {
+  // Grouped Combobox items for searchable autocomplete
+  const comboboxGroups = useMemo<ComboboxGroup[]>(() => {
     const email = effectiveCatalog.filter((c) => c.channel === Channel.EMAIL);
     const sms = effectiveCatalog.filter((c) => c.channel === Channel.SMS);
     const push = effectiveCatalog.filter((c) => c.channel === Channel.PUSH);
@@ -370,12 +370,30 @@ export function ProviderConfigPage() {
     );
     const tool = effectiveCatalog.filter((c) => c.channel === Channel.TOOL);
 
+    const mapItem = (item: ProviderCatalogItem): ComboboxItem => ({
+      value: item.id,
+      label: item.displayName,
+      sublabel: item.id,
+      badge: item.channel,
+      badgeVariant:
+        item.channel === Channel.EMAIL
+          ? 'cyan'
+          : item.channel === Channel.SMS
+            ? 'purple'
+            : item.channel === Channel.PUSH
+              ? 'warning'
+              : item.channel === Channel.TOOL
+                ? 'default'
+                : 'success',
+      keywords: [item.description, ...item.requiredEnvVars.map((v) => v.key)],
+    });
+
     return [
-      { label: `📧 Email Providers (${email.length})`, items: email },
-      { label: `📱 SMS Carriers & Gateways (${sms.length})`, items: sms },
-      { label: `🔔 Push Notification Providers (${push.length})`, items: push },
-      { label: `💬 Chat & Instant Messaging (${chat.length})`, items: chat },
-      { label: `🛠️ Incident & Alerting Tools (${tool.length})`, items: tool },
+      { label: `📧 Email Providers (${email.length})`, categoryKey: 'EMAIL', items: email.map(mapItem) },
+      { label: `📱 SMS Carriers & Gateways (${sms.length})`, categoryKey: 'SMS', items: sms.map(mapItem) },
+      { label: `🔔 Push Notification Providers (${push.length})`, categoryKey: 'PUSH', items: push.map(mapItem) },
+      { label: `💬 Chat & Instant Messaging (${chat.length})`, categoryKey: 'CHAT', items: chat.map(mapItem) },
+      { label: `🛠️ Incident & Alerting Tools (${tool.length})`, categoryKey: 'TOOL', items: tool.map(mapItem) },
     ];
   }, [effectiveCatalog]);
 
@@ -867,23 +885,19 @@ export function ProviderConfigPage() {
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              {/* Select Provider from Catalog */}
+              {/* Select Provider from Catalog with Search & Autocomplete */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Select Provider Adapter</label>
-                <Select
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300">Select Provider Adapter</label>
+                  <span className="text-[11px] font-mono text-sky-400">{effectiveCatalog.length} Turnkey Adapters</span>
+                </div>
+                <Combobox
+                  groups={comboboxGroups}
                   value={selectedCatalogItem?.id || ''}
-                  onChange={(e) => handleCatalogSelectChange(e.target.value)}
-                >
-                  {groupedCatalog.map((group) => (
-                    <optgroup key={group.label} label={group.label}>
-                      {group.items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.displayName} ({item.id})
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </Select>
+                  onChange={handleCatalogSelectChange}
+                  placeholder="Select or search provider adapter..."
+                  searchPlaceholder="Search 88 providers by name, id, or env variables..."
+                />
               </div>
 
               {/* Sub-Tabs for Modal: Credentials, Features/Cost-Savings, Routing */}
@@ -1271,16 +1285,24 @@ export function ProviderConfigPage() {
                   {/* Failover Target Provider */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-300">Automatic Failover Target</label>
-                    <Select value={fallbackProviderId} onChange={(e) => setFallbackProviderId(e.target.value)}>
-                      <option value="">None (Terminal on Failure)</option>
-                      {effectiveCatalog
-                        .filter((c) => c.channel === selectedCatalogItem?.channel && c.id !== selectedCatalogItem?.id)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.displayName} ({c.id})
-                          </option>
-                        ))}
-                    </Select>
+                    <Combobox
+                      items={[
+                        { value: '', label: 'None (Terminal on Failure)', sublabel: 'disabled' },
+                        ...effectiveCatalog
+                          .filter((c) => c.channel === selectedCatalogItem?.channel && c.id !== selectedCatalogItem?.id)
+                          .map((c) => ({
+                            value: c.id,
+                            label: c.displayName,
+                            sublabel: c.id,
+                            badge: c.channel,
+                          })),
+                      ]}
+                      value={fallbackProviderId}
+                      onChange={setFallbackProviderId}
+                      placeholder="Select failover provider..."
+                      searchPlaceholder="Search failover provider..."
+                      showCategoryTabs={false}
+                    />
                   </div>
                 </TabsContent>
               </Tabs>
