@@ -4,6 +4,7 @@ import { Counter, Histogram, Registry } from 'prom-client';
 import { bootstrapService } from './bootstrap';
 import { env } from './config/env';
 import { queryClient } from './db';
+import { adminController } from './modules/admin/admin.controller';
 import { batchesController } from './modules/messaging/batches.controller';
 import { dlqController } from './modules/messaging/dlq.controller';
 import { messagingController } from './modules/messaging/messaging.controller';
@@ -97,7 +98,16 @@ const app = new Elysia()
       },
     }),
   )
-  .derive(({ request, path }) => {
+  .options('/*', ({ set }) => {
+    set.headers['access-control-allow-origin'] = '*';
+    set.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
+    set.headers['access-control-allow-headers'] = 'Content-Type, Authorization, x-api-key, traceparent';
+    return new Response(null, { status: 204, headers: set.headers });
+  })
+  .derive(({ request, path, set }) => {
+    set.headers['access-control-allow-origin'] = '*';
+    set.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
+    set.headers['access-control-allow-headers'] = 'Content-Type, Authorization, x-api-key, traceparent';
     const pathname =
       path || (request.url.indexOf('/', 8) !== -1 ? request.url.slice(request.url.indexOf('/', 8)) : request.url);
     httpRequestsTotal.inc({ method: request.method, path: pathname });
@@ -196,7 +206,7 @@ const app = new Elysia()
     });
   })
   .use(messagingController)
-
+  .use(adminController)
   .use(webhooksController)
   .use(dlqController)
   .use(sandboxController)
