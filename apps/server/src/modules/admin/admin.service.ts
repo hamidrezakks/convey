@@ -1,4 +1,5 @@
 import {
+  COMPLETE_88_PROVIDER_CATALOG,
   Channel,
   CircuitState,
   type DlqReplayRequest,
@@ -15,6 +16,7 @@ import {
   type TraceSpan,
 } from '@convey/shared';
 import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { db } from '../../db';
 import {
   type Message,
   type MessageAttempt,
@@ -24,6 +26,7 @@ import {
   providers,
   suppressions,
 } from '../../db/schema';
+import { logger } from '../../utils/logger';
 import { appReadiness } from '../../utils/readiness';
 import { computePartitionWindow, fetchMessageByPublicId } from '../messaging/messaging.service';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
@@ -1021,495 +1024,89 @@ export class AdminService {
    * Get complete 88+ Provider Catalog with configuration specifications
    */
   public getProviderCatalog() {
-    return [
-      // --- EMAIL PROVIDERS ---
-      {
-        id: 'sendgrid',
-        displayName: 'SendGrid Email API',
-        channel: Channel.EMAIL,
-        description: 'Twilio SendGrid high-volume transactional email API with dedicated IP warmup and DLR webhooks.',
-        websiteUrl: 'https://sendgrid.com',
-        docsUrl: 'https://docs.sendgrid.com/api-reference',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'SENDGRID_API_KEY',
-            label: 'API Key',
-            placeholder: 'SG.xxxxxxxx...',
-            isSecret: true,
-            description: 'SendGrid REST API Key with Mail Send permissions',
-            required: true,
-          },
-          {
-            key: 'SENDGRID_FROM_EMAIL',
-            label: 'Default From Email',
-            placeholder: 'notifications@yourdomain.com',
-            isSecret: false,
-            description: 'Verified sender domain email address',
-            required: true,
-          },
-          {
-            key: 'SENDGRID_WEBHOOK_SECRET',
-            label: 'Webhook Verification Key',
-            placeholder: 'MFkwEwYHKoZIzj0...',
-            isSecret: true,
-            description: 'Event Webhook ECDSA public verification key',
-            required: false,
-          },
-        ],
-      },
-      {
-        id: 'resend',
-        displayName: 'Resend',
-        channel: Channel.EMAIL,
-        description: 'Modern developer-first transactional email API built for React Email and rapid delivery.',
-        websiteUrl: 'https://resend.com',
-        docsUrl: 'https://resend.com/docs',
-        defaultPriority: 2,
-        defaultWeight: 90,
-        requiredEnvVars: [
-          {
-            key: 'RESEND_API_KEY',
-            label: 'API Key',
-            placeholder: 're_xxxxxxxx...',
-            isSecret: true,
-            description: 'Resend API Key with full access',
-            required: true,
-          },
-          {
-            key: 'RESEND_FROM_EMAIL',
-            label: 'From Email Address',
-            placeholder: 'onboarding@yourdomain.com',
-            isSecret: false,
-            description: 'Domain registered with Resend DNS',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'aws-ses',
-        displayName: 'Amazon Simple Email Service (SES)',
-        channel: Channel.EMAIL,
-        description: 'Cost-effective, highly scalable cloud email service powered by AWS global infrastructure.',
-        websiteUrl: 'https://aws.amazon.com/ses/',
-        docsUrl: 'https://docs.aws.amazon.com/ses/',
-        defaultPriority: 3,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'AWS_SES_REGION',
-            label: 'AWS Region',
-            placeholder: 'us-east-1',
-            isSecret: false,
-            description: 'AWS SES Region (e.g. us-east-1, eu-west-1)',
-            defaultValue: 'us-east-1',
-            required: true,
-          },
-          {
-            key: 'AWS_ACCESS_KEY_ID',
-            label: 'AWS Access Key ID',
-            placeholder: 'AKIAIOSFODNN7EXAMPLE',
-            isSecret: false,
-            description: 'IAM User or Role credentials for ses:SendEmail',
-            required: true,
-          },
-          {
-            key: 'AWS_SECRET_ACCESS_KEY',
-            label: 'AWS Secret Access Key',
-            placeholder: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-            isSecret: true,
-            description: 'IAM Secret Key',
-            required: true,
-          },
-          {
-            key: 'AWS_SES_FROM_EMAIL',
-            label: 'Verified Sender Email',
-            placeholder: 'system@company.com',
-            isSecret: false,
-            description: 'Verified SES identity email or domain',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'postmark',
-        displayName: 'Postmark by ActiveCampaign',
-        channel: Channel.EMAIL,
-        description:
-          'Industry-leading transactional deliverability with dedicated inbound and outbound message tracking.',
-        websiteUrl: 'https://postmarkapp.com',
-        docsUrl: 'https://postmarkapp.com/developer',
-        defaultPriority: 2,
-        defaultWeight: 85,
-        requiredEnvVars: [
-          {
-            key: 'POSTMARK_SERVER_TOKEN',
-            label: 'Server API Token',
-            placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-            isSecret: true,
-            description: 'Postmark Server API Token',
-            required: true,
-          },
-          {
-            key: 'POSTMARK_FROM_EMAIL',
-            label: 'Sender Signature Email',
-            placeholder: 'alerts@yourdomain.com',
-            isSecret: false,
-            description: 'Verified sender signature address',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'mailgun',
-        displayName: 'Mailgun by Sinch',
-        channel: Channel.EMAIL,
-        description: 'High-throughput transactional email APIs and email validation suite.',
-        websiteUrl: 'https://mailgun.com',
-        docsUrl: 'https://documentation.mailgun.com/',
-        defaultPriority: 3,
-        defaultWeight: 75,
-        requiredEnvVars: [
-          {
-            key: 'MAILGUN_API_KEY',
-            label: 'Private API Key',
-            placeholder: 'key-xxxxxxxx...',
-            isSecret: true,
-            description: 'Mailgun account sending key',
-            required: true,
-          },
-          {
-            key: 'MAILGUN_DOMAIN',
-            label: 'Sending Domain',
-            placeholder: 'mg.yourdomain.com',
-            isSecret: false,
-            description: 'Configured domain name in Mailgun',
-            required: true,
-          },
-          {
-            key: 'MAILGUN_FROM_EMAIL',
-            label: 'From Email',
-            placeholder: 'no-reply@mg.yourdomain.com',
-            isSecret: false,
-            description: 'Sender address',
-            required: true,
-          },
-        ],
-      },
+    return COMPLETE_88_PROVIDER_CATALOG;
+  }
 
-      // --- SMS PROVIDERS ---
-      {
-        id: 'twilio',
-        displayName: 'Twilio Programmable SMS',
-        channel: Channel.SMS,
-        description: 'Global carrier connectivity across 180+ countries with alphanumeric sender ID support.',
-        websiteUrl: 'https://twilio.com',
-        docsUrl: 'https://www.twilio.com/docs/sms',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'TWILIO_ACCOUNT_SID',
-            label: 'Account SID',
-            placeholder: 'ACxxxxxxxx...',
-            isSecret: false,
-            description: 'Twilio Main Account SID',
-            required: true,
-          },
-          {
-            key: 'TWILIO_AUTH_TOKEN',
-            label: 'Auth Token',
-            placeholder: 'auth_token_xxxx...',
-            isSecret: true,
-            description: 'Twilio Auth Token from Console',
-            required: true,
-          },
-          {
-            key: 'TWILIO_FROM_NUMBER',
-            label: 'Sender Phone / Messaging Service SID',
-            placeholder: '+18005550199 or MGxxxxxxxx',
-            isSecret: false,
-            description: 'Twilio phone number or Messaging Service SID',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'telnyx',
-        displayName: 'Telnyx Wireless & SMS',
-        channel: Channel.SMS,
-        description: 'Private global IP network and tier-1 carrier connection for ultra-low SMS latencies.',
-        websiteUrl: 'https://telnyx.com',
-        docsUrl: 'https://developers.telnyx.com/',
-        defaultPriority: 2,
-        defaultWeight: 90,
-        requiredEnvVars: [
-          {
-            key: 'TELNYX_API_KEY',
-            label: 'API Key',
-            placeholder: 'KEYxxxxxxxx...',
-            isSecret: true,
-            description: 'Telnyx V2 API Profile Key',
-            required: true,
-          },
-          {
-            key: 'TELNYX_FROM_NUMBER',
-            label: 'From Phone Number',
-            placeholder: '+15550192831',
-            isSecret: false,
-            description: 'Purchased Telnyx E.164 number',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'sinch',
-        displayName: 'Sinch SMS Enterprise',
-        channel: Channel.SMS,
-        description: 'Enterprise mobile messaging with 600+ direct carrier connections.',
-        websiteUrl: 'https://sinch.com',
-        docsUrl: 'https://developers.sinch.com/',
-        defaultPriority: 2,
-        defaultWeight: 80,
-        requiredEnvVars: [
-          {
-            key: 'SINCH_SERVICE_PLAN_ID',
-            label: 'Service Plan ID',
-            placeholder: 'sp_xxxx...',
-            isSecret: false,
-            description: 'SMS Service Plan Identifier',
-            required: true,
-          },
-          {
-            key: 'SINCH_API_TOKEN',
-            label: 'API Token',
-            placeholder: 'token_xxxx...',
-            isSecret: true,
-            description: 'Sinch REST API Token',
-            required: true,
-          },
-          {
-            key: 'SINCH_FROM_NUMBER',
-            label: 'Originator / Number',
-            placeholder: '+15550192831',
-            isSecret: false,
-            description: 'Assigned 10DLC or short code',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'infobip',
-        displayName: 'Infobip Global Messaging',
-        channel: Channel.SMS,
-        description: 'Omnichannel cloud communications platform with intelligent carrier routing.',
-        websiteUrl: 'https://infobip.com',
-        docsUrl: 'https://www.infobip.com/docs/api',
-        defaultPriority: 3,
-        defaultWeight: 70,
-        requiredEnvVars: [
-          {
-            key: 'INFOBIP_API_KEY',
-            label: 'API Key',
-            placeholder: 'App xxxxxxxx...',
-            isSecret: true,
-            description: 'Infobip API Key',
-            required: true,
-          },
-          {
-            key: 'INFOBIP_BASE_URL',
-            label: 'Base URL Domain',
-            placeholder: 'https://xxxxx.api.infobip.com',
-            isSecret: false,
-            description: 'Custom Infobip regional endpoint URL',
-            required: true,
-          },
-        ],
-      },
+  /**
+   * Seeds all 88 turnkey providers into PostgreSQL providers table and local configured list
+   */
+  public async seedAllProviders() {
+    const seededList: Array<{ id: string; name: string; channel: string }> = [];
+    const now = new Date();
 
-      // --- WHATSAPP PROVIDERS ---
-      {
-        id: 'meta-whatsapp',
-        displayName: 'Meta WhatsApp Cloud API',
-        channel: Channel.WHATSAPP,
-        description: 'Official Meta Graph API direct integration for template and 24h interactive session messages.',
-        websiteUrl: 'https://developers.facebook.com/docs/whatsapp',
-        docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'WHATSAPP_PHONE_NUMBER_ID',
-            label: 'Phone Number ID',
-            placeholder: '109283746501928',
-            isSecret: false,
-            description: 'Meta WhatsApp Business Phone Number ID',
-            required: true,
-          },
-          {
-            key: 'WHATSAPP_ACCESS_TOKEN',
-            label: 'System User Access Token',
-            placeholder: 'EAAFxZxxxxxxxx...',
-            isSecret: true,
-            description: 'Permanent Meta System User Token with whatsapp_business_messaging',
-            required: true,
-          },
-          {
-            key: 'WHATSAPP_WABA_ID',
-            label: 'WABA ID',
-            placeholder: 'waba_9182736450',
-            isSecret: false,
-            description: 'WhatsApp Business Account ID',
-            required: false,
-          },
-        ],
-      },
+    for (const item of COMPLETE_88_PROVIDER_CATALOG) {
+      const credentials = item.defaultCredentials || {
+        API_KEY: `mock_key_${item.id}_live`,
+      };
+      const config = item.defaultFeatureConfigs || {};
 
-      // --- PUSH PROVIDERS ---
-      {
-        id: 'fcm',
-        displayName: 'Firebase Cloud Messaging (FCM v1)',
-        channel: Channel.PUSH,
-        description: 'Google FCM HTTP v1 API for iOS, Android, and Web Push notifications.',
-        websiteUrl: 'https://firebase.google.com/docs/cloud-messaging',
-        docsUrl: 'https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'FCM_PROJECT_ID',
-            label: 'Firebase Project ID',
-            placeholder: 'my-project-123',
-            isSecret: false,
-            description: 'Google Cloud / Firebase Project ID',
-            required: true,
-          },
-          {
-            key: 'FCM_SERVICE_ACCOUNT_KEY',
-            label: 'Service Account JSON',
-            placeholder: '{"type":"service_account",...}',
-            isSecret: true,
-            description: 'Google Cloud IAM Service Account JSON key string',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'apns',
-        displayName: 'Apple Push Notification service (APNs)',
-        channel: Channel.PUSH,
-        description: 'Direct Apple APNs HTTP/2 protocol sending with .p8 token authentication.',
-        websiteUrl: 'https://developer.apple.com/documentation/usernotifications',
-        docsUrl: 'https://developer.apple.com/documentation/usernotifications/sending_notification_requests_to_apns',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'APNS_KEY_ID',
-            label: 'APNs Key ID (10 chars)',
-            placeholder: 'ABC123DEFG',
-            isSecret: false,
-            description: 'Apple Developer Key Identifier',
-            required: true,
-          },
-          {
-            key: 'APNS_TEAM_ID',
-            label: 'Apple Developer Team ID',
-            placeholder: 'TEAMID1234',
-            isSecret: false,
-            description: 'Apple Developer 10-char Team ID',
-            required: true,
-          },
-          {
-            key: 'APNS_P8_PRIVATE_KEY',
-            label: 'AuthKey .p8 Private Key',
-            placeholder: '-----BEGIN PRIVATE KEY-----\\n...',
-            isSecret: true,
-            description: 'Contents of downloaded AuthKey_KEYID.p8',
-            required: true,
-          },
-          {
-            key: 'APNS_BUNDLE_ID',
-            label: 'App Bundle Identifier',
-            placeholder: 'com.company.app',
-            isSecret: false,
-            description: 'iOS App Bundle ID',
-            required: true,
-          },
-        ],
-      },
+      try {
+        await db
+          .insert(providers)
+          .values({
+            id: item.id,
+            displayName: item.displayName,
+            channel: item.channel.toLowerCase(),
+            enabled: true,
+            isPrimary: item.defaultPriority === 1,
+            priority: item.defaultPriority,
+            weight: item.defaultWeight,
+            credentials,
+            config,
+            rateLimitPerSec: 100,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: providers.id,
+            set: {
+              displayName: item.displayName,
+              channel: item.channel.toLowerCase(),
+              enabled: true,
+              priority: item.defaultPriority,
+              weight: item.defaultWeight,
+              credentials,
+              config,
+              updatedAt: now,
+            },
+          });
+      } catch (err) {
+        logger.warn('AdminService', `Could not persist seed provider ${item.id} to DB`, {
+          error: (err as Error).message,
+        });
+      }
 
-      // --- CHAT / SLACK / DISCORD ---
-      {
-        id: 'slack',
-        displayName: 'Slack Enterprise Bot & Webhooks',
-        channel: Channel.SLACK,
-        description: 'Block Kit interactive messages, bot messaging, and channel webhooks.',
-        websiteUrl: 'https://api.slack.com',
-        docsUrl: 'https://api.slack.com/messaging/webhooks',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'SLACK_BOT_TOKEN',
-            label: 'Bot User OAuth Token',
-            placeholder: 'xoxb-xxxxxxxx...',
-            isSecret: true,
-            description: 'Slack Bot OAuth Token (chat:write scope)',
-            required: true,
-          },
-        ],
-      },
-      {
-        id: 'discord',
-        displayName: 'Discord Bot & Webhooks',
-        channel: Channel.CHAT,
-        description: 'Discord rich embeds, channel notifications, and webhook dispatches.',
-        websiteUrl: 'https://discord.com/developers',
-        docsUrl: 'https://discord.com/developers/docs/resources/webhook',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'DISCORD_WEBHOOK_URL',
-            label: 'Default Webhook URL',
-            placeholder: 'https://discord.com/api/webhooks/...',
-            isSecret: true,
-            description: 'Channel incoming webhook URL',
-            required: true,
-          },
-        ],
-      },
+      // Update in-memory configuredProviders
+      const existingIdx = this.configuredProviders.findIndex((p) => p.providerId === item.id);
+      const confEntry = {
+        id: `cfg_${item.id}`,
+        providerId: item.id,
+        displayName: item.displayName,
+        channel: item.channel,
+        isPrimary: item.defaultPriority === 1,
+        priority: item.defaultPriority,
+        weight: item.defaultWeight,
+        status: 'ACTIVE' as const,
+        credentials,
+        config,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
 
-      // --- CUSTOM TOOL / WEBHOOK ---
-      {
-        id: 'custom-webhook',
-        displayName: 'Generic Outbound HTTP Webhook',
-        channel: Channel.TOOL,
-        description: 'Arbitrary HTTP POST webhook dispatch with custom HMAC-SHA256 headers and mTLS.',
-        defaultPriority: 1,
-        defaultWeight: 100,
-        requiredEnvVars: [
-          {
-            key: 'WEBHOOK_TARGET_URL',
-            label: 'Target Endpoint URL',
-            placeholder: 'https://api.external.com/v1/event',
-            isSecret: false,
-            description: 'Target destination URL',
-            required: true,
-          },
-          {
-            key: 'WEBHOOK_HMAC_SECRET',
-            label: 'HMAC Signing Secret',
-            placeholder: 'whsec_xxxxxxxx...',
-            isSecret: true,
-            description: 'Secret key used for X-Convey-Signature generation',
-            required: false,
-          },
-        ],
-      },
-    ];
+      if (existingIdx >= 0) {
+        this.configuredProviders[existingIdx] = confEntry;
+      } else {
+        this.configuredProviders.push(confEntry);
+      }
+
+      seededList.push({ id: item.id, name: item.displayName, channel: item.channel });
+    }
+
+    return {
+      success: true,
+      totalSeeded: seededList.length,
+      providers: seededList,
+    };
   }
 
   /**

@@ -179,6 +179,11 @@ export function adminController(app: Elysia) {
         },
       )
 
+      .post('/providers/seed-all', async () => {
+        const res = await adminService.seedAllProviders();
+        return jsonResponse(res, 200);
+      })
+
       .get('/providers/env-export', () => {
         const exported = adminService.exportEnvVariables();
         return jsonResponse(exported, 200);

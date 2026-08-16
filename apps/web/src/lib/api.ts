@@ -210,6 +210,18 @@ export const api = {
       .json<TestConnectionResult>();
   },
 
+  async seedAllProviders(): Promise<{
+    success: boolean;
+    totalSeeded: number;
+    providers: Array<{ id: string; name: string; channel: string }>;
+  }> {
+    return httpClient.post('providers/seed-all').json<{
+      success: boolean;
+      totalSeeded: number;
+      providers: Array<{ id: string; name: string; channel: string }>;
+    }>();
+  },
+
   async exportEnvVariables(): Promise<{ envFileContent: string; variableCount: number; providerCount: number }> {
     return httpClient
       .get('providers/env-export')

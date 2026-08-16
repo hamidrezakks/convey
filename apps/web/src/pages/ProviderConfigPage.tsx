@@ -1,4 +1,5 @@
 import {
+  COMPLETE_88_PROVIDER_CATALOG,
   Channel,
   type ConfiguredProviderDto,
   type ProviderCatalogItem,
@@ -49,364 +50,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { api } from '../lib/api';
 import { providerKeys } from '../lib/queryKeys';
 
-// Fallback catalog in case of network latency
-const FALLBACK_CATALOG: ProviderCatalogItem[] = [
-  {
-    id: 'sendgrid',
-    displayName: 'SendGrid Email API',
-    channel: Channel.EMAIL,
-    description: 'Twilio SendGrid high-volume transactional email API with dedicated IP warmup and DLR webhooks.',
-    websiteUrl: 'https://sendgrid.com',
-    docsUrl: 'https://docs.sendgrid.com/api-reference',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'SENDGRID_API_KEY',
-        label: 'API Key',
-        placeholder: 'SG.xxxxxxxx...',
-        isSecret: true,
-        description: 'SendGrid REST API Key with Mail Send permissions',
-        required: true,
-      },
-      {
-        key: 'SENDGRID_FROM_EMAIL',
-        label: 'Default From Email',
-        placeholder: 'notifications@yourdomain.com',
-        isSecret: false,
-        description: 'Verified sender domain email address',
-        required: true,
-      },
-      {
-        key: 'SENDGRID_WEBHOOK_SECRET',
-        label: 'Webhook Verification Key',
-        placeholder: 'MFkwEwYHKoZIzj0...',
-        isSecret: true,
-        description: 'Event Webhook ECDSA public verification key',
-        required: false,
-      },
-    ],
-  },
-  {
-    id: 'resend',
-    displayName: 'Resend',
-    channel: Channel.EMAIL,
-    description: 'Modern developer-first transactional email API built for React Email and rapid delivery.',
-    websiteUrl: 'https://resend.com',
-    docsUrl: 'https://resend.com/docs',
-    defaultPriority: 2,
-    defaultWeight: 90,
-    requiredEnvVars: [
-      {
-        key: 'RESEND_API_KEY',
-        label: 'API Key',
-        placeholder: 're_xxxxxxxx...',
-        isSecret: true,
-        description: 'Resend API Key with full access',
-        required: true,
-      },
-      {
-        key: 'RESEND_FROM_EMAIL',
-        label: 'From Email Address',
-        placeholder: 'onboarding@yourdomain.com',
-        isSecret: false,
-        description: 'Domain registered with Resend DNS',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'aws-ses',
-    displayName: 'Amazon Simple Email Service (SES)',
-    channel: Channel.EMAIL,
-    description: 'Cost-effective, highly scalable cloud email service powered by AWS global infrastructure.',
-    websiteUrl: 'https://aws.amazon.com/ses/',
-    docsUrl: 'https://docs.aws.amazon.com/ses/',
-    defaultPriority: 3,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'AWS_SES_REGION',
-        label: 'AWS Region',
-        placeholder: 'us-east-1',
-        isSecret: false,
-        description: 'AWS SES Region (e.g. us-east-1, eu-west-1)',
-        defaultValue: 'us-east-1',
-        required: true,
-      },
-      {
-        key: 'AWS_ACCESS_KEY_ID',
-        label: 'AWS Access Key ID',
-        placeholder: 'AKIAIOSFODNN7EXAMPLE',
-        isSecret: false,
-        description: 'IAM User or Role credentials for ses:SendEmail',
-        required: true,
-      },
-      {
-        key: 'AWS_SECRET_ACCESS_KEY',
-        label: 'AWS Secret Access Key',
-        placeholder: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-        isSecret: true,
-        description: 'IAM Secret Key',
-        required: true,
-      },
-      {
-        key: 'AWS_SES_FROM_EMAIL',
-        label: 'Verified Sender Email',
-        placeholder: 'system@company.com',
-        isSecret: false,
-        description: 'Verified SES identity email or domain',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'postmark',
-    displayName: 'Postmark by ActiveCampaign',
-    channel: Channel.EMAIL,
-    description: 'Industry-leading transactional deliverability with dedicated inbound and outbound message tracking.',
-    websiteUrl: 'https://postmarkapp.com',
-    docsUrl: 'https://postmarkapp.com/developer',
-    defaultPriority: 2,
-    defaultWeight: 85,
-    requiredEnvVars: [
-      {
-        key: 'POSTMARK_SERVER_TOKEN',
-        label: 'Server API Token',
-        placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-        isSecret: true,
-        description: 'Postmark Server API Token',
-        required: true,
-      },
-      {
-        key: 'POSTMARK_FROM_EMAIL',
-        label: 'Sender Signature Email',
-        placeholder: 'alerts@yourdomain.com',
-        isSecret: false,
-        description: 'Verified sender signature address',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'twilio',
-    displayName: 'Twilio Programmable SMS',
-    channel: Channel.SMS,
-    description: 'Global carrier connectivity across 180+ countries with alphanumeric sender ID support.',
-    websiteUrl: 'https://twilio.com',
-    docsUrl: 'https://www.twilio.com/docs/sms',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'TWILIO_ACCOUNT_SID',
-        label: 'Account SID',
-        placeholder: 'ACxxxxxxxx...',
-        isSecret: false,
-        description: 'Twilio Main Account SID',
-        required: true,
-      },
-      {
-        key: 'TWILIO_AUTH_TOKEN',
-        label: 'Auth Token',
-        placeholder: 'auth_token_xxxx...',
-        isSecret: true,
-        description: 'Twilio Auth Token from Console',
-        required: true,
-      },
-      {
-        key: 'TWILIO_FROM_NUMBER',
-        label: 'Sender Phone / Messaging Service SID',
-        placeholder: '+18005550199 or MGxxxxxxxx',
-        isSecret: false,
-        description: 'Twilio phone number or Messaging Service SID',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'telnyx',
-    displayName: 'Telnyx Wireless & SMS',
-    channel: Channel.SMS,
-    description: 'Private global IP network and tier-1 carrier connection for ultra-low SMS latencies.',
-    websiteUrl: 'https://telnyx.com',
-    docsUrl: 'https://developers.telnyx.com/',
-    defaultPriority: 2,
-    defaultWeight: 90,
-    requiredEnvVars: [
-      {
-        key: 'TELNYX_API_KEY',
-        label: 'API Key',
-        placeholder: 'KEYxxxxxxxx...',
-        isSecret: true,
-        description: 'Telnyx V2 API Profile Key',
-        required: true,
-      },
-      {
-        key: 'TELNYX_FROM_NUMBER',
-        label: 'From Phone Number',
-        placeholder: '+15550192831',
-        isSecret: false,
-        description: 'Purchased Telnyx E.164 number',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'meta-whatsapp',
-    displayName: 'Meta WhatsApp Cloud API',
-    channel: Channel.WHATSAPP,
-    description: 'Official Meta Graph API direct integration for template and 24h interactive session messages.',
-    websiteUrl: 'https://developers.facebook.com/docs/whatsapp',
-    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'WHATSAPP_PHONE_NUMBER_ID',
-        label: 'Phone Number ID',
-        placeholder: '109283746501928',
-        isSecret: false,
-        description: 'Meta WhatsApp Business Phone Number ID',
-        required: true,
-      },
-      {
-        key: 'WHATSAPP_ACCESS_TOKEN',
-        label: 'System User Access Token',
-        placeholder: 'EAAFxZxxxxxxxx...',
-        isSecret: true,
-        description: 'Permanent Meta System User Token with whatsapp_business_messaging',
-        required: true,
-      },
-      {
-        key: 'WHATSAPP_WABA_ID',
-        label: 'WABA ID',
-        placeholder: 'waba_9182736450',
-        isSecret: false,
-        description: 'WhatsApp Business Account ID',
-        required: false,
-      },
-    ],
-  },
-  {
-    id: 'fcm',
-    displayName: 'Firebase Cloud Messaging (FCM v1)',
-    channel: Channel.PUSH,
-    description: 'Google FCM HTTP v1 API for iOS, Android, and Web Push notifications.',
-    websiteUrl: 'https://firebase.google.com/docs/cloud-messaging',
-    docsUrl: 'https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'FCM_PROJECT_ID',
-        label: 'Firebase Project ID',
-        placeholder: 'my-project-123',
-        isSecret: false,
-        description: 'Google Cloud / Firebase Project ID',
-        required: true,
-      },
-      {
-        key: 'FCM_SERVICE_ACCOUNT_KEY',
-        label: 'Service Account JSON',
-        placeholder: '{"type":"service_account",...}',
-        isSecret: true,
-        description: 'Google Cloud IAM Service Account JSON key string',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'apns',
-    displayName: 'Apple Push Notification service (APNs)',
-    channel: Channel.PUSH,
-    description: 'Direct Apple APNs HTTP/2 protocol sending with .p8 token authentication.',
-    websiteUrl: 'https://developer.apple.com/documentation/usernotifications',
-    docsUrl: 'https://developer.apple.com/documentation/usernotifications/sending_notification_requests_to_apns',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'APNS_KEY_ID',
-        label: 'APNs Key ID (10 chars)',
-        placeholder: 'ABC123DEFG',
-        isSecret: false,
-        description: 'Apple Developer Key Identifier',
-        required: true,
-      },
-      {
-        key: 'APNS_TEAM_ID',
-        label: 'Apple Developer Team ID',
-        placeholder: 'TEAMID1234',
-        isSecret: false,
-        description: 'Apple Developer 10-char Team ID',
-        required: true,
-      },
-      {
-        key: 'APNS_P8_PRIVATE_KEY',
-        label: 'AuthKey .p8 Private Key',
-        placeholder: '-----BEGIN PRIVATE KEY-----\\n...',
-        isSecret: true,
-        description: 'Contents of downloaded AuthKey_KEYID.p8',
-        required: true,
-      },
-      {
-        key: 'APNS_BUNDLE_ID',
-        label: 'App Bundle Identifier',
-        placeholder: 'com.company.app',
-        isSecret: false,
-        description: 'iOS App Bundle ID',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'slack',
-    displayName: 'Slack Enterprise Bot & Webhooks',
-    channel: Channel.SLACK,
-    description: 'Block Kit interactive messages, bot messaging, and channel webhooks.',
-    websiteUrl: 'https://api.slack.com',
-    docsUrl: 'https://api.slack.com/messaging/webhooks',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'SLACK_BOT_TOKEN',
-        label: 'Bot User OAuth Token',
-        placeholder: 'xoxb-xxxxxxxx...',
-        isSecret: true,
-        description: 'Slack Bot OAuth Token (chat:write scope)',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'custom-webhook',
-    displayName: 'Generic Outbound HTTP Webhook',
-    channel: Channel.TOOL,
-    description: 'Arbitrary HTTP POST webhook dispatch with custom HMAC-SHA256 headers and mTLS.',
-    defaultPriority: 1,
-    defaultWeight: 100,
-    requiredEnvVars: [
-      {
-        key: 'WEBHOOK_TARGET_URL',
-        label: 'Target Endpoint URL',
-        placeholder: 'https://api.external.com/v1/event',
-        isSecret: false,
-        description: 'Target destination URL',
-        required: true,
-      },
-      {
-        key: 'WEBHOOK_HMAC_SECRET',
-        label: 'HMAC Signing Secret',
-        placeholder: 'whsec_xxxxxxxx...',
-        isSecret: true,
-        description: 'Secret key used for X-Convey-Signature generation',
-        required: false,
-      },
-    ],
-  },
-];
+// Full 88 Turnkey Provider Catalog
+const FALLBACK_CATALOG = COMPLETE_88_PROVIDER_CATALOG;
 
 export function ProviderConfigPage() {
   const queryClient = useQueryClient();
@@ -525,6 +170,20 @@ export function ProviderConfigPage() {
     },
     onError: () => {
       toast.error('Failed to register provider');
+    },
+  });
+
+  // TanStack Mutation: Seed All 88 Providers
+  const seedAllMutation = useMutation({
+    mutationFn: () => api.seedAllProviders(),
+    onSuccess: (res) => {
+      toast.success(
+        `Successfully populated and seeded ${res.totalSeeded} turnkey communication providers in PostgreSQL!`,
+      );
+      queryClient.invalidateQueries({ queryKey: providerKeys.all });
+    },
+    onError: () => {
+      toast.error('Failed to seed providers');
     },
   });
 
@@ -652,24 +311,72 @@ export function ProviderConfigPage() {
     toast.success('Downloaded .env.convey configuration file');
   };
 
+  const CHANNEL_CATEGORIES = useMemo(
+    () => [
+      { key: 'ALL', label: 'All Turnkey Adapters', count: effectiveCatalog.length },
+      { key: 'EMAIL', label: 'Email', count: effectiveCatalog.filter((c) => c.channel === Channel.EMAIL).length },
+      { key: 'SMS', label: 'SMS & Telecom', count: effectiveCatalog.filter((c) => c.channel === Channel.SMS).length },
+      {
+        key: 'PUSH',
+        label: 'Push Notifications',
+        count: effectiveCatalog.filter((c) => c.channel === Channel.PUSH).length,
+      },
+      {
+        key: 'CHAT',
+        label: 'Chat & WhatsApp',
+        count: effectiveCatalog.filter(
+          (c) => c.channel === Channel.CHAT || c.channel === Channel.WHATSAPP || c.channel === Channel.SLACK,
+        ).length,
+      },
+      {
+        key: 'TOOL',
+        label: 'Alerting & Tools',
+        count: effectiveCatalog.filter((c) => c.channel === Channel.TOOL).length,
+      },
+    ],
+    [effectiveCatalog],
+  );
+
   const filteredCatalog = effectiveCatalog.filter((item) => {
-    const matchesChannel = catalogChannel === 'ALL' || item.channel === catalogChannel;
+    let matchesChannel = true;
+    if (catalogChannel === 'EMAIL') matchesChannel = item.channel === Channel.EMAIL;
+    else if (catalogChannel === 'SMS') matchesChannel = item.channel === Channel.SMS;
+    else if (catalogChannel === 'PUSH') matchesChannel = item.channel === Channel.PUSH;
+    else if (catalogChannel === 'CHAT') {
+      matchesChannel =
+        item.channel === Channel.CHAT || item.channel === Channel.WHATSAPP || item.channel === Channel.SLACK;
+    } else if (catalogChannel === 'TOOL') {
+      matchesChannel = item.channel === Channel.TOOL;
+    }
+
+    const query = searchCatalog.toLowerCase().trim();
     const matchesSearch =
-      item.displayName.toLowerCase().includes(searchCatalog.toLowerCase()) ||
-      item.id.toLowerCase().includes(searchCatalog.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchCatalog.toLowerCase());
+      !query ||
+      item.displayName.toLowerCase().includes(query) ||
+      item.id.toLowerCase().includes(query) ||
+      item.description.toLowerCase().includes(query) ||
+      item.requiredEnvVars.some((v) => v.key.toLowerCase().includes(query));
+
     return matchesChannel && matchesSearch;
   });
 
-  // Group catalog by channel for clean dropdown display
-  const catalogByChannel = useMemo(() => {
-    const map = new Map<Channel, ProviderCatalogItem[]>();
-    for (const item of effectiveCatalog) {
-      const list = map.get(item.channel) || [];
-      list.push(item);
-      map.set(item.channel, list);
-    }
-    return map;
+  // Group catalog by channel for clean dropdown display in modal
+  const groupedCatalog = useMemo(() => {
+    const email = effectiveCatalog.filter((c) => c.channel === Channel.EMAIL);
+    const sms = effectiveCatalog.filter((c) => c.channel === Channel.SMS);
+    const push = effectiveCatalog.filter((c) => c.channel === Channel.PUSH);
+    const chat = effectiveCatalog.filter(
+      (c) => c.channel === Channel.CHAT || c.channel === Channel.WHATSAPP || c.channel === Channel.SLACK,
+    );
+    const tool = effectiveCatalog.filter((c) => c.channel === Channel.TOOL);
+
+    return [
+      { label: `📧 Email Providers (${email.length})`, items: email },
+      { label: `📱 SMS Carriers & Gateways (${sms.length})`, items: sms },
+      { label: `🔔 Push Notification Providers (${push.length})`, items: push },
+      { label: `💬 Chat & Instant Messaging (${chat.length})`, items: chat },
+      { label: `🛠️ Incident & Alerting Tools (${tool.length})`, items: tool },
+    ];
   }, [effectiveCatalog]);
 
   return (
@@ -685,6 +392,7 @@ export function ProviderConfigPage() {
             <Badge variant="cyan" dot>
               PostgreSQL Persisted
             </Badge>
+            <Badge variant="purple">{effectiveCatalog.length} Turnkey Adapters</Badge>
           </div>
           <p className="text-xs text-slate-400 mt-1">
             Configure API credentials, environment variables, WhatsApp 24h cost savings & carrier features stored
@@ -702,6 +410,18 @@ export function ProviderConfigPage() {
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Refresh</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            isLoading={seedAllMutation.isPending}
+            onClick={() => seedAllMutation.mutate()}
+            className="text-xs gap-1.5 border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+            title="Seed all 88 turnkey communication adapters with sandbox credentials into PostgreSQL"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            <span>Seed All 88 Providers</span>
           </Button>
 
           <Button
@@ -952,30 +672,50 @@ export function ProviderConfigPage() {
         {/* TAB 2: Turnkey Provider Catalog */}
         <TabsContent value="catalog" className="space-y-4 pt-2">
           {/* Catalog Filter & Search */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              {['ALL', Channel.EMAIL, Channel.SMS, Channel.WHATSAPP, Channel.PUSH, Channel.SLACK, Channel.TOOL].map(
-                (chan) => (
-                  <Button
-                    key={chan}
-                    variant={catalogChannel === chan ? 'primary' : 'outline'}
-                    size="sm"
-                    onClick={() => setCatalogChannel(chan)}
-                    className="text-xs font-semibold"
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+            <div className="flex flex-wrap gap-1.5">
+              {CHANNEL_CATEGORIES.map((cat) => (
+                <Button
+                  key={cat.key}
+                  variant={catalogChannel === cat.key ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setCatalogChannel(cat.key)}
+                  className="text-xs font-semibold gap-1.5 h-8"
+                >
+                  <span>{cat.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      catalogChannel === cat.key ? 'bg-sky-400/30 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}
                   >
-                    {chan}
-                  </Button>
-                ),
-              )}
+                    {cat.count}
+                  </span>
+                </Button>
+              ))}
             </div>
 
-            <div className="w-72">
-              <Input
-                placeholder="Search catalog by name or keyword..."
-                value={searchCatalog}
-                onChange={(e) => setSearchCatalog(e.target.value)}
-                icon={<Search className="w-3.5 h-3.5 text-slate-400" />}
-              />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                isLoading={seedAllMutation.isPending}
+                onClick={() => seedAllMutation.mutate()}
+                className="text-xs gap-1.5 h-8 border-sky-500/40 text-sky-300 hover:bg-sky-500/10 font-semibold"
+                title="Seed all 88 turnkey communication adapters with sandbox credentials into PostgreSQL"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                <span>Seed All ({effectiveCatalog.length})</span>
+              </Button>
+
+              <div className="w-72">
+                <Input
+                  placeholder="Search 88 providers by name or env..."
+                  value={searchCatalog}
+                  onChange={(e) => setSearchCatalog(e.target.value)}
+                  icon={<Search className="w-3.5 h-3.5 text-slate-400" />}
+                  className="h-8 text-xs"
+                />
+              </div>
             </div>
           </div>
 
@@ -1134,9 +874,9 @@ export function ProviderConfigPage() {
                   value={selectedCatalogItem?.id || ''}
                   onChange={(e) => handleCatalogSelectChange(e.target.value)}
                 >
-                  {Array.from(catalogByChannel.entries()).map(([channel, items]) => (
-                    <optgroup key={channel} label={`── ${channel} Providers ──`}>
-                      {items.map((item) => (
+                  {groupedCatalog.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.items.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.displayName} ({item.id})
                         </option>

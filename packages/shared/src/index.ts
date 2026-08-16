@@ -3,16 +3,10 @@
  * Shared contracts, types, enums, and models for Convey Communication Service
  */
 
+import type { Channel } from './channels';
+
 // Channels supported across Convey
-export enum Channel {
-  EMAIL = 'EMAIL',
-  SMS = 'SMS',
-  PUSH = 'PUSH',
-  WHATSAPP = 'WHATSAPP',
-  SLACK = 'SLACK',
-  CHAT = 'CHAT',
-  TOOL = 'TOOL',
-}
+export * from './channels';
 
 // Priority Tiers
 export enum MessagePriority {
@@ -357,3 +351,6 @@ export interface PolicyDto {
   enabled: boolean;
   updatedAt: string;
 }
+
+// Complete 88 Turnkey Provider Catalog
+export * from './provider-catalog';
