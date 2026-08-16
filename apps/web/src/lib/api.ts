@@ -1,5 +1,6 @@
 import type {
   Channel,
+  ConfiguredProviderDto,
   DlqReplayRequest,
   DlqReplayResult,
   LiveTelemetrySnapshot,
@@ -7,9 +8,12 @@ import type {
   MessageStatus,
   MessageSummaryDto,
   PolicyDto,
+  ProviderCatalogItem,
   ProviderHealthDto,
+  RegisterProviderRequest,
   SuppressionDto,
   SuppressionReason,
+  TestConnectionResult,
 } from '@convey/shared';
 import ky from 'ky';
 
@@ -181,5 +185,34 @@ export const api = {
     teamId?: string;
   }): Promise<TestMessageResult> {
     return httpClient.post('composer/send-test', { json: data }).json<TestMessageResult>();
+  },
+
+  // --- Provider Setup & Registration Studio ---
+  async getProviderCatalog(): Promise<ProviderCatalogItem[]> {
+    return httpClient.get('providers/catalog').json<ProviderCatalogItem[]>();
+  },
+
+  async getConfiguredProviders(): Promise<ConfiguredProviderDto[]> {
+    return httpClient.get('providers/configured').json<ConfiguredProviderDto[]>();
+  },
+
+  async registerProvider(data: RegisterProviderRequest): Promise<ConfiguredProviderDto> {
+    return httpClient.post('providers/register', { json: data }).json<ConfiguredProviderDto>();
+  },
+
+  async deleteConfiguredProvider(id: string): Promise<{ success: boolean; id: string }> {
+    return httpClient.delete(`providers/configured/${id}`).json<{ success: boolean; id: string }>();
+  },
+
+  async testProviderConnection(providerId: string, credentials: Record<string, string>): Promise<TestConnectionResult> {
+    return httpClient
+      .post('providers/test-connection', { json: { providerId, credentials } })
+      .json<TestConnectionResult>();
+  },
+
+  async exportEnvVariables(): Promise<{ envFileContent: string; variableCount: number; providerCount: number }> {
+    return httpClient
+      .get('providers/env-export')
+      .json<{ envFileContent: string; variableCount: number; providerCount: number }>();
   },
 };

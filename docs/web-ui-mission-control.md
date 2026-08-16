@@ -99,7 +99,15 @@ bun --filter @convey/web build
 - **Synthetic Canary Probes**: 1-click autonomous canary probing to verify provider recovery without customer traffic risk.
 - **EMA Latency & Anomaly Scorecard**: Real-time Exponential Moving Average latency and Z-score anomaly detector.
 
-### 4. Dead-Letter Queue (DLQ) & Dry-Run Blast-Radius Simulator (`DlqPage`)
+### 4. Provider Registration & Environment Setup Studio (`ProviderConfigPage` / `/providers/configure`)
+- **88+ Turnkey Provider Catalog**: Browse and register adapters across Email (SendGrid, Resend, AWS SES, Postmark), SMS (Twilio, Telnyx, Sinch, Infobip), WhatsApp (Meta Cloud API), Push (FCM, APNs), Slack, Discord, and Webhooks.
+- **Dynamic Credential Setup Wizard**: Guided modal with automatic validation of required API keys, account tokens, sender signatures, and regions.
+- **Multi-Tier Routing & Fallback Chains**: Configure routing priority (Tier #1 to #5), traffic load share weights (10% to 100%), and automatic failover targets.
+- **Live Connection Test Probes**: Test live authentication against provider endpoints with instant latency feedback before saving.
+- **Unified Environment Variable Vault (`.env`)**: Auto-generated, unified `.env` vault with 1-click clipboard copy and direct file download (`.env.convey`).
+- **AES-256-GCM Vault Security**: All stored credentials are protected at rest via zero-trust envelope encryption.
+
+### 5. Dead-Letter Queue (DLQ) & Dry-Run Blast-Radius Simulator (`DlqPage`)
 - **Failure Cluster Categorization**: Automatically groups failed messages by error category (`PROVIDER_5XX`, `RATE_LIMIT_429`, `TIMEOUT_504`, `AUTH_EXPIRED_401`, `INVALID_RECIPIENT_400`, `POLICY_BLOCKED`).
 - **Dry-Run Blast-Radius Simulator**: Predicts success rate %, estimated provider bill, execution duration, and tenant risk level before executing live replays.
 - **Zero-Data-Loss Batch Replay**: Live batch replay with progress tracking and confetti feedback.

@@ -21,7 +21,10 @@ export const messageKeys = {
 
 export const providerKeys = {
   all: ['providers'] as const,
-  list: () => [...providerKeys.all, 'list'] as const,
+  health: () => [...providerKeys.all, 'health'] as const,
+  catalog: () => [...providerKeys.all, 'catalog'] as const,
+  configured: () => [...providerKeys.all, 'configured'] as const,
+  envExport: () => [...providerKeys.all, 'envExport'] as const,
 };
 
 export const suppressionKeys = {

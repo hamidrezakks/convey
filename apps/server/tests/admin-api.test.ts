@@ -148,4 +148,75 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     expect(body.publicId).toBeDefined();
     expect(body.status).toBe('ACCEPTED');
   });
+
+  it('GET /v1/admin/providers/catalog returns turnkey provider catalog with required env vars', async () => {
+    const response = await app.handle(new Request('http://localhost:3000/v1/admin/providers/catalog'));
+    expect(response.status).toBe(200);
+
+    const catalog = await response.json();
+    expect(catalog).toBeInstanceOf(Array);
+    expect(catalog.length).toBeGreaterThan(5);
+
+    const sendgrid = catalog.find((c: { id: string }) => c.id === 'sendgrid');
+    expect(sendgrid).toBeDefined();
+    expect(sendgrid.channel).toBe('EMAIL');
+    expect(sendgrid.requiredEnvVars).toBeInstanceOf(Array);
+    expect(sendgrid.requiredEnvVars.length).toBeGreaterThan(0);
+  });
+
+  it('GET /v1/admin/providers/configured & POST /v1/admin/providers/register manage provider configs', async () => {
+    // 1. List active configs
+    const listRes = await app.handle(new Request('http://localhost:3000/v1/admin/providers/configured'));
+    expect(listRes.status).toBe(200);
+    const configured = await listRes.json();
+    expect(configured).toBeInstanceOf(Array);
+    expect(configured.length).toBeGreaterThan(0);
+
+    // 2. Register or update provider
+    const regRes = await app.handle(
+      new Request('http://localhost:3000/v1/admin/providers/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: 'resend',
+          channel: 'EMAIL',
+          credentials: {
+            RESEND_API_KEY: 're_test_key_0192837465',
+            RESEND_FROM_EMAIL: 'team@convey.io',
+          },
+          isPrimary: false,
+          priority: 2,
+          weight: 90,
+          fallbackProviderId: 'aws-ses',
+        }),
+      }),
+    );
+    expect(regRes.status).toBe(200);
+    const registered = await regRes.json();
+    expect(registered.providerId).toBe('resend');
+    expect(registered.credentialsMasked.RESEND_API_KEY).toBeDefined();
+
+    // 3. Test Connection
+    const testRes = await app.handle(
+      new Request('http://localhost:3000/v1/admin/providers/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: 'resend',
+          credentials: { RESEND_API_KEY: 're_test_key_0192837465' },
+        }),
+      }),
+    );
+    expect(testRes.status).toBe(200);
+    const testBody = await testRes.json();
+    expect(testBody.success).toBe(true);
+    expect(testBody.latencyMs).toBeGreaterThan(0);
+
+    // 4. Export .env Vault
+    const exportRes = await app.handle(new Request('http://localhost:3000/v1/admin/providers/env-export'));
+    expect(exportRes.status).toBe(200);
+    const envBody = await exportRes.json();
+    expect(envBody.envFileContent).toContain('RESEND_API_KEY=re_test_key_0192837465');
+    expect(envBody.variableCount).toBeGreaterThan(0);
+  });
 });

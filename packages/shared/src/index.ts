@@ -208,6 +208,80 @@ export interface DlqReplayResult {
   };
 }
 
+export interface AdminAuditLedgerDto {
+  id: string;
+  actor: string;
+  action: string;
+  target: string;
+  details: Record<string, unknown>;
+  timestamp: string;
+  ipAddress: string;
+  sha256Hash: string;
+}
+
+// Provider Catalog & Configuration Interfaces
+export interface ProviderEnvVarSpec {
+  key: string;
+  label: string;
+  placeholder: string;
+  isSecret: boolean;
+  description: string;
+  defaultValue?: string;
+  required?: boolean;
+}
+
+export interface ProviderCatalogItem {
+  id: string;
+  displayName: string;
+  channel: Channel;
+  description: string;
+  websiteUrl?: string;
+  docsUrl?: string;
+  requiredEnvVars: ProviderEnvVarSpec[];
+  defaultPriority: number;
+  defaultWeight: number;
+}
+
+export interface ConfiguredProviderDto {
+  id: string;
+  providerId: string;
+  displayName: string;
+  channel: Channel;
+  isPrimary: boolean;
+  priority: number;
+  weight: number;
+  fallbackProviderId?: string;
+  status: 'ACTIVE' | 'DISABLED' | 'ERROR';
+  credentialsMasked: Record<string, string>;
+  envSnippet: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegisterProviderRequest {
+  providerId: string;
+  channel: Channel;
+  credentials: Record<string, string>;
+  isPrimary?: boolean;
+  priority?: number;
+  weight?: number;
+  fallbackProviderId?: string;
+  teamId?: string;
+}
+
+export interface TestConnectionRequest {
+  providerId: string;
+  credentials: Record<string, string>;
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  providerId: string;
+  latencyMs: number;
+  message: string;
+  testedAt: string;
+}
+
 // Suppression Record
 export interface SuppressionDto {
   id: string;

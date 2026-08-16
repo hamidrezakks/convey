@@ -8,6 +8,7 @@ import {
   Cpu,
   Globe,
   Inbox,
+  Key,
   Layers,
   Plus,
   Radio,
@@ -56,6 +57,13 @@ export const NAV_GROUPS: NavGroup[] = [
     group: 'Traffic & Providers',
     items: [
       { path: '/providers', label: 'Provider Matrix & Circuits', icon: Radio, badge: '80+', badgeVariant: 'cyan' },
+      {
+        path: '/providers/configure',
+        label: 'Provider Setup & Env Vault',
+        icon: Key,
+        badge: 'Studio',
+        badgeVariant: 'emerald',
+      },
       { path: '/dlq', label: 'DLQ & Surgical Replay', icon: AlertTriangle, badge: 'Auto-Sim', badgeVariant: 'amber' },
       { path: '/deliverability', label: 'Deliverability & Autopilot', icon: ShieldCheck },
     ],

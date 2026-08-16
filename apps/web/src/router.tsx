@@ -8,6 +8,7 @@ import { DlqPage } from './pages/DlqPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { PoliciesPage } from './pages/PoliciesPage';
+import { ProviderConfigPage } from './pages/ProviderConfigPage';
 import { ProvidersPage } from './pages/ProvidersPage';
 import { WebhooksPage } from './pages/WebhooksPage';
 
@@ -39,6 +40,12 @@ const providersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/providers',
   component: ProvidersPage,
+});
+
+const providerConfigRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/providers/configure',
+  component: ProviderConfigPage,
 });
 
 const dlqRoute = createRoute({
@@ -89,6 +96,7 @@ const routeTree = rootRoute.addChildren([
   overviewRoute,
   messagesRoute,
   providersRoute,
+  providerConfigRoute,
   dlqRoute,
   deliverabilityRoute,
   policiesRoute,

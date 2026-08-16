@@ -28,6 +28,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { path: '/overview', title: 'Planetary Telemetry Ops Center', category: 'Navigation', icon: Activity },
     { path: '/messages', title: 'Universal Message & Trace Explorer', category: 'Navigation', icon: Inbox },
     { path: '/providers', title: 'Provider Matrix & Circuit Breaker Cockpit', category: 'Navigation', icon: Radio },
+    {
+      path: '/providers/configure',
+      title: 'Provider Registration & Env Setup Studio',
+      category: 'Navigation',
+      icon: Radio,
+    },
     { path: '/dlq', title: 'Dead-Letter Queue (DLQ) & Surgical Replay', category: 'Navigation', icon: AlertTriangle },
     {
       path: '/deliverability',

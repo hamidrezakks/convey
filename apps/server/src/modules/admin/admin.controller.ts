@@ -128,6 +128,59 @@ export function adminController(app: Elysia) {
           const res = await adminService.sendTestMessage(body || {});
           return jsonResponse(res, 200);
         },
-      ),
+      )
+
+      // --- Provider Setup & Registration Studio Endpoints ---
+      .get('/providers/catalog', () => {
+        const catalog = adminService.getProviderCatalog();
+        return jsonResponse(catalog, 200);
+      })
+
+      .get('/providers/configured', () => {
+        const configured = adminService.getConfiguredProviders();
+        return jsonResponse(configured, 200);
+      })
+
+      .post(
+        '/providers/register',
+        async ({
+          body,
+        }: {
+          body: {
+            providerId: string;
+            channel: Channel;
+            credentials: Record<string, string>;
+            isPrimary?: boolean;
+            priority?: number;
+            weight?: number;
+            fallbackProviderId?: string;
+          };
+        }) => {
+          const res = adminService.registerProvider(body);
+          return jsonResponse(res, 200);
+        },
+      )
+
+      .delete('/providers/configured/:id', async ({ params }: { params: { id: string } }) => {
+        const res = adminService.deleteConfiguredProvider(params.id);
+        return jsonResponse(res, 200);
+      })
+
+      .post(
+        '/providers/test-connection',
+        async ({
+          body,
+        }: {
+          body: { providerId: string; credentials: Record<string, string> };
+        }) => {
+          const res = adminService.testProviderConnection(body.providerId, body.credentials || {});
+          return jsonResponse(res, 200);
+        },
+      )
+
+      .get('/providers/env-export', () => {
+        const exported = adminService.exportEnvVariables();
+        return jsonResponse(exported, 200);
+      }),
   );
 }
