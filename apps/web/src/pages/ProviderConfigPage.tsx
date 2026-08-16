@@ -20,7 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -40,6 +40,365 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { api } from '../lib/api';
 import { providerKeys } from '../lib/queryKeys';
+
+// Fallback catalog in case of network latency
+const FALLBACK_CATALOG: ProviderCatalogItem[] = [
+  {
+    id: 'sendgrid',
+    displayName: 'SendGrid Email API',
+    channel: Channel.EMAIL,
+    description: 'Twilio SendGrid high-volume transactional email API with dedicated IP warmup and DLR webhooks.',
+    websiteUrl: 'https://sendgrid.com',
+    docsUrl: 'https://docs.sendgrid.com/api-reference',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'SENDGRID_API_KEY',
+        label: 'API Key',
+        placeholder: 'SG.xxxxxxxx...',
+        isSecret: true,
+        description: 'SendGrid REST API Key with Mail Send permissions',
+        required: true,
+      },
+      {
+        key: 'SENDGRID_FROM_EMAIL',
+        label: 'Default From Email',
+        placeholder: 'notifications@yourdomain.com',
+        isSecret: false,
+        description: 'Verified sender domain email address',
+        required: true,
+      },
+      {
+        key: 'SENDGRID_WEBHOOK_SECRET',
+        label: 'Webhook Verification Key',
+        placeholder: 'MFkwEwYHKoZIzj0...',
+        isSecret: true,
+        description: 'Event Webhook ECDSA public verification key',
+        required: false,
+      },
+    ],
+  },
+  {
+    id: 'resend',
+    displayName: 'Resend',
+    channel: Channel.EMAIL,
+    description: 'Modern developer-first transactional email API built for React Email and rapid delivery.',
+    websiteUrl: 'https://resend.com',
+    docsUrl: 'https://resend.com/docs',
+    defaultPriority: 2,
+    defaultWeight: 90,
+    requiredEnvVars: [
+      {
+        key: 'RESEND_API_KEY',
+        label: 'API Key',
+        placeholder: 're_xxxxxxxx...',
+        isSecret: true,
+        description: 'Resend API Key with full access',
+        required: true,
+      },
+      {
+        key: 'RESEND_FROM_EMAIL',
+        label: 'From Email Address',
+        placeholder: 'onboarding@yourdomain.com',
+        isSecret: false,
+        description: 'Domain registered with Resend DNS',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'aws-ses',
+    displayName: 'Amazon Simple Email Service (SES)',
+    channel: Channel.EMAIL,
+    description: 'Cost-effective, highly scalable cloud email service powered by AWS global infrastructure.',
+    websiteUrl: 'https://aws.amazon.com/ses/',
+    docsUrl: 'https://docs.aws.amazon.com/ses/',
+    defaultPriority: 3,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'AWS_SES_REGION',
+        label: 'AWS Region',
+        placeholder: 'us-east-1',
+        isSecret: false,
+        description: 'AWS SES Region (e.g. us-east-1, eu-west-1)',
+        defaultValue: 'us-east-1',
+        required: true,
+      },
+      {
+        key: 'AWS_ACCESS_KEY_ID',
+        label: 'AWS Access Key ID',
+        placeholder: 'AKIAIOSFODNN7EXAMPLE',
+        isSecret: false,
+        description: 'IAM User or Role credentials for ses:SendEmail',
+        required: true,
+      },
+      {
+        key: 'AWS_SECRET_ACCESS_KEY',
+        label: 'AWS Secret Access Key',
+        placeholder: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        isSecret: true,
+        description: 'IAM Secret Key',
+        required: true,
+      },
+      {
+        key: 'AWS_SES_FROM_EMAIL',
+        label: 'Verified Sender Email',
+        placeholder: 'system@company.com',
+        isSecret: false,
+        description: 'Verified SES identity email or domain',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'postmark',
+    displayName: 'Postmark by ActiveCampaign',
+    channel: Channel.EMAIL,
+    description: 'Industry-leading transactional deliverability with dedicated inbound and outbound message tracking.',
+    websiteUrl: 'https://postmarkapp.com',
+    docsUrl: 'https://postmarkapp.com/developer',
+    defaultPriority: 2,
+    defaultWeight: 85,
+    requiredEnvVars: [
+      {
+        key: 'POSTMARK_SERVER_TOKEN',
+        label: 'Server API Token',
+        placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+        isSecret: true,
+        description: 'Postmark Server API Token',
+        required: true,
+      },
+      {
+        key: 'POSTMARK_FROM_EMAIL',
+        label: 'Sender Signature Email',
+        placeholder: 'alerts@yourdomain.com',
+        isSecret: false,
+        description: 'Verified sender signature address',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'twilio',
+    displayName: 'Twilio Programmable SMS',
+    channel: Channel.SMS,
+    description: 'Global carrier connectivity across 180+ countries with alphanumeric sender ID support.',
+    websiteUrl: 'https://twilio.com',
+    docsUrl: 'https://www.twilio.com/docs/sms',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'TWILIO_ACCOUNT_SID',
+        label: 'Account SID',
+        placeholder: 'ACxxxxxxxx...',
+        isSecret: false,
+        description: 'Twilio Main Account SID',
+        required: true,
+      },
+      {
+        key: 'TWILIO_AUTH_TOKEN',
+        label: 'Auth Token',
+        placeholder: 'auth_token_xxxx...',
+        isSecret: true,
+        description: 'Twilio Auth Token from Console',
+        required: true,
+      },
+      {
+        key: 'TWILIO_FROM_NUMBER',
+        label: 'Sender Phone / Messaging Service SID',
+        placeholder: '+18005550199 or MGxxxxxxxx',
+        isSecret: false,
+        description: 'Twilio phone number or Messaging Service SID',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'telnyx',
+    displayName: 'Telnyx Wireless & SMS',
+    channel: Channel.SMS,
+    description: 'Private global IP network and tier-1 carrier connection for ultra-low SMS latencies.',
+    websiteUrl: 'https://telnyx.com',
+    docsUrl: 'https://developers.telnyx.com/',
+    defaultPriority: 2,
+    defaultWeight: 90,
+    requiredEnvVars: [
+      {
+        key: 'TELNYX_API_KEY',
+        label: 'API Key',
+        placeholder: 'KEYxxxxxxxx...',
+        isSecret: true,
+        description: 'Telnyx V2 API Profile Key',
+        required: true,
+      },
+      {
+        key: 'TELNYX_FROM_NUMBER',
+        label: 'From Phone Number',
+        placeholder: '+15550192831',
+        isSecret: false,
+        description: 'Purchased Telnyx E.164 number',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'meta-whatsapp',
+    displayName: 'Meta WhatsApp Cloud API',
+    channel: Channel.WHATSAPP,
+    description: 'Official Meta Graph API direct integration for template and 24h interactive session messages.',
+    websiteUrl: 'https://developers.facebook.com/docs/whatsapp',
+    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'WHATSAPP_PHONE_NUMBER_ID',
+        label: 'Phone Number ID',
+        placeholder: '109283746501928',
+        isSecret: false,
+        description: 'Meta WhatsApp Business Phone Number ID',
+        required: true,
+      },
+      {
+        key: 'WHATSAPP_ACCESS_TOKEN',
+        label: 'System User Access Token',
+        placeholder: 'EAAFxZxxxxxxxx...',
+        isSecret: true,
+        description: 'Permanent Meta System User Token with whatsapp_business_messaging',
+        required: true,
+      },
+      {
+        key: 'WHATSAPP_WABA_ID',
+        label: 'WABA ID',
+        placeholder: 'waba_9182736450',
+        isSecret: false,
+        description: 'WhatsApp Business Account ID',
+        required: false,
+      },
+    ],
+  },
+  {
+    id: 'fcm',
+    displayName: 'Firebase Cloud Messaging (FCM v1)',
+    channel: Channel.PUSH,
+    description: 'Google FCM HTTP v1 API for iOS, Android, and Web Push notifications.',
+    websiteUrl: 'https://firebase.google.com/docs/cloud-messaging',
+    docsUrl: 'https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'FCM_PROJECT_ID',
+        label: 'Firebase Project ID',
+        placeholder: 'my-project-123',
+        isSecret: false,
+        description: 'Google Cloud / Firebase Project ID',
+        required: true,
+      },
+      {
+        key: 'FCM_SERVICE_ACCOUNT_KEY',
+        label: 'Service Account JSON',
+        placeholder: '{"type":"service_account",...}',
+        isSecret: true,
+        description: 'Google Cloud IAM Service Account JSON key string',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'apns',
+    displayName: 'Apple Push Notification service (APNs)',
+    channel: Channel.PUSH,
+    description: 'Direct Apple APNs HTTP/2 protocol sending with .p8 token authentication.',
+    websiteUrl: 'https://developer.apple.com/documentation/usernotifications',
+    docsUrl: 'https://developer.apple.com/documentation/usernotifications/sending_notification_requests_to_apns',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'APNS_KEY_ID',
+        label: 'APNs Key ID (10 chars)',
+        placeholder: 'ABC123DEFG',
+        isSecret: false,
+        description: 'Apple Developer Key Identifier',
+        required: true,
+      },
+      {
+        key: 'APNS_TEAM_ID',
+        label: 'Apple Developer Team ID',
+        placeholder: 'TEAMID1234',
+        isSecret: false,
+        description: 'Apple Developer 10-char Team ID',
+        required: true,
+      },
+      {
+        key: 'APNS_P8_PRIVATE_KEY',
+        label: 'AuthKey .p8 Private Key',
+        placeholder: '-----BEGIN PRIVATE KEY-----\\n...',
+        isSecret: true,
+        description: 'Contents of downloaded AuthKey_KEYID.p8',
+        required: true,
+      },
+      {
+        key: 'APNS_BUNDLE_ID',
+        label: 'App Bundle Identifier',
+        placeholder: 'com.company.app',
+        isSecret: false,
+        description: 'iOS App Bundle ID',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'slack',
+    displayName: 'Slack Enterprise Bot & Webhooks',
+    channel: Channel.SLACK,
+    description: 'Block Kit interactive messages, bot messaging, and channel webhooks.',
+    websiteUrl: 'https://api.slack.com',
+    docsUrl: 'https://api.slack.com/messaging/webhooks',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'SLACK_BOT_TOKEN',
+        label: 'Bot User OAuth Token',
+        placeholder: 'xoxb-xxxxxxxx...',
+        isSecret: true,
+        description: 'Slack Bot OAuth Token (chat:write scope)',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'custom-webhook',
+    displayName: 'Generic Outbound HTTP Webhook',
+    channel: Channel.TOOL,
+    description: 'Arbitrary HTTP POST webhook dispatch with custom HMAC-SHA256 headers and mTLS.',
+    defaultPriority: 1,
+    defaultWeight: 100,
+    requiredEnvVars: [
+      {
+        key: 'WEBHOOK_TARGET_URL',
+        label: 'Target Endpoint URL',
+        placeholder: 'https://api.external.com/v1/event',
+        isSecret: false,
+        description: 'Target destination URL',
+        required: true,
+      },
+      {
+        key: 'WEBHOOK_HMAC_SECRET',
+        label: 'HMAC Signing Secret',
+        placeholder: 'whsec_xxxxxxxx...',
+        isSecret: true,
+        description: 'Secret key used for X-Convey-Signature generation',
+        required: false,
+      },
+    ],
+  },
+];
 
 export function ProviderConfigPage() {
   const queryClient = useQueryClient();
@@ -64,7 +423,7 @@ export function ProviderConfigPage() {
   const [copiedEnv, setCopiedEnv] = useState(false);
 
   // TanStack Queries
-  const { data: catalog = [], isLoading: isCatalogLoading } = useQuery({
+  const { data: serverCatalog = [], isLoading: isCatalogLoading } = useQuery({
     queryKey: providerKeys.catalog(),
     queryFn: () => api.getProviderCatalog(),
   });
@@ -84,6 +443,26 @@ export function ProviderConfigPage() {
     queryFn: () => api.exportEnvVariables(),
   });
 
+  // Merge server catalog with fallback catalog
+  const effectiveCatalog = useMemo(() => {
+    return serverCatalog.length > 0 ? serverCatalog : FALLBACK_CATALOG;
+  }, [serverCatalog]);
+
+  // Ensure selectedCatalogItem is always populated
+  useEffect(() => {
+    if (!selectedCatalogItem && effectiveCatalog.length > 0) {
+      const defaultItem = effectiveCatalog.find((c) => c.id === 'sendgrid') || effectiveCatalog[0];
+      setSelectedCatalogItem(defaultItem);
+      const initialCreds: Record<string, string> = {};
+      for (const spec of defaultItem.requiredEnvVars) {
+        if (spec.defaultValue) {
+          initialCreds[spec.key] = spec.defaultValue;
+        }
+      }
+      setCredentials(initialCreds);
+    }
+  }, [effectiveCatalog, selectedCatalogItem]);
+
   // TanStack Mutation: Register Provider
   const registerMutation = useMutation({
     mutationFn: (data: {
@@ -99,8 +478,6 @@ export function ProviderConfigPage() {
       toast.success(`Registered and configured ${res.displayName}!`);
       queryClient.invalidateQueries({ queryKey: providerKeys.all });
       setIsRegisterOpen(false);
-      setSelectedCatalogItem(null);
-      setCredentials({});
       setTestResult(null);
     },
     onError: () => {
@@ -139,7 +516,8 @@ export function ProviderConfigPage() {
 
   // Open Registration modal with chosen catalog item
   const handleOpenRegister = (item?: ProviderCatalogItem) => {
-    const targetItem = item || catalog[0];
+    const targetItem =
+      item || selectedCatalogItem || effectiveCatalog.find((c) => c.id === 'sendgrid') || effectiveCatalog[0];
     setSelectedCatalogItem(targetItem);
 
     // Populate initial default credentials
@@ -162,7 +540,7 @@ export function ProviderConfigPage() {
   };
 
   const handleCatalogSelectChange = (providerId: string) => {
-    const item = catalog.find((c) => c.id === providerId);
+    const item = effectiveCatalog.find((c) => c.id === providerId);
     if (item) {
       setSelectedCatalogItem(item);
       const initialCreds: Record<string, string> = {};
@@ -226,7 +604,7 @@ export function ProviderConfigPage() {
     toast.success('Downloaded .env.convey configuration file');
   };
 
-  const filteredCatalog = catalog.filter((item) => {
+  const filteredCatalog = effectiveCatalog.filter((item) => {
     const matchesChannel = catalogChannel === 'ALL' || item.channel === catalogChannel;
     const matchesSearch =
       item.displayName.toLowerCase().includes(searchCatalog.toLowerCase()) ||
@@ -234,6 +612,17 @@ export function ProviderConfigPage() {
       item.description.toLowerCase().includes(searchCatalog.toLowerCase());
     return matchesChannel && matchesSearch;
   });
+
+  // Group catalog by channel for clean dropdown display
+  const catalogByChannel = useMemo(() => {
+    const map = new Map<Channel, ProviderCatalogItem[]>();
+    for (const item of effectiveCatalog) {
+      const list = map.get(item.channel) || [];
+      list.push(item);
+      map.set(item.channel, list);
+    }
+    return map;
+  }, [effectiveCatalog]);
 
   return (
     <div className="space-y-6">
@@ -301,7 +690,7 @@ export function ProviderConfigPage() {
             <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Turnkey Catalog</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-sky-400">88 Providers</div>
+            <div className="text-2xl font-bold font-mono text-sky-400">{effectiveCatalog.length} Providers</div>
             <p className="text-[11px] text-slate-400 mt-1">5 Core Channels Supported</p>
           </CardContent>
         </Card>
@@ -339,7 +728,7 @@ export function ProviderConfigPage() {
           </TabsTrigger>
           <TabsTrigger value="catalog" className="text-xs font-semibold gap-1.5">
             <Layers className="w-3.5 h-3.5" />
-            <span>Turnkey Catalog (88 Available)</span>
+            <span>Turnkey Catalog ({effectiveCatalog.length} Available)</span>
           </TabsTrigger>
           <TabsTrigger value="env" className="text-xs font-semibold gap-1.5">
             <Code2 className="w-3.5 h-3.5" />
@@ -436,7 +825,7 @@ export function ProviderConfigPage() {
                             variant="secondary"
                             size="sm"
                             onClick={() => {
-                              const catalogItem = catalog.find((c) => c.id === p.providerId);
+                              const catalogItem = effectiveCatalog.find((c) => c.id === p.providerId);
                               handleOpenRegister(catalogItem);
                             }}
                             className="h-7 text-xs gap-1 hover:border-sky-500/40"
@@ -499,7 +888,7 @@ export function ProviderConfigPage() {
 
           {/* Catalog Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isCatalogLoading ? (
+            {isCatalogLoading && effectiveCatalog.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-500">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-sky-400" />
                 <span>Loading 88+ turnkey adapters catalog...</span>
@@ -631,7 +1020,7 @@ export function ProviderConfigPage() {
           <form onSubmit={handleSubmitRegistration}>
             <DialogHeader>
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-inner">
                   <Radio className="w-5 h-5" />
                 </div>
                 <div>
@@ -645,56 +1034,66 @@ export function ProviderConfigPage() {
 
             <div className="space-y-4 py-4">
               {/* Select Provider from Catalog */}
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-300">Select Provider Adapter</label>
                 <Select
                   value={selectedCatalogItem?.id || ''}
                   onChange={(e) => handleCatalogSelectChange(e.target.value)}
                 >
-                  {catalog.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.displayName} ({item.channel})
-                    </option>
+                  {Array.from(catalogByChannel.entries()).map(([channel, items]) => (
+                    <optgroup key={channel} label={`── ${channel} Providers ──`}>
+                      {items.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.displayName} ({item.id})
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </Select>
               </div>
 
               {/* Dynamic Credential Inputs based on Provider Spec */}
               {selectedCatalogItem && (
-                <div className="space-y-3 p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="space-y-3 p-4 rounded-xl bg-slate-950/90 border border-slate-800 shadow-inner">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-amber-400" />
-                      <span>API Credentials & Environment Keys</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <Key className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-white">
+                        {selectedCatalogItem.displayName} Credentials
+                      </span>
+                    </div>
                     <Badge variant="cyan">{selectedCatalogItem.channel}</Badge>
                   </div>
 
-                  {selectedCatalogItem.requiredEnvVars.map((spec) => (
-                    <div key={spec.key} className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <label className="font-semibold text-slate-300">
-                          {spec.label} {spec.required && <span className="text-rose-400">*</span>}
-                        </label>
-                        <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
+                  <p className="text-xs text-slate-400">{selectedCatalogItem.description}</p>
+
+                  <div className="space-y-3 pt-1">
+                    {selectedCatalogItem.requiredEnvVars.map((spec) => (
+                      <div key={spec.key} className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <label className="font-semibold text-slate-300">
+                            {spec.label} {spec.required && <span className="text-rose-400">*</span>}
+                          </label>
+                          <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
+                        </div>
+                        <Input
+                          type={spec.isSecret ? 'password' : 'text'}
+                          placeholder={spec.placeholder}
+                          value={credentials[spec.key] || ''}
+                          onChange={(e) => handleCredentialChange(spec.key, e.target.value)}
+                          required={spec.required}
+                        />
+                        <p className="text-[11px] text-slate-500">{spec.description}</p>
                       </div>
-                      <Input
-                        type={spec.isSecret ? 'password' : 'text'}
-                        placeholder={spec.placeholder}
-                        value={credentials[spec.key] || ''}
-                        onChange={(e) => handleCredentialChange(spec.key, e.target.value)}
-                        required={spec.required}
-                      />
-                      <p className="text-[11px] text-slate-400">{spec.description}</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* Routing Priority & Load Weight Sliders */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Priority Tier */}
-                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="font-semibold text-slate-300">Routing Priority Tier</span>
                     <span className="font-mono text-sky-400 font-bold">Tier #{priority}</span>
@@ -704,7 +1103,7 @@ export function ProviderConfigPage() {
                 </div>
 
                 {/* Load Weight */}
-                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="font-semibold text-slate-300">Traffic Load Share</span>
                     <span className="font-mono text-emerald-400 font-bold">{weight}%</span>
@@ -715,11 +1114,11 @@ export function ProviderConfigPage() {
               </div>
 
               {/* Failover Target Provider */}
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-300">Automatic Failover Target</label>
                 <Select value={fallbackProviderId} onChange={(e) => setFallbackProviderId(e.target.value)}>
                   <option value="">None (Terminal on Failure)</option>
-                  {catalog
+                  {effectiveCatalog
                     .filter((c) => c.channel === selectedCatalogItem?.channel && c.id !== selectedCatalogItem?.id)
                     .map((c) => (
                       <option key={c.id} value={c.id}>
@@ -730,7 +1129,7 @@ export function ProviderConfigPage() {
               </div>
 
               {/* Live Connection Test Probe Bar */}
-              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-white block">Validate Credentials Probe</span>
                   <span className="text-[11px] text-slate-400">
