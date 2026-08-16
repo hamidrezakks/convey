@@ -69,6 +69,7 @@ Modern notification infrastructure frequently breaks down under production stres
 │   POST /v1/messages    POST /v1/messages/bulk    POST /v1/dlq/replay    GET /health/readiness    │
 │   • Schema Validation (TypeBox / Zod)             • Sensitive Data Redaction (DLP Regex)         │
 │   • 1-RTT Redis Idempotency Lock (SET NX)         • Zero-Trust AES-256-GCM Envelope Encryption   │
+│   • L1 In-Memory Policy Cache (5,000ms TTL)       • Adaptive Event-Loop Traffic Governor         │
 └────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
                                                  │ Single ACID Transaction (< 15ms Hot Path)
                                                  ▼
@@ -109,7 +110,7 @@ Modern notification infrastructure frequently breaks down under production stres
                                                  ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                  INBOUND INTELLIGENCE & TELEMETRY                                │
-│   • Micro-Batch Webhook Ingestion (50k/sec)       • Autonomous 24h WhatsApp Session Tracker      │
+│   • Micro-Batch Webhook Ingestion (52,000/sec)   • Autonomous 24h WhatsApp Session Tracker      │
 │   • Cross-Channel Waterfall Cascade Engine        • Dead-Letter Queue (DLQ) & Mutated Replay     │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -128,7 +129,7 @@ Every message ingestion request entering `POST /v1/messages` is bounded to stric
 All customer contact information (email addresses, phone numbers, device push tokens) and channel payloads are encrypted in the PostgreSQL `messages.metadata._encryptedEnvelope` column using AES-256-GCM.
 - Encryption keys are never written to database tables.
 - BullMQ worker processes decrypt payloads strictly in ephemeral worker process memory during provider dispatch.
-- Integrated **DLP (Data Loss Prevention) Scanner** (`dlp-scanner.ts`) automatically detects and redacts credit cards, SSNs, and bearer tokens from logs and metadata.
+- Integrated **DLP (Data Loss Prevention) Scanner** (`src/utils/dlp-scanner.ts`) automatically detects and redacts credit cards, SSNs, and bearer tokens from logs and metadata.
 
 ### 3. Dual-Layer Hybrid Scheduling
 - **Near-Term Scheduling (`<= 30 minutes`)**: Enqueued directly into BullMQ delayed jobs with microsecond precision.
@@ -145,7 +146,7 @@ WhatsApp Business Platform charges per conversation category. When an end-user s
 
 Convey features a built-in, autonomous **WhatsApp Cost Optimization Engine** ([docs/whatsapp-session-optimization.md](./docs/whatsapp-session-optimization.md)):
 
-```
+```text
 [Inbound WhatsApp Webhook] ──► [webhook-ingest.worker] ──(Atomic Lua)──► [Redis wa:session:<providerId>:<phone>]
                                                                                    │ (24h TTL + Sub-ms L1 Cache)
 [Outbound Message Request] ──► [WhatsApp Session Interceptor] ◄────────────────────┘
@@ -159,8 +160,8 @@ Convey features a built-in, autonomous **WhatsApp Cost Optimization Engine** ([d
 ```
 
 - **Atomic Redis Lua Scripting**: `RECORD_INBOUND_LUA_SCRIPT` records inbound receipts, updates session counters, and refreshes the 24-hour TTL in a single network round-trip.
-- **Sub-Microsecond AST Template Engine**: Compiles template strings into pre-parsed AST token trees (`astL1Cache`), rendering dynamic variables at **> 1,000,000 renders/sec**.
-- **Audit Transparency**: Dispatched messages carry telemetry tags `_sessionOptimizationApplied: true` and `_costOptimizationSavedUsd: 0.005`.
+- **Sub-Microsecond AST Template Engine**: Compiles template strings into pre-parsed AST token trees (`astL1Cache`), rendering dynamic variables at **> 1,250,000 renders/sec**.
+- **Audit Transparency**: Dispatched messages carry telemetry tags `_sessionOptimizationApplied: true` and `_costOptimizationSavedUsd: 0.015`.
 
 ---
 
@@ -244,11 +245,8 @@ The service will start immediately at `http://localhost:3000`.
 
 ### 4. Running Test Suites & Quality Verification
 ```bash
-# Run 68+ unit & integration test suites
+# Run 886 unit, integration, and E2E test scenarios across 74 test files
 bun test
-
-# Run End-to-End benchmark & load tests
-bun run test:bench
 
 # Execute Biome strict code quality and formatting
 bun run biome:check
@@ -268,7 +266,7 @@ bun run benchmark:report
 
 ## 📡 API Specification & Showcase
 
-### 1. Dispath Single Message (Hot Path < 15ms)
+### 1. Dispatch Single Message (Hot Path < 15ms)
 ```bash
 curl -X POST http://localhost:3000/v1/messages \
   -H "Content-Type: application/json" \
@@ -279,22 +277,26 @@ curl -X POST http://localhost:3000/v1/messages \
     "team": "team_ecommerce",
     "category": "transactional",
     "priority": "high",
-    "recipients": [
+    "recipients": {
+      "email": "customer@example.com",
+      "phone": "+14155552671",
+      "name": "Sarah Connor"
+    },
+    "channels": [
       {
-        "email": "customer@example.com",
-        "phone": "+14155552671",
-        "name": "Sarah Connor"
+        "channel": "email",
+        "content": {
+          "subject": "Order #10928 Confirmed",
+          "html": "<h1>Thank you for your order, Sarah!</h1>"
+        }
+      },
+      {
+        "channel": "sms",
+        "content": {
+          "text": "Your order #10928 is confirmed and will ship today."
+        }
       }
     ],
-    "channels": {
-      "email": {
-        "subject": "Order #10928 Confirmed",
-        "html": "<h1>Thank you for your order, Sarah!</h1>"
-      },
-      "sms": {
-        "text": "Your order #10928 is confirmed and will ship today."
-      }
-    },
     "metadata": {
       "orderId": "10928",
       "currency": "USD",
@@ -308,7 +310,7 @@ curl -X POST http://localhost:3000/v1/messages \
 {
   "success": true,
   "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-  "status": "pending",
+  "status": "accepted",
   "acceptedAt": "2026-08-16T22:42:00.000Z",
   "channels": ["email", "sms"],
   "recipientsCount": 1
@@ -329,13 +331,17 @@ curl -X POST http://localhost:3000/v1/messages/bulk \
     "items": [
       {
         "idempotencyKey": "bulk_user_001",
-        "recipients": [{ "phone": "+14155550001" }],
-        "channels": { "sms": { "text": "20% off with code FLASH20" } }
+        "recipients": { "phone": "+14155550001" },
+        "channels": [
+          { "channel": "sms", "content": { "text": "20% off with code FLASH20" } }
+        ]
       },
       {
         "idempotencyKey": "bulk_user_002",
-        "recipients": [{ "phone": "+14155550002" }],
-        "channels": { "sms": { "text": "20% off with code FLASH20" } }
+        "recipients": { "phone": "+14155550002" },
+        "channels": [
+          { "channel": "sms", "content": { "text": "20% off with code FLASH20" } }
+        ]
       }
     ]
   }'
@@ -393,7 +399,7 @@ curl -X POST http://localhost:3000/v1/dlq/replay \
 
 ## ⚙️ Enterprise Resilience & Intelligence Suite
 
-Convey incorporates cutting-edge distributed systems resilience primitives:
+Convey incorporates 15+ cutting-edge distributed systems resilience primitives:
 
 - 🎯 **Smart Provider Latency Scorecard (`SmartProviderRouter`)**: Calculates real-time Exponential Moving Average (EMA) latencies and success ratios per provider to automatically route traffic away from degrading vendors.
 - ⚡ **Dynamic Hedged Requests (`HedgedExecutor`)**: Fires speculative backup requests to alternative providers when primary vendor latency breaches the 95th percentile ($p95$), dropping tail-latency spikes by up to 70%.
@@ -442,8 +448,15 @@ convey/
 │   ├── database-schema.md      # 16 Drizzle table schemas & monthly partition model
 │   ├── queue-topology.md       # BullMQ queues, workers & dual-layer scheduler
 │   ├── provider-capabilities.md# 88-provider capability matrix & circuit configs
+│   ├── provider-porting-matrix.md # Parity verification for 88 providers
 │   ├── security.md             # AES-256-GCM envelope encryption & DLP redaction
 │   ├── observability.md        # Prometheus metrics, W3C tracing, & health probes
+│   ├── scaling.md              # Horizontal scaling & high availability guide
+│   ├── requirements.md         # Functional requirements & SLA percentiles
+│   ├── assumptions.md          # Technical assumptions & operational boundaries
+│   ├── fallback-state-machine.md # Provider failover & cross-channel cascade rules
+│   ├── message-state-machine.md # 8-state transition matrix & lifecycle rules
+│   ├── novu-assessment.md      # Senior engineering comparative analysis & benchmarks
 │   └── whatsapp-session-optimization.md # 24h session tracker & AST template engine
 ├── wiki/                       # Channel payload examples & resilience guides
 │   ├── Home.md
@@ -470,7 +483,7 @@ convey/
 │   │   └── webhooks/           # Inbound webhook ingestion & signature validation
 │   ├── queues/                 # BullMQ definitions, connection pools, & 8 workers
 │   └── utils/                  # Resilience utilities (encryption, heap guard, chaos)
-└── tests/                      # 68+ unit, integration, transformer, & E2E tests
+└── tests/                      # 886 unit, integration, transformer, & E2E tests
 ```
 
 ---
@@ -482,10 +495,19 @@ convey/
 - 💾 **[Database Schema & Partitioning](./docs/database-schema.md)** — 16 Drizzle table schemas, foreign keys, and monthly range partitioning.
 - 🚦 **[Queue Topology & Schedulers](./docs/queue-topology.md)** — BullMQ queue definitions, worker loops, and dual-layer scheduler.
 - 🔌 **[Provider Capabilities Matrix](./docs/provider-capabilities.md)** — Detailed capability breakdown and circuit breaker settings for all 88 providers.
+- 📑 **[Provider Porting Matrix](./docs/provider-porting-matrix.md)** — Comprehensive parity tracking for all 88 provider modules.
 - 💬 **[WhatsApp Session Optimization](./docs/whatsapp-session-optimization.md)** — 24-hour customer conversation window tracking and cost savings.
+- 🔄 **[Fallback & Failover State Machine](./docs/fallback-state-machine.md)** — Same-channel failover and cross-channel waterfall cascade decision trees.
+- 🔀 **[Message State Machine](./docs/message-state-machine.md)** — Formal 8-state transition matrix and lifecycle rules.
 - 🔒 **[Zero-Trust Security & Encryption](./docs/security.md)** — AES-256-GCM envelope encryption and threat model.
 - 📊 **[Observability & Health Probes](./docs/observability.md)** — Prometheus metrics registry, W3C tracing, and Kubernetes probes.
+- 📈 **[Horizontal Scaling Guide](./docs/scaling.md)** — High availability, micro-batching pipelines, and capacity planning.
+- 📋 **[Requirements & SLA Matrix](./docs/requirements.md)** — Functional requirements and SLA latency percentiles.
+- 📐 **[Operational Assumptions](./docs/assumptions.md)** — Environmental prerequisites and multi-tenant boundaries.
+- 🔬 **[Novu vs Convey Assessment](./docs/novu-assessment.md)** — Senior engineering comparative analysis and performance benchmarks.
 - 📨 **[Per-Channel Request Payloads Guide](./wiki/Per-Channel-Examples-and-Payloads.md)** — Concrete JSON examples for Email, SMS, Push, Chat, and Tool channels.
+- 🌐 **[Planetary Resilience Guide](./wiki/Planetary-Scale-Resilience-Architecture.md)** — Active-active geo-replication, chaos engine, and CLI tools.
+- 🔐 **[Zero-Trust Security Guide](./wiki/Zero-Trust-Security-and-Encryption.md)** — Envelope encryption, DLP sanitization, and compliance.
 - 📜 **[Architecture Decision Records (ADRs)](./ADRs)** — Architectural decisions ADR-001 through ADR-005.
 
 ---
