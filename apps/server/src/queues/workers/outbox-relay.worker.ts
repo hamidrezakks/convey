@@ -1,11 +1,10 @@
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
-import type { Redis } from 'ioredis';
 import { db } from '../../db';
 import { outbox } from '../../db/schema';
 import { JobName, MessagePriority, OutboxState } from '../../modules/messaging/messaging.types';
 import { heapMemoryGuard } from '../../utils/heap-guard';
 import { type TaskLoop, createTaskLoop } from '../../utils/task-loop';
-import { redisClient } from '../connection';
+import { type BunNativeRedis, redisClient } from '../connection';
 import { dispatchBulkQueue, dispatchHighQueue, dispatchNormalQueue } from '../queue-definitions';
 
 export interface OutboxPayload {
@@ -168,7 +167,7 @@ for (let shardId = 0; shardId < OUTBOX_SHARD_COUNT; shardId++) {
 
 const fallbackUnifiedLoop = createTaskLoop(processOutboxBatch, 500, 'outbox relay unified fallback loop');
 
-let fastPathSub: Redis | null = null;
+let fastPathSub: BunNativeRedis | null = null;
 
 export function initOutboxFastPathSubscriber() {
   if (process.env.NODE_ENV === 'test') return;

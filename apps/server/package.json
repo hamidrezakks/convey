@@ -30,7 +30,6 @@
     "bullmq": "^6.1.2",
     "drizzle-orm": "^0.45.2",
     "elysia": "next",
-    "ioredis": "^5.5.0",
     "pino": "^9.6.0",
     "postgres": "^3.4.5",
     "prom-client": "^15.1.3",

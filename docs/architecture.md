@@ -205,7 +205,7 @@ To ensure **zero data loss** during deployments, node restarts, or Kubernetes po
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ STAGE 4: Metrics Flush & Database Connection Pool Teardown               │
 │ • Flushes pending Prometheus telemetry and OLAP metric aggregations     │
-│ • Gracefully closes Redis connection pool (ioredis.quit())               │
+│ • Gracefully closes Bun Native Redis connection pool (redisClient.quit()) │
 │ • Closes PostgreSQL connection pool (queryClient.end())                  │
 │ • Process exits with status 0 (Zero Message Loss)                       │
 └──────────────────────────────────────────────────────────────────────────┘

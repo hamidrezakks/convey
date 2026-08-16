@@ -9,7 +9,7 @@ import { buildAttemptTimestampUpdates } from '../utils/attempts';
 import { generateMessageId } from '../utils/id';
 import { logger } from '../utils/logger';
 import { formatBullMQPrefix, formatPubSubChannel, formatRedisKey } from '../utils/redis-keys';
-import { redisClient, redisConnectionOptions } from './connection';
+import { type BunNativeRedis, redisClient, redisConnectionOptions } from './connection';
 import { callbackQueue } from './queue-definitions';
 import { processProviderSendJob } from './workers/provider-send.worker';
 
@@ -236,7 +236,7 @@ export function setupConfiguredProviderWorkers(configMap?: Record<string, Record
 const CONFIG_CHANNEL = formatPubSubChannel('provider-config-events');
 const NODE_INSTANCE_ID = generateMessageId();
 const reconfigLockMap = new Map<string, Promise<void>>();
-let pubSubSubscriber: import('ioredis').default | undefined;
+let pubSubSubscriber: BunNativeRedis | undefined;
 
 export async function publishProviderConfigUpdate(
   providerId: string,
@@ -261,13 +261,9 @@ export async function publishProviderConfigUpdate(
 export function listenProviderConfigUpdates(): void {
   if (pubSubSubscriber || process.env.NODE_ENV === 'test') return;
   try {
-    const Redis = require('ioredis');
-    pubSubSubscriber = new Redis(redisConnectionOptions.url, {
-      maxRetriesPerRequest: null,
-      enableReadyCheck: false,
-    });
+    pubSubSubscriber = redisClient.duplicate();
 
-    pubSubSubscriber?.subscribe(CONFIG_CHANNEL, (err: unknown) => {
+    pubSubSubscriber.subscribe(CONFIG_CHANNEL, (err: unknown) => {
       if (err) {
         logger.error('ProviderQueues', 'Failed to subscribe to provider config event channel', {
           error: (err as Error).message,
@@ -277,7 +273,7 @@ export function listenProviderConfigUpdates(): void {
       }
     });
 
-    pubSubSubscriber?.on('message', (channel: string, message: string) => {
+    pubSubSubscriber.on('message', (channel: string, message: string) => {
       if (channel !== CONFIG_CHANNEL) return;
       try {
         const data = JSON.parse(message);

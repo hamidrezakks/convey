@@ -1,5 +1,4 @@
 import { createCipheriv, createDecipheriv, hkdfSync } from 'node:crypto';
-import type { Redis } from 'ioredis';
 import { redisClient } from '../queues/connection';
 import { logger } from './logger';
 import { formatPubSubChannel, formatRedisKey } from './redis-keys';
