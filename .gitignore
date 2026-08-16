@@ -3,3 +3,5 @@ dist/
 .env
 *.log
 .DS_Store
+scripts/build-git-history.ts
+build-git-history.ts
