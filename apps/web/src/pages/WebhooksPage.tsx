@@ -1,4 +1,4 @@
-import { Key, Plus, Webhook } from 'lucide-react';
+import { Check, Key, Plus, Webhook } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 export function WebhooksPage() {
-  const [_copiedSecret, setCopiedSecret] = useState(false);
+  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
 
   const subscriptions = [
     {
@@ -60,11 +60,11 @@ export function WebhooksPage() {
     },
   ];
 
-  const handleCopySecret = (secret: string) => {
+  const handleCopySecret = (id: string, secret: string) => {
     navigator.clipboard.writeText(secret);
-    setCopiedSecret(true);
+    setCopiedSecretId(id);
     toast.success('Webhook HMAC signing secret copied to clipboard');
-    setTimeout(() => setCopiedSecret(false), 2000);
+    setTimeout(() => setCopiedSecretId(null), 2000);
   };
 
   return (
@@ -133,11 +133,15 @@ export function WebhooksPage() {
                   <TableCell>
                     <button
                       type="button"
-                      onClick={() => handleCopySecret(sub.secret)}
+                      onClick={() => handleCopySecret(sub.id, sub.secret)}
                       className="flex items-center gap-1 font-mono text-xs text-slate-400 hover:text-sky-300 transition-colors"
                       title="Copy HMAC secret"
                     >
-                      <Key className="w-3 h-3 text-amber-400" />
+                      {copiedSecretId === sub.id ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Key className="w-3 h-3 text-amber-400" />
+                      )}
                       <span>{sub.secret.slice(0, 14)}...</span>
                     </button>
                   </TableCell>

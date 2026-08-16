@@ -11,20 +11,93 @@ import type {
   SuppressionDto,
   SuppressionReason,
 } from '@convey/shared';
+import ky from 'ky';
 
-const API_BASE = '/v1/admin';
+export interface OverviewData {
+  status: string;
+  uptimeSeconds: number;
+  deliverySuccessRatePercent: number;
+  metrics24h: {
+    totalIngested: number;
+    delivered: number;
+    failed: number;
+    dlqPending: number;
+    activeSuppressions: number;
+  };
+  latencyPercentiles: {
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    slaThresholdMs: number;
+  };
+  queues: {
+    outboxRelay: number;
+    messageDispatch: number;
+    providerSend: number;
+    scheduledPromoter: number;
+    customerWebhook: number;
+    activeWorkers: number;
+  };
+  runtime: {
+    heapUsedMb: number;
+    heapTotalMb: number;
+    heapSaturationPercent: number;
+    eventLoopLagMs: number;
+  };
+  whatsappCostSavings: {
+    templateConvertedToSessionCount: number;
+    estimatedUsdSaved: number;
+  };
+}
+
+export interface MessagesResponse {
+  messages: MessageSummaryDto[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CanaryProbeResult {
+  providerId: string;
+  timestamp: string;
+  result: {
+    healthy: boolean;
+    latencyMs?: number;
+    status?: string;
+  };
+}
+
+export interface TestMessageResult {
+  publicId: string;
+  status: string;
+  channel: Channel;
+  recipient: string;
+  acceptedAt: string;
+  simulatedLatencyMs: number;
+  receiptUrl: string;
+}
+
+// Configured Ky instance with prefix, retries, and timeout
+export const httpClient = ky.create({
+  prefix: '/v1/admin',
+  timeout: 20000,
+  retry: {
+    limit: 2,
+    methods: ['get', 'put', 'head', 'delete', 'options'],
+    statusCodes: [408, 413, 429, 500, 502, 503, 504],
+  },
+  headers: {
+    Accept: 'application/json',
+  },
+});
 
 export const api = {
-  async getOverview() {
-    const res = await fetch(`${API_BASE}/overview`);
-    if (!res.ok) throw new Error(`Overview fetch failed: ${res.statusText}`);
-    return res.json();
+  async getOverview(): Promise<OverviewData> {
+    return httpClient.get('overview').json<OverviewData>();
   },
 
   async getLiveTelemetry(): Promise<LiveTelemetrySnapshot> {
-    const res = await fetch(`${API_BASE}/telemetry/live`);
-    if (!res.ok) throw new Error(`Telemetry fetch failed: ${res.statusText}`);
-    return res.json();
+    return httpClient.get('telemetry/live').json<LiveTelemetrySnapshot>();
   },
 
   async getMessages(params?: {
@@ -36,95 +109,69 @@ export const api = {
     search?: string;
     startDate?: string;
     endDate?: string;
-  }): Promise<{ messages: MessageSummaryDto[]; total: number; page: number; limit: number }> {
-    const query = new URLSearchParams();
-    if (params?.page) query.set('page', String(params.page));
-    if (params?.limit) query.set('limit', String(params.limit));
-    if (params?.teamId) query.set('teamId', params.teamId);
-    if (params?.channel) query.set('channel', params.channel);
-    if (params?.status) query.set('status', params.status);
-    if (params?.search) query.set('search', params.search);
-    if (params?.startDate) query.set('startDate', params.startDate);
-    if (params?.endDate) query.set('endDate', params.endDate);
+  }): Promise<MessagesResponse> {
+    const searchParams: Record<string, string | number> = {};
+    if (params?.page) searchParams.page = params.page;
+    if (params?.limit) searchParams.limit = params.limit;
+    if (params?.teamId) searchParams.teamId = params.teamId;
+    if (params?.channel) searchParams.channel = params.channel;
+    if (params?.status) searchParams.status = params.status;
+    if (params?.search) searchParams.search = params.search;
+    if (params?.startDate) searchParams.startDate = params.startDate;
+    if (params?.endDate) searchParams.endDate = params.endDate;
 
-    const res = await fetch(`${API_BASE}/messages?${query.toString()}`);
-    if (!res.ok) throw new Error(`Messages fetch failed: ${res.statusText}`);
-    return res.json();
+    return httpClient.get('messages', { searchParams }).json<MessagesResponse>();
   },
 
   async getMessageDetails(id: string): Promise<MessageDetailDto> {
-    const res = await fetch(`${API_BASE}/messages/${id}`);
-    if (!res.ok) throw new Error(`Message ${id} not found`);
-    return res.json();
+    return httpClient.get(`messages/${id}`).json<MessageDetailDto>();
   },
 
   async getProviders(): Promise<ProviderHealthDto[]> {
-    const res = await fetch(`${API_BASE}/providers`);
-    if (!res.ok) throw new Error(`Providers fetch failed: ${res.statusText}`);
-    return res.json();
+    return httpClient.get('providers').json<ProviderHealthDto[]>();
   },
 
   async setProviderCircuit(
     providerId: string,
     action: 'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN',
     rampPercentage = 20,
-  ) {
-    const res = await fetch(`${API_BASE}/providers/${providerId}/circuit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, rampPercentage }),
-    });
-    if (!res.ok) throw new Error(`Circuit override failed: ${res.statusText}`);
-    return res.json();
+  ): Promise<{ providerId: string; action: string; rampPercentage: number; state: string; updatedAt: string }> {
+    return httpClient
+      .post(`providers/${providerId}/circuit`, {
+        json: { action, rampPercentage },
+      })
+      .json();
   },
 
-  async triggerCanary(providerId: string) {
-    const res = await fetch(`${API_BASE}/providers/${providerId}/canary`, {
-      method: 'POST',
-    });
-    if (!res.ok) throw new Error(`Canary trigger failed: ${res.statusText}`);
-    return res.json();
+  async triggerCanary(providerId: string): Promise<CanaryProbeResult> {
+    return httpClient.post(`providers/${providerId}/canary`).json<CanaryProbeResult>();
   },
 
   async replayDlq(request: DlqReplayRequest): Promise<DlqReplayResult> {
-    const res = await fetch(`${API_BASE}/dlq/replay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    });
-    if (!res.ok) throw new Error(`DLQ replay failed: ${res.statusText}`);
-    return res.json();
+    return httpClient.post('dlq/replay', { json: request }).json<DlqReplayResult>();
   },
 
   async getSuppressions(search?: string): Promise<SuppressionDto[]> {
-    const query = search ? `?search=${encodeURIComponent(search)}` : '';
-    const res = await fetch(`${API_BASE}/suppressions${query}`);
-    if (!res.ok) throw new Error(`Suppressions fetch failed: ${res.statusText}`);
-    return res.json();
+    const searchParams: Record<string, string> = {};
+    if (search) searchParams.search = search;
+    return httpClient.get('suppressions', { searchParams }).json<SuppressionDto[]>();
   },
 
-  async addSuppression(data: { teamId?: string; recipient: string; channel: Channel; reason: SuppressionReason }) {
-    const res = await fetch(`${API_BASE}/suppressions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`Add suppression failed: ${res.statusText}`);
-    return res.json();
+  async addSuppression(data: {
+    teamId?: string;
+    recipient: string;
+    channel: Channel;
+    reason: SuppressionReason;
+  }): Promise<SuppressionDto> {
+    return httpClient.post('suppressions', { json: data }).json<SuppressionDto>();
   },
 
-  async removeSuppression(id: string) {
-    const res = await fetch(`${API_BASE}/suppressions/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error(`Remove suppression failed: ${res.statusText}`);
-    return res.json();
+  async removeSuppression(id: string): Promise<{ success: boolean; id: string }> {
+    return httpClient.delete(`suppressions/${id}`).json<{ success: boolean; id: string }>();
   },
 
   async getPolicies(): Promise<PolicyDto[]> {
-    const res = await fetch(`${API_BASE}/policies`);
-    if (!res.ok) throw new Error(`Policies fetch failed: ${res.statusText}`);
-    return res.json();
+    return httpClient.get('policies').json<PolicyDto[]>();
   },
 
   async sendTestMessage(data: {
@@ -132,13 +179,7 @@ export const api = {
     recipient: string;
     payload: Record<string, unknown>;
     teamId?: string;
-  }) {
-    const res = await fetch(`${API_BASE}/composer/send-test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`Send test message failed: ${res.statusText}`);
-    return res.json();
+  }): Promise<TestMessageResult> {
+    return httpClient.post('composer/send-test', { json: data }).json<TestMessageResult>();
   },
 };
