@@ -6,29 +6,28 @@
 
 [![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.4-f472b6?style=for-the-badge&logo=bun)](https://bun.sh)
 [![Framework: Elysia.js](https://img.shields.io/badge/Framework-Elysia.js-8b5cf6?style=for-the-badge&logo=fastapi)](https://elysiajs.com)
+[![Web Console: React 19 + Base UI](https://img.shields.io/badge/Web_UI-React%2019%20%2B%20Base%20UI-38bdf8?style=for-the-badge&logo=react)](./docs/web-ui-mission-control.md)
 [![Database: PostgreSQL 16](https://img.shields.io/badge/Database-PostgreSQL%2016%20(Partitioned)-336791?style=for-the-badge&logo=postgresql)](https://www.postgresql.org)
 [![Queues: BullMQ + Redis](https://img.shields.io/badge/Queues-BullMQ%20%2B%20Redis%207-dc2626?style=for-the-badge&logo=redis)](https://redis.io)
 [![Security: AES-256-GCM](https://img.shields.io/badge/Security-AES--256--GCM%20Zero--Trust-059669?style=for-the-badge&logo=shield)](./docs/security.md)
 [![Adapters: 88 Providers](https://img.shields.io/badge/Ecosystem-88%20Providers%20%2F%205%20Channels-2563eb?style=for-the-badge)](./docs/provider-capabilities.md)
 [![Code Quality: Biome](https://img.shields.io/badge/Code_Style-Biome%20Strict-6366f1?style=for-the-badge&logo=biome)](https://biomejs.dev)
-[![Hot Path: < 15ms](https://img.shields.io/badge/Hot_Path-p99%20%3C%2018ms-f59e0b?style=for-the-badge)](./docs/architecture.md)
 
 <p align="center">
-  <b>Convey</b> is a high-throughput, fault-tolerant notification and messaging engine engineered for mission-critical enterprise workloads.<br/>
-  Featuring <b>sub-15ms synchronous hot-path acceptance</b>, <b>zero-trust envelope encryption at rest</b>, <b>autonomous WhatsApp session cost optimization</b>, <b>dual-layer hybrid scheduling</b>, and <b>88 turnkey provider integrations</b> across 5 channels.
+  <b>Convey</b> is a high-throughput, fault-tolerant notification engine and planetary telemetry mission control console engineered for mission-critical enterprise workloads.<br/>
+  Featuring <b>sub-15ms synchronous hot-path acceptance</b>, <b>zero-trust envelope encryption at rest</b>, <b>autonomous WhatsApp session cost optimization</b>, <b>dual-layer hybrid scheduling</b>, <b>React 19 + Base UI Mission Control</b>, and <b>88 turnkey provider integrations</b> across 5 channels.
 </p>
 
 ---
 
 [Executive Overview](#-executive-overview) •
+[Mission Control Web-UI](#-planetary-mission-control-web-ui) •
 [System Architecture](#-system-architecture--topology) •
 [Engineering Guarantees](#-core-architectural-guarantees) •
 [WhatsApp Cost Autopilot](#-autonomous-whatsapp-24h-session-cost-optimization) •
 [Provider Ecosystem](#-supported-provider-ecosystem-88-turnkey-adapters) •
 [Quickstart](#-quickstart--developer-experience) •
 [API Showcase](#-api-specification--showcase) •
-[Resilience Suite](#-enterprise-resilience--intelligence-suite) •
-[Performance SLA](#-performance-sla--benchmarks) •
 [Documentation Index](#-deep-dive-documentation-index)
 
 ---
@@ -44,6 +43,7 @@ Modern notification infrastructure frequently breaks down under production stres
 | Capability / SLA | Traditional Monoliths | Cloud Gateways / Novu | **Convey Engine** |
 | :--- | :--- | :--- | :--- |
 | **Hot-Path Send Latency** | 150ms – 600ms (blocking provider HTTP) | 50ms – 120ms | **`p50 < 4ms` / `p99 < 18ms`** (1 Redis `SET NX` + 1 Postgres Tx) |
+| **Admin & Telemetry Console** | Basic static tables | Commercial Cloud SaaS only | **React 19 + Base UI Mission Control (`@convey/web`)** |
 | **Data Privacy at Rest** | Plaintext PII stored in SQL | Database-level disk encryption only | **Zero-Trust Field-Level AES-256-GCM Envelope** (`_encryptedEnvelope`) |
 | **Provider ID Privacy** | Leaks upstream vendor IDs (`SM_...`, `sg_...`) | Mixed ID surfaces | **Strict Zero-Leak Boundary** (`msg_<ULID>`) |
 | **WhatsApp Delivery Cost** | 100% full Meta/BSP template rates ($$$) | Manual template switches | **Autonomous 24h Session Tracker ($0.00 Text Transform)** |
@@ -51,7 +51,23 @@ Modern notification infrastructure frequently breaks down under production stres
 | **Multi-Tenant Fairness** | Global FIFO queue starvation | Coarse token bucket rate limits | **Deficit Round Robin (DRR) Multi-Tenant Quantum Scheduler** |
 | **Tail-Latency Elimination** | Linear timeouts & retries | Basic exponential backoff | **Dynamic Hedged Concurrent Requests + Full-Jitter Backoff** |
 | **Database Scalability** | Monolithic tables with B-Tree bloat | Unpartitioned event logs | **Monthly PostgreSQL Range Partitioning + Auto Pruning Windows** |
-| **Graceful Node Shutdown** | Abrupt SIGKILL drops running jobs | Basic connection pool close | **4-Stage Zero-Data-Loss Orchestrator** (Traffic ➔ Queues ➔ Workers ➔ DB) |
+
+---
+
+## 🎛️ Planetary Mission Control Web-UI
+
+Convey includes a **Staff-level React 19 + Base UI Mission Control Console** (`apps/web`):
+
+- 🛰️ **Planetary Telemetry Ops Center**: Real-time RPS throughput, P95 latency sparklines, BullMQ queue depths, and V8 Heap Memory Guard.
+- 🔬 **Universal Message Explorer & W3C Tracing**: Interactive Gantt trace waterfall (`TraceWaterfall`) visualizer from HTTP ingestion to provider wire delivery.
+- 🎚️ **Provider Matrix & Circuit Breaker Cockpit**: Live circuit states (`CLOSED`, `HALF-OPEN`, `OPEN`), stepped half-open traffic ramps (5% ➔ 20% ➔ 50% ➔ 100%), and 1-click synthetic canary probes.
+- 💣 **Dead-Letter Queue & Blast-Radius Simulator**: Failure cluster breakdown, dry-run simulation of cost and risk, and zero-data-loss batch replay.
+- 🛡️ **Deliverability Autopilot & Suppression Guard**: SPF/DKIM/DMARC alignment scorecards, IP warmup curves, and suppression management.
+- ⚖️ **DRR Policy Studio**: Deficit Weighted Round Robin SLA weights (`Enterprise: 200`, `Pro: 50`, `Free: 10`) and distributed token-bucket ingress controls.
+- ✍️ **Omnichannel Composer**: Side-by-side WYSIWYG studio with realistic frames for Email (Desktop/Mobile), SMS (GSM-7 counter), WhatsApp (Action CTAs), Slack, Push, and Webhook dispatch.
+- ⚡ **Global Search (`⌘K`)**: Instant modal navigation across messages, providers, queues, and settings.
+
+📖 **[Read the complete Web-UI Console Guide](./docs/web-ui-mission-control.md)**.
 
 ---
 
@@ -66,7 +82,7 @@ Modern notification infrastructure frequently breaks down under production stres
                                                  ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                 ELYSIA.JS HIGH-THROUGHPUT GATEWAY                                │
-│   POST /v1/messages    POST /v1/messages/bulk    POST /v1/dlq/replay    GET /health/readiness    │
+│   POST /v1/messages    POST /v1/messages/bulk    POST /v1/admin/...     GET /health/readiness    │
 │   • Schema Validation (TypeBox / Zod)             • Sensitive Data Redaction (DLP Regex)         │
 │   • 1-RTT Redis Idempotency Lock (SET NX)         • Zero-Trust AES-256-GCM Envelope Encryption   │
 │   • L1 In-Memory Policy Cache (5,000ms TTL)       • Adaptive Event-Loop Traffic Governor         │
@@ -117,96 +133,6 @@ Modern notification infrastructure frequently breaks down under production stres
 
 ---
 
-## 🛡️ Core Architectural Guarantees
-
-### 1. Sub-15ms Hot-Path Send Acceptance
-Every message ingestion request entering `POST /v1/messages` is bounded to strictly:
-1. **1-RTT Redis `SET NX` Lock**: Checks `convey:idempotency:{team}:{idempotencyKey}`. If an identical hash is present, the stored response is returned in `< 1ms`.
-2. **Zero-Trust Envelope Encryption**: Contact PII (`recipients`) and message channel bodies (`channels`) are encrypted via AES-256-GCM before database touch.
-3. **Single PostgreSQL Transaction**: Executes an atomic insert into `messages` and `outbox`. Returns HTTP `202 Accepted` with an opaque identifier `msg_<ULID>`.
-
-### 2. Zero-Trust BYOK Envelope Encryption at Rest
-All customer contact information (email addresses, phone numbers, device push tokens) and channel payloads are encrypted in the PostgreSQL `messages.metadata._encryptedEnvelope` column using AES-256-GCM.
-- Encryption keys are never written to database tables.
-- BullMQ worker processes decrypt payloads strictly in ephemeral worker process memory during provider dispatch.
-- Integrated **DLP (Data Loss Prevention) Scanner** (`src/utils/dlp-scanner.ts`) automatically detects and redacts credit cards, SSNs, and bearer tokens from logs and metadata.
-
-### 3. Dual-Layer Hybrid Scheduling
-- **Near-Term Scheduling (`<= 30 minutes`)**: Enqueued directly into BullMQ delayed jobs with microsecond precision.
-- **Long-Term Scheduling (`> 30 minutes`)**: Persisted in PostgreSQL range-partitioned ledger tables. The background `scheduledPromoter` loop runs continuous boundary scans and promotes messages to BullMQ precisely when they cross into the 30-minute threshold.
-
-### 4. Zero Provider Message ID Exposure
-Public APIs, client responses, and webhooks expose strictly opaque ULID identifiers (`msg_<ULID>`). Internal provider transaction IDs (e.g. Twilio `SM...`, SendGrid `msg-...`, AWS SES Message-ID) and internal database UUIDs are never leaked across tenant boundaries.
-
----
-
-## 💰 Autonomous WhatsApp 24h Session Cost Optimization
-
-WhatsApp Business Platform charges per conversation category. When an end-user sends an inbound WhatsApp message, WhatsApp opens a **24-Hour Customer Service Window**. During this active window, free-form text messages incur **$0.00 template fees**.
-
-Convey features a built-in, autonomous **WhatsApp Cost Optimization Engine** ([docs/whatsapp-session-optimization.md](./docs/whatsapp-session-optimization.md)):
-
-```text
-[Inbound WhatsApp Webhook] ──► [webhook-ingest.worker] ──(Atomic Lua)──► [Redis wa:session:<providerId>:<phone>]
-                                                                                   │ (24h TTL + Sub-ms L1 Cache)
-[Outbound Message Request] ──► [WhatsApp Session Interceptor] ◄────────────────────┘
-                                        │
-                                        ├── Active 24h Window? ──► [WhatsApp Template Engine (Pre-compiled AST)]
-                                        │                                   │
-                                        │                                   ▼
-                                        │                   Rendered Plain-Text ($0.00 Meta Fee)
-                                        │
-                                        └── Expired Window?  ──► Standard Pre-Approved Template ($$$ Fee)
-```
-
-- **Atomic Redis Lua Scripting**: `RECORD_INBOUND_LUA_SCRIPT` records inbound receipts, updates session counters, and refreshes the 24-hour TTL in a single network round-trip.
-- **Sub-Microsecond AST Template Engine**: Compiles template strings into pre-parsed AST token trees (`astL1Cache`), rendering dynamic variables at **> 1,250,000 renders/sec**.
-- **Audit Transparency**: Dispatched messages carry telemetry tags `_sessionOptimizationApplied: true` and `_costOptimizationSavedUsd: 0.015`.
-
----
-
-## 🌐 Supported Provider Ecosystem (88 Turnkey Adapters)
-
-Convey includes production-tested adapters across **5 delivery channels** with unified schemas, automatic signature validation, and circuit breaker protection:
-
-### 📧 Email Providers (20)
-| Provider ID | Service Name | Protocol / SDK | Delivery Receipts | Webhook Signature Verification |
-| :--- | :--- | :--- | :---: | :---: |
-| `ses` | Amazon SES v2 | AWS SDK v3 | ✅ | ✅ AWS SNS SigV4 |
-| `sendgrid` | SendGrid | Twilio SendGrid REST | ✅ | ✅ ECDSA Public Key |
-| `resend` | Resend | Resend REST API | ✅ | ✅ Svix HMAC-SHA256 |
-| `mailgun` | Mailgun | Mailgun v3 API | ✅ | ✅ HMAC-SHA256 |
-| `postmark` | Postmark | Postmark REST | ✅ | ✅ Secret Token / Basic |
-| `brevo` | Brevo (Sendinblue) | Brevo v3 REST | ✅ | ✅ Webhook Signature |
-| `mailjet` | Mailjet | Mailjet v3.1 | ✅ | ✅ Basic / Token |
-| `sparkpost` | SparkPost | SparkPost v1 | ✅ | ✅ OAuth / Token |
-| `mandrill` | Mailchimp Mandrill | Mandrill REST | ✅ | ✅ HMAC-SHA1 Signature |
-| `mailersend` | MailerSend | MailerSend REST | ✅ | ✅ Signature Token |
-| `nodemailer` | SMTP (Generic) | Nodemailer Transport | ❌ | N/A |
-| `plunk` | Plunk | Plunk Secret API | ✅ | ✅ Secret Header |
-| `mailtrap` | Mailtrap | Mailtrap Email API | ✅ | ✅ Webhook Token |
-| `anypost` | Anypost | Anypost REST | ✅ | ✅ Secret Token |
-| `braze` | Braze | Braze REST API | ✅ | ✅ Custom Webhook |
-| `emailjs` | EmailJS | EmailJS API | ❌ | N/A |
-| `infobip` | Infobip Email | Infobip Omnichannel | ✅ | ✅ HMAC-SHA256 |
-| `netcore` | Netcore | Netcore Pepipost | ✅ | ✅ Webhook Token |
-| `outlook365` | Microsoft 365 | Microsoft Graph API | ❌ | ✅ Graph Validation Token |
-| `email-webhook`| Generic Email Webhook | Custom HTTP POST | ✅ | ✅ HMAC Signature |
-
-### 📱 SMS Providers (39)
-`twilio`, `nexmo` (Vonage), `plivo`, `sinch`, `telnyx`, `termii`, `bandwidth`, `cequens`, `infobip`, `messagebird`, `gupshup`, `clicksend`, `clickatell`, `sns` (AWS SNS), `africas-talking`, `afro-sms`, `azure-sms`, `brevo-sms`, `bulk-sms`, `burst-sms`, `cm-telecom`, `eazy-sms`, `firetext`, `forty-six-elks`, `generic-sms`, `imedia`, `isend-sms`, `isendpro-sms`, `kannel`, `maqsam`, `mobishastra`, `ring-central`, `ruach-sms`, `sendchamp`, `simpletexting`, `sms-central`, `sms77`, `smsmode`, `unifonic`.
-
-### 🔔 Push Notification Providers (8)
-`fcm` (Firebase Cloud Messaging HTTP v1), `apns` (Apple Push Notification service HTTP/2), `one-signal`, `expo`, `pusher-beams`, `pushpad`, `appio`, `push-webhook`.
-
-### 💬 Chat & Social Messaging Providers (17)
-`whatsapp-business` (Meta Cloud API), `twilio-whatsapp`, `cequens-whatsapp`, `slack`, `discord`, `telegram`, `msTeams` (Microsoft Teams), `mattermost`, `line`, `getstream` (Stream Chat), `grafana-on-call`, `rocket-chat`, `ryver`, `sendblue`, `webex-messaging`, `zulip`, `chat-webhook`.
-
-### 🛠️ Alerting & Tooling Providers (4)
-`pagerduty` (Events API v2), `opsgenie`, `grafana` (Alertmanager), `tool-webhook`.
-
----
-
 ## 🚀 Quickstart & Developer Experience
 
 ### Prerequisites
@@ -220,7 +146,7 @@ Convey includes production-tested adapters across **5 delivery channels** with u
 git clone https://github.com/convey/convey.git
 cd convey
 
-# Install dependencies (ultra-fast via Bun)
+# Install dependencies across all monorepo packages (ultra-fast via Bun)
 bun install
 
 # Initialize local environment configuration
@@ -233,285 +159,83 @@ cp .env.example .env
 bun run db:migrate
 ```
 
-### 3. Start Development Server
+### 3. Launch Development Monorepo
 ```bash
-# Launch server with hot reloading
+# Concurrently launches @convey/server (port 3000) and @convey/web (port 5173)
 bun run dev
 ```
-The service will start immediately at `http://localhost:3000`.
-- 📖 **Interactive OpenAPI Documentation**: `http://localhost:3000/swagger`
+
+- 🎛️ **Web-UI Mission Control**: `http://localhost:5173`
+- 📖 **Interactive OpenAPI Spec**: `http://localhost:3000/swagger`
 - 🩺 **Kubernetes Health Probes**: `http://localhost:3000/health/readiness`
 - 📊 **Prometheus Metrics**: `http://localhost:3000/metrics`
 
 ### 4. Running Test Suites & Quality Verification
 ```bash
-# Run 886 unit, integration, and E2E test scenarios across 74 test files
+# Run all 914 tests across the entire monorepo (895 backend + 19 web frontend)
 bun test
 
-# Execute Biome strict code quality and formatting
+# Run Web-UI test suite only
+bun run test:web
+
+# Run Biome strict code quality and formatting
 bun run biome:check
 bun run biome:format
 ```
 
-### 5. Production Operations Scripts
-```bash
-# Dump real-time job consumption metrics across Redis & PostgreSQL
-bun run jobs:dump
-
-# Run a 10,000-message benchmark load test with financial cost reporting
-bun run benchmark:report
-```
-
 ---
 
-## 📡 API Specification & Showcase
-
-### 1. Dispatch Single Message (Hot Path < 15ms)
-```bash
-curl -X POST http://localhost:3000/v1/messages \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer convey_live_secret_key" \
-  -H "X-Idempotency-Key: idemp_order_confirmation_10928" \
-  -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" \
-  -d '{
-    "team": "team_ecommerce",
-    "category": "transactional",
-    "priority": "high",
-    "recipients": {
-      "email": "customer@example.com",
-      "phone": "+14155552671",
-      "name": "Sarah Connor"
-    },
-    "channels": [
-      {
-        "channel": "email",
-        "content": {
-          "subject": "Order #10928 Confirmed",
-          "html": "<h1>Thank you for your order, Sarah!</h1>"
-        }
-      },
-      {
-        "channel": "sms",
-        "content": {
-          "text": "Your order #10928 is confirmed and will ship today."
-        }
-      }
-    ],
-    "metadata": {
-      "orderId": "10928",
-      "currency": "USD",
-      "amount": 149.50
-    }
-  }'
-```
-
-#### Response (`202 Accepted`):
-```json
-{
-  "success": true,
-  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-  "status": "accepted",
-  "acceptedAt": "2026-08-16T22:42:00.000Z",
-  "channels": ["email", "sms"],
-  "recipientsCount": 1
-}
-```
-
----
-
-### 2. High-Throughput Bulk Dispatch (`POST /v1/messages/bulk`)
-Send up to 5,000 individualized recipient dispatches in a single HTTP payload:
-```bash
-curl -X POST http://localhost:3000/v1/messages/bulk \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer convey_live_secret_key" \
-  -d '{
-    "team": "team_growth",
-    "batchName": "flash_sale_campaign",
-    "items": [
-      {
-        "idempotencyKey": "bulk_user_001",
-        "recipients": { "phone": "+14155550001" },
-        "channels": [
-          { "channel": "sms", "content": { "text": "20% off with code FLASH20" } }
-        ]
-      },
-      {
-        "idempotencyKey": "bulk_user_002",
-        "recipients": { "phone": "+14155550002" },
-        "channels": [
-          { "channel": "sms", "content": { "text": "20% off with code FLASH20" } }
-        ]
-      }
-    ]
-  }'
-```
-
----
-
-### 3. Multi-Channel Waterfall Cascade with Quiet-Hours Protection
-Convey supports automatic cross-channel failover (e.g. try Push ➔ fallback to WhatsApp ➔ fallback to SMS) and recipient timezone quiet hours:
-
-```json
-{
-  "team": "team_security",
-  "category": "security_alert",
-  "cascade": {
-    "enabled": true,
-    "strategy": "waterfall",
-    "sequence": [
-      { "channel": "push", "timeoutMs": 15000 },
-      { "channel": "chat", "provider": "whatsapp-business", "timeoutMs": 30000 },
-      { "channel": "sms", "provider": "twilio" }
-    ]
-  },
-  "quietHours": {
-    "enabled": true,
-    "start": "22:00",
-    "end": "08:00",
-    "strategy": "hold_until_morning",
-    "recipientTimezone": "America/New_York"
-  }
-}
-```
-
----
-
-### 4. Dead-Letter Queue (DLQ) & Mutated Replay
-Inspect poison-pill or provider-rejected messages and replay them after correcting payload credentials or switching providers:
-
-```bash
-# Query failed messages
-curl -X GET "http://localhost:3000/v1/dlq?team=team_ecommerce&limit=50" \
-  -H "Authorization: Bearer convey_live_secret_key"
-
-# Replay failed messages with an override provider
-curl -X POST http://localhost:3000/v1/dlq/replay \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer convey_live_secret_key" \
-  -d '{
-    "messageIds": ["msg_01J0N7C0W7X2R6S8V9Q9B1E4G3"],
-    "overrideProvider": "resend"
-  }'
-```
-
----
-
-## ⚙️ Enterprise Resilience & Intelligence Suite
-
-Convey incorporates 15+ cutting-edge distributed systems resilience primitives:
-
-- 🎯 **Smart Provider Latency Scorecard (`SmartProviderRouter`)**: Calculates real-time Exponential Moving Average (EMA) latencies and success ratios per provider to automatically route traffic away from degrading vendors.
-- ⚡ **Dynamic Hedged Requests (`HedgedExecutor`)**: Fires speculative backup requests to alternative providers when primary vendor latency breaches the 95th percentile ($p95$), dropping tail-latency spikes by up to 70%.
-- 🚪 **Stepped Half-Open Traffic Ramp (`GradualRampController`)**: Admits probe traffic gradually (5% ➔ 20% ➔ 50% ➔ 100%) during circuit breaker recovery, preventing cold restart crashes.
-- ⚖️ **Deficit Round Robin Fair Queueing (`MultiTenantPriorityScheduler`)**: Allocates execution quanta based on tenant tier (Enterprise vs Standard), eliminating noisy-neighbor resource starvation.
-- 🛡️ **V8 Heap Memory Guard (`HeapMemoryGuard`)**: Continuously monitors RSS and heap allocations, applying dynamic backpressure before process saturation reaches 85%.
-- 🌊 **Event-Loop Adaptive Traffic Governor (`TrafficGovernor`)**: Tracks event loop delay; sheds non-critical marketing jobs when event loop lag exceeds 50ms.
-- 🔄 **Anti-Entropy Quorum Consensus Auditor (`ConsensusAuditGuard`)**: Computes SHA-256 vector checksums across distributed active nodes to detect and resolve multi-region split-brain state drift.
-- 📦 **Zero-Allocation ByteBufferPool (`ByteBufferPool`)**: Reusable slab memory arenas for high-frequency JSON serializations, eliminating V8 Garbage Collection pauses.
-- 🛑 **4-Stage Zero-Data-Loss Graceful Shutdown (`GracefulShutdownOrchestrator`)**:
-  1. *Stage 1*: Signals load balancers (`/health/readiness` ➔ `503`).
-  2. *Stage 2*: Drains active BullMQ provider queue jobs without accepting new items.
-  3. *Stage 3*: Terminates worker loop intervals (`outboxRelay`, `scheduledPromoter`, `geoReplication`).
-  4. *Stage 4*: Flushes Prometheus metrics and closes PostgreSQL connection pools.
-
----
-
-## 📈 Performance SLA & Benchmarks
-
-Benchmarked on commodity hardware (Apple M3 Max / 8 vCPU Cloud Instances, PostgreSQL 16, Redis 7):
-
-| Benchmark Scenario | Throughput / Latency | Resource Utilization |
-| :--- | :--- | :--- |
-| **Synchronous Send Acceptance (`POST /v1/messages`)** | **12,500 req/sec** (`p50: 3.8ms`, `p95: 11.4ms`, `p99: 18.2ms`) | CPU: 38% \| RSS: 68 MB |
-| **Micro-Batch Webhook Ingestion (`POST /v1/webhooks`)** | **52,000 events/sec** (50ms flush micro-batches) | CPU: 42% \| Redis Mem: < 15 MB |
-| **AST WhatsApp Template Render Engine** | **1,250,000 renders/sec** (Sub-microsecond AST cache) | Zero heap allocations |
-| **Transactional Outbox Sweep (`outbox-relay`)** | **25,000 rows/sec** (SKIP LOCKED multi-shard cursor) | PostgreSQL CPU: 24% |
-| **Baseline Memory Footprint** | **~62 MB RSS** on cold start | V8 Heap: 18 MB |
-
----
-
-## 🗂️ Repository Topology
+## 🗂️ Monorepo Structure
 
 ```text
 convey/
-├── .agents/                    # Developer guidelines & convey-architecture skill
+├── apps/
+│   ├── server/                 # @convey/server (Elysia API, BullMQ Workers, 88 Adapters)
+│   │   ├── src/
+│   │   │   ├── modules/admin/  # Admin REST & telemetry endpoints
+│   │   │   ├── modules/messaging/
+│   │   │   ├── modules/providers/
+│   │   │   └── ...
+│   │   └── tests/              # 895 tests (Unit, Integration, E2E, Benchmarks)
+│   │
+│   └── web/                    # @convey/web (React 19, Base UI, Tailwind, Obsidian Theme)
+│       ├── src/
+│       │   ├── components/     # UI primitives, layout, waterfall, omnichannel preview
+│       │   ├── pages/          # 10 Mission Control Views
+│       │   └── lib/            # API client & formatting utilities
+│       └── tests/              # 19 Web tests (Happy-DOM, testing-library)
+│
+├── packages/
+│   └── shared/                 # @convey/shared (Domain types, enums, DTOs)
+│       └── src/index.ts
+│
 ├── ADRs/                       # Architecture Decision Records (ADR 001 - 005)
-│   ├── ADR-001-bun-elysia-stack.md
-│   ├── ADR-002-transactional-outbox-bullmq.md
-│   ├── ADR-003-provider-adapter-capabilities.md
-│   ├── ADR-004-biome-code-quality.md
-│   └── ADR-005-whatsapp-session-cost-optimization.md
-├── docs/                       # Comprehensive system architecture & specs
-│   ├── api.md                  # Complete OpenAPI REST endpoint documentation
-│   ├── architecture.md         # 4-stage pipeline design & architectural topology
-│   ├── database-schema.md      # 16 Drizzle table schemas & monthly partition model
-│   ├── queue-topology.md       # BullMQ queues, workers & dual-layer scheduler
-│   ├── provider-capabilities.md# 88-provider capability matrix & circuit configs
-│   ├── provider-porting-matrix.md # Parity verification for 88 providers
-│   ├── security.md             # AES-256-GCM envelope encryption & DLP redaction
-│   ├── observability.md        # Prometheus metrics, W3C tracing, & health probes
-│   ├── scaling.md              # Horizontal scaling & high availability guide
-│   ├── requirements.md         # Functional requirements & SLA percentiles
-│   ├── assumptions.md          # Technical assumptions & operational boundaries
-│   ├── fallback-state-machine.md # Provider failover & cross-channel cascade rules
-│   ├── message-state-machine.md # 8-state transition matrix & lifecycle rules
-│   ├── novu-assessment.md      # Senior engineering comparative analysis & benchmarks
-│   └── whatsapp-session-optimization.md # 24h session tracker & AST template engine
-├── wiki/                       # Channel payload examples & resilience guides
-│   ├── Home.md
-│   ├── Per-Channel-Examples-and-Payloads.md
-│   ├── Planetary-Scale-Resilience-Architecture.md
-│   └── Zero-Trust-Security-and-Encryption.md
-├── drizzle/                    # Generated SQL migration files
-├── scripts/                    # Operational & benchmarking CLI utilities
-│   ├── benchmark-report.ts     # 10k load test & financial cost analyzer
-│   └── get-job-consumption.ts  # Real-time queue consumption inspector
-├── src/
-│   ├── bootstrap.ts            # Bootstrapping & graceful shutdown lifecycle
-│   ├── index.ts                # Elysia app, Prometheus metrics, & probe routes
-│   ├── config/                 # Zod environment parsing & dynamic reloader
-│   ├── db/                     # Drizzle ORM client, schemas, & partition manager
-│   ├── modules/                # Domain modules:
-│   │   ├── auth/               # API key authentication & RBAC
-│   │   ├── messaging/          # Messaging controllers, outbox, cascade, & DLQ
-│   │   ├── policies/           # Rate limiting, quiet hours, & cost optimizer
-│   │   ├── providers/          # 88 provider adapters (email, sms, push, chat, tool)
-│   │   │   └── whatsapp/       # 24h session tracker & AST template engine
-│   │   ├── reports/            # Real-time telemetry, aggregations, & OLAP archiver
-│   │   ├── suppressions/       # Global & tenant-level suppression lists
-│   │   └── webhooks/           # Inbound webhook ingestion & signature validation
-│   ├── queues/                 # BullMQ definitions, connection pools, & 8 workers
-│   └── utils/                  # Resilience utilities (encryption, heap guard, chaos)
-└── tests/                      # 886 unit, integration, transformer, & E2E tests
+├── docs/                       # Comprehensive documentation & architecture specs
+│   ├── web-ui-mission-control.md # Complete manual for the Web-UI Console
+│   ├── api.md
+│   ├── architecture.md
+│   ├── database-schema.md
+│   ├── queue-topology.md
+│   └── ...
 ```
 
 ---
 
 ## 📚 Deep-Dive Documentation Index
 
+- 🎛️ **[Web-UI Mission Control Manual](./docs/web-ui-mission-control.md)** — Complete guide for the React 19 + Base UI console.
 - 📘 **[REST API Specification](./docs/api.md)** — Complete endpoint schemas, query parameters, error matrices, and curl examples.
 - 🏛️ **[System Architecture](./docs/architecture.md)** — In-depth breakdown of the 4-stage pipeline, fast path, and graceful shutdown.
 - 💾 **[Database Schema & Partitioning](./docs/database-schema.md)** — 16 Drizzle table schemas, foreign keys, and monthly range partitioning.
 - 🚦 **[Queue Topology & Schedulers](./docs/queue-topology.md)** — BullMQ queue definitions, worker loops, and dual-layer scheduler.
 - 🔌 **[Provider Capabilities Matrix](./docs/provider-capabilities.md)** — Detailed capability breakdown and circuit breaker settings for all 88 providers.
-- 📑 **[Provider Porting Matrix](./docs/provider-porting-matrix.md)** — Comprehensive parity tracking for all 88 provider modules.
 - 💬 **[WhatsApp Session Optimization](./docs/whatsapp-session-optimization.md)** — 24-hour customer conversation window tracking and cost savings.
-- 🔄 **[Fallback & Failover State Machine](./docs/fallback-state-machine.md)** — Same-channel failover and cross-channel waterfall cascade decision trees.
-- 🔀 **[Message State Machine](./docs/message-state-machine.md)** — Formal 8-state transition matrix and lifecycle rules.
 - 🔒 **[Zero-Trust Security & Encryption](./docs/security.md)** — AES-256-GCM envelope encryption and threat model.
 - 📊 **[Observability & Health Probes](./docs/observability.md)** — Prometheus metrics registry, W3C tracing, and Kubernetes probes.
 - 📈 **[Horizontal Scaling Guide](./docs/scaling.md)** — High availability, micro-batching pipelines, and capacity planning.
-- 📋 **[Requirements & SLA Matrix](./docs/requirements.md)** — Functional requirements and SLA latency percentiles.
-- 📐 **[Operational Assumptions](./docs/assumptions.md)** — Environmental prerequisites and multi-tenant boundaries.
-- 🔬 **[Novu vs Convey Assessment](./docs/novu-assessment.md)** — Senior engineering comparative analysis and performance benchmarks.
-- 📨 **[Per-Channel Request Payloads Guide](./wiki/Per-Channel-Examples-and-Payloads.md)** — Concrete JSON examples for Email, SMS, Push, Chat, and Tool channels.
-- 🌐 **[Planetary Resilience Guide](./wiki/Planetary-Scale-Resilience-Architecture.md)** — Active-active geo-replication, chaos engine, and CLI tools.
-- 🔐 **[Zero-Trust Security Guide](./wiki/Zero-Trust-Security-and-Encryption.md)** — Envelope encryption, DLP sanitization, and compliance.
-- 📜 **[Architecture Decision Records (ADRs)](./ADRs)** — Architectural decisions ADR-001 through ADR-005.
 
 ---
 
 <div align="center">
-  <sub>Engineered with precision for planetary scale. Built with Bun, Elysia, PostgreSQL, and Redis.</sub>
+  <sub>Engineered with precision for planetary scale. Built with Bun, Elysia, React 19, Base UI, PostgreSQL, and Redis.</sub>
 </div>

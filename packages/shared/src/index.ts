@@ -182,6 +182,7 @@ export interface LiveTelemetrySnapshot {
 // DLQ Replay Request and Simulation Response
 export interface DlqReplayRequest {
   dryRun?: boolean;
+  category?: DlqFailureCategory;
   filter?: {
     errorCategory?: DlqFailureCategory;
     providerId?: string;
