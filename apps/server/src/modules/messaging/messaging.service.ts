@@ -1,6 +1,7 @@
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages, outbox } from '../../db/schema';
+import { redisClient } from '../../queues/connection';
 import { getUtcMonthBoundary } from '../../utils/date';
 import { DlpScanner } from '../../utils/dlp-scanner';
 import { heapMemoryGuard } from '../../utils/heap-guard';
@@ -10,10 +11,8 @@ import { shardRouter } from '../../utils/shard-router';
 import { TraceContext } from '../../utils/trace-context';
 import { trafficGovernor } from '../../utils/traffic-governor';
 import { tenantSlaManager } from '../policies/tenant-sla';
-import { IdempotencyService } from './idempotency.service';
-
-import { redisClient } from '../../queues/connection';
 import { RateCardRegistry, smartProviderRouter } from '../providers/core/smart-router';
+import { IdempotencyService } from './idempotency.service';
 import {
   AttemptState,
   Channel,

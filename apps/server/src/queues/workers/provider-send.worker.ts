@@ -17,8 +17,11 @@ import { tenantSlaManager } from '../../modules/policies/tenant-sla';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import { ErrorCategory } from '../../modules/providers/core/provider-types';
+import { sandboxAdapter } from '../../modules/providers/core/sandbox-adapter';
 import { smartProviderRouter } from '../../modules/providers/core/smart-router';
+import { applyWhatsAppSessionOptimization } from '../../modules/providers/whatsapp/session-interceptor';
 import { ReportingService } from '../../modules/reports/reporting.service';
+import { WebhookSubscriptionsService } from '../../modules/webhooks/webhook-subscriptions.service';
 import { AdaptiveConcurrencyController } from '../../utils/adaptive-concurrency';
 import { statisticalAnomalyDetector } from '../../utils/anomaly-detector';
 import { chaosEngine } from '../../utils/chaos-engine';
@@ -27,11 +30,8 @@ import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
 
-import { sandboxAdapter } from '../../modules/providers/core/sandbox-adapter';
-import { applyWhatsAppSessionOptimization } from '../../modules/providers/whatsapp/session-interceptor';
-import { WebhookSubscriptionsService } from '../../modules/webhooks/webhook-subscriptions.service';
-
 export const adaptiveConcurrency = new AdaptiveConcurrencyController();
+
 import { redisClient, redisConnectionOptions } from '../connection';
 import { getProviderSendQueue } from '../provider-queues';
 import { fallbackRetryQueue } from '../queue-definitions';

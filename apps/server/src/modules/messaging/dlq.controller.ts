@@ -30,7 +30,10 @@ export function dlqController(app: Elysia) {
         async ({
           query,
           headers,
-        }: { query: Record<string, string | undefined>; headers: Record<string, string | undefined> }) => {
+        }: {
+          query: Record<string, string | undefined>;
+          headers: Record<string, string | undefined>;
+        }) => {
           const trace = TraceContext.extractOrCreate(headers);
           const traceHeader = TraceContext.formatHeader(trace);
 

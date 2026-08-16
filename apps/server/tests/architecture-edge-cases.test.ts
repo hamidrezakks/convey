@@ -3,7 +3,7 @@ import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../src/db';
 import { messageAttempts, messages, outbox } from '../src/db/schema';
 import { IdempotencyConflictError } from '../src/modules/messaging/idempotency.service';
-import { MessagingService, computePartitionWindow } from '../src/modules/messaging/messaging.service';
+import { computePartitionWindow, MessagingService } from '../src/modules/messaging/messaging.service';
 import {
   AttemptOrigin,
   Channel,

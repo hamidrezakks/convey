@@ -20,7 +20,6 @@ export class DynamicConfigReloader {
     circuitResetTimeoutMs: 30000,
     rateLimitWindowMs: 60000,
   };
-  private isSubscribed = false;
 
   /**
    * Returns the current in-memory dynamic configuration state.

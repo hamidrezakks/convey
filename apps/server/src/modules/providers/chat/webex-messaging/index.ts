@@ -19,8 +19,8 @@ export const webexMessagingChatModule: ProviderModule = {
   mock: webexMessagingMock,
 };
 
+export * from './types';
 export * from './webex-messaging.adapter';
 export * from './webex-messaging.mock';
 export * from './webex-messaging.transformer';
-export * from './types';
 export default webexMessagingChatModule;

@@ -1,4 +1,4 @@
-import { type SQL, and, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { suppressions } from '../../db/schema';
 import { redisClient } from '../../queues/connection';

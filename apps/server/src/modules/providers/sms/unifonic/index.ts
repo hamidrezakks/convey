@@ -19,8 +19,8 @@ export const unifonicSmsModule: ProviderModule = {
   mock: unifonicMock,
 };
 
+export * from './types';
 export * from './unifonic.adapter';
 export * from './unifonic.mock';
 export * from './unifonic.transformer';
-export * from './types';
 export default unifonicSmsModule;

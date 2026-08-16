@@ -356,9 +356,6 @@ export enum CascadeTrigger {
   IF_UNDELIVERED = 'if_undelivered',
   ALWAYS = 'always',
   IF_UNCONVERTED = 'if_unconverted',
-  NOT_OPENED = 'if_unopened',
-  NOT_DELIVERED = 'if_undelivered',
-  CONVERTED = 'if_unconverted',
 }
 
 export enum CascadeCondition {

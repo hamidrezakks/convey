@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { Channel } from '../src/modules/messaging/messaging.types';
-import { SmartProviderRouter, getProviderUnitCost } from '../src/modules/providers/core/smart-router';
+import { getProviderUnitCost, SmartProviderRouter } from '../src/modules/providers/core/smart-router';
 
 describe('Cost-Aware Multi-Objective Thompson Sampling Smart Router', () => {
   it('should maintain accurate provider rate cards', () => {

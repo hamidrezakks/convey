@@ -19,8 +19,8 @@ export const zulipChatModule: ProviderModule = {
   mock: zulipMock,
 };
 
+export * from './types';
 export * from './zulip.adapter';
 export * from './zulip.mock';
 export * from './zulip.transformer';
-export * from './types';
 export default zulipChatModule;

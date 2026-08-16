@@ -45,7 +45,7 @@ export class TenantSlaManager {
    */
   getPercentiles(tenantId: string): { p50: number; p95: number; p99: number } {
     const samples = this.tenantLatencies.get(tenantId);
-    if (!samples || !samples.length) {
+    if (!samples?.length) {
       return { p50: 50, p95: 100, p99: 200 };
     }
 

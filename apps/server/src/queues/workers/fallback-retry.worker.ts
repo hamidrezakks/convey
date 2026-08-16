@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { messageAttempts, messages } from '../../db/schema';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
 import { AttemptOrigin, AttemptState, type Channel, JobName, QueueName } from '../../modules/messaging/messaging.types';
-import { ProviderRegistry, getDefaultProviderForChannel } from '../../modules/providers/core/provider-registry';
+import { getDefaultProviderForChannel, ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import { formatBullMQPrefix } from '../../utils/redis-keys';
 import { redisConnectionOptions } from '../connection';
 import { ensureProviderSendWorker, getProviderSendQueue } from '../provider-queues';

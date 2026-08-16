@@ -91,11 +91,7 @@ export function adminController(app: Elysia) {
 
       .post(
         '/suppressions',
-        async ({
-          body,
-        }: {
-          body: { teamId?: string; recipient: string; channel?: string; reason?: string };
-        }) => {
+        async ({ body }: { body: { teamId?: string; recipient: string; channel?: string; reason?: string } }) => {
           const res = await adminService.addSuppression({
             teamId: body.teamId || 'default_team',
             recipient: body.recipient,
@@ -169,11 +165,7 @@ export function adminController(app: Elysia) {
 
       .post(
         '/providers/test-connection',
-        async ({
-          body,
-        }: {
-          body: { providerId: string; credentials: Record<string, string> };
-        }) => {
+        async ({ body }: { body: { providerId: string; credentials: Record<string, string> } }) => {
           const res = adminService.testProviderConnection(body.providerId, body.credentials || {});
           return jsonResponse(res, 200);
         },

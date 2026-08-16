@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { CircuitState, ProviderCircuitBreaker } from '../src/modules/providers/core/circuit-breaker';
 import { HedgedExecutor } from '../src/modules/providers/core/hedged-executor';
 import {
-  WhatsAppOptimizationMetadataKey,
   applyWhatsAppSessionOptimization,
+  WhatsAppOptimizationMetadataKey,
 } from '../src/modules/providers/whatsapp/session-interceptor';
 import { WhatsAppSessionTracker } from '../src/modules/providers/whatsapp/session-tracker';
 import { AdaptiveConcurrencyController } from '../src/utils/adaptive-concurrency';

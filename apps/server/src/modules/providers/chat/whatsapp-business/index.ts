@@ -19,8 +19,8 @@ export const whatsappBusinessChatModule: ProviderModule = {
   mock: whatsappBusinessMock,
 };
 
+export * from './types';
 export * from './whatsapp-business.adapter';
 export * from './whatsapp-business.mock';
 export * from './whatsapp-business.transformer';
-export * from './types';
 export default whatsappBusinessChatModule;

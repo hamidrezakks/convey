@@ -1,6 +1,6 @@
 import {
-  COMPLETE_88_PROVIDER_CATALOG,
   Channel,
+  COMPLETE_88_PROVIDER_CATALOG,
   type ConfiguredProviderDto,
   type ProviderCatalogItem,
   type ProviderFeatureConfigs,

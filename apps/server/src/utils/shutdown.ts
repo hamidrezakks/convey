@@ -18,7 +18,7 @@ import { providerSendWorker } from '../queues/workers/provider-send.worker';
 import { stopScheduledPromoterLoop } from '../queues/workers/scheduled-promoter.worker';
 import { webhookIngestWorker } from '../queues/workers/webhook-ingest.worker';
 import { logger } from './logger';
-import { ComponentStatus, WorkerState, appReadiness } from './readiness';
+import { appReadiness, ComponentStatus, WorkerState } from './readiness';
 
 export interface ShutdownOptions {
   drainTimeoutMs?: number;

@@ -5,7 +5,7 @@ import { Channel } from '../src/modules/messaging/messaging.types';
 import { ProviderRegistry } from '../src/modules/providers/core/provider-registry';
 import { ensureProviderSendWorker, setupConfiguredProviderWorkers } from '../src/queues/provider-queues';
 import { logger } from '../src/utils/logger';
-import { ComponentStatus, PartitionStatus, appReadiness } from '../src/utils/readiness';
+import { appReadiness, ComponentStatus, PartitionStatus } from '../src/utils/readiness';
 
 describe('Bootstrap, Provider Setup & Readiness Suite', () => {
   beforeAll(async () => {

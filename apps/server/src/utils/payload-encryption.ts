@@ -34,7 +34,6 @@ export class LocalKeyProvider implements KeyManagementProvider {
 
 export class MockKmsKeyProvider implements KeyManagementProvider {
   name = 'mock-kms';
-  constructor(private kmsMasterSecret: Buffer = Buffer.from('mock-kms-master-secret-32-bytes!')) {}
 
   async generateDataKey(tenantId?: string) {
     const rawDek = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));

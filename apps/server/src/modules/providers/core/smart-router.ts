@@ -100,9 +100,6 @@ export class SmartProviderRouter {
   });
   private alpha = 0.2; // Exponential moving average smoothing factor
   private explorationRate = 0.05; // 5% canary exploration rate
-  private weightMab = 0.5;
-  private weightLatency = 0.25;
-  private weightCost = 0.25;
 
   recordProviderFeedback(providerId: string, latencyMs: number, success: boolean): void {
     let stats = this.scorecards.get(providerId);

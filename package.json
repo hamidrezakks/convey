@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "description": "High-performance, resilient multi-tenant communication service monorepo",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "bun --filter '*' dev",
     "dev:server": "bun --filter @convey/server dev",
@@ -26,7 +29,7 @@
     "db:migrate": "bun --filter @convey/server db:migrate"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "^2.5.8",
     "@types/bun": "latest"
   }
 }

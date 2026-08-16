@@ -1,7 +1,7 @@
 import {
-  COMPLETE_88_PROVIDER_CATALOG,
   Channel,
   CircuitState,
+  COMPLETE_88_PROVIDER_CATALOG,
   type DlqReplayRequest,
   type DlqReplayResult,
   type LiveTelemetrySnapshot,

@@ -12,7 +12,7 @@ import { startScheduledPromoterLoop } from './queues/workers/scheduled-promoter.
 import { consensusAuditGuard } from './utils/consensus-auditor';
 import { geoReplicationManager } from './utils/geo-replication';
 import { logger } from './utils/logger';
-import { ComponentStatus, PartitionStatus, WorkerState, appReadiness } from './utils/readiness';
+import { appReadiness, ComponentStatus, PartitionStatus, WorkerState } from './utils/readiness';
 import { shutdownOrchestrator } from './utils/shutdown';
 
 let isBootstrapped = false;

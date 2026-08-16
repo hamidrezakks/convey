@@ -6,13 +6,7 @@ import { customerWebhookDispatchQueue } from '../../queues/queue-definitions';
 import { generateMessageId } from '../../utils/id';
 
 export const WebhookSubscriptionsService = {
-  async createSubscription(params: {
-    tenantId: string;
-    team: string;
-    url: string;
-    events: string[];
-    secret?: string;
-  }) {
+  async createSubscription(params: { tenantId: string; team: string; url: string; events: string[]; secret?: string }) {
     const id = generateMessageId();
     const secret = params.secret || randomBytes(24).toString('hex');
 

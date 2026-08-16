@@ -3,7 +3,7 @@ import { db } from '../../db';
 import { outbox } from '../../db/schema';
 import { JobName, MessagePriority, OutboxState } from '../../modules/messaging/messaging.types';
 import { heapMemoryGuard } from '../../utils/heap-guard';
-import { type TaskLoop, createTaskLoop } from '../../utils/task-loop';
+import { createTaskLoop, type TaskLoop } from '../../utils/task-loop';
 import { type BunNativeRedis, redisClient } from '../connection';
 import { dispatchBulkQueue, dispatchHighQueue, dispatchNormalQueue } from '../queue-definitions';
 
