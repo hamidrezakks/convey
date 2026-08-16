@@ -27,7 +27,7 @@
     "@sendgrid/mail": "^8.1.4",
     "@sinclair/typebox": "0.34.52",
     "@slack/web-api": "^7.8.0",
-    "bullmq": "^5.41.4",
+    "bullmq": "^6.1.2",
     "drizzle-orm": "^0.45.2",
     "elysia": "next",
     "ioredis": "^5.5.0",
