@@ -15,7 +15,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
+    "types": ["vite/client", "bun-types"],
     "paths": {
       "@/*": ["./src/*"],
       "@convey/shared": ["../../packages/shared/src/index.ts"]
