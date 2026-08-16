@@ -1,3 +1,4 @@
+import { Link, useLocation } from '@tanstack/react-router';
 import {
   Activity,
   AlertTriangle,
@@ -15,7 +16,7 @@ import type React from 'react';
 import { cn } from '../../lib/utils';
 
 export interface NavItem {
-  id: string;
+  path: string;
   label: string;
   icon: React.ElementType;
   badge?: string;
@@ -23,24 +24,22 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'overview', label: 'Planetary Telemetry', icon: Activity, badge: 'Live', badgeVariant: 'emerald' },
-  { id: 'messages', label: 'Message & Trace Explorer', icon: Inbox },
-  { id: 'providers', label: 'Provider Matrix & Circuits', icon: Radio, badge: '80+', badgeVariant: 'cyan' },
-  { id: 'dlq', label: 'DLQ & Surgical Replay', icon: AlertTriangle, badge: 'Auto-Sim', badgeVariant: 'amber' },
-  { id: 'deliverability', label: 'Deliverability & Autopilot', icon: ShieldCheck },
-  { id: 'policies', label: 'DRR Policies & SLA Studio', icon: Sliders },
-  { id: 'composer', label: 'Omnichannel Composer', icon: Send },
-  { id: 'webhooks', label: 'Webhooks & Receipts', icon: Webhook },
-  { id: 'architecture', label: 'System Topology & Prom', icon: Cpu },
-  { id: 'audit', label: 'Audit Log Ledger', icon: BookOpen },
+  { path: '/overview', label: 'Planetary Telemetry', icon: Activity, badge: 'Live', badgeVariant: 'emerald' },
+  { path: '/messages', label: 'Message & Trace Explorer', icon: Inbox },
+  { path: '/providers', label: 'Provider Matrix & Circuits', icon: Radio, badge: '80+', badgeVariant: 'cyan' },
+  { path: '/dlq', label: 'DLQ & Surgical Replay', icon: AlertTriangle, badge: 'Auto-Sim', badgeVariant: 'amber' },
+  { path: '/deliverability', label: 'Deliverability & Autopilot', icon: ShieldCheck },
+  { path: '/policies', label: 'DRR Policies & SLA Studio', icon: Sliders },
+  { path: '/composer', label: 'Omnichannel Composer', icon: Send },
+  { path: '/webhooks', label: 'Webhooks & Receipts', icon: Webhook },
+  { path: '/architecture', label: 'System Topology & Prom', icon: Cpu },
+  { path: '/audit', label: 'Audit Log Ledger', icon: BookOpen },
 ];
 
-export interface SidebarProps {
-  activeTab: string;
-  onSelectTab: (tabId: string) => void;
-}
+export function Sidebar() {
+  const location = useLocation();
+  const currentPath = location.pathname === '/' ? '/overview' : location.pathname;
 
-export function Sidebar({ activeTab, onSelectTab }: SidebarProps) {
   return (
     <aside className="w-64 h-screen bg-slate-950/80 border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none glass-panel">
       {/* Brand Header */}
@@ -67,13 +66,12 @@ export function Sidebar({ activeTab, onSelectTab }: SidebarProps) {
           </div>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = currentPath.startsWith(item.path);
 
             return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onSelectTab(item.id)}
+              <Link
+                key={item.path}
+                to={item.path}
                 className={cn(
                   'w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 group',
                   isActive
@@ -104,7 +102,7 @@ export function Sidebar({ activeTab, onSelectTab }: SidebarProps) {
                     {item.badge}
                   </span>
                 )}
-              </button>
+              </Link>
             );
           })}
         </nav>

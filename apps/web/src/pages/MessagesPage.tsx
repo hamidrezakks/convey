@@ -1,7 +1,8 @@
-import { Channel, type MessageDetailDto, MessageStatus, type MessageSummaryDto } from '@convey/shared';
+import { Channel, MessageStatus } from '@convey/shared';
+import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronLeft, ChevronRight, Copy, Inbox, Layers, Lock, RefreshCw, Search } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TraceWaterfall } from '../components/trace/TraceWaterfall';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -11,63 +12,58 @@ import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { api } from '../lib/api';
+import { messageKeys } from '../lib/queryKeys';
 import { formatDurationMs, formatTimeAgo } from '../lib/utils';
 
 export function MessagesPage() {
-  const [messages, setMessages] = useState<MessageSummaryDto[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [isLoading, setIsLoading] = useState(true);
 
   // Inspector modal state
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [messageDetails, setMessageDetails] = useState<MessageDetailDto | null>(null);
-  const [isDetailsLoading, setIsDetailsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const fetchMessages = async () => {
-    setIsLoading(true);
-    try {
-      const res = await api.getMessages({
+  // TanStack Query: Messages list
+  const {
+    data: messagesData,
+    isLoading,
+    refetch: refetchMessages,
+    isFetching,
+  } = useQuery({
+    queryKey: messageKeys.list({
+      page,
+      limit: 15,
+      search: activeSearch || undefined,
+      channel: selectedChannel !== 'ALL' ? (selectedChannel as Channel) : undefined,
+      status: selectedStatus !== 'ALL' ? (selectedStatus as MessageStatus) : undefined,
+    }),
+    queryFn: () =>
+      api.getMessages({
         page,
         limit: 15,
-        search: search || undefined,
+        search: activeSearch || undefined,
         channel: selectedChannel !== 'ALL' ? (selectedChannel as Channel) : undefined,
         status: selectedStatus !== 'ALL' ? (selectedStatus as MessageStatus) : undefined,
-      });
-      setMessages(res.messages);
-      setTotal(res.total);
-    } catch (err) {
-      console.error('Failed to fetch messages:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      }),
+  });
 
-  useEffect(() => {
-    fetchMessages();
-  }, [page, selectedChannel, selectedStatus]);
+  // TanStack Query: Message detail & trace
+  const { data: messageDetails, isLoading: isDetailsLoading } = useQuery({
+    queryKey: messageKeys.detail(selectedMessageId ?? ''),
+    queryFn: () => api.getMessageDetails(selectedMessageId ?? ''),
+    enabled: !!selectedMessageId,
+  });
+
+  const messages = messagesData?.messages ?? [];
+  const total = messagesData?.total ?? 0;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchMessages();
-  };
-
-  const handleInspect = async (publicId: string) => {
-    setSelectedMessageId(publicId);
-    setIsDetailsLoading(true);
-    try {
-      const details = await api.getMessageDetails(publicId);
-      setMessageDetails(details);
-    } catch (err) {
-      console.error('Failed to fetch message details:', err);
-    } finally {
-      setIsDetailsLoading(false);
-    }
+    setActiveSearch(search);
   };
 
   const handleCopy = (text: string) => {
@@ -108,7 +104,13 @@ export function MessagesPage() {
           </p>
         </div>
 
-        <Button variant="outline" size="sm" onClick={fetchMessages} className="text-xs gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetchMessages()}
+          isLoading={isFetching}
+          className="text-xs gap-1.5"
+        >
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Refresh</span>
         </Button>
@@ -270,7 +272,7 @@ export function MessagesPage() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => handleInspect(msg.publicId)}
+                        onClick={() => setSelectedMessageId(msg.publicId)}
                         className="h-7 text-xs gap-1 hover:border-sky-500/40"
                       >
                         <Layers className="w-3 h-3 text-sky-400" />

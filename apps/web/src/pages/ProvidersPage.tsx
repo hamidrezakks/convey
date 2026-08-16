@@ -1,6 +1,7 @@
 import { Channel, CircuitState, type ProviderHealthDto } from '@convey/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Radio, RefreshCw, Sliders, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -16,35 +17,57 @@ import {
 import { Slider } from '../components/ui/slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { api } from '../lib/api';
+import { providerKeys } from '../lib/queryKeys';
 import { formatDurationMs } from '../lib/utils';
 
 export function ProvidersPage() {
-  const [providers, setProviders] = useState<ProviderHealthDto[]>([]);
+  const queryClient = useQueryClient();
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
-  const [isLoading, setIsLoading] = useState(true);
 
   // Ramp / Override Modal state
   const [activeProvider, setActiveProvider] = useState<ProviderHealthDto | null>(null);
   const [overrideAction, setOverrideAction] = useState<'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN'>('FORCE_HALF_OPEN');
   const [rampPercent, setRampPercent] = useState(20);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [probingProviderId, setProbingProviderId] = useState<string | null>(null);
 
-  const fetchProviders = async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.getProviders();
-      setProviders(data);
-    } catch (err) {
-      console.error('Failed to load providers:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // TanStack Query: Load provider matrix
+  const {
+    data: providers = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: providerKeys.all,
+    queryFn: () => api.getProviders(),
+  });
 
-  useEffect(() => {
-    fetchProviders();
-  }, []);
+  // TanStack Mutation: Override circuit breaker state
+  const circuitMutation = useMutation({
+    mutationFn: (vars: {
+      providerId: string;
+      action: 'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN';
+      rampPercentage: number;
+    }) => api.setProviderCircuit(vars.providerId, vars.action, vars.rampPercentage),
+    onSuccess: (_, vars) => {
+      toast.success(`Circuit state for ${vars.providerId} set to ${vars.action}`);
+      queryClient.invalidateQueries({ queryKey: providerKeys.all });
+      setActiveProvider(null);
+    },
+    onError: () => {
+      toast.error('Failed to update circuit state');
+    },
+  });
+
+  // TanStack Mutation: Run synthetic canary probe
+  const canaryMutation = useMutation({
+    mutationFn: (providerId: string) => api.triggerCanary(providerId),
+    onSuccess: (res, providerId) => {
+      toast.success(`Synthetic canary probe passed for ${providerId} (Latency: ${res.result?.latencyMs || 45}ms)`);
+      queryClient.invalidateQueries({ queryKey: providerKeys.all });
+    },
+    onError: (_, providerId) => {
+      toast.error(`Canary probe failed for ${providerId}`);
+    },
+  });
 
   const handleOpenOverrideModal = (provider: ProviderHealthDto) => {
     setActiveProvider(provider);
@@ -58,32 +81,13 @@ export function ProvidersPage() {
     setRampPercent(provider.rampPercentage || 20);
   };
 
-  const handleApplyOverride = async () => {
+  const handleApplyOverride = () => {
     if (!activeProvider) return;
-    setIsUpdating(true);
-    try {
-      await api.setProviderCircuit(activeProvider.providerId, overrideAction, rampPercent);
-      toast.success(`Circuit state for ${activeProvider.displayName} set to ${overrideAction}`);
-      setActiveProvider(null);
-      fetchProviders();
-    } catch (_err) {
-      toast.error('Failed to update circuit state');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleRunCanary = async (providerId: string) => {
-    setProbingProviderId(providerId);
-    try {
-      const res = await api.triggerCanary(providerId);
-      toast.success(`Synthetic canary probe passed for ${providerId} (Latency: ${res.result?.latencyMs || 45}ms)`);
-      fetchProviders();
-    } catch (_err) {
-      toast.error(`Canary probe failed for ${providerId}`);
-    } finally {
-      setProbingProviderId(null);
-    }
+    circuitMutation.mutate({
+      providerId: activeProvider.providerId,
+      action: overrideAction,
+      rampPercentage: rampPercent,
+    });
   };
 
   const filteredProviders = providers.filter((p) => selectedChannel === 'ALL' || p.channel === selectedChannel);
@@ -107,7 +111,13 @@ export function ProvidersPage() {
           </p>
         </div>
 
-        <Button variant="outline" size="sm" onClick={fetchProviders} className="text-xs gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          isLoading={isFetching}
+          className="text-xs gap-1.5"
+        >
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Refresh</span>
         </Button>
@@ -266,12 +276,12 @@ export function ProvidersPage() {
                     <TableCell className="font-mono text-xs text-slate-400">${p.unitCostUsd.toFixed(5)}</TableCell>
 
                     <TableCell className="text-right space-x-2">
-                      {/* Synthetic Canary Probe Button */}
+                      {/* Synthetic Canary Probe Button with TanStack Mutation */}
                       <Button
                         variant="secondary"
                         size="sm"
-                        isLoading={probingProviderId === p.providerId}
-                        onClick={() => handleRunCanary(p.providerId)}
+                        isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
+                        onClick={() => canaryMutation.mutate(p.providerId)}
                         className="h-7 text-xs gap-1 hover:border-sky-500/40"
                         title="Run autonomous synthetic probe"
                       >
@@ -361,7 +371,7 @@ export function ProvidersPage() {
             <Button variant="outline" size="sm" onClick={() => setActiveProvider(null)}>
               Cancel
             </Button>
-            <Button variant="glow" size="sm" isLoading={isUpdating} onClick={handleApplyOverride}>
+            <Button variant="glow" size="sm" isLoading={circuitMutation.isPending} onClick={handleApplyOverride}>
               Apply State Override
             </Button>
           </DialogFooter>

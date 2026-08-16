@@ -1,7 +1,8 @@
-import { Channel, type SuppressionDto, SuppressionReason } from '@convey/shared';
+import { Channel, SuppressionReason } from '@convey/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, Search, Shield, ShieldCheck, Trash2 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -18,12 +19,12 @@ import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { api } from '../lib/api';
+import { suppressionKeys } from '../lib/queryKeys';
 import { formatTimeAgo } from '../lib/utils';
 
 export function DeliverabilityPage() {
-  const [suppressions, setSuppressions] = useState<SuppressionDto[]>([]);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
 
   // Add suppression modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -31,57 +32,57 @@ export function DeliverabilityPage() {
   const [newChannel, setNewChannel] = useState<Channel>(Channel.EMAIL);
   const [newReason, setNewReason] = useState<SuppressionReason>(SuppressionReason.MANUAL_BLOCK);
   const [newTeamId, setNewTeamId] = useState('team_default');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchSuppressions = async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.getSuppressions(search || undefined);
-      setSuppressions(data);
-    } catch (err) {
-      console.error('Failed to fetch suppressions:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // TanStack Query: Suppressions list
+  const {
+    data: suppressions = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: suppressionKeys.list(search),
+    queryFn: () => api.getSuppressions(search || undefined),
+  });
 
-  useEffect(() => {
-    fetchSuppressions();
-  }, []);
+  // TanStack Mutation: Add suppression
+  const addMutation = useMutation({
+    mutationFn: (data: { teamId?: string; recipient: string; channel: Channel; reason: SuppressionReason }) =>
+      api.addSuppression(data),
+    onSuccess: (_, vars) => {
+      toast.success(`Suppression added for ${vars.recipient}`);
+      queryClient.invalidateQueries({ queryKey: suppressionKeys.all });
+      setIsAddOpen(false);
+      setNewRecipient('');
+    },
+    onError: () => {
+      toast.error('Failed to add suppression');
+    },
+  });
 
-  const handleAddSuppression = async (e: React.FormEvent) => {
+  // TanStack Mutation: Remove suppression
+  const removeMutation = useMutation({
+    mutationFn: (vars: { id: string; recipient: string }) => api.removeSuppression(vars.id),
+    onSuccess: (_, vars) => {
+      toast.success(`Unblocked ${vars.recipient}`);
+      queryClient.invalidateQueries({ queryKey: suppressionKeys.all });
+    },
+    onError: () => {
+      toast.error('Failed to remove suppression');
+    },
+  });
+
+  const handleAddSuppression = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRecipient.trim()) {
       toast.error('Recipient is required');
       return;
     }
-    setIsSubmitting(true);
-    try {
-      await api.addSuppression({
-        teamId: newTeamId,
-        recipient: newRecipient.trim(),
-        channel: newChannel,
-        reason: newReason,
-      });
-      toast.success(`Suppression added for ${newRecipient}`);
-      setIsAddOpen(false);
-      setNewRecipient('');
-      fetchSuppressions();
-    } catch (_err) {
-      toast.error('Failed to add suppression');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleRemoveSuppression = async (id: string, recipient: string) => {
-    try {
-      await api.removeSuppression(id);
-      toast.success(`Unblocked ${recipient}`);
-      fetchSuppressions();
-    } catch (_err) {
-      toast.error('Failed to remove suppression');
-    }
+    addMutation.mutate({
+      teamId: newTeamId,
+      recipient: newRecipient.trim(),
+      channel: newChannel,
+      reason: newReason,
+    });
   };
 
   const getReasonBadgeVariant = (reason: SuppressionReason) => {
@@ -112,7 +113,13 @@ export function DeliverabilityPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchSuppressions} className="text-xs gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            isLoading={isFetching}
+            className="text-xs gap-1.5"
+          >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Refresh</span>
           </Button>
@@ -231,7 +238,8 @@ export function DeliverabilityPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveSuppression(sup.id, sup.recipient)}
+                        isLoading={removeMutation.isPending && removeMutation.variables?.id === sup.id}
+                        onClick={() => removeMutation.mutate({ id: sup.id, recipient: sup.recipient })}
                         className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 gap-1"
                         title="Remove suppression (unblock)"
                       >
@@ -305,7 +313,7 @@ export function DeliverabilityPage() {
               <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="glow" size="sm" isLoading={isSubmitting}>
+              <Button type="submit" variant="glow" size="sm" isLoading={addMutation.isPending}>
                 Add Suppression
               </Button>
             </DialogFooter>

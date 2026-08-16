@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import {
   Activity,
   AlertTriangle,
@@ -17,32 +18,32 @@ import { Dialog, DialogContent } from '../ui/dialog';
 export interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelectTab: (tabId: string) => void;
 }
 
-export function CommandPalette({ open, onOpenChange, onSelectTab }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
+  const navigate = useNavigate();
 
   const commands = [
-    { id: 'overview', title: 'Planetary Telemetry Ops Center', category: 'Navigation', icon: Activity },
-    { id: 'messages', title: 'Universal Message & Trace Explorer', category: 'Navigation', icon: Inbox },
-    { id: 'providers', title: 'Provider Matrix & Circuit Breaker Cockpit', category: 'Navigation', icon: Radio },
-    { id: 'dlq', title: 'Dead-Letter Queue (DLQ) & Surgical Replay', category: 'Navigation', icon: AlertTriangle },
+    { path: '/overview', title: 'Planetary Telemetry Ops Center', category: 'Navigation', icon: Activity },
+    { path: '/messages', title: 'Universal Message & Trace Explorer', category: 'Navigation', icon: Inbox },
+    { path: '/providers', title: 'Provider Matrix & Circuit Breaker Cockpit', category: 'Navigation', icon: Radio },
+    { path: '/dlq', title: 'Dead-Letter Queue (DLQ) & Surgical Replay', category: 'Navigation', icon: AlertTriangle },
     {
-      id: 'deliverability',
+      path: '/deliverability',
       title: 'Deliverability Autopilot & Suppressions',
       category: 'Navigation',
       icon: ShieldCheck,
     },
-    { id: 'policies', title: 'DRR Multi-Tenant SLA & Policy Studio', category: 'Navigation', icon: Sliders },
-    { id: 'composer', title: 'Omnichannel Composer & Live Sandbox', category: 'Navigation', icon: Send },
-    { id: 'webhooks', title: 'Webhook Subscriptions & Delivery Inspector', category: 'Navigation', icon: Webhook },
-    { id: 'architecture', title: 'System Topology & Prometheus Metrics', category: 'Navigation', icon: Cpu },
-    { id: 'audit', title: 'Security & Compliance Audit Ledger', category: 'Navigation', icon: BookOpen },
+    { path: '/policies', title: 'DRR Multi-Tenant SLA & Policy Studio', category: 'Navigation', icon: Sliders },
+    { path: '/composer', title: 'Omnichannel Composer & Live Sandbox', category: 'Navigation', icon: Send },
+    { path: '/webhooks', title: 'Webhook Subscriptions & Delivery Inspector', category: 'Navigation', icon: Webhook },
+    { path: '/architecture', title: 'System Topology & Prometheus Metrics', category: 'Navigation', icon: Cpu },
+    { path: '/audit', title: 'Security & Compliance Audit Ledger', category: 'Navigation', icon: BookOpen },
   ];
 
   const filteredCommands = commands.filter(
-    (c) => c.title.toLowerCase().includes(query.toLowerCase()) || c.id.toLowerCase().includes(query.toLowerCase()),
+    (c) => c.title.toLowerCase().includes(query.toLowerCase()) || c.path.toLowerCase().includes(query.toLowerCase()),
   );
 
   useEffect(() => {
@@ -56,8 +57,8 @@ export function CommandPalette({ open, onOpenChange, onSelectTab }: CommandPalet
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onOpenChange]);
 
-  const handleSelect = (id: string) => {
-    onSelectTab(id);
+  const handleSelect = (path: string) => {
+    navigate({ to: path });
     onOpenChange(false);
     setQuery('');
   };
@@ -73,7 +74,6 @@ export function CommandPalette({ open, onOpenChange, onSelectTab }: CommandPalet
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
-            autoFocus
           />
           <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 rounded border border-slate-700 text-slate-400">
             ESC
@@ -88,9 +88,9 @@ export function CommandPalette({ open, onOpenChange, onSelectTab }: CommandPalet
               const Icon = cmd.icon;
               return (
                 <button
-                  key={cmd.id}
+                  key={cmd.path}
                   type="button"
-                  onClick={() => handleSelect(cmd.id)}
+                  onClick={() => handleSelect(cmd.path)}
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors group"
                 >
                   <div className="flex items-center gap-2.5">

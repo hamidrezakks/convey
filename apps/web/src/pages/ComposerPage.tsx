@@ -1,4 +1,5 @@
 import { Channel } from '@convey/shared';
+import { useMutation } from '@tanstack/react-query';
 import confetti from 'canvas-confetti';
 import { Code2, Play, Send, Sparkles } from 'lucide-react';
 import { useState } from 'react';
@@ -32,7 +33,6 @@ export function ComposerPage() {
     JSON.stringify({ customerName: 'Alex Rivera', authCode: '749102', invoiceAmount: 1420.5 }, null, 2),
   );
 
-  const [isSending, setIsSending] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<TestReceipt | null>(null);
 
   // Parse variables safely
@@ -42,6 +42,24 @@ export function ComposerPage() {
   } catch {
     // ignore parse error during typing
   }
+
+  // TanStack Mutation: Send test sandbox dispatch
+  const sendMutation = useMutation({
+    mutationFn: (data: { channel: Channel; recipient: string; payload: Record<string, unknown>; teamId?: string }) =>
+      api.sendTestMessage(data),
+    onSuccess: (res: TestReceipt) => {
+      setLastReceipt(res);
+      confetti({
+        particleCount: 70,
+        spread: 60,
+        origin: { y: 0.8 },
+      });
+      toast.success(`Test message accepted with Public ID: ${res.publicId}`);
+    },
+    onError: () => {
+      toast.error('Failed to dispatch test message');
+    },
+  });
 
   const handleChannelSwitch = (channel: Channel) => {
     setSelectedChannel(channel);
@@ -70,31 +88,17 @@ export function ComposerPage() {
     }
   };
 
-  const handleSendTest = async () => {
-    setIsSending(true);
-    try {
-      const res = await api.sendTestMessage({
-        channel: selectedChannel,
-        recipient,
-        payload: {
-          subject,
-          body,
-          variables: parsedVariables,
-        },
-        teamId: 'team_sandbox',
-      });
-      setLastReceipt(res);
-      confetti({
-        particleCount: 70,
-        spread: 60,
-        origin: { y: 0.8 },
-      });
-      toast.success(`Test message accepted with Public ID: ${res.publicId}`);
-    } catch (_err) {
-      toast.error('Failed to dispatch test message');
-    } finally {
-      setIsSending(false);
-    }
+  const handleSendTest = () => {
+    sendMutation.mutate({
+      channel: selectedChannel,
+      recipient,
+      payload: {
+        subject,
+        body,
+        variables: parsedVariables,
+      },
+      teamId: 'team_sandbox',
+    });
   };
 
   return (
@@ -115,7 +119,7 @@ export function ComposerPage() {
         <Button
           variant="glow"
           size="sm"
-          isLoading={isSending}
+          isLoading={sendMutation.isPending}
           onClick={handleSendTest}
           className="text-xs gap-1.5 font-bold"
         >

@@ -1,4 +1,5 @@
-import type { LiveTelemetrySnapshot } from '@convey/shared';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { Activity, ArrowUpRight, CheckCircle2, Database, DollarSign, Layers, Radio, Server, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -14,69 +15,36 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { api } from '../lib/api';
+import { telemetryKeys } from '../lib/queryKeys';
 import { formatDurationMs, formatNumber, formatTimeAgo } from '../lib/utils';
 
-export interface OverviewPageProps {
-  onNavigateTab: (tabId: string) => void;
-}
-
-interface OverviewStatsData {
-  status: string;
-  uptimeSeconds: number;
-  deliverySuccessRatePercent: number;
-  metrics24h: {
-    totalIngested: number;
-    delivered: number;
-    failed: number;
-    dlqPending: number;
-    activeSuppressions: number;
-  };
-  latencyPercentiles: {
-    p50Ms: number;
-    p95Ms: number;
-    p99Ms: number;
-    slaThresholdMs: number;
-  };
-  whatsappCostSavings: {
-    templateConvertedToSessionCount: number;
-    estimatedUsdSaved: number;
-  };
-}
-
-export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
-  const [telemetry, setTelemetry] = useState<LiveTelemetrySnapshot | null>(null);
-  const [overviewStats, setOverviewStats] = useState<OverviewStatsData | null>(null);
+export function OverviewPage() {
+  const navigate = useNavigate();
   const [chartData, setChartData] = useState<Array<{ time: string; rps: number; p95: number }>>([]);
 
-  // Poll live telemetry snapshot every 1.5s
+  // TanStack Query: Poll live telemetry snapshot every 1.5s
+  const { data: telemetry } = useQuery({
+    queryKey: telemetryKeys.live(),
+    queryFn: () => api.getLiveTelemetry(),
+    refetchInterval: 1500,
+  });
+
+  // TanStack Query: Fetch planetary 24h overview stats
+  const { data: overviewStats } = useQuery({
+    queryKey: telemetryKeys.overview(),
+    queryFn: () => api.getOverview(),
+    staleTime: 10000,
+  });
+
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchData = async () => {
-      try {
-        const [tel, ov] = await Promise.all([api.getLiveTelemetry(), api.getOverview()]);
-        if (isMounted) {
-          setTelemetry(tel);
-          setOverviewStats(ov);
-
-          const timeLabel = new Date().toLocaleTimeString();
-          setChartData((prev) => {
-            const next = [...prev, { time: timeLabel, rps: tel.throughputRps, p95: tel.latency.p95Ms }];
-            return next.slice(-20); // Keep last 20 ticks
-          });
-        }
-      } catch (err) {
-        console.error('Failed to poll telemetry:', err);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 1500);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+    if (telemetry) {
+      const timeLabel = new Date().toLocaleTimeString();
+      setChartData((prev) => {
+        const next = [...prev, { time: timeLabel, rps: telemetry.throughputRps, p95: telemetry.latency.p95Ms }];
+        return next.slice(-20);
+      });
+    }
+  }, [telemetry]);
 
   return (
     <div className="space-y-6">
@@ -96,14 +64,14 @@ export function OverviewPage({ onNavigateTab }: OverviewPageProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => onNavigateTab('messages')} className="text-xs gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/messages' })} className="text-xs gap-1.5">
             <Layers className="w-3.5 h-3.5 text-sky-400" />
             <span>Explore Messages</span>
           </Button>
           <Button
             variant="glow"
             size="sm"
-            onClick={() => onNavigateTab('composer')}
+            onClick={() => navigate({ to: '/composer' })}
             className="text-xs gap-1.5 font-bold"
           >
             <Zap className="w-3.5 h-3.5" />

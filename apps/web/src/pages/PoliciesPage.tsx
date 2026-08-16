@@ -1,6 +1,6 @@
-import type { PolicyDto } from '@convey/shared';
+import { useQuery } from '@tanstack/react-query';
 import { Check, Clock, Coins, RefreshCw, Scale, Sliders, Zap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -8,11 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Slider } from '../components/ui/slider';
 import { Switch } from '../components/ui/switch';
 import { api } from '../lib/api';
+import { policyKeys } from '../lib/queryKeys';
 
 export function PoliciesPage() {
-  const [_policies, setPolicies] = useState<PolicyDto[]>([]);
-  const [_isLoading, setIsLoading] = useState(true);
-
   // Policy configurations state
   const [rateLimitRps, setRateLimitRps] = useState(5000);
   const [burstCapacity, setBurstCapacity] = useState(10000);
@@ -22,21 +20,11 @@ export function PoliciesPage() {
   const [whatsappSessionAutoConvert, setWhatsappSessionAutoConvert] = useState(true);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(true);
 
-  const fetchPolicies = async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.getPolicies();
-      setPolicies(data);
-    } catch (err) {
-      console.error('Failed to fetch policies:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPolicies();
-  }, []);
+  // TanStack Query: Policies list
+  const { isFetching, refetch } = useQuery({
+    queryKey: policyKeys.all,
+    queryFn: () => api.getPolicies(),
+  });
 
   const handleSavePolicies = () => {
     toast.success('Traffic policies and DRR scheduler quanta synchronized to Redis cluster!');
@@ -58,7 +46,13 @@ export function PoliciesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchPolicies} className="text-xs gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            isLoading={isFetching}
+            className="text-xs gap-1.5"
+          >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Reset</span>
           </Button>
