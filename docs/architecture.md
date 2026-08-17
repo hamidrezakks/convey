@@ -210,3 +210,10 @@ To ensure **zero data loss** during deployments, node restarts, or Kubernetes po
 │ • Process exits with status 0 (Zero Message Loss)                       │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 7. Performance Benchmarks & SLA Verification
+
+Convey includes an automated benchmark test suite (`bun run test:bench`) and report generator (`bun run bench`). Detailed numbers, percentiles, and latency distributions across micro-engines, HTTP API ingestion endpoints, and outbox concurrency pipelines are documented in **[Performance Benchmarks & SLAs](./benchmarks.md)**.
+

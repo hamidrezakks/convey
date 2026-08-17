@@ -232,6 +232,7 @@ convey/
 - 💬 **[WhatsApp Session Optimization](./docs/whatsapp-session-optimization.md)** — 24-hour customer conversation window tracking and cost savings.
 - 🔒 **[Zero-Trust Security & Encryption](./docs/security.md)** — AES-256-GCM envelope encryption and threat model.
 - 📊 **[Observability & Health Probes](./docs/observability.md)** — Prometheus metrics registry, W3C tracing, and Kubernetes probes.
+- ⚡ **[Performance Benchmarks & SLAs](./docs/benchmarks.md)** — Micro-engine benchmarks, HTTP API ingestion throughput, and high-concurrency verification.
 - 📈 **[Horizontal Scaling Guide](./docs/scaling.md)** — High availability, micro-batching pipelines, and capacity planning.
 
 ---
