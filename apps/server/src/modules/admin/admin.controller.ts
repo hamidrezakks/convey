@@ -57,15 +57,10 @@ export function adminController(app: Elysia) {
       // Circuit breaker manual override
       .post(
         '/providers/:providerId/circuit',
-        async ({
-          params,
-          body,
-        }: {
-          params: { providerId: string };
-          body: { action?: 'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN'; rampPercentage?: number };
-        }) => {
-          const action = body?.action || 'FORCE_HALF_OPEN';
-          const rampPercentage = body?.rampPercentage || 20;
+        async ({ params, body }: { params: { providerId: string }; body: unknown }) => {
+          const b = (body || {}) as { action?: 'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN'; rampPercentage?: number };
+          const action = b.action || 'FORCE_HALF_OPEN';
+          const rampPercentage = b.rampPercentage || 20;
           const res = await adminService.setProviderCircuitState(params.providerId, action, rampPercentage);
           return jsonResponse(res, 200);
         },
@@ -78,8 +73,9 @@ export function adminController(app: Elysia) {
       })
 
       // Dead-Letter Queue (DLQ) & Replay Simulator
-      .post('/dlq/replay', async ({ body }: { body: { dryRun?: boolean } }) => {
-        const res = await adminService.replayDlq(body || {});
+      .post('/dlq/replay', async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as { dryRun?: boolean };
+        const res = await adminService.replayDlq(b);
         return jsonResponse(res, 200);
       })
 
@@ -89,18 +85,16 @@ export function adminController(app: Elysia) {
         return jsonResponse(list, 200);
       })
 
-      .post(
-        '/suppressions',
-        async ({ body }: { body: { teamId?: string; recipient: string; channel?: string; reason?: string } }) => {
-          const res = await adminService.addSuppression({
-            teamId: body.teamId || 'default_team',
-            recipient: body.recipient,
-            channel: (body.channel || 'EMAIL') as Channel,
-            reason: (body.reason || 'MANUAL_BLOCK') as SuppressionReason,
-          });
-          return jsonResponse(res, 200);
-        },
-      )
+      .post('/suppressions', async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as { teamId?: string; recipient?: string; channel?: string; reason?: string };
+        const res = await adminService.addSuppression({
+          teamId: b.teamId || 'default_team',
+          recipient: b.recipient || '',
+          channel: (b.channel || 'EMAIL') as Channel,
+          reason: (b.reason || 'MANUAL_BLOCK') as SuppressionReason,
+        });
+        return jsonResponse(res, 200);
+      })
 
       .delete('/suppressions/:id', async ({ params }: { params: { id: string } }) => {
         const res = await adminService.removeSuppression(params.id);
@@ -114,17 +108,21 @@ export function adminController(app: Elysia) {
       })
 
       // Omnichannel composer sandbox test send
-      .post(
-        '/composer/send-test',
-        async ({
-          body,
-        }: {
-          body: { channel: Channel; recipient: string; payload: Record<string, unknown>; teamId?: string };
-        }) => {
-          const res = await adminService.sendTestMessage(body || {});
-          return jsonResponse(res, 200);
-        },
-      )
+      .post('/composer/send-test', async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as {
+          channel?: Channel;
+          recipient?: string;
+          payload?: Record<string, unknown>;
+          teamId?: string;
+        };
+        const res = await adminService.sendTestMessage({
+          channel: b.channel || ('EMAIL' as Channel),
+          recipient: b.recipient || '',
+          payload: b.payload || {},
+          teamId: b.teamId,
+        });
+        return jsonResponse(res, 200);
+      })
 
       // --- Provider Setup & Registration Studio Endpoints ---
       .get('/providers/catalog', () => {
@@ -137,39 +135,40 @@ export function adminController(app: Elysia) {
         return jsonResponse(configured, 200);
       })
 
-      .post(
-        '/providers/register',
-        async ({
-          body,
-        }: {
-          body: {
-            providerId: string;
-            channel: Channel;
-            credentials: Record<string, string>;
-            config?: Record<string, unknown>;
-            isPrimary?: boolean;
-            priority?: number;
-            weight?: number;
-            fallbackProviderId?: string;
-          };
-        }) => {
-          const res = await adminService.registerProvider(body);
-          return jsonResponse(res, 200);
-        },
-      )
+      .post('/providers/register', async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as {
+          providerId?: string;
+          channel?: Channel;
+          credentials?: Record<string, string>;
+          config?: Record<string, unknown>;
+          isPrimary?: boolean;
+          priority?: number;
+          weight?: number;
+          fallbackProviderId?: string;
+        };
+        const res = await adminService.registerProvider({
+          providerId: b.providerId || '',
+          channel: b.channel || ('EMAIL' as Channel),
+          credentials: b.credentials || {},
+          config: b.config,
+          isPrimary: b.isPrimary,
+          priority: b.priority,
+          weight: b.weight,
+          fallbackProviderId: b.fallbackProviderId,
+        });
+        return jsonResponse(res, 200);
+      })
 
       .delete('/providers/configured/:id', async ({ params }: { params: { id: string } }) => {
         const res = await adminService.deleteConfiguredProvider(params.id);
         return jsonResponse(res, 200);
       })
 
-      .post(
-        '/providers/test-connection',
-        async ({ body }: { body: { providerId: string; credentials: Record<string, string> } }) => {
-          const res = adminService.testProviderConnection(body.providerId, body.credentials || {});
-          return jsonResponse(res, 200);
-        },
-      )
+      .post('/providers/test-connection', async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as { providerId?: string; credentials?: Record<string, string> };
+        const res = adminService.testProviderConnection(b.providerId || '', b.credentials || {});
+        return jsonResponse(res, 200);
+      })
 
       .post('/providers/seed-all', async () => {
         const res = await adminService.seedAllProviders();

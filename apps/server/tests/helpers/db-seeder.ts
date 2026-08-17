@@ -11,6 +11,7 @@ import {
 } from '../../src/db/schema';
 import { hashString } from '../../src/utils/crypto';
 import { generateMessageId } from '../../src/utils/id';
+import { encryptProviderCredentials } from '../../src/utils/payload-encryption';
 
 export const SEEDED_API_KEY_RAW = 'cv_live_secret_key_e2e_testing_99887766554433221100';
 
@@ -155,7 +156,7 @@ export async function seedDatabaseWithRealisticData() {
           isPrimary: true,
           priority: p.priority,
           weight: 100,
-          credentials: p.credentials,
+          credentials: encryptProviderCredentials(p.credentials),
           config: p.config,
           rateLimitPerSec: p.rateLimit,
           createdAt: now,

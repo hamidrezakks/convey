@@ -1,17 +1,13 @@
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { outbox } from '../../db/schema';
+import { type OutboxPayload, outbox } from '../../db/schema';
 import { JobName, MessagePriority, OutboxState } from '../../modules/messaging/messaging.types';
 import { heapMemoryGuard } from '../../utils/heap-guard';
 import { createTaskLoop, type TaskLoop } from '../../utils/task-loop';
 import { type BunNativeRedis, redisClient } from '../connection';
 import { dispatchBulkQueue, dispatchHighQueue, dispatchNormalQueue } from '../queue-definitions';
 
-export interface OutboxPayload {
-  readonly publicId: string;
-  readonly priority?: MessagePriority;
-  readonly shardIndex?: number;
-}
+export type { OutboxPayload };
 
 export const OUTBOX_SHARD_COUNT = 16;
 
@@ -37,7 +33,7 @@ function buildJobBatches(pendingRecords: Array<typeof outbox.$inferSelect>) {
   const bulkPriorityJobs: QueueJobItem[] = [];
 
   for (const record of pendingRecords) {
-    const payload = record.payload as unknown as OutboxPayload;
+    const payload = record.payload;
     const priorityKey = payload.priority || MessagePriority.NORMAL;
     const jobItem: QueueJobItem = {
       name: JobName.MESSAGE_DISPATCH,
@@ -176,7 +172,7 @@ export function initOutboxFastPathSubscriber() {
     fastPathSub.subscribe('convey:outbox:pending', (err) => {
       if (err) return;
     });
-    fastPathSub.on('message', (_channel, shardStr) => {
+    fastPathSub.on('message', (_channel: string, shardStr: string) => {
       const shardId = Number.parseInt(shardStr, 10) || 0;
       processOutboxBatchForShard(shardId, 250).catch(() => {});
     });
@@ -205,7 +201,11 @@ export function stopOutboxRelayLoop() {
   fallbackUnifiedLoop.stop();
   if (fastPathSub) {
     fastPathSub.unsubscribe('convey:outbox:pending').catch(() => {});
-    fastPathSub.disconnect();
+    try {
+      fastPathSub.quit().catch(() => {});
+    } catch {
+      // ignore
+    }
     fastPathSub = null;
   }
 }
@@ -216,16 +216,17 @@ export function stopOutboxRelayLoop() {
  */
 export async function pruneProcessedOutboxRecords(retentionHours = 24, batchSize = 5000): Promise<number> {
   const cutoff = new Date(Date.now() - retentionHours * 3600 * 1000).toISOString();
-  const result = await db.execute(sql`
+  const result = await db.execute<{ id: string }>(sql`
     WITH to_delete AS (
       SELECT id FROM outbox
       WHERE state = 'processed' AND processed_at < ${cutoff}
       LIMIT ${batchSize}
     )
     DELETE FROM outbox
-    WHERE id IN (SELECT id FROM to_delete);
+    WHERE id IN (SELECT id FROM to_delete)
+    RETURNING id;
   `);
-  return Number(result.count || 0);
+  return result.length;
 }
 
 const outboxPruneLoop = createTaskLoop(

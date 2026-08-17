@@ -49,7 +49,7 @@ export const CascadeManager = {
       const stateKey = this.getStateKey(publicId);
       const pipeline = redisClient.pipeline();
       pipeline.set(cancelKey, 'cancelled', 'EX', 86400); // 24h TTL
-      pipeline.hset(stateKey, 'state', 'short_circuited', 'cancelledAt', new Date().toISOString());
+      pipeline.hset(stateKey, { state: 'short_circuited', cancelledAt: new Date().toISOString() });
       pipeline.expire(stateKey, 86400);
       await pipeline.exec();
       logger.info('CascadeManager', `Cascade execution cancelled/short-circuited for message '${publicId}'`);
@@ -96,13 +96,10 @@ export const CascadeManager = {
 
     try {
       const stateKey = this.getStateKey(publicId);
-      await redisClient.hset(
-        stateKey,
-        'currentStep',
-        String(nextStepIndex),
-        'scheduledAt',
-        new Date(Date.now() + delayMs).toISOString(),
-      );
+      await redisClient.hset(stateKey, {
+        currentStep: String(nextStepIndex),
+        scheduledAt: new Date(Date.now() + delayMs).toISOString(),
+      });
       await redisClient.expire(stateKey, 86400);
     } catch {
       // non-blocking

@@ -52,8 +52,15 @@ export async function getJobConsumptionReport(): Promise<JobConsumptionReport> {
   for (const qName of Array.from(queueNames).sort()) {
     try {
       const q = new Queue(qName, { connection: redisClient, prefix: '{convey}' });
-      const counts = await q.getJobCounts('completed', 'failed', 'active', 'waiting', 'delayed', 'paused');
-      queuesReport[qName] = counts;
+      const counts = await q.getJobCounts();
+      queuesReport[qName] = {
+        completed: counts.completed || 0,
+        failed: counts.failed || 0,
+        active: counts.active || 0,
+        waiting: counts.waiting || 0,
+        delayed: counts.delayed || 0,
+        paused: counts.paused || 0,
+      };
       grandTotalCompleted += counts.completed || 0;
       grandTotalFailed += counts.failed || 0;
       grandTotalActive += counts.active || 0;

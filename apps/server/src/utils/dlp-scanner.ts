@@ -104,11 +104,11 @@ export const DlpScanner = {
     if (obj === null || obj === undefined) return obj;
 
     if (typeof obj === 'string') {
-      return this.sanitize(obj) as unknown as T;
+      return this.sanitize(obj) as T;
     }
 
     if (Array.isArray(obj)) {
-      return obj.map((item) => this.sanitizeObject(item)) as unknown as T;
+      return obj.map((item) => this.sanitizeObject(item)) as T;
     }
 
     if (typeof obj === 'object') {
@@ -116,7 +116,7 @@ export const DlpScanner = {
       for (const [key, value] of Object.entries(obj)) {
         sanitized[key] = this.sanitizeObject(value);
       }
-      return sanitized as unknown as T;
+      return sanitized as T;
     }
 
     return obj;

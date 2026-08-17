@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, hkdfSync } from 'node:crypto';
-import { redisClient } from '../queues/connection';
+import { type BunNativeRedis, redisClient } from '../queues/connection';
 import { logger } from './logger';
 import { formatPubSubChannel, formatRedisKey } from './redis-keys';
 
@@ -83,7 +83,7 @@ export class PayloadEncryptionManager {
   private revokedRecipientKeys = new Set<string>();
   private derivedKeyCache = new Map<string, Buffer>();
   private maxCacheSize = 10000;
-  private pubSubClient: Redis | null = null;
+  private pubSubClient: BunNativeRedis | null = null;
 
   constructor(secretKeyStr?: string) {
     const rawKey = secretKeyStr || process.env.PAYLOAD_ENCRYPTION_KEY || 'default_secret_key_32_bytes_len_!';
@@ -122,19 +122,16 @@ export class PayloadEncryptionManager {
   }
 
   private initRedisPubSub(): void {
-    if (redisClient.status !== 'ready' && redisClient.status !== 'connecting') {
-      return;
-    }
     try {
       const channel = formatPubSubChannel('gdpr-key-shredded');
       this.pubSubClient = redisClient.duplicate();
-      this.pubSubClient.on('error', (err) => {
-        logger.warn('PayloadEncryption', `Redis PubSub subscriber error: ${err.message}`);
+      this.pubSubClient.on('error', (err: Error) => {
+        logger.warn('PayloadEncryption', `Redis PubSub subscriber error: ${err?.message || String(err)}`);
       });
-      this.pubSubClient.subscribe(channel, (err) => {
-        if (err) logger.warn('PayloadEncryption', `Redis PubSub subscribe failed: ${err.message}`);
+      this.pubSubClient.subscribe(channel, (err: unknown) => {
+        if (err) logger.warn('PayloadEncryption', `Redis PubSub subscribe failed: ${(err as Error).message}`);
       });
-      this.pubSubClient.on('message', (_chan, recipientId) => {
+      this.pubSubClient.on('message', (_chan: string, recipientId: string) => {
         if (recipientId) {
           this.revokedRecipientKeys.add(recipientId);
           this.derivedKeyCache.delete(recipientId);
@@ -261,3 +258,78 @@ export class PayloadEncryptionManager {
 
 /** Singleton instance of PayloadEncryptionManager */
 export const payloadEncryptionManager = new PayloadEncryptionManager();
+
+/**
+ * Encrypts provider credentials using AES-256-GCM envelope encryption.
+ */
+export function encryptProviderCredentials(credentials: Record<string, unknown>): EncryptedPayload {
+  return payloadEncryptionManager.encryptPayload(credentials);
+}
+
+/**
+ * Transparently checks if raw credentials are encrypted with AES-256-GCM envelope,
+ * deciphers them if so, or returns them as-is for backward compatibility.
+ */
+export function decryptProviderCredentials(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.ciphertext === 'string' && typeof rec.iv === 'string' && typeof rec.authTag === 'string') {
+    try {
+      const envelope: EncryptedPayload = {
+        version: typeof rec.version === 'number' ? rec.version : 1,
+        iv: rec.iv,
+        authTag: rec.authTag,
+        ciphertext: rec.ciphertext,
+        recipientId: typeof rec.recipientId === 'string' ? rec.recipientId : undefined,
+        keyArn: typeof rec.keyArn === 'string' ? rec.keyArn : undefined,
+        encryptedDek: typeof rec.encryptedDek === 'string' ? rec.encryptedDek : undefined,
+      };
+      return payloadEncryptionManager.decryptPayload<Record<string, string>>(envelope);
+    } catch {
+      return {};
+    }
+  }
+  const result: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    result[k] = v !== null && v !== undefined ? String(v) : '';
+  }
+  return result;
+}
+
+/**
+ * Securely masks a credential secret string while preserving context for operators.
+ * - Long strings (> 8 chars): First 4 chars + '••••••••' + last 4 chars (e.g. SG.4••••••••3f8a).
+ * - Short strings (<= 8 chars): '••••••••'.
+ */
+export function maskCredentialValue(val: string): string {
+  if (!val) return '';
+  const str = String(val);
+  if (str.length > 8) {
+    return `${str.slice(0, 4)}••••••••${str.slice(-4)}`;
+  }
+  return '••••••••';
+}
+
+/**
+ * Returns a dictionary with all credential values masked.
+ */
+export function maskProviderCredentials(creds: Record<string, unknown>): Record<string, string> {
+  const masked: Record<string, string> = {};
+  for (const [k, v] of Object.entries(creds)) {
+    masked[k] = maskCredentialValue(String(v ?? ''));
+  }
+  return masked;
+}
+
+/**
+ * Checks if an input value is a masked placeholder (or empty) to prevent overwriting existing secrets.
+ */
+export function isMaskedPlaceholder(val: string): boolean {
+  if (!val || val.trim() === '') return true;
+  const trimmed = val.trim();
+  if (trimmed.includes('•') || trimmed.includes('****') || trimmed.includes('...')) {
+    return true;
+  }
+  if (/^[•*]+$/.test(trimmed)) return true;
+  return false;
+}

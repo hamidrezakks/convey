@@ -168,7 +168,6 @@ describe('Architecture & Refactoring Invariants Audit Suite', () => {
         id: testBatchId,
         tenantId,
         team,
-        name: 'QA CQRS Batch',
         totalCount: 100,
         sentCount: 0,
         deliveredCount: 0,

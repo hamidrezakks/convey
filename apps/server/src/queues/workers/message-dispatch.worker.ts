@@ -6,9 +6,11 @@ import { computePartitionWindow } from '../../modules/messaging/messaging.servic
 import {
   AttemptOrigin,
   type Channel,
+  type ChannelRequest,
   EventSource,
   EventType,
   MessageState,
+  type Recipients,
 } from '../../modules/messaging/messaging.types';
 import { PolicyEngine } from '../../modules/policies/policy-engine';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
@@ -97,14 +99,14 @@ import { CascadeManager } from '../../modules/messaging/cascade-manager';
 import type { CascadeConfig } from '../../modules/messaging/messaging.types';
 
 export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, publicId: string): Promise<void> {
-  let channels = msg.channels as Array<{ channel: string; providerId?: string; content: Record<string, unknown> }>;
-  let recipient = msg.recipients as Record<string, unknown>;
+  let channels = msg.channels;
+  let recipient = msg.recipients;
 
-  const metadataObj = msg.metadata as Record<string, unknown> | undefined;
+  const metadataObj = msg.metadata;
   if (metadataObj?._encryptedEnvelope) {
     const decrypted = payloadEncryptionManager.decryptPayload<{
-      recipients: Record<string, unknown>;
-      channels: Array<{ channel: string; providerId?: string; content: Record<string, unknown> }>;
+      recipients: Recipients;
+      channels: ChannelRequest[];
       cascade?: CascadeConfig;
     }>(metadataObj._encryptedEnvelope as EncryptedPayload);
     if (decrypted?.recipients && decrypted?.channels) {
@@ -150,12 +152,14 @@ export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, 
 
   for (const channelReq of channels) {
     const channel = channelReq.channel as Channel;
+    const channelReqProviderId =
+      'providerId' in channelReq && typeof channelReq.providerId === 'string' ? channelReq.providerId : undefined;
     const providerId = await resolveProviderForChannel(
       msg.team,
       msg.category,
       msg.country,
       channel,
-      channelReq.providerId,
+      channelReqProviderId,
     );
 
     const sendQueue = getProviderSendQueue(providerId);
@@ -164,7 +168,7 @@ export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, 
     const sendJobData = {
       publicId,
       channel,
-      content: channelReq.content,
+      content: ('content' in channelReq ? channelReq.content : {}) || {},
       recipient,
       origin: AttemptOrigin.INITIAL,
       attemptNo: 1,
@@ -198,7 +202,7 @@ export async function processDispatchJob(publicId: string): Promise<void> {
   const now = new Date();
 
   // 1. Policy check: Rate limiting
-  const channels = msg.channels as Array<{ channel: string; providerId?: string; content: Record<string, unknown> }>;
+  const channels = msg.channels;
   const primaryChannel = channels[0]?.channel;
 
   const rateCheck = await PolicyEngine.checkRateLimit({
@@ -247,9 +251,9 @@ export async function processDispatchJob(publicId: string): Promise<void> {
   }
 
   // 3. Suppression check
-  const recipients = msg.recipients as Record<string, unknown>;
-  const emailRecipient = typeof recipients.email === 'string' ? recipients.email : '';
-  const phoneRecipient = typeof recipients.phone === 'string' ? recipients.phone : '';
+  const recipients = msg.recipients;
+  const emailRecipient = recipients.email || '';
+  const phoneRecipient = recipients.phone || '';
 
   const identifiers: string[] = [];
   if (emailRecipient) identifiers.push(emailRecipient);
@@ -289,7 +293,7 @@ export async function processDispatchJob(publicId: string): Promise<void> {
     messageId: publicId,
     type: EventType.ROUTING_RESOLVED,
     source: EventSource.ROUTER,
-    metadata: { team: msg.team, category: msg.category, channelCount: (msg.channels as unknown[]).length },
+    metadata: { team: msg.team, category: msg.category, channelCount: msg.channels?.length ?? 0 },
     occurredAt: now,
     createdAt: now,
   });

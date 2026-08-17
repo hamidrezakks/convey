@@ -61,7 +61,7 @@ describe('Bun Native Redis Client Test Suite', () => {
 
   it('handles custom event listeners on, off, and emit', () => {
     let fired = false;
-    const handler = (arg: string) => {
+    const handler = (arg: unknown) => {
       fired = arg === 'test-payload';
     };
 

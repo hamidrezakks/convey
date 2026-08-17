@@ -233,7 +233,7 @@ export const EmailChannelContentSchema = z.object({
       template: z.string(),
       version: z.string().optional(),
       locale: z.string().optional(),
-      props: z.record(z.unknown()).optional(),
+      props: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
 });
@@ -256,7 +256,7 @@ export const WhatsAppChannelContentSchema = z.object({
   text: z.string().optional(),
   template: z.string().optional(),
   language: z.string().optional(),
-  variables: z.record(z.unknown()).optional(),
+  variables: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const WhatsAppChannelRequestSchema = z.object({
@@ -281,7 +281,7 @@ export const TelegramChannelRequestSchema = z.object({
 
 export const SlackChannelContentSchema = z.object({
   text: z.string(),
-  blocks: z.array(z.record(z.unknown())).optional(),
+  blocks: z.array(z.record(z.string(), z.unknown())).optional(),
 });
 
 export const SlackChannelRequestSchema = z.object({
@@ -292,7 +292,7 @@ export const SlackChannelRequestSchema = z.object({
 export const FcmChannelContentSchema = z.object({
   title: z.string(),
   body: z.string(),
-  data: z.record(z.string()).optional(),
+  data: z.record(z.string(), z.string()).optional(),
 });
 
 export const FcmChannelRequestSchema = z.object({
@@ -305,7 +305,7 @@ export const ApnsChannelContentSchema = z.object({
   body: z.string(),
   badge: z.number().optional(),
   sound: z.string().optional(),
-  data: z.record(z.unknown()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ApnsChannelRequestSchema = z.object({
@@ -341,7 +341,7 @@ export const FallbackRuleSchema = z.object({
   send: z.array(
     z.object({
       channel: z.nativeEnum(Channel).or(z.string()),
-      content: z.record(z.unknown()).optional(),
+      content: z.record(z.string(), z.unknown()).optional(),
     }),
   ),
 });
@@ -375,7 +375,7 @@ export enum CascadeCancelEvent {
 export const CascadeStepSchema = z.object({
   channel: z.nativeEnum(Channel),
   providerId: z.string().optional(),
-  content: z.record(z.unknown()).optional(),
+  content: z.record(z.string(), z.unknown()).optional(),
   waitForReceiptMs: z.number().min(0).max(3600000).optional(), // Default wait before falling back to next step
   condition: z.nativeEnum(CascadeCondition).or(z.nativeEnum(CascadeTrigger)).optional(),
   triggerOn: z.nativeEnum(CascadeTrigger).optional(),
@@ -405,7 +405,7 @@ export type TemplateSpec = z.infer<typeof TemplateSpecSchema>;
 
 export const TemplatePreviewRequestSchema = z.object({
   template: TemplateSpecSchema,
-  variables: z.record(z.unknown()).default({}),
+  variables: z.record(z.string(), z.unknown()).default({}),
   recipient: RecipientSchema.optional(),
 });
 
@@ -418,7 +418,7 @@ export const DlqMutatedReplaySchema = z.object({
     .object({
       recipients: RecipientSchema.partial().optional(),
       channels: z.array(ChannelRequestSchema).optional(),
-      metadata: z.record(z.unknown()).optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
   isSandbox: z.boolean().optional(),
@@ -474,10 +474,10 @@ export const SendMessageRequestSchema = z.object({
   recipients: RecipientSchema,
   channels: z.array(ChannelRequestSchema).min(1),
   template: TemplateSpecSchema.optional(),
-  variables: z.record(z.unknown()).optional(),
+  variables: z.record(z.string(), z.unknown()).optional(),
   fallback: FallbackConfigSchema.optional(),
   cascade: CascadeConfigSchema.optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type SendMessageRequest = z.infer<typeof SendMessageRequestSchema>;

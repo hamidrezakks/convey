@@ -1,4 +1,12 @@
 import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import type { MessagePriority } from '../../modules/messaging/messaging.types';
+
+export interface OutboxPayload {
+  readonly publicId?: string;
+  readonly priority?: MessagePriority | string;
+  readonly shardIndex?: number;
+  readonly [key: string]: unknown;
+}
 
 export const outbox = pgTable(
   'outbox',
@@ -7,7 +15,7 @@ export const outbox = pgTable(
     messageId: text('message_id').notNull(),
     shardId: integer('shard_id').notNull().default(0),
     type: text('type').notNull(),
-    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    payload: jsonb('payload').$type<OutboxPayload>().notNull(),
     state: text('state').notNull().default('pending'), // pending, locked, processed, failed
     availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
     attempts: integer('attempts').notNull().default(0),

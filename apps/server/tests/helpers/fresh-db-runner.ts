@@ -18,6 +18,7 @@ import {
 } from '../../src/db/schema';
 import { Channel } from '../../src/modules/messaging/messaging.types';
 import { hashString } from '../../src/utils/crypto';
+import { encryptProviderCredentials } from '../../src/utils/payload-encryption';
 
 export interface IsolatedDbSetup {
   prefix: string;
@@ -145,7 +146,7 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
           isPrimary: true,
           priority: p.priority,
           weight: 100,
-          credentials: { apiKey: `mock_key_${p.id}` },
+          credentials: encryptProviderCredentials({ apiKey: `mock_key_${p.id}` }),
           config: { defaultFrom: 'noreply@convey.io' },
           rateLimitPerSec: 100,
           createdAt: now,

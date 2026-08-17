@@ -5,8 +5,8 @@ import type { ProviderAdapter } from './provider-adapter';
 import type { ProviderModule } from './provider-module';
 import { ProviderState } from './provider-types';
 
-type GenericProviderAdapter = ProviderAdapter<Record<string, unknown>, unknown, unknown>;
-type GenericProviderModule = ProviderModule<Record<string, unknown>>;
+type GenericProviderAdapter = ProviderAdapter;
+type GenericProviderModule = ProviderModule;
 
 export interface ProviderManifest {
   id: string;
@@ -51,13 +51,8 @@ class ProviderRegistryStore {
       history = [];
       this.stateHistory.set(providerId, history);
     }
-    const last = history[history.length - 1];
-    if (!last || last.state !== state) {
-      history.push({ state, timestamp: new Date(), reason });
-      if (history.length > 20) {
-        history.shift(); // Keep last 20 transitions
-      }
-    }
+    history.push({ state, timestamp: new Date(), reason });
+    if (history.length > 50) history.shift();
   }
 
   /** Returns formatted state transition history log for a provider */
@@ -83,9 +78,10 @@ class ProviderRegistryStore {
     };
   }
 
-  /** Registers a lightweight provider manifest for lazy loading on demand */
+  /**
+   * Registers a provider module manifest for lazy loading.
+   */
   registerManifest(manifest: ProviderManifest): void {
-    this.channelAdaptersCache.delete(manifest.channel);
     const key = `${manifest.channel}:${manifest.id}`;
     this.manifestRegistry.set(key, manifest);
     // Secondary lookup by id (if no collision)
@@ -95,20 +91,20 @@ class ProviderRegistryStore {
   }
 
   /** Direct registration for pre-instantiated adapters */
-  register<C, REQ, RES>(adapter: ProviderAdapter<C, REQ, RES>): void {
+  register(adapter: ProviderAdapter): void {
     this.channelAdaptersCache.delete(adapter.channel);
     const key = `${adapter.channel}:${adapter.id}`;
-    this.registry.set(key, adapter as unknown as GenericProviderAdapter);
+    this.registry.set(key, adapter);
     if (!this.registry.has(adapter.id)) {
-      this.registry.set(adapter.id, adapter as unknown as GenericProviderAdapter);
+      this.registry.set(adapter.id, adapter);
     }
   }
 
   /** Direct registration for pre-instantiated modules */
-  registerModule<C, REQ, RES>(module: ProviderModule<C, REQ, RES>): void {
+  registerModule(module: ProviderModule): void {
     const key = `${module.channel}:${module.id}`;
-    this.moduleRegistry.set(key, module as unknown as GenericProviderModule);
-    this.moduleRegistry.set(module.id, module as unknown as GenericProviderModule);
+    this.moduleRegistry.set(key, module);
+    this.moduleRegistry.set(module.id, module);
     this.register(module.adapter);
   }
 

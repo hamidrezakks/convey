@@ -1,40 +1,42 @@
 import { describe, expect, it } from 'bun:test';
-import type { ProviderHealthDto } from '@convey/shared';
+import { Channel, type ProviderHealthDto } from '@convey/shared';
 import { app } from '../src/index';
+
+type ApiResponse = Record<string, unknown>;
 
 describe('Convey Admin & Telemetry API Test Suite', () => {
   it('GET /v1/admin/overview returns planetary metrics and subsystem health', async () => {
     const response = await app.handle(new Request('http://localhost:3000/v1/admin/overview'));
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.status).toBeDefined();
-    expect(body.uptimeSeconds).toBeGreaterThan(0);
+    expect(Number(body.uptimeSeconds)).toBeGreaterThan(0);
     expect(body.deliverySuccessRatePercent).toBeDefined();
     expect(body.metrics24h).toBeDefined();
-    expect(body.latencyPercentiles.p50Ms).toBeDefined();
-    expect(body.queues.activeWorkers).toBeDefined();
-    expect(body.runtime.heapUsedMb).toBeDefined();
+    expect((body.latencyPercentiles as ApiResponse).p50Ms).toBeDefined();
+    expect((body.queues as ApiResponse).activeWorkers).toBeDefined();
+    expect((body.runtime as ApiResponse).heapUsedMb).toBeDefined();
   });
 
   it('GET /v1/admin/telemetry/live returns real-time live snapshot', async () => {
     const response = await app.handle(new Request('http://localhost:3000/v1/admin/telemetry/live'));
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.timestamp).toBeDefined();
-    expect(body.throughputRps).toBeGreaterThan(0);
-    expect(body.latency.p95Ms).toBeGreaterThan(0);
-    expect(body.queues.providerSendDepth).toBeDefined();
-    expect(body.runtimeGuard.heapGuardThresholdPercent).toBe(85.0);
-    expect(body.subsystems.postgresPool.status).toBe('healthy');
+    expect(Number(body.throughputRps)).toBeGreaterThan(0);
+    expect(Number((body.latency as ApiResponse).p95Ms)).toBeGreaterThan(0);
+    expect((body.queues as ApiResponse).providerSendDepth).toBeDefined();
+    expect((body.runtimeGuard as ApiResponse).heapGuardThresholdPercent).toBe(85.0);
+    expect(((body.subsystems as ApiResponse).postgresPool as ApiResponse).status).toBe('healthy');
   });
 
   it('GET /v1/admin/messages lists messages with pagination and filtering', async () => {
     const response = await app.handle(new Request('http://localhost:3000/v1/admin/messages?page=1&limit=10'));
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.messages).toBeInstanceOf(Array);
     expect(body.total).toBeDefined();
     expect(body.page).toBe(1);
@@ -47,25 +49,25 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     );
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.publicId).toBe('msg_01JAX71R1234567890ABCDEFGH');
     expect(body.traceparent).toBeDefined();
     expect(body.spans).toBeInstanceOf(Array);
-    expect(body.spans.length).toBeGreaterThan(0);
-    expect(body.encryption.algorithm).toBe('AES-256-GCM');
+    expect((body.spans as unknown[]).length).toBeGreaterThan(0);
+    expect((body.encryption as ApiResponse).algorithm).toBe('AES-256-GCM');
   });
 
   it('GET /v1/admin/providers returns full matrix of providers', async () => {
     const response = await app.handle(new Request('http://localhost:3000/v1/admin/providers'));
     expect(response.status).toBe(200);
 
-    const body: ProviderHealthDto[] = await response.json();
+    const body = (await response.json()) as ProviderHealthDto[];
     expect(body).toBeInstanceOf(Array);
     expect(body.length).toBeGreaterThan(5);
 
     const ses = body.find((p) => p.providerId === 'aws-ses');
     expect(ses).toBeDefined();
-    expect(ses?.channel).toBe('EMAIL');
+    expect(ses?.channel).toBe(Channel.EMAIL);
   });
 
   it('POST /v1/admin/providers/:providerId/circuit overrides circuit breaker state', async () => {
@@ -78,7 +80,7 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     );
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.providerId).toBe('twilio-sms');
     expect(body.action).toBe('FORCE_HALF_OPEN');
   });
@@ -93,10 +95,10 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     );
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.dryRun).toBe(true);
-    expect(body.simulation.estimatedSuccessRatePercent).toBeDefined();
-    expect(body.simulation.riskLevel).toBe('LOW');
+    expect((body.simulation as ApiResponse).estimatedSuccessRatePercent).toBeDefined();
+    expect((body.simulation as ApiResponse).riskLevel).toBe('LOW');
   });
 
   it('GET /v1/admin/suppressions & POST /v1/admin/suppressions manage recipient suppressions', async () => {
@@ -114,13 +116,13 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
       }),
     );
     expect(addRes.status).toBe(200);
-    const created = await addRes.json();
+    const created = (await addRes.json()) as ApiResponse;
     expect(created.id).toBeDefined();
 
     // List suppressions
     const listRes = await app.handle(new Request('http://localhost:3000/v1/admin/suppressions'));
     expect(listRes.status).toBe(200);
-    const listBody = await listRes.json();
+    const listBody = (await listRes.json()) as ApiResponse[];
     expect(listBody).toBeInstanceOf(Array);
 
     // Delete suppression
@@ -144,7 +146,7 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     );
     expect(response.status).toBe(200);
 
-    const body = await response.json();
+    const body = (await response.json()) as ApiResponse;
     expect(body.publicId).toBeDefined();
     expect(body.status).toBe('ACCEPTED');
   });
@@ -153,22 +155,22 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     const response = await app.handle(new Request('http://localhost:3000/v1/admin/providers/catalog'));
     expect(response.status).toBe(200);
 
-    const catalog = await response.json();
+    const catalog = (await response.json()) as ApiResponse[];
     expect(catalog).toBeInstanceOf(Array);
     expect(catalog.length).toBeGreaterThan(5);
 
-    const sendgrid = catalog.find((c: { id: string }) => c.id === 'sendgrid');
+    const sendgrid = catalog.find((c) => c.id === 'sendgrid');
     expect(sendgrid).toBeDefined();
-    expect(sendgrid.channel).toBe('EMAIL');
-    expect(sendgrid.requiredEnvVars).toBeInstanceOf(Array);
-    expect(sendgrid.requiredEnvVars.length).toBeGreaterThan(0);
+    expect(sendgrid?.channel).toBe('EMAIL');
+    expect(sendgrid?.requiredEnvVars).toBeInstanceOf(Array);
+    expect(((sendgrid?.requiredEnvVars as string[]) || []).length).toBeGreaterThan(0);
   });
 
   it('GET /v1/admin/providers/configured & POST /v1/admin/providers/register manage provider configs', async () => {
     // 1. List active configs
     const listRes = await app.handle(new Request('http://localhost:3000/v1/admin/providers/configured'));
     expect(listRes.status).toBe(200);
-    const configured = await listRes.json();
+    const configured = (await listRes.json()) as ApiResponse[];
     expect(configured).toBeInstanceOf(Array);
     expect(configured.length).toBeGreaterThan(0);
 
@@ -192,9 +194,9 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
       }),
     );
     expect(regRes.status).toBe(200);
-    const registered = await regRes.json();
+    const registered = (await regRes.json()) as ApiResponse;
     expect(registered.providerId).toBe('resend');
-    expect(registered.credentialsMasked.RESEND_API_KEY).toBeDefined();
+    expect((registered.credentialsMasked as ApiResponse).RESEND_API_KEY).toBeDefined();
 
     // 3. Test Connection
     const testRes = await app.handle(
@@ -208,15 +210,16 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
       }),
     );
     expect(testRes.status).toBe(200);
-    const testBody = await testRes.json();
+    const testBody = (await testRes.json()) as ApiResponse;
     expect(testBody.success).toBe(true);
-    expect(testBody.latencyMs).toBeGreaterThan(0);
+    expect(Number(testBody.latencyMs)).toBeGreaterThan(0);
 
     // 4. Export .env Vault
     const exportRes = await app.handle(new Request('http://localhost:3000/v1/admin/providers/env-export'));
     expect(exportRes.status).toBe(200);
-    const envBody = await exportRes.json();
-    expect(envBody.envFileContent).toContain('RESEND_API_KEY=re_test_key_0192837465');
-    expect(envBody.variableCount).toBeGreaterThan(0);
+    const envBody = (await exportRes.json()) as ApiResponse;
+    expect(String(envBody.envFileContent)).toContain('RESEND_API_KEY=');
+    expect(String(envBody.envFileContent)).toContain('••••');
+    expect(Number(envBody.variableCount)).toBeGreaterThan(0);
   });
 });

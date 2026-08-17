@@ -102,7 +102,7 @@ const app = new Elysia()
     set.headers['access-control-allow-origin'] = '*';
     set.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
     set.headers['access-control-allow-headers'] = 'Content-Type, Authorization, x-api-key, traceparent';
-    return new Response(null, { status: 204, headers: set.headers });
+    return new Response(null, { status: 204, headers: set.headers as Record<string, string> });
   })
   .derive(({ request, path, set }) => {
     set.headers['access-control-allow-origin'] = '*';

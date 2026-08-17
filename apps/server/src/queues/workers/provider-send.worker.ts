@@ -1,3 +1,4 @@
+import type { MessagePriority } from '@convey/shared';
 import { Worker } from 'bullmq';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../../db';
@@ -16,6 +17,7 @@ import { PolicyEngine } from '../../modules/policies/policy-engine';
 import { tenantSlaManager } from '../../modules/policies/tenant-sla';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
+import type { UnifiedRecipient } from '../../modules/providers/core/provider-types';
 import { ErrorCategory } from '../../modules/providers/core/provider-types';
 import { sandboxAdapter } from '../../modules/providers/core/sandbox-adapter';
 import { smartProviderRouter } from '../../modules/providers/core/smart-router';
@@ -28,6 +30,7 @@ import { chaosEngine } from '../../utils/chaos-engine';
 import { FullJitterRetry } from '../../utils/full-jitter-retry';
 import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
+import { decryptProviderCredentials } from '../../utils/payload-encryption';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
 
 export const adaptiveConcurrency = new AdaptiveConcurrencyController();
@@ -37,11 +40,19 @@ import { getProviderSendQueue } from '../provider-queues';
 import { fallbackRetryQueue } from '../queue-definitions';
 
 export interface SendJobData {
+  attemptId?: string;
   publicId: string;
   channel: Channel;
+  tenantId?: string;
+  team?: string;
+  category?: string;
+  country?: string;
+  recipient?: UnifiedRecipient | Record<string, unknown> | string;
+  content?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  traceparent?: string;
+  priority?: MessagePriority;
   providerId?: string;
-  content: Record<string, unknown>;
-  recipient: Record<string, unknown>;
   origin: AttemptOrigin;
   attemptNo: number;
 }
@@ -67,9 +78,9 @@ export async function getCachedProviderConfig(targetProviderId: string): Promise
   const dbProviderList = await db.select().from(providers).where(eq(providers.id, targetProviderId)).limit(1);
   let providerConfig: Record<string, unknown> | undefined;
   if (dbProviderList.length > 0) {
-    providerConfig =
-      (dbProviderList[0].credentials as Record<string, unknown>) ||
-      (dbProviderList[0].config as Record<string, unknown>);
+    const creds = decryptProviderCredentials(dbProviderList[0].credentials);
+    const cfg = (dbProviderList[0].config as Record<string, unknown>) || {};
+    providerConfig = { ...cfg, ...creds };
   }
   if (providerConfigCache.size >= MAX_PROVIDER_CONFIG_CACHE) {
     const firstKey = providerConfigCache.keys().next().value;
@@ -425,8 +436,11 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
       {
         id: data.publicId,
         channel: data.channel,
-        recipient: data.recipient,
-        content: data.content,
+        recipient: (data.recipient || (msg.recipients as UnifiedRecipient) || '') as UnifiedRecipient,
+        content: (data.content ||
+          data.payload ||
+          (msg.channels?.[0]?.content as Record<string, unknown>) ||
+          {}) as Record<string, unknown>,
         metadata: msg.metadata as Record<string, unknown> | undefined,
       },
       providerConfig,

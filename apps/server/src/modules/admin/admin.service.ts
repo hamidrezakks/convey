@@ -26,8 +26,18 @@ import {
   providers,
   suppressions,
 } from '../../db/schema';
+import { redisClient } from '../../queues/connection';
+import { invalidateProviderConfigCache } from '../../queues/workers/provider-send.worker';
+import { hashString } from '../../utils/crypto';
 import { logger } from '../../utils/logger';
+import {
+  decryptProviderCredentials,
+  encryptProviderCredentials,
+  isMaskedPlaceholder,
+  maskProviderCredentials,
+} from '../../utils/payload-encryption';
 import { appReadiness } from '../../utils/readiness';
+import { formatPubSubChannel } from '../../utils/redis-keys';
 import { computePartitionWindow, fetchMessageByPublicId } from '../messaging/messaging.service';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
 import { selfHealingEngine } from '../providers/core/self-healing';
@@ -412,7 +422,7 @@ export class AdminService {
 
     for (const p of providerList) {
       const liveStatus = allStatuses[p.id];
-      const state = liveStatus ? (liveStatus.state as unknown as CircuitState) : CircuitState.CLOSED;
+      const state = liveStatus?.state ?? CircuitState.CLOSED;
 
       providers.push({
         providerId: p.id,
@@ -461,7 +471,7 @@ export class AdminService {
    * Triggers a synthetic canary self-healing probe for a provider
    */
   public async triggerCanaryProbe(providerId: string) {
-    const result = await selfHealingEngine.probeProvider(providerId);
+    const result = await selfHealingEngine.executeSyntheticProbe(providerId);
     return {
       providerId,
       timestamp: new Date().toISOString(),
@@ -515,12 +525,10 @@ export class AdminService {
       if (rows.length > 0) {
         return rows.map((r) => ({
           id: r.id,
-          teamId: r.teamId,
-          recipient: r.recipient,
+          teamId: r.team || 'default_team',
+          recipient: r.recipient || '',
           channel: (r.channel?.toUpperCase() || 'EMAIL') as Channel,
           reason: (r.reason as SuppressionReason) || ('HARD_BOUNCE' as SuppressionReason),
-          metadata: r.metadata as Record<string, string | number | boolean | null>,
-          expiresAt: r.expiresAt?.toISOString(),
           createdAt: r.createdAt.toISOString(),
         }));
       }
@@ -561,8 +569,11 @@ export class AdminService {
     try {
       await db.insert(suppressions).values({
         id,
-        teamId: data.teamId,
+        team: data.teamId,
         recipient: data.recipient,
+        targetType: 'recipient',
+        identifierType: data.channel.toLowerCase(),
+        identifierHash: hashString(data.recipient),
         channel: data.channel.toLowerCase(),
         reason: data.reason,
         createdAt: new Date(),
@@ -1039,6 +1050,7 @@ export class AdminService {
         API_KEY: `mock_key_${item.id}_live`,
       };
       const config = item.defaultFeatureConfigs || {};
+      const encryptedCredentials = encryptProviderCredentials(credentials);
 
       try {
         await db
@@ -1051,7 +1063,7 @@ export class AdminService {
             isPrimary: item.defaultPriority === 1,
             priority: item.defaultPriority,
             weight: item.defaultWeight,
-            credentials,
+            credentials: encryptedCredentials,
             config,
             rateLimitPerSec: 100,
             createdAt: now,
@@ -1065,7 +1077,7 @@ export class AdminService {
               enabled: true,
               priority: item.defaultPriority,
               weight: item.defaultWeight,
-              credentials,
+              credentials: encryptedCredentials,
               config,
               updatedAt: now,
             },
@@ -1088,7 +1100,7 @@ export class AdminService {
         weight: item.defaultWeight,
         status: 'ACTIVE' as const,
         credentials,
-        config,
+        config: (config || {}) as Record<string, unknown>,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -1118,14 +1130,9 @@ export class AdminService {
       const dbProviders = await db.select().from(providers);
       if (dbProviders && dbProviders.length > 0) {
         return dbProviders.map((p) => {
-          const creds = (p.credentials as Record<string, string>) || {};
-          const credentialsMasked: Record<string, string> = {};
-          const envLines: string[] = [];
-
-          for (const [k, v] of Object.entries(creds)) {
-            credentialsMasked[k] = v && v.length > 8 ? `${v.slice(0, 4)}...${v.slice(-4)}` : '****';
-            envLines.push(`${k}=${v}`);
-          }
+          const creds = decryptProviderCredentials(p.credentials);
+          const credentialsMasked = maskProviderCredentials(creds);
+          const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
 
           return {
             id: p.id,
@@ -1150,17 +1157,8 @@ export class AdminService {
     }
 
     return this.configuredProviders.map((p) => {
-      const credentialsMasked: Record<string, string> = {};
-      const envLines: string[] = [];
-
-      for (const [k, v] of Object.entries(p.credentials)) {
-        if (v.length > 8) {
-          credentialsMasked[k] = `${v.slice(0, 4)}...${v.slice(-4)}`;
-        } else {
-          credentialsMasked[k] = '****';
-        }
-        envLines.push(`${k}=${v}`);
-      }
+      const credentialsMasked = maskProviderCredentials(p.credentials);
+      const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
 
       return {
         id: p.id,
@@ -1198,8 +1196,32 @@ export class AdminService {
     const catalogItem = catalog.find((c) => c.id === data.providerId);
     const displayName = catalogItem?.displayName || data.providerId.toUpperCase();
 
-    const existingIndex = this.configuredProviders.findIndex((p) => p.providerId === data.providerId);
+    // Check existing credentials in DB or memory to selectively merge
+    let existingCreds: Record<string, string> = {};
+    try {
+      const existingRows = await db.select().from(providers).where(eq(providers.id, data.providerId)).limit(1);
+      if (existingRows.length > 0 && existingRows[0].credentials) {
+        existingCreds = decryptProviderCredentials(existingRows[0].credentials);
+      }
+    } catch {
+      const mem = this.configuredProviders.find((p) => p.providerId === data.providerId);
+      if (mem?.credentials) {
+        existingCreds = { ...mem.credentials };
+      }
+    }
 
+    // Merge: if incoming value is masked or empty/placeholder, retain existing value
+    const mergedCredentials: Record<string, string> = { ...existingCreds };
+    for (const [k, v] of Object.entries(data.credentials || {})) {
+      if (!isMaskedPlaceholder(v)) {
+        mergedCredentials[k] = v;
+      }
+    }
+
+    // Encrypt for database storage
+    const encryptedCredentials = encryptProviderCredentials(mergedCredentials);
+
+    const existingIndex = this.configuredProviders.findIndex((p) => p.providerId === data.providerId);
     const now = new Date().toISOString();
     const newConfig = {
       id:
@@ -1214,7 +1236,7 @@ export class AdminService {
       weight: data.weight ?? 100,
       fallbackProviderId: data.fallbackProviderId,
       status: 'ACTIVE' as const,
-      credentials: data.credentials,
+      credentials: mergedCredentials,
       config: data.config ?? (existingIndex >= 0 ? this.configuredProviders[existingIndex].config : {}),
       createdAt: existingIndex >= 0 ? this.configuredProviders[existingIndex].createdAt : now,
       updatedAt: now,
@@ -1226,7 +1248,15 @@ export class AdminService {
       this.configuredProviders.push(newConfig);
     }
 
-    // Persist into database providers table
+    // Invalidate local in-memory cache and notify cluster
+    invalidateProviderConfigCache(data.providerId);
+    try {
+      await redisClient.publish(formatPubSubChannel('provider-config-updated'), data.providerId);
+    } catch {
+      // non-blocking
+    }
+
+    // Persist into database providers table with encrypted credentials
     try {
       await db
         .insert(providers)
@@ -1239,7 +1269,7 @@ export class AdminService {
           priority: newConfig.priority,
           weight: newConfig.weight,
           fallbackProviderId: newConfig.fallbackProviderId,
-          credentials: data.credentials,
+          credentials: encryptedCredentials,
           config: newConfig.config,
           createdAt: new Date(newConfig.createdAt),
           updatedAt: new Date(newConfig.updatedAt),
@@ -1254,7 +1284,7 @@ export class AdminService {
             priority: newConfig.priority,
             weight: newConfig.weight,
             fallbackProviderId: newConfig.fallbackProviderId,
-            credentials: data.credentials,
+            credentials: encryptedCredentials,
             config: newConfig.config,
             updatedAt: new Date(),
           },
@@ -1263,10 +1293,7 @@ export class AdminService {
       // Postgres error fallback
     }
 
-    const credentialsMasked: Record<string, string> = {};
-    for (const [k, v] of Object.entries(newConfig.credentials)) {
-      credentialsMasked[k] = v.length > 8 ? `${v.slice(0, 4)}...${v.slice(-4)}` : '****';
-    }
+    const credentialsMasked = maskProviderCredentials(mergedCredentials);
 
     return {
       id: newConfig.id,
@@ -1280,7 +1307,7 @@ export class AdminService {
       status: newConfig.status,
       credentialsMasked,
       config: newConfig.config,
-      envSnippet: Object.entries(newConfig.credentials)
+      envSnippet: Object.entries(credentialsMasked)
         .map(([k, v]) => `${k}=${v}`)
         .join('\n'),
       createdAt: newConfig.createdAt,
@@ -1295,6 +1322,13 @@ export class AdminService {
     const index = this.configuredProviders.findIndex((p) => p.id === id || p.providerId === id);
     if (index >= 0) {
       this.configuredProviders.splice(index, 1);
+    }
+
+    invalidateProviderConfigCache(id);
+    try {
+      await redisClient.publish(formatPubSubChannel('provider-config-updated'), id);
+    } catch {
+      // non-blocking
     }
 
     try {
@@ -1340,6 +1374,7 @@ export class AdminService {
       '# ====================================================================',
       '# CONVEY COMMUNICATION ENGINE - AUTOMATED ENVIRONMENT VARIABLE VAULT',
       `# Generated on: ${new Date().toISOString()}`,
+      '# Security: Secrets masked for safe operator preview (AES-256-GCM encrypted in DB)',
       '# ====================================================================',
       '',
     ];
@@ -1348,7 +1383,8 @@ export class AdminService {
 
     for (const p of this.configuredProviders) {
       lines.push(`# --- ${p.displayName} (${p.channel}) ---`);
-      for (const [k, v] of Object.entries(p.credentials)) {
+      const masked = maskProviderCredentials(p.credentials);
+      for (const [k, v] of Object.entries(masked)) {
         lines.push(`${k}=${v}`);
         totalVars++;
       }

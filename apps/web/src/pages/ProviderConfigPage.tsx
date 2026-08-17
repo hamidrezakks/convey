@@ -13,6 +13,8 @@ import {
   DollarSign,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   Key,
   Layers,
   Lock,
@@ -62,11 +64,16 @@ export function ProviderConfigPage() {
   // Register Modal State
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<ProviderCatalogItem | null>(null);
+  const [editingConfig, setEditingConfig] = useState<ConfiguredProviderDto | null>(null);
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [priority, setPriority] = useState(1);
   const [weight, setWeight] = useState(100);
   const [fallbackProviderId, setFallbackProviderId] = useState('');
   const [isPrimary, setIsPrimary] = useState(true);
+
+  // Copy tracking states
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Advanced Feature Configs State
   const [featureConfigs, setFeatureConfigs] = useState<ProviderFeatureConfigs>({
@@ -221,10 +228,15 @@ export function ProviderConfigPage() {
     const targetItem =
       item || selectedCatalogItem || effectiveCatalog.find((c) => c.id === 'sendgrid') || effectiveCatalog[0];
     setSelectedCatalogItem(targetItem);
+    setEditingConfig(existingConfig || null);
 
     // Populate initial credentials
     const initialCreds: Record<string, string> = {};
-    if (targetItem?.requiredEnvVars) {
+    if (existingConfig?.credentialsMasked) {
+      for (const k of Object.keys(existingConfig.credentialsMasked)) {
+        initialCreds[k] = ''; // Blank indicates keep existing secret
+      }
+    } else if (targetItem?.requiredEnvVars) {
       for (const spec of targetItem.requiredEnvVars) {
         if (spec.defaultValue) {
           initialCreds[spec.key] = spec.defaultValue;
@@ -233,6 +245,7 @@ export function ProviderConfigPage() {
     }
 
     setCredentials(initialCreds);
+    setVisibleSecrets({});
     setPriority(existingConfig?.priority || targetItem?.defaultPriority || 1);
     setWeight(existingConfig?.weight || targetItem?.defaultWeight || 100);
     setFallbackProviderId(existingConfig?.fallbackProviderId || '');
@@ -635,12 +648,40 @@ export function ProviderConfigPage() {
                           </TableCell>
 
                           <TableCell className="font-mono text-xs text-slate-400">
-                            {Object.entries(p.credentialsMasked).map(([k, v]) => (
-                              <div key={k} className="text-[11px] truncate max-w-xs">
-                                <span className="text-slate-500">{k}: </span>
-                                <span className="text-slate-300">{v}</span>
+                            <div className="space-y-1 max-w-xs">
+                              <div className="flex items-center gap-1 text-[10px] text-emerald-400/90 font-sans font-medium">
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>AES-256-GCM</span>
                               </div>
-                            ))}
+                              {Object.entries(p.credentialsMasked).map(([k, v]) => (
+                                <div
+                                  key={k}
+                                  className="flex items-center justify-between gap-1 text-[11px] bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800"
+                                >
+                                  <span className="text-slate-400 truncate max-w-[100px]" title={k}>
+                                    {k}:
+                                  </span>
+                                  <span className="text-slate-300 font-mono tracking-wider">{v}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(v);
+                                      setCopiedKey(`${p.id}:${k}`);
+                                      toast.success(`Copied masked ${k} identifier`);
+                                      setTimeout(() => setCopiedKey(null), 2000);
+                                    }}
+                                    className="text-slate-500 hover:text-sky-400 p-0.5 transition-colors"
+                                    title="Copy masked identifier"
+                                  >
+                                    {copiedKey === `${p.id}:${k}` ? (
+                                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-2.5 h-2.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
                           </TableCell>
 
                           <TableCell>
@@ -837,11 +878,15 @@ export function ProviderConfigPage() {
               <div>
                 <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
                   <Key className="w-4 h-4 text-amber-400" />
-                  Convey Auto-Generated Environment Variable Vault (.env)
+                  <span>Convey Environment Variable Vault (.env)</span>
+                  <Badge variant="success" className="text-[10px] gap-1 py-0 font-mono">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>AES-256-GCM Vault</span>
+                  </Badge>
                 </CardTitle>
                 <CardDescription>
-                  Unified environment variables for all active communication adapters stored in Postgres `providers`
-                  table.
+                  Unified environment variables for all active communication adapters stored encrypted in PostgreSQL
+                  `providers` table with masked display.
                 </CardDescription>
               </div>
 
@@ -928,30 +973,81 @@ export function ProviderConfigPage() {
                             {selectedCatalogItem.displayName} API Keys
                           </span>
                         </div>
-                        <Badge variant="cyan">{selectedCatalogItem.channel}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="cyan">{selectedCatalogItem.channel}</Badge>
+                          <Badge variant="success" className="text-[10px] gap-1 py-0 font-mono">
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>AES-256-GCM</span>
+                          </Badge>
+                        </div>
                       </div>
 
                       <p className="text-xs text-slate-400">{selectedCatalogItem.description}</p>
 
+                      {editingConfig && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-300">
+                          <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>
+                            Existing credentials for <strong>{editingConfig.displayName}</strong> are encrypted at rest.
+                            Leave blank or keep masked placeholders to retain existing secrets.
+                          </span>
+                        </div>
+                      )}
+
                       <div className="space-y-3 pt-1">
-                        {selectedCatalogItem.requiredEnvVars.map((spec) => (
-                          <div key={spec.key} className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <label className="font-semibold text-slate-300">
-                                {spec.label} {spec.required && <span className="text-rose-400">*</span>}
-                              </label>
-                              <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
+                        {selectedCatalogItem.requiredEnvVars.map((spec) => {
+                          const isSecret = spec.isSecret ?? true;
+                          const isVisible = visibleSecrets[spec.key] ?? false;
+                          const maskedPlaceholder = editingConfig?.credentialsMasked?.[spec.key];
+
+                          return (
+                            <div key={spec.key} className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <label className="font-semibold text-slate-300 flex items-center gap-1.5">
+                                  <span>{spec.label}</span>
+                                  {spec.required && !editingConfig && <span className="text-rose-400">*</span>}
+                                  {isSecret && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-emerald-400 border border-slate-700">
+                                      Encrypted
+                                    </span>
+                                  )}
+                                </label>
+                                <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
+                              </div>
+
+                              <div className="relative flex items-center">
+                                <Input
+                                  type={isSecret && !isVisible ? 'password' : 'text'}
+                                  placeholder={
+                                    maskedPlaceholder
+                                      ? `${maskedPlaceholder} (Leave blank to keep existing)`
+                                      : spec.placeholder
+                                  }
+                                  value={credentials[spec.key] || ''}
+                                  onChange={(e) => handleCredentialChange(spec.key, e.target.value)}
+                                  required={spec.required && !editingConfig}
+                                  className="pr-10 font-mono text-xs"
+                                />
+                                {isSecret && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setVisibleSecrets((prev) => ({
+                                        ...prev,
+                                        [spec.key]: !prev[spec.key],
+                                      }))
+                                    }
+                                    className="absolute right-3 text-slate-400 hover:text-slate-200 transition-colors p-1"
+                                    title={isVisible ? 'Hide secret' : 'Reveal secret'}
+                                  >
+                                    {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500">{spec.description}</p>
                             </div>
-                            <Input
-                              type={spec.isSecret ? 'password' : 'text'}
-                              placeholder={spec.placeholder}
-                              value={credentials[spec.key] || ''}
-                              onChange={(e) => handleCredentialChange(spec.key, e.target.value)}
-                              required={spec.required}
-                            />
-                            <p className="text-[11px] text-slate-500">{spec.description}</p>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

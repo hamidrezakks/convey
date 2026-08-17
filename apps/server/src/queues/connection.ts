@@ -19,10 +19,19 @@ export interface BunRedisPipeline {
   exec(): Promise<[Error | null, unknown][]>;
 }
 
+export type RedisEventHandler = (
+  ...args: (string | number | boolean | Error | Record<string, unknown> | null | undefined)[]
+) => void;
+
+export interface RedisEventMap {
+  message: [channel: string, message: string];
+  error: [error: Error];
+}
+
 export class BunNativeRedis {
   public client: RedisClient;
   public readonly url: string;
-  private readonly eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
+  private readonly eventHandlers: Map<string, Set<RedisEventHandler>> = new Map();
 
   constructor(url: string = env.REDIS_URL) {
     this.url = url;
@@ -54,7 +63,7 @@ export class BunNativeRedis {
   }
 
   async del(...keys: (string | string[])[]): Promise<number> {
-    const flatKeys = (keys as unknown[]).flat() as string[];
+    const flatKeys = keys.flat();
     if (flatKeys.length === 0) return 0;
     return (await this.client.del(...flatKeys)) as number;
   }
@@ -76,16 +85,17 @@ export class BunNativeRedis {
   }
 
   async mget(...keys: (string | string[])[]): Promise<(string | null)[]> {
-    const flatKeys = (keys as unknown[]).flat() as string[];
+    const flatKeys = keys.flat();
     if (flatKeys.length === 0) return [];
     const res = (await this.client.mget(...flatKeys)) as (string | null)[] | null;
     return (res || []).map((v) => (v !== null && v !== undefined ? String(v) : null));
   }
 
   async exists(...keys: (string | string[])[]): Promise<number> {
-    const flatKeys = (keys as unknown[]).flat() as string[];
+    const flatKeys = keys.flat();
     if (flatKeys.length === 0) return 0;
-    return (await this.client.exists(...flatKeys)) as number;
+    const res = (await this.client.send('EXISTS', flatKeys)) as number | null;
+    return Number(res || 0);
   }
 
   async hget(key: string, field: string): Promise<string | null> {
@@ -163,10 +173,13 @@ export class BunNativeRedis {
 
   async subscribe(channel: string, callback?: (err: Error | null, count?: number) => void): Promise<void> {
     try {
-      await this.client.subscribe(channel);
+      await this.client.subscribe(channel, (message, chan) => {
+        this.emit('message', chan, message);
+      });
       callback?.(null);
     } catch (err) {
-      callback?.(err as Error);
+      const error = err instanceof Error ? err : new Error(String(err));
+      callback?.(error);
     }
   }
 
@@ -281,7 +294,9 @@ export class BunNativeRedis {
     this.client.close();
   }
 
-  on(event: string, handler: (...args: unknown[]) => void): this {
+  on<K extends keyof RedisEventMap>(event: K, handler: (...args: RedisEventMap[K]) => void): this;
+  on(event: string, handler: RedisEventHandler): this;
+  on(event: string, handler: RedisEventHandler): this {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
     }
@@ -289,12 +304,22 @@ export class BunNativeRedis {
     return this;
   }
 
-  off(event: string, handler: (...args: unknown[]) => void): this {
+  off<K extends keyof RedisEventMap>(event: K, handler: (...args: RedisEventMap[K]) => void): this;
+  off(event: string, handler: RedisEventHandler): this;
+  off(event: string, handler: RedisEventHandler): this {
     this.eventHandlers.get(event)?.delete(handler);
     return this;
   }
 
-  emit(event: string, ...args: unknown[]): boolean {
+  emit<K extends keyof RedisEventMap>(event: K, ...args: RedisEventMap[K]): boolean;
+  emit(
+    event: string,
+    ...args: (string | number | boolean | Error | Record<string, unknown> | null | undefined)[]
+  ): boolean;
+  emit(
+    event: string,
+    ...args: (string | number | boolean | Error | Record<string, unknown> | null | undefined)[]
+  ): boolean {
     const handlers = this.eventHandlers.get(event);
     if (!handlers || handlers.size === 0) return false;
     for (const h of handlers) {

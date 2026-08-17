@@ -107,7 +107,7 @@ export async function recordWhatsAppInboundMessage(
   WhatsAppMetrics.recordInboundMessage(providerId);
 
   try {
-    if (typeof (redisClient as unknown as { eval: (...args: unknown[]) => unknown }).eval === 'function') {
+    if (typeof redisClient.eval === 'function') {
       await redisClient.eval(RECORD_INBOUND_LUA_SCRIPT, 1, key, isoNow, String(ttlSeconds), String(nowMs));
     } else {
       // Fallback for mock/test environments

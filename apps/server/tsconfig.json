@@ -8,7 +8,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["bun-types"],
+    "types": ["@types/bun"],
     "paths": {
       "@convey/shared": ["../../packages/shared/src/index.ts"]
     }

@@ -34,16 +34,13 @@ export class DynamicConfigReloader {
    */
   async updateConfig(partial: Partial<DynamicConfigState>): Promise<DynamicConfigState> {
     this.currentConfig = { ...this.currentConfig, ...partial };
-    logger.info(
-      'ConfigReloader',
-      'Hot-reloaded in-memory configuration',
-      this.currentConfig as unknown as Record<string, unknown>,
-    );
+    logger.info('ConfigReloader', 'Hot-reloaded in-memory configuration', { ...this.currentConfig });
 
     try {
       await redisClient.publish(formatPubSubChannel('config:updates'), JSON.stringify(this.currentConfig));
     } catch (err) {
-      logger.error('ConfigReloader', 'Failed to publish config update to PubSub', err as Error);
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('ConfigReloader', 'Failed to publish config update to PubSub', error);
     }
 
     return this.currentConfig;
@@ -57,13 +54,10 @@ export class DynamicConfigReloader {
     try {
       const parsed = JSON.parse(rawJson) as Partial<DynamicConfigState>;
       this.currentConfig = { ...this.currentConfig, ...parsed };
-      logger.info(
-        'ConfigReloader',
-        'Applied remote PubSub config update',
-        this.currentConfig as unknown as Record<string, unknown>,
-      );
+      logger.info('ConfigReloader', 'Applied remote PubSub config update', { ...this.currentConfig });
     } catch (err) {
-      logger.error('ConfigReloader', 'Invalid PubSub config JSON payload', err as Error);
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('ConfigReloader', 'Invalid PubSub config JSON payload', error);
     }
   }
 }

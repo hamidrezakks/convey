@@ -12,6 +12,7 @@ import { startScheduledPromoterLoop } from './queues/workers/scheduled-promoter.
 import { consensusAuditGuard } from './utils/consensus-auditor';
 import { geoReplicationManager } from './utils/geo-replication';
 import { logger } from './utils/logger';
+import { decryptProviderCredentials } from './utils/payload-encryption';
 import { appReadiness, ComponentStatus, PartitionStatus, WorkerState } from './utils/readiness';
 import { shutdownOrchestrator } from './utils/shutdown';
 
@@ -30,11 +31,10 @@ export async function bootstrapService(): Promise<void> {
 
     await ensureMonthlyPartitions();
     appReadiness.setPartitionsStatus(PartitionStatus.READY);
-    logger.info('Bootstrap', 'Database monthly partitions verified');
+    logger.info('Bootstrap', 'Postgres monthly partition boundaries verified');
   } catch (err: unknown) {
     appReadiness.setDbStatus(ComponentStatus.ERROR);
-    appReadiness.setPartitionsStatus(PartitionStatus.ERROR);
-    logger.error('Bootstrap', 'Database initialization failed', { error: (err as Error).message });
+    logger.error('Bootstrap', 'Database connection / partition check failed', { error: (err as Error).message });
     throw err;
   }
 
@@ -55,7 +55,9 @@ export async function bootstrapService(): Promise<void> {
     const dbProviders = await db.select().from(providers).where(eq(providers.enabled, true));
     configMap = {};
     for (const p of dbProviders) {
-      configMap[p.id] = (p.credentials as Record<string, unknown>) || (p.config as Record<string, unknown>) || {};
+      const creds = decryptProviderCredentials(p.credentials);
+      const cfg = (p.config as Record<string, unknown>) || {};
+      configMap[p.id] = { ...cfg, ...creds };
     }
   } catch (err: unknown) {
     logger.warn('Bootstrap', 'Could not fetch provider setup from DB table', { error: (err as Error).message });
