@@ -331,12 +331,22 @@ export async function handlePermanentFailure(params: {
   });
 
   const { startDate, endDate } = computePartitionWindow(data.publicId);
-  await db
-    .update(messages)
-    .set({ state: MessageState.FAILED, completedAt: now, updatedAt: now })
+  const currentMsgList = await db
+    .select()
+    .from(messages)
     .where(
       and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
     );
+  const currentMsg = currentMsgList[0];
+
+  if (currentMsg && currentMsg.state !== MessageState.DELIVERED) {
+    await db
+      .update(messages)
+      .set({ state: MessageState.FAILED, completedAt: now, updatedAt: now })
+      .where(
+        and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+      );
+  }
 
   if (msg.fallback) {
     const fallbackConfig = msg.fallback as {

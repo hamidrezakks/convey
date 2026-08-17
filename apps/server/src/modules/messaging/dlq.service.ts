@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messages, outbox } from '../../db/schema';
 import { dispatchQueue } from '../../queues/queue-definitions';
@@ -55,45 +55,56 @@ export const DlqService = {
       .limit(limit)
       .offset(offset);
 
-    const items = await Promise.all(
-      failedMessages.map(async (msg) => {
-        const createdDate = parseMessageIdTimestamp(msg.publicId);
-        const { startDate, endDate } = getUtcMonthBoundary(createdDate);
+    if (!failedMessages.length) {
+      return {
+        total: 0,
+        items: [],
+      };
+    }
 
-        const attempts = await db
-          .select()
-          .from(messageAttempts)
-          .where(
-            and(
-              eq(messageAttempts.messageId, msg.publicId),
-              gte(messageAttempts.createdAt, startDate),
-              lte(messageAttempts.createdAt, endDate),
-            ),
-          )
-          .orderBy(desc(messageAttempts.createdAt))
-          .limit(1);
+    const messageIds = failedMessages.map((msg) => msg.publicId);
 
-        const lastAttempt = attempts[0];
-        return {
-          messageId: msg.publicId,
-          team: msg.team,
-          userId: msg.userId,
-          category: msg.category,
-          country: msg.country,
-          priority: msg.priority,
-          failedAt: msg.completedAt?.toISOString() || msg.updatedAt.toISOString(),
-          lastError: lastAttempt
-            ? {
-                code: lastAttempt.errorCode,
-                category: lastAttempt.errorCategory,
-                message: lastAttempt.errorMessage,
-                providerId: lastAttempt.providerId,
-                attemptNo: lastAttempt.attemptNo,
-              }
-            : undefined,
-        };
-      }),
-    );
+    // Single batched query across all attempts in current page (eliminates N+1 query waterfall)
+    const attempts = await db
+      .select()
+      .from(messageAttempts)
+      .where(
+        and(
+          inArray(messageAttempts.messageId, messageIds),
+          gte(messageAttempts.createdAt, startDate),
+          lte(messageAttempts.createdAt, endDate),
+        ),
+      )
+      .orderBy(desc(messageAttempts.createdAt));
+
+    const attemptsByMessageId = new Map<string, typeof messageAttempts.$inferSelect>();
+    for (const att of attempts) {
+      if (!attemptsByMessageId.has(att.messageId)) {
+        attemptsByMessageId.set(att.messageId, att);
+      }
+    }
+
+    const items = failedMessages.map((msg) => {
+      const lastAttempt = attemptsByMessageId.get(msg.publicId);
+      return {
+        messageId: msg.publicId,
+        team: msg.team,
+        userId: msg.userId,
+        category: msg.category,
+        country: msg.country,
+        priority: msg.priority,
+        failedAt: msg.completedAt?.toISOString() || msg.updatedAt.toISOString(),
+        lastError: lastAttempt
+          ? {
+              code: lastAttempt.errorCode,
+              category: lastAttempt.errorCategory,
+              message: lastAttempt.errorMessage,
+              providerId: lastAttempt.providerId,
+              attemptNo: lastAttempt.attemptNo,
+            }
+          : undefined,
+      };
+    });
 
     return {
       total: items.length,
@@ -108,6 +119,11 @@ export const DlqService = {
 
     const now = new Date();
     const replayedIds: string[] = [];
+    const jobsToAdd: Array<{
+      name: string;
+      data: { publicId: string; outboxId: string };
+      opts: { priority: number; jobId: string };
+    }> = [];
 
     for (const publicId of publicIds) {
       const createdDate = parseMessageIdTimestamp(publicId);
@@ -151,16 +167,20 @@ export const DlqService = {
         await tx.insert(outbox).values(outboxRecord);
       });
 
-      await dispatchQueue.add(
-        JobName.MESSAGE_DISPATCH,
-        { publicId, outboxId },
-        {
+      jobsToAdd.push({
+        name: JobName.MESSAGE_DISPATCH,
+        data: { publicId, outboxId },
+        opts: {
           priority: msg.priority === MessagePriority.CRITICAL ? 1 : 3,
           jobId: `outbox_${outboxId}`, // Enforces idempotent deduplication in Redis BullMQ
         },
-      );
+      });
 
       replayedIds.push(publicId);
+    }
+
+    if (jobsToAdd.length > 0) {
+      await dispatchQueue.addBulk(jobsToAdd);
     }
 
     return {

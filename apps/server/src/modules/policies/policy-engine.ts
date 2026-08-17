@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { budgetLedger, budgetPolicies, budgetUsage, rateLimitPolicies } from '../../db/schema';
 import { redisClient } from '../../queues/connection';
@@ -65,6 +65,21 @@ export function findMatchingRateLimitPolicy(
   );
 }
 
+/**
+ * Atomically records monthly financial budget usage increments using PostgreSQL native UPSERT.
+ *
+ * Concurrency & Invariant Guarantees:
+ * 1. Zero Duplicate Key Errors: Uses `ON CONFLICT (id) DO UPDATE` to safely handle simultaneous
+ *    inserts when multiple worker threads process messages for the same tenant at the start of a month.
+ * 2. Zero Lost Updates: Performs arithmetic addition directly at the database engine level
+ *    (`budget_usage.used_usd::numeric + amountUsd`), eliminating read-modify-write lost updates.
+ * 3. Exact Precision: Casts values to `numeric(12, 4)` to eliminate floating-point rounding errors.
+ *
+ * @param policyId Unique identifier of the budget policy.
+ * @param month Target billing month formatted as YYYY-MM.
+ * @param amountUsd Expenditure amount in USD to add.
+ * @param now Current timestamp for updatedAt tracking.
+ */
 export async function updateMonthlyBudgetUsage(
   policyId: string,
   month: string,
@@ -72,27 +87,15 @@ export async function updateMonthlyBudgetUsage(
   now: Date,
 ): Promise<void> {
   const usageId = `${policyId}_${month}`;
+  const amountStr = amountUsd.toFixed(4);
 
-  const existingUsage = await db
-    .select()
-    .from(budgetUsage)
-    .where(and(eq(budgetUsage.policyId, policyId), eq(budgetUsage.month, month)));
-
-  if (existingUsage.length) {
-    const newTotal = Number.parseFloat(existingUsage[0].usedUsd) + amountUsd;
-    await db
-      .update(budgetUsage)
-      .set({ usedUsd: newTotal.toFixed(4), updatedAt: now })
-      .where(eq(budgetUsage.id, existingUsage[0].id));
-  } else {
-    await db.insert(budgetUsage).values({
-      id: usageId,
-      policyId,
-      month,
-      usedUsd: amountUsd.toFixed(4),
-      updatedAt: now,
-    });
-  }
+  await db.execute(sql`
+    INSERT INTO budget_usage (id, policy_id, month, used_usd, updated_at)
+    VALUES (${usageId}, ${policyId}, ${month}, ${amountStr}::numeric, ${now})
+    ON CONFLICT (id) DO UPDATE SET
+      used_usd = (budget_usage.used_usd + EXCLUDED.used_usd)::numeric(12, 4),
+      updated_at = EXCLUDED.updated_at;
+  `);
 }
 
 export const PolicyEngine = {
