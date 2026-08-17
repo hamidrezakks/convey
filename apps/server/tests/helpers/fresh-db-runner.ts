@@ -16,6 +16,7 @@ import {
   suppressions,
   tenants,
 } from '../../src/db/schema';
+import { clearApiKeyCache } from '../../src/modules/auth/auth.middleware';
 import { Channel } from '../../src/modules/messaging/messaging.types';
 import { hashString } from '../../src/utils/crypto';
 import { encryptProviderCredentials } from '../../src/utils/payload-encryption';
@@ -29,6 +30,7 @@ export interface IsolatedDbSetup {
  * Ensures clean state for benchmark test run by resetting DB schema.
  */
 export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise<IsolatedDbSetup> {
+  clearApiKeyCache();
   const prefix = customPrefix || `e2e_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   await queryClient.unsafe(`

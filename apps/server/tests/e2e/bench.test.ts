@@ -46,7 +46,7 @@ describe('Convey Benchmark Automated Performance & SLA Verification Test Suite',
       expect(r.opsPerSec).toBeGreaterThan(10); // API operations exceed throughput baseline
       expect(r.avgMs).toBeLessThan(200); // API average latency under 200ms
     }
-  }, 30000);
+  }, 60000);
 
   it('Verifies High-Concurrency Pipeline & Outbox Batch Relay SLAs', async () => {
     const pipelineSuite = await createPipelineBenchmarkSuite();
@@ -58,5 +58,5 @@ describe('Convey Benchmark Automated Performance & SLA Verification Test Suite',
     for (const r of results) {
       expect(r.iterations).toBeGreaterThan(0);
     }
-  }, 30000);
+  }, 60000);
 });

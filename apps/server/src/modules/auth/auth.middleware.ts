@@ -3,6 +3,22 @@ import { db } from '../../db';
 import { apiKeys, tenants } from '../../db/schema';
 import { hashString } from '../../utils/crypto';
 
+interface CachedApiKey {
+  valid: boolean;
+  tenantId?: string;
+  team?: string;
+  keyName?: string;
+  error?: string;
+  cachedAt: number;
+}
+
+const apiKeyCache = new Map<string, CachedApiKey>();
+const API_KEY_CACHE_TTL_MS = 30_000; // 30s cache
+
+export function clearApiKeyCache() {
+  apiKeyCache.clear();
+}
+
 export async function validateApiKey(apiKeyRaw: string): Promise<{
   valid: boolean;
   tenantId?: string;
@@ -16,36 +32,43 @@ export async function validateApiKey(apiKeyRaw: string): Promise<{
 
   const keyHash = hashString(apiKeyRaw);
   const now = new Date();
+  const cached = apiKeyCache.get(keyHash);
+  if (cached && Date.now() - cached.cachedAt < API_KEY_CACHE_TTL_MS) {
+    return cached;
+  }
 
-  const keys = await db
-    .select()
+  const rows = await db
+    .select({
+      keyId: apiKeys.id,
+      tenantId: apiKeys.tenantId,
+      team: apiKeys.team,
+      keyName: apiKeys.name,
+      tenantStatus: tenants.status,
+    })
     .from(apiKeys)
+    .innerJoin(tenants, eq(apiKeys.tenantId, tenants.id))
     .where(
       and(
         eq(apiKeys.keyHash, keyHash),
         eq(apiKeys.active, true),
         or(isNull(apiKeys.expiresAt), gte(apiKeys.expiresAt, now)),
+        eq(tenants.status, 'active'),
       ),
     );
 
-  if (!keys.length) {
+  if (!rows.length) {
     return { valid: false, error: 'Invalid or expired API Key' };
   }
 
-  const key = keys[0];
-
-  // Validate active status of parent tenant organization
-  const tenantRows = await db.select().from(tenants).where(eq(tenants.id, key.tenantId));
-  if (!tenantRows.length || tenantRows[0].status !== 'active') {
-    return { valid: false, error: 'Associated tenant organization is inactive' };
-  }
-
-  return {
+  const row = rows[0];
+  const result = {
     valid: true,
-    tenantId: key.tenantId,
-    team: key.team,
-    keyName: key.name,
+    tenantId: row.tenantId,
+    team: row.team,
+    keyName: row.keyName,
   };
+  apiKeyCache.set(keyHash, { ...result, cachedAt: Date.now() });
+  return result;
 }
 
 export function extractApiKeyFromHeaders(headers: Record<string, string | undefined>): string | null {

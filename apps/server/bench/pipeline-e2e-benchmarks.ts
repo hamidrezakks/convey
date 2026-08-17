@@ -38,7 +38,8 @@ export async function createPipelineBenchmarkSuite(): Promise<BenchmarkSuite> {
       const responses = await Promise.all(promises);
       for (const res of responses) {
         if (res.status !== 202) {
-          throw new Error(`Concurrent send returned status ${res.status}`);
+          const errBody = await res.text();
+          throw new Error(`Concurrent send returned status ${res.status}: ${errBody}`);
         }
       }
     },

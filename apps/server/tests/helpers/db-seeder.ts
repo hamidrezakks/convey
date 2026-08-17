@@ -1,14 +1,13 @@
 import { db, queryClient } from '../../src/db';
 import {
-  apiKeys,
   budgetPolicies,
   budgetUsage,
   providerRoutes,
   providers,
   rateLimitPolicies,
   reportHourly,
-  tenants,
 } from '../../src/db/schema';
+import { clearApiKeyCache } from '../../src/modules/auth/auth.middleware';
 import { hashString } from '../../src/utils/crypto';
 import { generateMessageId } from '../../src/utils/id';
 import { encryptProviderCredentials } from '../../src/utils/payload-encryption';
@@ -16,6 +15,7 @@ import { encryptProviderCredentials } from '../../src/utils/payload-encryption';
 export const SEEDED_API_KEY_RAW = 'cv_live_secret_key_e2e_testing_99887766554433221100';
 
 export async function seedDatabaseWithRealisticData() {
+  clearApiKeyCache();
   const now = new Date();
   const currentMonth = now.toISOString().substring(0, 7);
   const tenantId = '10000000-0000-0000-0000-000000000001';
@@ -30,63 +30,24 @@ export async function seedDatabaseWithRealisticData() {
   `);
 
   // 1. Seed Tenants
-  await db
-    .insert(tenants)
-    .values([
-      {
-        id: tenantId,
-        name: 'Acme Corporation',
-        slug: 'acme-corp',
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: '10000000-0000-0000-0000-000000000002',
-        name: 'FinTech Global Inc.',
-        slug: 'fintech-global',
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: '10000000-0000-0000-0000-000000000003',
-        name: 'QuickEats Express',
-        slug: 'quick-eats',
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      },
-    ])
-    .onConflictDoNothing();
+  await queryClient.unsafe(`
+    INSERT INTO tenants (id, name, slug, status, created_at, updated_at)
+    VALUES 
+      ('${tenantId}', 'Acme Corporation', 'acme-corp', 'active', NOW(), NOW()),
+      ('10000000-0000-0000-0000-000000000002', 'FinTech Global Inc.', 'fintech-global', 'active', NOW(), NOW()),
+      ('10000000-0000-0000-0000-000000000003', 'QuickEats Express', 'quick-eats', 'active', NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET status = 'active', name = EXCLUDED.name;
+  `);
 
   // 2. Seed API Keys
   const keyHash = hashString(SEEDED_API_KEY_RAW);
-  await db
-    .insert(apiKeys)
-    .values([
-      {
-        id: 'key_acme_payments_live',
-        tenantId,
-        team: 'payments',
-        keyHash,
-        name: 'Payments Production API Key',
-        active: true,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: 'key_fintech_orders_live',
-        tenantId: '10000000-0000-0000-0000-000000000002',
-        team: 'orders',
-        keyHash: hashString('cv_live_fintech_orders_key_12345'),
-        name: 'Fintech Orders API Key',
-        active: true,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ])
-    .onConflictDoNothing();
+  await queryClient.unsafe(`
+    INSERT INTO api_keys (id, tenant_id, team, key_hash, name, active, created_at, updated_at)
+    VALUES 
+      ('key_acme_payments_live', '${tenantId}', 'payments', '${keyHash}', 'Payments Production API Key', true, NOW(), NOW()),
+      ('key_fintech_orders_live', '10000000-0000-0000-0000-000000000002', 'orders', '${hashString('cv_live_fintech_orders_key_12345')}', 'Fintech Orders API Key', true, NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET active = true, tenant_id = EXCLUDED.tenant_id, key_hash = EXCLUDED.key_hash;
+  `);
 
   // 3. Seed Campaigns with Raw SQL for backward compatibility with schema constraints
   for (let c = 1; c <= 10; c++) {
