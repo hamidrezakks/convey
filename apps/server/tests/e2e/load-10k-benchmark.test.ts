@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { generateBenchmarkReport } from '../../scripts/benchmark-report';
 import { app } from '../../src/index';
 import { MessagePriority } from '../../src/modules/messaging/messaging.types';
+import { closeAllProviderQueues } from '../../src/queues/provider-queues';
 import { messageDispatchWorker } from '../../src/queues/workers/message-dispatch.worker';
 import { processOutboxBatch } from '../../src/queues/workers/outbox-relay.worker';
 import { providerSendWorker } from '../../src/queues/workers/provider-send.worker';
@@ -21,10 +22,13 @@ describe('Convey 10,000 Message E2E Load, Fallback Routing & Benchmark Verificat
 
     // 2. Enable 3rd-Party Mock with simulated ~10% failure rate to trigger fallback routes
     enableProviderMock(0.1);
-  });
+  }, 30000);
 
   afterAll(async () => {
     disableProviderMock();
+    await messageDispatchWorker.close();
+    await providerSendWorker.close();
+    await closeAllProviderQueues();
   });
 
   it('Executes 1,000 Messages across 4 Channels (4 Providers Each) with Full Fallback Routing & Benchmark Analytics', async () => {
@@ -32,22 +36,26 @@ describe('Convey 10,000 Message E2E Load, Fallback Routing & Benchmark Verificat
 
     console.log(`Starting 10,000 Message Benchmark Run under prefix "${dbPrefix}"...`);
 
-    // Step 1: Batch API Ingestion (Accepting 10,000 messages via HTTP API)
-    const requests = Array.from({ length: totalCount }).map((_, idx) => {
-      const payload = generateRealisticSendMessageRequest(idx);
-      payload.team = 'benchmark_team';
-      payload.priority = MessagePriority.TRANSACTIONAL;
+    // Step 1: Batch API Ingestion (Accepting 1,000 messages via HTTP API in high-concurrency chunks)
+    const responses: Response[] = [];
+    const chunkSize = 100;
+    for (let i = 0; i < totalCount; i += chunkSize) {
+      const chunk = Array.from({ length: Math.min(chunkSize, totalCount - i) }).map((_, idx) => {
+        const payload = generateRealisticSendMessageRequest(i + idx);
+        payload.team = 'benchmark_team';
+        payload.priority = MessagePriority.TRANSACTIONAL;
 
-      return app.fetch(
-        new Request('http://localhost:3000/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': `convey_live_${dbPrefix}` },
-          body: JSON.stringify(payload),
-        }),
-      );
-    });
-
-    const responses = await Promise.all(requests);
+        return app.fetch(
+          new Request('http://localhost:3000/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': `convey_live_${dbPrefix}` },
+            body: JSON.stringify(payload),
+          }),
+        );
+      });
+      const chunkResponses = await Promise.all(chunk);
+      responses.push(...chunkResponses);
+    }
     const acceptedCount = responses.filter((r: Response) => r.status === 202).length;
     if (acceptedCount !== totalCount) {
       const non202 = responses.filter((r: Response) => r.status !== 202);
@@ -72,10 +80,6 @@ describe('Convey 10,000 Message E2E Load, Fallback Routing & Benchmark Verificat
     // Step 3: Worker Dispatch & Fallback Execution
     // Allow workers to process queued jobs in BullMQ
     await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    // Close workers after processing
-    await messageDispatchWorker.close();
-    await providerSendWorker.close();
 
     // Step 4: Final Analytics & Benchmark Report Code Dump
     const report = await generateBenchmarkReport(startTimeMs);

@@ -46,3 +46,24 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
   },
   writable: true,
 });
+
+// Mock localStorage
+const storageStore = new Map<string, string>();
+const localStorageMock = {
+  getItem: (key: string) => storageStore.get(key) ?? null,
+  setItem: (key: string, value: string) => storageStore.set(key, String(value)),
+  removeItem: (key: string) => storageStore.delete(key),
+  clear: () => storageStore.clear(),
+  get length() {
+    return storageStore.size;
+  },
+  key: (index: number) => Array.from(storageStore.keys())[index] ?? null,
+};
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+});
+Object.defineProperty(globalThis.window, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+});

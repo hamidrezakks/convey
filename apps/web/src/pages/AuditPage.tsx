@@ -2,8 +2,11 @@ import { BookOpen, CheckCircle2 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { useI18n } from '../i18n/context';
 
 export function AuditPage() {
+  const { t } = useI18n();
+
   const auditLogs = [
     {
       id: 'aud_01JAX9910',
@@ -46,56 +49,61 @@ export function AuditPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-sky-400" />
-            Security & Compliance Audit Ledger
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+            {t('audit.title')}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Tamper-evident, cryptographically chained immutable audit log of all control plane mutations and circuit
-            overrides.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('audit.subtitle')}</p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          <span className="font-semibold">Ledger Chain Verified (SHA-256)</span>
+          <span className="font-semibold">{t('audit.verifiedChain')}</span>
         </div>
       </div>
 
       {/* Audit Log Table */}
       <Card className="glass-panel overflow-hidden">
         <CardHeader className="py-3">
-          <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Immutable Audit Trail ({auditLogs.length} events)
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            {t('audit.ledger')} ({auditLogs.length} events)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Audit ID</TableHead>
-                <TableHead>Actor Principal</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Target Entity</TableHead>
-                <TableHead>Origin IP</TableHead>
-                <TableHead>Timestamp</TableHead>
-                <TableHead>Cryptographic Hash</TableHead>
+                <TableHead>{t('audit.colId')}</TableHead>
+                <TableHead>{t('audit.colActor')}</TableHead>
+                <TableHead>{t('audit.colAction')}</TableHead>
+                <TableHead>{t('audit.colTarget')}</TableHead>
+                <TableHead>{t('audit.colIp')}</TableHead>
+                <TableHead>{t('audit.colTime')}</TableHead>
+                <TableHead>{t('audit.colHash')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {auditLogs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell className="font-mono text-xs text-sky-400 font-semibold">{log.id}</TableCell>
-                  <TableCell className="text-xs font-medium text-white">{log.actor}</TableCell>
+                  <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold">
+                    {log.id}
+                  </TableCell>
+                  <TableCell className="text-xs font-medium text-slate-900 dark:text-white">{log.actor}</TableCell>
                   <TableCell>
                     <Badge variant="cyan">{log.action}</Badge>
                   </TableCell>
-                  <TableCell className="text-xs font-mono text-slate-300 truncate max-w-xs">{log.target}</TableCell>
-                  <TableCell className="text-xs font-mono text-slate-400">{log.ipAddress}</TableCell>
-                  <TableCell className="text-xs font-mono text-slate-400">{log.timestamp}</TableCell>
-                  <TableCell className="text-[10px] font-mono text-slate-400 truncate max-w-[120px]">
+                  <TableCell className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate max-w-xs">
+                    {log.target}
+                  </TableCell>
+                  <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                    {log.ipAddress}
+                  </TableCell>
+                  <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                    {log.timestamp}
+                  </TableCell>
+                  <TableCell className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
                     {log.sha256Hash.slice(0, 16)}...
                   </TableCell>
                 </TableRow>

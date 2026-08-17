@@ -29,7 +29,7 @@ export function Slider({
       disabled={disabled}
       onChange={(e) => onValueChange(Number(e.target.value))}
       className={cn(
-        'w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500 disabled:opacity-50 disabled:cursor-not-allowed',
+        'w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500 disabled:opacity-50 disabled:cursor-not-allowed',
         className,
       )}
     />

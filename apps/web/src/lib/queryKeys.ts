@@ -32,6 +32,11 @@ export const suppressionKeys = {
   list: (search?: string) => [...suppressionKeys.all, 'list', { search }] as const,
 };
 
+export const deliverabilityKeys = {
+  all: ['deliverability'] as const,
+  suppressions: (filters?: { search?: string }) => [...deliverabilityKeys.all, 'suppressions', filters] as const,
+};
+
 export const policyKeys = {
   all: ['policies'] as const,
   list: () => [...policyKeys.all, 'list'] as const,

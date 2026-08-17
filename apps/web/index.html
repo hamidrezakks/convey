@@ -1,16 +1,33 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'></polygon></svg>" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Convey Control Plane — Mission Control & Telemetry</title>
-    <meta name="description" content="Enterprise multi-tenant communication service admin and real-time planetary telemetry console." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>Convey Mission Control | Planetary Communication Platform</title>
+    <!-- Prevent FOUC: Synchronize theme class with local storage and OS preferences before first paint -->
+    <script>
+      (() => {
+        try {
+          const preference = localStorage.getItem('convey_theme_preference');
+          const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+          const theme = preference === 'light' || preference === 'dark' ? preference : systemDark ? 'dark' : 'light';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (_e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#090d16] text-slate-100 antialiased selection:bg-sky-500/30 selection:text-sky-200">
+  <body class="min-h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 antialiased selection:bg-sky-500/30">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

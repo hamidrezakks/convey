@@ -17,8 +17,9 @@ describe('Super Senior QA: Command Palette Keyboard & Interaction Suite', () => 
   it('filters commands accurately as the user types a query', () => {
     const { container } = render(<CommandPaletteTestContainer />);
 
-    const input = container.querySelector('input')!;
+    const input = container.querySelector('input');
     expect(input).toBeDefined();
+    if (!input) return;
 
     // Type 'provider' using fireEvent.input
     fireEvent.input(input, { target: { value: 'provider' } });
@@ -29,7 +30,9 @@ describe('Super Senior QA: Command Palette Keyboard & Interaction Suite', () => 
   it('navigates through filtered items with ArrowDown and ArrowUp', () => {
     const { container } = render(<CommandPaletteTestContainer />);
 
-    const input = container.querySelector('input')!;
+    const input = container.querySelector('input');
+    expect(input).toBeDefined();
+    if (!input) return;
 
     // Filter to small subset
     fireEvent.input(input, { target: { value: 'dlq' } });
@@ -44,7 +47,9 @@ describe('Super Senior QA: Command Palette Keyboard & Interaction Suite', () => 
   it('displays empty state when query matches no commands', () => {
     const { container } = render(<CommandPaletteTestContainer />);
 
-    const input = container.querySelector('input')!;
+    const input = container.querySelector('input');
+    expect(input).toBeDefined();
+    if (!input) return;
 
     fireEvent.input(input, { target: { value: 'xyznonexistentpage123' } });
     expect(container.textContent).toContain('No matching commands or pages found.');

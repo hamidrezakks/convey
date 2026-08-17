@@ -1,16 +1,71 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
+
 @layer base {
   :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --border: 214 32% 91%;
+    --ring: 199 89% 48%;
+  }
+
+  .dark {
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --ring: 199 89% 48%;
   }
 
   body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: "Inter", "Vazirmatn", "IBM Plex Sans Arabic", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .dark body {
     background-color: #090d16;
     color: #f8fafc;
-    font-family: "Inter", system-ui, -apple-system, sans-serif;
-    overflow-x: hidden;
+  }
+
+  /* Persian (Farsi) Optimized Typography */
+  html[lang="fa"] body,
+  html[lang="fa"] input,
+  html[lang="fa"] select,
+  html[lang="fa"] textarea,
+  html[lang="fa"] button {
+    font-family: "Vazirmatn", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    letter-spacing: 0;
+  }
+
+  /* Arabic Optimized Typography */
+  html[lang="ar"] body,
+  html[lang="ar"] input,
+  html[lang="ar"] select,
+  html[lang="ar"] textarea,
+  html[lang="ar"] button {
+    font-family:
+      "IBM Plex Sans Arabic", "Readex Pro", "Cairo", "Vazirmatn", -apple-system, BlinkMacSystemFont, system-ui,
+      sans-serif;
+    letter-spacing: 0;
+  }
+
+  /* Monospace overrides remain strictly JetBrains Mono & LTR across all locales */
+  .font-mono,
+  code,
+  pre,
+  kbd {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
   /* Sleek modern scrollbars */
@@ -19,29 +74,108 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  .dark ::-webkit-scrollbar-track {
     background: #090d16;
   }
   ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .dark ::-webkit-scrollbar-thumb {
     background: #1e293b;
+    border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
     background: #334155;
   }
 }
 
+/* RTL Layout Directional Rules */
+[dir="rtl"] {
+  text-align: right;
+}
+
+/* RTL Table Direction & Alignment */
+[dir="rtl"] table {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+/* Monospace text in RTL: Never set display: inline-block on table cells */
+[dir="rtl"] .font-mono:not(td):not(th) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] td.font-mono,
+[dir="rtl"] th.font-mono {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] td.font-mono > span,
+[dir="rtl"] th.font-mono > span {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] code,
+[dir="rtl"] pre,
+[dir="rtl"] kbd {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="search"] {
+  text-align: right;
+}
+
+[dir="rtl"] input.font-mono,
+[dir="rtl"] input[type="password"] {
+  text-align: left;
+  direction: ltr;
+}
+
 /* Glassmorphism & Cyber Card Utilities */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-card {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.05),
+    0 1px 2px -1px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-card {
+  background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.3),
+    0 8px 10px -6px rgba(0, 0, 0, 0.3);
 }
 
 .glow-border {
@@ -52,11 +186,15 @@
   content: "";
   position: absolute;
   inset: -1px;
-  background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399);
+  background: linear-gradient(90deg, #0284c7, #6366f1, #10b981);
   border-radius: inherit;
   z-index: -1;
   opacity: 0;
   transition: opacity 0.3s ease;
+}
+
+.dark .glow-border::after {
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399);
 }
 
 .glow-border:hover::after {
@@ -66,6 +204,12 @@
 /* Futuristic grid texture */
 .bg-grid-pattern {
   background-size: 32px 32px;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
+}
+
+.dark .bg-grid-pattern {
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);

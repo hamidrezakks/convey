@@ -23,12 +23,12 @@ export function Tooltip({ content, children, className }: TooltipProps) {
       {isVisible && (
         <div
           className={cn(
-            'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[11px] font-medium text-slate-200 bg-slate-950/95 border border-slate-800 rounded-md shadow-xl whitespace-nowrap z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-100',
+            'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[11px] font-medium text-slate-100 bg-slate-900/95 dark:bg-slate-950/95 border border-slate-700/80 dark:border-slate-800 rounded-md shadow-xl whitespace-nowrap z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-100',
             className,
           )}
         >
           {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-950" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-slate-950" />
         </div>
       )}
     </div>

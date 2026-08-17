@@ -49,6 +49,7 @@ import { Slider } from '../components/ui/slider';
 import { Switch } from '../components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { providerKeys } from '../lib/queryKeys';
 
@@ -56,6 +57,7 @@ import { providerKeys } from '../lib/queryKeys';
 const FALLBACK_CATALOG = COMPLETE_88_PROVIDER_CATALOG;
 
 export function ProviderConfigPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'configured' | 'catalog' | 'env'>('configured');
   const [catalogChannel, setCatalogChannel] = useState<string>('ALL');
@@ -122,12 +124,7 @@ export function ProviderConfigPage() {
     queryFn: () => api.getProviderCatalog(),
   });
 
-  const {
-    data: configured = [],
-    isLoading: isConfiguredLoading,
-    isFetching,
-    refetch,
-  } = useQuery({
+  const { data: configured = [], isLoading: isConfiguredLoading } = useQuery({
     queryKey: providerKeys.configured(),
     queryFn: () => api.getConfiguredProviders(),
   });
@@ -326,28 +323,32 @@ export function ProviderConfigPage() {
 
   const CHANNEL_CATEGORIES = useMemo(
     () => [
-      { key: 'ALL', label: 'All Turnkey Adapters', count: effectiveCatalog.length },
-      { key: 'EMAIL', label: 'Email', count: effectiveCatalog.filter((c) => c.channel === Channel.EMAIL).length },
-      { key: 'SMS', label: 'SMS & Telecom', count: effectiveCatalog.filter((c) => c.channel === Channel.SMS).length },
+      { key: 'ALL', label: t('messages.allChannels'), count: effectiveCatalog.length },
+      {
+        key: 'EMAIL',
+        label: t('common.email'),
+        count: effectiveCatalog.filter((c) => c.channel === Channel.EMAIL).length,
+      },
+      { key: 'SMS', label: t('common.sms'), count: effectiveCatalog.filter((c) => c.channel === Channel.SMS).length },
       {
         key: 'PUSH',
-        label: 'Push Notifications',
+        label: t('common.push'),
         count: effectiveCatalog.filter((c) => c.channel === Channel.PUSH).length,
       },
       {
         key: 'CHAT',
-        label: 'Chat & WhatsApp',
+        label: t('common.chat'),
         count: effectiveCatalog.filter(
           (c) => c.channel === Channel.CHAT || c.channel === Channel.WHATSAPP || c.channel === Channel.SLACK,
         ).length,
       },
       {
         key: 'TOOL',
-        label: 'Alerting & Tools',
+        label: t('common.tool'),
         count: effectiveCatalog.filter((c) => c.channel === Channel.TOOL).length,
       },
     ],
-    [effectiveCatalog],
+    [effectiveCatalog, t],
   );
 
   const filteredCatalog = effectiveCatalog.filter((item) => {
@@ -413,45 +414,31 @@ export function ProviderConfigPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Radio className="w-5 h-5 text-sky-400" />
-              Provider Registration & Configuration Studio
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <Radio className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+              {t('providerConfig.title')}
             </h1>
             <Badge variant="cyan" dot>
               PostgreSQL Persisted
             </Badge>
             <Badge variant="purple">{effectiveCatalog.length} Turnkey Adapters</Badge>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Configure API credentials, environment variables, WhatsApp 24h cost savings & carrier features stored
-            directly in the `providers` table.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('providerConfig.subtitle')}</p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
-            isLoading={isFetching}
-            className="text-xs gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refresh</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
             isLoading={seedAllMutation.isPending}
             onClick={() => seedAllMutation.mutate()}
-            className="text-xs gap-1.5 border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+            className="text-xs gap-1.5 border-sky-500/40 text-sky-600 dark:text-sky-300 hover:bg-sky-500/10"
             title="Seed all 88 turnkey communication adapters with sandbox credentials into PostgreSQL"
           >
-            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            <Sparkles className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
             <span>Seed All 88 Providers</span>
           </Button>
 
@@ -459,15 +446,15 @@ export function ProviderConfigPage() {
             variant="outline"
             size="sm"
             onClick={() => setIsEnvExportOpen(true)}
-            className="text-xs gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+            className="text-xs gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
           >
             <Code2 className="w-3.5 h-3.5" />
-            <span>Export .env Vault</span>
+            <span>{t('providerConfig.tabEnv')}</span>
           </Button>
 
           <Button variant="glow" size="sm" onClick={() => handleOpenRegister()} className="text-xs gap-1.5 font-bold">
             <Plus className="w-3.5 h-3.5" />
-            <span>Register Provider</span>
+            <span>{t('providerConfig.registerProvider')}</span>
           </Button>
         </div>
       </div>
@@ -476,65 +463,81 @@ export function ProviderConfigPage() {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Database Providers</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              {t('providerConfig.tabConfigured')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-400">{configured.length} Persisted</div>
-            <p className="text-[11px] text-slate-400 mt-1">Stored in Postgres `providers` Table</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">WhatsApp 24h Cost Saver</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono text-sky-400 flex items-center gap-1.5">
-              <DollarSign className="w-5 h-5 text-emerald-400" />
-              <span>Active</span>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+              {configured.length} Persisted
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Saves ~$0.05/msg on Active Sessions</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Stored in Postgres `providers` Table</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Turnkey Catalog</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              {t('overview.kpiCostSaved')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-indigo-400">{effectiveCatalog.length} Adapters</div>
-            <p className="text-[11px] text-slate-400 mt-1">Multi-Channel Turnkey Ecosystem</p>
+            <div className="text-2xl font-bold font-mono text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+              <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <span>{t('common.active')}</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Saves ~$0.05/msg on Active Sessions</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Environment Vault</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              {t('providerConfig.catalogTitle')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-400 flex items-center gap-1.5">
+            <div className="text-2xl font-bold font-mono text-indigo-600 dark:text-indigo-400">
+              {effectiveCatalog.length} Adapters
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Multi-Channel Turnkey Ecosystem</p>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              {t('providerConfig.tabEnv')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <Lock className="w-4 h-4" />
               <span>AES-256-GCM</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">KMS Key Enveloped Secrets</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{t('providerConfig.masked')}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Main Tabs Container */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as 'configured' | 'catalog' | 'env')}>
-        <TabsList className="bg-slate-900/90 border border-slate-800 p-1 rounded-xl">
+        <TabsList className="bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-1 rounded-xl">
           <TabsTrigger value="configured" className="text-xs font-semibold gap-1.5">
             <Server className="w-3.5 h-3.5" />
-            <span>Configured Providers ({configured.length})</span>
+            <span>
+              {t('providerConfig.tabConfigured')} ({configured.length})
+            </span>
           </TabsTrigger>
           <TabsTrigger value="catalog" className="text-xs font-semibold gap-1.5">
             <Layers className="w-3.5 h-3.5" />
-            <span>Turnkey Catalog ({effectiveCatalog.length} Available)</span>
+            <span>
+              {t('providerConfig.tabCatalog')} ({effectiveCatalog.length})
+            </span>
           </TabsTrigger>
           <TabsTrigger value="env" className="text-xs font-semibold gap-1.5">
             <Code2 className="w-3.5 h-3.5" />
-            <span>Environment Variable Vault</span>
+            <span>{t('providerConfig.tabEnv')}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -543,21 +546,21 @@ export function ProviderConfigPage() {
           <Card className="glass-panel overflow-hidden">
             <CardHeader className="py-3">
               <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Postgres `providers` Table Ledger & Feature Configs
+                {t('providerConfig.tableLedgerTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Active Feature Configs</TableHead>
-                    <TableHead>Priority & Load</TableHead>
-                    <TableHead>Failover Target</TableHead>
-                    <TableHead>Credentials Mask</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t('providers.colProvider')}</TableHead>
+                    <TableHead>{t('common.channel')}</TableHead>
+                    <TableHead>{t('providerConfig.colActiveConfigs')}</TableHead>
+                    <TableHead>{t('providerConfig.colPriorityLoad')}</TableHead>
+                    <TableHead>{t('providerConfig.fallbackProviderLabel')}</TableHead>
+                    <TableHead>{t('providerConfig.masked')}</TableHead>
+                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead className="text-end rtl:text-left">{t('common.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -565,13 +568,13 @@ export function ProviderConfigPage() {
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-12 text-slate-500">
                         <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-400" />
-                        Loading configurations from database...
+                        {t('common.loading')}
                       </TableCell>
                     </TableRow>
                   ) : configured.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-12 text-slate-500">
-                        No providers stored in database yet. Click "Register Provider" or choose from the Catalog!
+                        {t('providerConfig.noConfiguredProviders')}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -582,15 +585,17 @@ export function ProviderConfigPage() {
                         <TableRow key={p.id} className="group">
                           <TableCell>
                             <div>
-                              <div className="text-xs font-bold text-white flex items-center gap-2">
+                              <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                 <span>{p.displayName}</span>
                                 {p.isPrimary && (
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold">
-                                    Primary
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30 font-semibold">
+                                    {t('providerConfig.primaryBadge')}
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[10px] font-mono text-slate-400">{p.providerId}</span>
+                              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                {p.providerId}
+                              </span>
                             </div>
                           </TableCell>
 
@@ -602,66 +607,71 @@ export function ProviderConfigPage() {
                           <TableCell>
                             <div className="flex flex-wrap gap-1 max-w-xs">
                               {p.channel === Channel.WHATSAPP && cfg?.whatsapp?.costSaving24hSession && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold flex items-center gap-1">
-                                  <DollarSign className="w-3 h-3 text-emerald-400" />
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                                  <DollarSign className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
                                   24h Cost Saver
                                 </span>
                               )}
                               {p.channel === Channel.EMAIL && cfg?.email?.openTracking && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-700 dark:text-sky-300 font-mono">
                                   Open Track
                                 </span>
                               )}
                               {p.channel === Channel.EMAIL && cfg?.email?.clickTracking && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-700 dark:text-sky-300 font-mono">
                                   Click Track
                                 </span>
                               )}
                               {p.channel === Channel.SMS && cfg?.sms?.smartGsmPacking && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 font-mono">
                                   Smart GSM-7
                                 </span>
                               )}
                               {p.channel === Channel.PUSH && cfg?.push?.fcmHighPriority && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-mono">
                                   High Priority
                                 </span>
                               )}
                               {p.channel === Channel.SLACK && cfg?.slack?.unfurlLinks && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-purple-300 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-purple-700 dark:text-purple-300 font-mono">
                                   Unfurl Media
                                 </span>
                               )}
                             </div>
                           </TableCell>
 
-                          <TableCell className="font-mono text-xs text-slate-300">
-                            <span>Tier #{p.priority}</span> • <span className="text-emerald-400">{p.weight}%</span>
+                          <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                            <span>#{p.priority}</span> •{' '}
+                            <span className="text-emerald-600 dark:text-emerald-400">{p.weight}%</span>
                           </TableCell>
 
-                          <TableCell className="font-mono text-xs text-slate-400">
+                          <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
                             {p.fallbackProviderId ? (
-                              <span className="text-indigo-300">➔ {p.fallbackProviderId}</span>
+                              <span className="text-indigo-600 dark:text-indigo-300">➔ {p.fallbackProviderId}</span>
                             ) : (
-                              <span className="text-slate-500">None (Terminal)</span>
+                              <span className="text-slate-400 dark:text-slate-500">
+                                {t('providerConfig.noneTerminal')}
+                              </span>
                             )}
                           </TableCell>
 
-                          <TableCell className="font-mono text-xs text-slate-400">
+                          <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
                             <div className="space-y-1 max-w-xs">
-                              <div className="flex items-center gap-1 text-[10px] text-emerald-400/90 font-sans font-medium">
+                              <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400/90 font-sans font-medium">
                                 <Lock className="w-2.5 h-2.5" />
                                 <span>AES-256-GCM</span>
                               </div>
                               {Object.entries(p.credentialsMasked || {}).map(([k, v]) => (
                                 <div
                                   key={k}
-                                  className="flex items-center justify-between gap-1 text-[11px] bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800"
+                                  className="flex items-center justify-between gap-1 text-[11px] bg-slate-100 dark:bg-slate-950/80 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800"
                                 >
-                                  <span className="text-slate-400 truncate max-w-[100px]" title={k}>
+                                  <span className="text-slate-500 dark:text-slate-400 truncate max-w-[100px]" title={k}>
                                     {k}:
                                   </span>
-                                  <span className="text-slate-300 font-mono tracking-wider">{v}</span>
+                                  <span className="text-slate-800 dark:text-slate-300 font-mono tracking-wider">
+                                    {v}
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -670,11 +680,11 @@ export function ProviderConfigPage() {
                                       toast.success(`Copied masked ${k} identifier`);
                                       setTimeout(() => setCopiedKey(null), 2000);
                                     }}
-                                    className="text-slate-500 hover:text-sky-400 p-0.5 transition-colors"
+                                    className="text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 p-0.5 transition-colors cursor-pointer"
                                     title="Copy masked identifier"
                                   >
                                     {copiedKey === `${p.id}:${k}` ? (
-                                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                      <Check className="w-2.5 h-2.5 text-emerald-500 dark:text-emerald-400" />
                                     ) : (
                                       <Copy className="w-2.5 h-2.5" />
                                     )}
@@ -690,7 +700,7 @@ export function ProviderConfigPage() {
                             </Badge>
                           </TableCell>
 
-                          <TableCell className="text-right space-x-2">
+                          <TableCell className="text-end rtl:text-left space-x-2 rtl:space-x-reverse">
                             {/* Edit / Config */}
                             <Button
                               variant="secondary"
@@ -702,8 +712,8 @@ export function ProviderConfigPage() {
                               className="h-7 text-xs gap-1 hover:border-sky-500/40"
                               title="Edit Credentials & Feature Configs"
                             >
-                              <Sliders className="w-3 h-3 text-sky-400" />
-                              <span>Config</span>
+                              <Sliders className="w-3 h-3 text-sky-500 dark:text-sky-400" />
+                              <span>{t('providerConfig.configButton')}</span>
                             </Button>
 
                             {/* Delete Provider */}
@@ -712,7 +722,7 @@ export function ProviderConfigPage() {
                               size="sm"
                               isLoading={deleteMutation.isPending && deleteMutation.variables === p.id}
                               onClick={() => deleteMutation.mutate(p.id)}
-                              className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                              className="h-7 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-500/10"
                               title="Deactivate Provider"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -731,7 +741,7 @@ export function ProviderConfigPage() {
         {/* TAB 2: Turnkey Provider Catalog */}
         <TabsContent value="catalog" className="space-y-4 pt-2">
           {/* Catalog Filter & Search */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80">
             <div className="flex flex-wrap gap-1.5">
               {CHANNEL_CATEGORIES.map((cat) => (
                 <Button
@@ -744,7 +754,9 @@ export function ProviderConfigPage() {
                   <span>{cat.label}</span>
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      catalogChannel === cat.key ? 'bg-sky-400/30 text-white' : 'bg-slate-800 text-slate-400'
+                      catalogChannel === cat.key
+                        ? 'bg-sky-500 dark:bg-sky-400/30 text-white'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400'
                     }`}
                   >
                     {cat.count}
@@ -763,12 +775,12 @@ export function ProviderConfigPage() {
                 title="Seed all 88 turnkey communication adapters with sandbox credentials into PostgreSQL"
               >
                 <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                <span>Seed All ({effectiveCatalog.length})</span>
+                <span>{t('providerConfig.seedAllButton', { count: effectiveCatalog.length })}</span>
               </Button>
 
               <div className="w-72">
                 <Input
-                  placeholder="Search 88 providers by name or env..."
+                  placeholder={t('providerConfig.searchPlaceholder')}
                   value={searchCatalog}
                   onChange={(e) => setSearchCatalog(e.target.value)}
                   icon={<Search className="w-3.5 h-3.5 text-slate-400" />}
@@ -783,12 +795,10 @@ export function ProviderConfigPage() {
             {isCatalogLoading && effectiveCatalog.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-500">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-sky-400" />
-                <span>Loading 88+ turnkey adapters catalog...</span>
+                <span>{t('common.loading')}</span>
               </div>
             ) : filteredCatalog.length === 0 ? (
-              <div className="col-span-full py-16 text-center text-slate-500">
-                No providers match the search criteria.
-              </div>
+              <div className="col-span-full py-16 text-center text-slate-500">{t('common.noResults')}</div>
             ) : (
               filteredCatalog.map((item) => {
                 const isConfigured = configured.some((c) => c.providerId === item.id);
@@ -796,40 +806,40 @@ export function ProviderConfigPage() {
                 return (
                   <Card
                     key={item.id}
-                    className="glass-panel flex flex-col justify-between hover:border-slate-700 transition-all group"
+                    className="glass-panel flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all group"
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <CardTitle className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                             <span>{item.displayName}</span>
                           </CardTitle>
-                          <span className="text-[10px] font-mono text-slate-400">{item.id}</span>
+                          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{item.id}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Badge variant="cyan">{item.channel}</Badge>
                           {isConfigured && (
                             <Badge variant="success" dot>
-                              Active in DB
+                              {t('providerConfig.activeInDb')}
                             </Badge>
                           )}
                         </div>
                       </div>
-                      <CardDescription className="text-xs text-slate-300 mt-2 line-clamp-2">
+                      <CardDescription className="text-xs text-slate-600 dark:text-slate-300 mt-2 line-clamp-2">
                         {item.description}
                       </CardDescription>
                     </CardHeader>
 
                     <CardContent className="space-y-3 pt-0">
-                      <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          Required Env Variables:
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                          {t('providerConfig.requiredEnvVars')}
                         </span>
                         <div className="flex flex-wrap gap-1">
                           {item.requiredEnvVars.map((v) => (
                             <span
                               key={v.key}
-                              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300"
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
                               title={v.description}
                             >
                               {v.key}
@@ -838,15 +848,15 @@ export function ProviderConfigPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800/80">
                         {item.docsUrl ? (
                           <a
                             href={item.docsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                            className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-500 flex items-center gap-1"
                           >
-                            <span>Docs</span>
+                            <span>{t('providerConfig.docsLink')}</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         ) : (
@@ -860,7 +870,9 @@ export function ProviderConfigPage() {
                           className="text-xs gap-1.5 font-bold"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>{isConfigured ? 'Configure' : 'Register & Setup'}</span>
+                          <span>
+                            {isConfigured ? t('providerConfig.configButton') : t('providerConfig.registerAndSetup')}
+                          </span>
                         </Button>
                       </div>
                     </CardContent>
@@ -876,33 +888,30 @@ export function ProviderConfigPage() {
           <Card className="glass-panel">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Key className="w-4 h-4 text-amber-400" />
-                  <span>Convey Environment Variable Vault (.env)</span>
+                <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Key className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                  <span>{t('providerConfig.envVaultTitle')}</span>
                   <Badge variant="success" className="text-[10px] gap-1 py-0 font-mono">
                     <Lock className="w-2.5 h-2.5" />
                     <span>AES-256-GCM Vault</span>
                   </Badge>
                 </CardTitle>
-                <CardDescription>
-                  Unified environment variables for all active communication adapters stored encrypted in PostgreSQL
-                  `providers` table with masked display.
-                </CardDescription>
+                <CardDescription>{t('providerConfig.envVaultDesc')}</CardDescription>
               </div>
 
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleDownloadEnv} className="text-xs gap-1.5">
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download .env</span>
+                  <span>{t('providerConfig.downloadEnv')}</span>
                 </Button>
                 <Button variant="glow" size="sm" onClick={handleCopyEnv} className="text-xs gap-1.5 font-bold">
                   {copiedEnv ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedEnv ? 'Copied!' : 'Copy .env'}</span>
+                  <span>{copiedEnv ? t('common.copied') : t('providerConfig.copyEnv')}</span>
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="relative p-4 rounded-xl bg-slate-950 border border-slate-800/90 font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-[480px] overflow-y-auto leading-relaxed shadow-inner">
+              <div className="relative p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/90 font-mono text-xs text-slate-800 dark:text-slate-300 whitespace-pre-wrap max-h-[480px] overflow-y-auto leading-relaxed shadow-inner">
                 {envData?.envFileContent || '# No environment variables configured yet.'}
               </div>
             </CardContent>
@@ -916,15 +925,12 @@ export function ProviderConfigPage() {
           <form onSubmit={handleSubmitRegistration}>
             <DialogHeader>
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-inner">
+                <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 shadow-inner">
                   <Radio className="w-5 h-5" />
                 </div>
                 <div>
-                  <DialogTitle>Configure & Register Provider</DialogTitle>
-                  <DialogDescription>
-                    Configure API credentials, environment variables, WhatsApp 24h cost saver & routing stored in
-                    database.
-                  </DialogDescription>
+                  <DialogTitle>{t('providerConfig.modalTitle')}</DialogTitle>
+                  <DialogDescription>{t('providerConfig.modalSubtitle')}</DialogDescription>
                 </div>
               </div>
             </DialogHeader>
@@ -933,8 +939,12 @@ export function ProviderConfigPage() {
               {/* Select Provider from Catalog with Search & Autocomplete */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-300">Select Provider Adapter</label>
-                  <span className="text-[11px] font-mono text-sky-400">{effectiveCatalog.length} Turnkey Adapters</span>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {t('providerConfig.selectProviderLabel')}
+                  </label>
+                  <span className="text-[11px] font-mono text-sky-600 dark:text-sky-400">
+                    {effectiveCatalog.length} Turnkey Adapters
+                  </span>
                 </div>
                 <Combobox
                   groups={comboboxGroups}
@@ -947,17 +957,17 @@ export function ProviderConfigPage() {
 
               {/* Sub-Tabs for Modal: Credentials, Features/Cost-Savings, Routing */}
               <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'creds' | 'features' | 'routing')}>
-                <TabsList className="bg-slate-950 border border-slate-800 p-1 rounded-xl grid grid-cols-3">
+                <TabsList className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-1 rounded-xl grid grid-cols-3">
                   <TabsTrigger value="creds" className="text-xs font-semibold gap-1.5">
-                    <Key className="w-3 h-3 text-amber-400" />
+                    <Key className="w-3 h-3 text-amber-500 dark:text-amber-400" />
                     <span>Credentials (.env)</span>
                   </TabsTrigger>
                   <TabsTrigger value="features" className="text-xs font-semibold gap-1.5">
-                    <Zap className="w-3 h-3 text-emerald-400" />
+                    <Zap className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
                     <span>Feature Configs</span>
                   </TabsTrigger>
                   <TabsTrigger value="routing" className="text-xs font-semibold gap-1.5">
-                    <Sliders className="w-3 h-3 text-sky-400" />
+                    <Sliders className="w-3 h-3 text-sky-500 dark:text-sky-400" />
                     <span>Routing & Failover</span>
                   </TabsTrigger>
                 </TabsList>
@@ -965,11 +975,11 @@ export function ProviderConfigPage() {
                 {/* SUB-TAB 1: Credentials & Env Setup */}
                 <TabsContent value="creds" className="space-y-3 pt-3">
                   {selectedCatalogItem && (
-                    <div className="space-y-3 p-4 rounded-xl bg-slate-950/90 border border-slate-800 shadow-inner">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <div className="space-y-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 shadow-inner">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
                         <div className="flex items-center gap-2">
-                          <Key className="w-4 h-4 text-amber-400" />
-                          <span className="text-xs font-bold text-white">
+                          <Key className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
                             {selectedCatalogItem.displayName} API Keys
                           </span>
                         </div>
@@ -982,11 +992,11 @@ export function ProviderConfigPage() {
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-400">{selectedCatalogItem.description}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{selectedCatalogItem.description}</p>
 
                       {editingConfig && (
-                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-300">
-                          <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                          <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           <span>
                             Existing credentials for <strong>{editingConfig.displayName}</strong> are encrypted at rest.
                             Leave blank or keep masked placeholders to retain existing secrets.
@@ -1003,16 +1013,18 @@ export function ProviderConfigPage() {
                           return (
                             <div key={spec.key} className="space-y-1">
                               <div className="flex justify-between text-xs">
-                                <label className="font-semibold text-slate-300 flex items-center gap-1.5">
+                                <label className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                   <span>{spec.label}</span>
-                                  {spec.required && !editingConfig && <span className="text-rose-400">*</span>}
+                                  {spec.required && !editingConfig && <span className="text-rose-500">*</span>}
                                   {isSecret && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-emerald-400 border border-slate-700">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-slate-300 dark:border-slate-700">
                                       Encrypted
                                     </span>
                                   )}
                                 </label>
-                                <span className="font-mono text-[10px] text-slate-400">{spec.key}</span>
+                                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                  {spec.key}
+                                </span>
                               </div>
 
                               <div className="relative flex items-center">
@@ -1037,7 +1049,7 @@ export function ProviderConfigPage() {
                                         [spec.key]: !prev[spec.key],
                                       }))
                                     }
-                                    className="absolute right-3 text-slate-400 hover:text-slate-200 transition-colors p-1"
+                                    className="absolute right-3 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors p-1 cursor-pointer"
                                     title={isVisible ? 'Hide secret' : 'Reveal secret'}
                                   >
                                     {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -1053,10 +1065,12 @@ export function ProviderConfigPage() {
                   )}
 
                   {/* Live Connection Test Probe */}
-                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                  <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-bold text-white block">Validate Credentials Probe</span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                        Validate Credentials Probe
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
                         Sends an authenticated ping to verify credentials without sending messages.
                       </span>
                     </div>
@@ -1069,7 +1083,7 @@ export function ProviderConfigPage() {
                       onClick={handleTestProbe}
                       className="text-xs gap-1.5 font-semibold"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                      <Sparkles className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
                       <span>Test Connection</span>
                     </Button>
                   </div>
@@ -1078,8 +1092,8 @@ export function ProviderConfigPage() {
                     <div
                       className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
                         testResult.success
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -1100,8 +1114,8 @@ export function ProviderConfigPage() {
                       <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-emerald-400" />
-                            <span className="text-xs font-bold text-emerald-300">
+                            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
                               24-Hour Interactive Session Cost Saver
                             </span>
                           </div>
@@ -1115,7 +1129,7 @@ export function ProviderConfigPage() {
                             }
                           />
                         </div>
-                        <p className="text-xs text-slate-300 leading-relaxed">
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                           Automatically converts pre-approved template messages to zero-cost plain text when user is
                           within the 24-hour service conversation window. Saves up to **$0.05 per message** on Meta
                           conversation charges.
@@ -1123,10 +1137,12 @@ export function ProviderConfigPage() {
                       </div>
 
                       {/* Auto Template Parameter Validation */}
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Auto-Template Validation</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Auto-Template Validation
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Validates parameter placeholders before Graph API transmission.
                           </span>
                         </div>
@@ -1142,10 +1158,12 @@ export function ProviderConfigPage() {
                       </div>
 
                       {/* Interactive CTA Buttons */}
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Interactive Reply Buttons</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Interactive Reply Buttons
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Renders native quick-reply and URL action buttons in chat.
                           </span>
                         </div>
@@ -1165,10 +1183,12 @@ export function ProviderConfigPage() {
                   {/* EMAIL SPECIFIC CONFIGS */}
                   {selectedCatalogItem?.channel === Channel.EMAIL && (
                     <div className="space-y-3">
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Open Tracking Pixel</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Open Tracking Pixel
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Injects 1x1 transparent pixel to record email opens.
                           </span>
                         </div>
@@ -1183,10 +1203,12 @@ export function ProviderConfigPage() {
                         />
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Click Tracking Links</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Click Tracking Links
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Rewrites outbound URLs for click-through telemetry.
                           </span>
                         </div>
@@ -1201,10 +1223,12 @@ export function ProviderConfigPage() {
                         />
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Strict TLS (TLSv1.3 Required)</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Strict TLS (TLSv1.3 Required)
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Refuses delivery if recipient MTA does not negotiate TLS encryption.
                           </span>
                         </div>
@@ -1219,10 +1243,12 @@ export function ProviderConfigPage() {
                         />
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Sandbox Mode</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Sandbox Mode
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Accepts and traces messages without live wire dispatch.
                           </span>
                         </div>
@@ -1245,8 +1271,8 @@ export function ProviderConfigPage() {
                       <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-indigo-400" />
-                            <span className="text-xs font-bold text-indigo-300">
+                            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300">
                               Smart GSM-7 Packing (Anti Double-Billing)
                             </span>
                           </div>
@@ -1260,17 +1286,19 @@ export function ProviderConfigPage() {
                             }
                           />
                         </div>
-                        <p className="text-xs text-slate-300 leading-relaxed">
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                           Automatically sanitizes smart quotes, em-dashes and invisible Unicode characters into standard
                           7-bit ASCII to prevent 160-char SMS splitting into 70-char UCS-2 segments (saves 50% carrier
                           fees).
                         </p>
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Alphanumeric Sender ID</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Alphanumeric Sender ID
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Replaces numbers with brand name in supported international regions.
                           </span>
                         </div>
@@ -1290,10 +1318,12 @@ export function ProviderConfigPage() {
                   {/* PUSH SPECIFIC CONFIGS */}
                   {selectedCatalogItem?.channel === Channel.PUSH && (
                     <div className="space-y-3">
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">FCM High-Priority Queue</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            FCM High-Priority Queue
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Bypasses Android device Doze battery saver.
                           </span>
                         </div>
@@ -1308,10 +1338,12 @@ export function ProviderConfigPage() {
                         />
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Auto Badge Increment</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Auto Badge Increment
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Increments app icon unread badge count automatically.
                           </span>
                         </div>
@@ -1333,10 +1365,12 @@ export function ProviderConfigPage() {
                     selectedCatalogItem?.channel === Channel.TOOL ||
                     selectedCatalogItem?.channel === Channel.CHAT) && (
                     <div className="space-y-3">
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-white block">Unfurl Links & Media</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                            Unfurl Links & Media
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
                             Expands URL previews and media attachments in channel stream.
                           </span>
                         </div>
@@ -1358,29 +1392,35 @@ export function ProviderConfigPage() {
                 <TabsContent value="routing" className="space-y-4 pt-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Priority Tier */}
-                    <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
                       <div className="flex justify-between text-xs">
-                        <span className="font-semibold text-slate-300">Routing Priority Tier</span>
-                        <span className="font-mono text-sky-400 font-bold">Tier #{priority}</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Routing Priority Tier</span>
+                        <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">Tier #{priority}</span>
                       </div>
                       <Slider value={priority} min={1} max={5} step={1} onValueChange={setPriority} />
-                      <p className="text-[10px] text-slate-400">1 = Primary fast-path, 5 = Deep fallback</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        1 = Primary fast-path, 5 = Deep fallback
+                      </p>
                     </div>
 
                     {/* Load Weight */}
-                    <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
                       <div className="flex justify-between text-xs">
-                        <span className="font-semibold text-slate-300">Traffic Load Share</span>
-                        <span className="font-mono text-emerald-400 font-bold">{weight}%</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Traffic Load Share</span>
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{weight}%</span>
                       </div>
                       <Slider value={weight} min={10} max={100} step={5} onValueChange={setWeight} />
-                      <p className="text-[10px] text-slate-400">Traffic distribution across same priority tier</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Traffic distribution across same priority tier
+                      </p>
                     </div>
                   </div>
 
                   {/* Failover Target Provider */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Automatic Failover Target</label>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Automatic Failover Target
+                    </label>
                     <Combobox
                       items={[
                         { value: '', label: 'None (Terminal on Failure)', sublabel: 'disabled' },
@@ -1406,10 +1446,10 @@ export function ProviderConfigPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" size="sm" onClick={() => setIsRegisterOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button type="submit" variant="glow" size="sm" isLoading={registerMutation.isPending}>
-                Save & Persist to Database
+                {t('providerConfig.saveConfig')}
               </Button>
             </DialogFooter>
           </form>
@@ -1420,15 +1460,12 @@ export function ProviderConfigPage() {
       <Dialog open={isEnvExportOpen} onOpenChange={setIsEnvExportOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Export Complete .env Configuration Vault</DialogTitle>
-            <DialogDescription>
-              Copy these environment variables to your `.env` file or cloud secrets manager (AWS Secrets Manager, GCP
-              Secret Manager, Vault).
-            </DialogDescription>
+            <DialogTitle>{t('providerConfig.envVaultTitle')}</DialogTitle>
+            <DialogDescription>{t('providerConfig.envVaultDesc')}</DialogDescription>
           </DialogHeader>
 
           <div className="py-2">
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-80 overflow-y-auto leading-relaxed shadow-inner">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-slate-800 dark:text-slate-300 whitespace-pre-wrap max-h-80 overflow-y-auto leading-relaxed shadow-inner">
               {envData?.envFileContent}
             </div>
           </div>
@@ -1436,11 +1473,11 @@ export function ProviderConfigPage() {
           <DialogFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={handleDownloadEnv} className="gap-1.5">
               <Download className="w-3.5 h-3.5" />
-              <span>Download File</span>
+              <span>{t('providerConfig.downloadEnv')}</span>
             </Button>
             <Button variant="glow" size="sm" onClick={handleCopyEnv} className="gap-1.5 font-bold">
               {copiedEnv ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedEnv ? 'Copied to Clipboard!' : 'Copy to Clipboard'}</span>
+              <span>{copiedEnv ? t('common.copied') : t('providerConfig.copyEnv')}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

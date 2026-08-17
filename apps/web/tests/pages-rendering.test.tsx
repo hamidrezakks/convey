@@ -56,6 +56,48 @@ describe('Super Senior QA: Comprehensive Mission Control Pages Render Suite', ()
     expect(container.textContent).toContain('All Statuses');
   });
 
+  it('renders MessagesPage with populated message rows without crashing', () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(['messages', 'list', { page: 1, limit: 15 }], {
+      messages: [
+        {
+          publicId: 'msg_01JAX12345678',
+          teamId: 'team_auth',
+          channel: 'EMAIL',
+          recipient: 'user@domain.com',
+          priority: 'CRITICAL',
+          status: 'DELIVERED',
+          costUsd: 0.0001,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          publicId: 'msg_01JAX87654321',
+          teamId: 'team_payments',
+          channel: 'SMS',
+          recipient: '+15551234567',
+          priority: 'DEFAULT',
+          status: 'FAILED',
+          costUsd: 0.0075,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 15,
+    });
+
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <MessagesPage />
+      </QueryClientProvider>,
+    );
+
+    expect(container.textContent).toContain('msg_01JAX12345678');
+    expect(container.textContent).toContain('msg_01JAX87654321');
+    expect(container.textContent).toContain('$0.00010');
+    expect(container.textContent).toContain('$0.00750');
+  });
+
   it('renders ProvidersPage with health matrix, circuit breakers, and canary trigger', () => {
     const { container } = renderWithClient(<ProvidersPage />);
     expect(container).toBeDefined();

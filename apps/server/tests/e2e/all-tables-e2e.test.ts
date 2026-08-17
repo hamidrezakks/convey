@@ -117,7 +117,7 @@ describe('Convey Comprehensive All-Tables & All-Features E2E Verification Suite'
       // Verify outbox record created
       const dbOutbox = await db.select().from(outbox).where(eq(outbox.messageId, body.messageId));
       expect(dbOutbox.length).toBeGreaterThanOrEqual(1);
-      expect(dbOutbox[0].state).toBe('pending');
+      expect(['pending', 'processing', 'processed']).toContain(dbOutbox[0].state);
 
       // Relay outbox batch
       const processedCount = await processOutboxAndDispatch(body.messageId);

@@ -18,78 +18,73 @@ import {
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
-import { suppressionKeys } from '../lib/queryKeys';
+import { deliverabilityKeys } from '../lib/queryKeys';
 import { formatTimeAgo } from '../lib/utils';
 
 export function DeliverabilityPage() {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [search, setSearch] = useState('');
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   // Add suppression modal state
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [newRecipient, setNewRecipient] = useState('');
   const [newChannel, setNewChannel] = useState<Channel>(Channel.EMAIL);
   const [newReason, setNewReason] = useState<SuppressionReason>(SuppressionReason.MANUAL_BLOCK);
   const [newTeamId, setNewTeamId] = useState('team_default');
 
-  // TanStack Query: Suppressions list
-  const {
-    data: suppressions = [],
-    isLoading,
-    isFetching,
-    refetch,
-  } = useQuery({
-    queryKey: suppressionKeys.list(search),
+  // TanStack Query: Suppressions List
+  const { data: suppressions = [], isLoading } = useQuery({
+    queryKey: deliverabilityKeys.suppressions({ search: search || undefined }),
     queryFn: () => api.getSuppressions(search || undefined),
   });
 
-  // TanStack Mutation: Add suppression
+  // TanStack Mutation: Add Suppression
   const addMutation = useMutation({
-    mutationFn: (data: { teamId?: string; recipient: string; channel: Channel; reason: SuppressionReason }) =>
+    mutationFn: (data: { recipient: string; channel: Channel; reason: SuppressionReason; teamId: string }) =>
       api.addSuppression(data),
-    onSuccess: (_, vars) => {
-      toast.success(`Suppression added for ${vars.recipient}`);
-      queryClient.invalidateQueries({ queryKey: suppressionKeys.all });
+    onSuccess: (res) => {
+      toast.success(`${t('deliverability.addSuppression')}: ${res.recipient}`);
+      queryClient.invalidateQueries({ queryKey: deliverabilityKeys.all });
       setIsAddOpen(false);
       setNewRecipient('');
     },
     onError: () => {
-      toast.error('Failed to add suppression');
+      toast.error('Failed to add recipient to suppression list');
     },
   });
 
-  // TanStack Mutation: Remove suppression
+  // TanStack Mutation: Remove Suppression
   const removeMutation = useMutation({
     mutationFn: (vars: { id: string; recipient: string }) => api.removeSuppression(vars.id),
     onSuccess: (_, vars) => {
-      toast.success(`Unblocked ${vars.recipient}`);
-      queryClient.invalidateQueries({ queryKey: suppressionKeys.all });
+      toast.success(`${t('deliverability.removeSuppression')}: ${vars.recipient}`);
+      queryClient.invalidateQueries({ queryKey: deliverabilityKeys.all });
     },
     onError: () => {
-      toast.error('Failed to remove suppression');
+      toast.error('Failed to unblock recipient');
     },
   });
 
   const handleAddSuppression = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRecipient.trim()) {
-      toast.error('Recipient is required');
-      return;
-    }
+    if (!newRecipient.trim()) return;
     addMutation.mutate({
-      teamId: newTeamId,
       recipient: newRecipient.trim(),
       channel: newChannel,
       reason: newReason,
+      teamId: newTeamId.trim() || 'team_default',
     });
   };
 
   const getReasonBadgeVariant = (reason: SuppressionReason) => {
     switch (reason) {
+      case SuppressionReason.SPAM_COMPLAINT:
       case SuppressionReason.HARD_BOUNCE:
         return 'destructive';
-      case SuppressionReason.SPAM_COMPLAINT:
+      case SuppressionReason.MANUAL_BLOCK:
         return 'warning';
       case SuppressionReason.UNSUBSCRIBE:
         return 'purple';
@@ -101,31 +96,19 @@ export function DeliverabilityPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            Deliverability Autopilot & Suppression Guard
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+            {t('deliverability.title')}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            SPF/DKIM/DMARC domain alignment scorecard, bounce auto-suppression, and opt-out compliance.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('deliverability.subtitle')}</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            isLoading={isFetching}
-            className="text-xs gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refresh</span>
-          </Button>
           <Button variant="glow" size="sm" onClick={() => setIsAddOpen(true)} className="text-xs gap-1.5 font-bold">
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Suppression</span>
+            <span>{t('deliverability.addSuppression')}</span>
           </Button>
         </div>
       </div>
@@ -134,45 +117,55 @@ export function DeliverabilityPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">SPF Authentication</CardTitle>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              SPF Authentication
+            </CardTitle>
+            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-400">100% PASS</div>
-            <p className="text-xs text-slate-400 mt-1">v=spf1 include:convey.io ~all</p>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">100% PASS</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">v=spf1 include:convey.io ~all</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">DKIM 2048-bit</CardTitle>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              DKIM 2048-bit
+            </CardTitle>
+            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-400">100% ALIGNED</div>
-            <p className="text-xs text-slate-400 mt-1">Dual-Key Automatic Rotation</p>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">100% ALIGNED</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Dual-Key Automatic Rotation</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">DMARC Policy</CardTitle>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              DMARC Policy
+            </CardTitle>
+            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-sky-400">p=reject (100%)</div>
-            <p className="text-xs text-slate-400 mt-1">Strict Domain Protection</p>
+            <div className="text-2xl font-bold font-mono text-sky-600 dark:text-sky-400">p=reject (100%)</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Strict Domain Protection</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">IP Warmup Progression</CardTitle>
-            <Shield className="w-4 h-4 text-indigo-400" />
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              {t('deliverability.ipWarmupTitle')}
+            </CardTitle>
+            <Shield className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-white">85% Complete</div>
-            <div className="w-full h-1.5 bg-slate-800 rounded-full mt-2 overflow-hidden">
+            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
+              {t('deliverability.ipWarmupProgress')}
+            </div>
+            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
               <div className="h-full bg-indigo-500 rounded-full w-[85%]" />
             </div>
           </CardContent>
@@ -182,12 +175,12 @@ export function DeliverabilityPage() {
       {/* Suppression List Table */}
       <Card className="glass-panel overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between py-3">
-          <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Active Recipient Suppressions ({suppressions.length})
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            {t('deliverability.suppressions')} ({suppressions.length})
           </CardTitle>
           <div className="w-72">
             <Input
-              placeholder="Search recipient or domain..."
+              placeholder={t('deliverability.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               icon={<Search className="w-3.5 h-3.5 text-slate-400" />}
@@ -198,53 +191,57 @@ export function DeliverabilityPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Suppression ID</TableHead>
-                <TableHead>Recipient</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Tenant ID</TableHead>
-                <TableHead>Suppressed Since</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead>{t('dlq.colId')}</TableHead>
+                <TableHead>{t('deliverability.colRecipient')}</TableHead>
+                <TableHead>{t('deliverability.colChannel')}</TableHead>
+                <TableHead>{t('deliverability.colReason')}</TableHead>
+                <TableHead>{t('deliverability.colTeam')}</TableHead>
+                <TableHead>{t('deliverability.colDate')}</TableHead>
+                <TableHead className="text-end rtl:text-left">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-400" />
-                    Loading suppressions...
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
+                    {t('common.loading')}
                   </TableCell>
                 </TableRow>
               ) : suppressions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    No active suppressions found.
+                    {t('common.noResults')}
                   </TableCell>
                 </TableRow>
               ) : (
                 suppressions.map((sup) => (
                   <TableRow key={sup.id}>
-                    <TableCell className="font-mono text-xs text-slate-400">{sup.id}</TableCell>
-                    <TableCell className="font-mono text-xs text-white font-medium">{sup.recipient}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{sup.id}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-900 dark:text-white font-medium">
+                      {sup.recipient}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="cyan">{sup.channel}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={getReasonBadgeVariant(sup.reason)}>{sup.reason}</Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-400">{sup.teamId}</TableCell>
-                    <TableCell className="text-xs text-slate-400 font-mono">{formatTimeAgo(sup.createdAt)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{sup.teamId}</TableCell>
+                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      {formatTimeAgo(sup.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-end rtl:text-left">
                       <Button
                         variant="ghost"
                         size="sm"
                         isLoading={removeMutation.isPending && removeMutation.variables?.id === sup.id}
                         onClick={() => removeMutation.mutate({ id: sup.id, recipient: sup.recipient })}
-                        className="h-7 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 gap-1"
-                        title="Remove suppression (unblock)"
+                        className="h-7 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-500/10 gap-1"
+                        title={t('deliverability.unblockConfirm')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span>Unblock</span>
+                        <span>{t('deliverability.removeSuppression')}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -260,17 +257,17 @@ export function DeliverabilityPage() {
         <DialogContent className="max-w-md">
           <form onSubmit={handleAddSuppression}>
             <DialogHeader>
-              <DialogTitle>Add Recipient Suppression</DialogTitle>
-              <DialogDescription>
-                Manually block an email, phone number, or handle from receiving outbound transmissions.
-              </DialogDescription>
+              <DialogTitle>{t('deliverability.addSuppression')}</DialogTitle>
+              <DialogDescription>{t('deliverability.subtitle')}</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Recipient</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {t('deliverability.recipientLabel')}
+                </label>
                 <Input
-                  placeholder="e.g. user@spamdomain.com or +15550192831"
+                  placeholder="user@example.com / +15550192831"
                   value={newRecipient}
                   onChange={(e) => setNewRecipient(e.target.value)}
                   required
@@ -279,7 +276,9 @@ export function DeliverabilityPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Channel</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {t('deliverability.channelLabel')}
+                  </label>
                   <Select value={newChannel} onChange={(e) => setNewChannel(e.target.value as Channel)}>
                     <option value={Channel.EMAIL}>Email</option>
                     <option value={Channel.SMS}>SMS</option>
@@ -289,32 +288,32 @@ export function DeliverabilityPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Reason</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {t('deliverability.reasonLabel')}
+                  </label>
                   <Select value={newReason} onChange={(e) => setNewReason(e.target.value as SuppressionReason)}>
-                    <option value={SuppressionReason.MANUAL_BLOCK}>Manual Block</option>
-                    <option value={SuppressionReason.SPAM_COMPLAINT}>Spam Complaint</option>
-                    <option value={SuppressionReason.HARD_BOUNCE}>Hard Bounce</option>
-                    <option value={SuppressionReason.UNSUBSCRIBE}>Unsubscribe</option>
+                    <option value={SuppressionReason.MANUAL_BLOCK}>{t('deliverability.manualBlock')}</option>
+                    <option value={SuppressionReason.SPAM_COMPLAINT}>{t('deliverability.spamComplaint')}</option>
+                    <option value={SuppressionReason.HARD_BOUNCE}>{t('deliverability.hardBounce')}</option>
+                    <option value={SuppressionReason.UNSUBSCRIBE}>{t('deliverability.unsubscribe')}</option>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Tenant Scope</label>
-                <Input
-                  placeholder="team_default or *"
-                  value={newTeamId}
-                  onChange={(e) => setNewTeamId(e.target.value)}
-                />
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {t('deliverability.teamLabel')}
+                </label>
+                <Input placeholder="team_default" value={newTeamId} onChange={(e) => setNewTeamId(e.target.value)} />
               </div>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button type="submit" variant="glow" size="sm" isLoading={addMutation.isPending}>
-                Add Suppression
+                {t('deliverability.addSuppression')}
               </Button>
             </DialogFooter>
           </form>

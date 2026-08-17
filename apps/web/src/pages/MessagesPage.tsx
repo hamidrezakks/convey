@@ -11,12 +11,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { useI18n } from '../i18n';
 import { api } from '../lib/api';
 import { messageKeys } from '../lib/queryKeys';
 import { formatDurationMs, formatTimeAgo } from '../lib/utils';
 
 export function MessagesPage() {
+  const { t } = useI18n();
   const [page, setPage] = useState(1);
+
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
@@ -27,12 +30,7 @@ export function MessagesPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // TanStack Query: Messages list
-  const {
-    data: messagesData,
-    isLoading,
-    refetch: refetchMessages,
-    isFetching,
-  } = useQuery({
+  const { data: messagesData, isLoading } = useQuery({
     queryKey: messageKeys.list({
       page,
       limit: 15,
@@ -93,27 +91,14 @@ export function MessagesPage() {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Inbox className="w-5 h-5 text-sky-400" />
-            Universal Message Explorer & Distributed Tracing
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Inbox className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+            {t('messages.title')}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Search, filter, and inspect end-to-end W3C distributed trace timelines and wire payloads.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('messages.subtitle')}</p>
         </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetchMessages()}
-          isLoading={isFetching}
-          className="text-xs gap-1.5"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh</span>
-        </Button>
       </div>
 
       {/* Filter & Search Bar */}
@@ -123,7 +108,7 @@ export function MessagesPage() {
             {/* Search Input */}
             <div className="sm:col-span-6">
               <Input
-                placeholder="Search by Public ID (msg_...), recipient, or team..."
+                placeholder={t('messages.searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 icon={<Search className="w-4 h-4 text-slate-400" />}
@@ -139,13 +124,14 @@ export function MessagesPage() {
                   setPage(1);
                 }}
               >
-                <option value="ALL">All Channels</option>
-                <option value={Channel.EMAIL}>Email</option>
-                <option value={Channel.SMS}>SMS</option>
+                <option value="ALL">{t('messages.allChannels')}</option>
+                <option value={Channel.EMAIL}>{t('common.email')}</option>
+                <option value={Channel.SMS}>{t('common.sms')}</option>
                 <option value={Channel.WHATSAPP}>WhatsApp</option>
-                <option value={Channel.PUSH}>Push Notification</option>
+                <option value={Channel.CHAT}>Chat</option>
+                <option value={Channel.PUSH}>{t('common.push')}</option>
                 <option value={Channel.SLACK}>Slack</option>
-                <option value={Channel.TOOL}>Tool / Webhook</option>
+                <option value={Channel.TOOL}>{t('common.tool')}</option>
               </Select>
             </div>
 
@@ -158,16 +144,16 @@ export function MessagesPage() {
                   setPage(1);
                 }}
               >
-                <option value="ALL">All Statuses</option>
-                <option value={MessageStatus.DELIVERED}>Delivered</option>
-                <option value={MessageStatus.ACCEPTED}>Accepted</option>
-                <option value={MessageStatus.QUEUED}>Queued</option>
-                <option value={MessageStatus.SENDING}>Sending</option>
-                <option value={MessageStatus.FAILED}>Failed</option>
-                <option value={MessageStatus.SUPPRESSED}>Suppressed</option>
+                <option value="ALL">{t('messages.allStatuses')}</option>
+                <option value={MessageStatus.DELIVERED}>{t('messages.statusDelivered')}</option>
+                <option value={MessageStatus.ACCEPTED}>{t('messages.statusAccepted')}</option>
+                <option value={MessageStatus.QUEUED}>{t('messages.statusQueued')}</option>
+                <option value={MessageStatus.SENDING}>{t('messages.statusSending')}</option>
+                <option value={MessageStatus.FAILED}>{t('messages.statusFailed')}</option>
+                <option value={MessageStatus.SUPPRESSED}>{t('messages.statusSuppressed')}</option>
               </Select>
               <Button type="submit" variant="primary" size="sm" className="px-4">
-                Filter
+                {t('common.filter')}
               </Button>
             </div>
           </form>
@@ -177,40 +163,40 @@ export function MessagesPage() {
       {/* Messages Data Table */}
       <Card className="glass-panel overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between py-3">
-          <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Messages ({total.toLocaleString()} found)
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            {t('messages.totalMessagesCount')} ({total.toLocaleString()})
           </CardTitle>
-          <div className="text-xs text-slate-400 font-mono">
-            Page {page} of {totalPages}
+          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+            {page} / {totalPages}
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-56">Public ID</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Recipient</TableHead>
-                <TableHead>Team</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Cost</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="w-56">{t('messages.colPublicId')}</TableHead>
+                <TableHead>{t('messages.colChannel')}</TableHead>
+                <TableHead>{t('messages.colRecipient')}</TableHead>
+                <TableHead>{t('deliverability.teamLabel')}</TableHead>
+                <TableHead>{t('policies.tierPriorities')}</TableHead>
+                <TableHead>{t('providers.colUnitCost')}</TableHead>
+                <TableHead>{t('messages.colTime')}</TableHead>
+                <TableHead>{t('messages.colStatus')}</TableHead>
+                <TableHead className="text-end rtl:text-left">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-400" />
-                    Loading messages...
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
+                    {t('common.loading')}
                   </TableCell>
                 </TableRow>
               ) : messages.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-12 text-slate-500">
-                    No messages found matching the criteria.
+                    {t('messages.noMessagesFound')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -218,15 +204,15 @@ export function MessagesPage() {
                   <TableRow key={msg.publicId} className="group">
                     <TableCell className="font-mono text-xs">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sky-300 font-medium">{msg.publicId}</span>
+                        <span className="text-sky-600 dark:text-sky-300 font-medium">{msg.publicId}</span>
                         <button
                           type="button"
                           onClick={() => handleCopy(msg.publicId)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-200 transition-opacity p-0.5"
-                          title="Copy ID"
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-opacity p-0.5 cursor-pointer"
+                          title={t('messages.copyId')}
                         >
                           {copiedId === msg.publicId ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                           ) : (
                             <Copy className="w-3.5 h-3.5" />
                           )}
@@ -250,29 +236,23 @@ export function MessagesPage() {
                       </Badge>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-slate-300 truncate max-w-xs">
+                    <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate max-w-xs">
                       {msg.recipient}
                     </TableCell>
 
-                    <TableCell className="text-xs text-slate-400 font-mono">{msg.teamId}</TableCell>
+                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">{msg.teamId}</TableCell>
 
                     <TableCell>
-                      <span
-                        className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border ${
-                          msg.priority === 'CRITICAL'
-                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                            : 'bg-slate-800 text-slate-400 border-slate-700'
-                        }`}
-                      >
-                        {msg.priority}
-                      </span>
+                      <span className="text-xs font-mono text-slate-700 dark:text-slate-300">{msg.priority}</span>
                     </TableCell>
 
-                    <TableCell className="text-xs font-mono text-slate-400">
-                      ${msg.costUsd?.toFixed(4) ?? '0.0001'}
+                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                      ${(msg.costUsd ?? 0.0001).toFixed(5)}
                     </TableCell>
 
-                    <TableCell className="text-xs text-slate-400 font-mono">{formatTimeAgo(msg.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      {formatTimeAgo(msg.createdAt)}
+                    </TableCell>
 
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(msg.status)} dot>
@@ -280,15 +260,15 @@ export function MessagesPage() {
                       </Badge>
                     </TableCell>
 
-                    <TableCell className="text-right">
+                    <TableCell className="text-end rtl:text-left">
                       <Button
                         variant="secondary"
                         size="sm"
                         onClick={() => setSelectedMessageId(msg.publicId)}
-                        className="h-7 text-xs gap-1 hover:border-sky-500/40"
+                        className="h-7 text-xs gap-1"
                       >
-                        <Layers className="w-3 h-3 text-sky-400" />
-                        <span>Inspect Trace</span>
+                        <Layers className="w-3 h-3 text-sky-500 dark:text-sky-400" />
+                        <span>{t('common.details')}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -298,9 +278,9 @@ export function MessagesPage() {
           </Table>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800/80">
-            <div className="text-xs text-slate-400">
-              Showing {(page - 1) * 15 + 1} to {Math.min(total, page * 15)} of {total.toLocaleString()} entries
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200/80 dark:border-slate-800/80">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {total > 0 ? `${(page - 1) * 15 + 1} - ${Math.min(total, page * 15)} / ${total.toLocaleString()}` : '0'}
             </div>
 
             <div className="flex items-center gap-2">
@@ -312,7 +292,7 @@ export function MessagesPage() {
                 className="h-8 gap-1"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Prev</span>
+                <span>{t('common.back')}</span>
               </Button>
               <Button
                 variant="outline"
@@ -321,7 +301,7 @@ export function MessagesPage() {
                 onClick={() => setPage(page + 1)}
                 className="h-8 gap-1"
               >
-                <span>Next</span>
+                <span>{t('common.next')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -333,9 +313,9 @@ export function MessagesPage() {
       <Dialog open={!!selectedMessageId} onOpenChange={(open) => !open && setSelectedMessageId(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           {isDetailsLoading || !messageDetails ? (
-            <div className="py-20 text-center text-slate-400">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-sky-400" />
-              <span>Fetching distributed spans and cryptographic metadata...</span>
+            <div className="py-20 text-center text-slate-500 dark:text-slate-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-sky-500 dark:text-sky-400" />
+              <span>{t('common.loading')}</span>
             </div>
           ) : (
             <div className="space-y-6">
@@ -349,18 +329,23 @@ export function MessagesPage() {
                       </Badge>
                     </div>
                     <DialogDescription>
-                      Tenant: <span className="font-mono text-slate-300">{messageDetails.teamId}</span> • Channel:{' '}
-                      <span className="text-sky-300 font-semibold">{messageDetails.channel}</span> • Recipient:{' '}
-                      <span className="font-mono text-slate-300">{messageDetails.recipient}</span>
+                      {t('deliverability.teamLabel')}:{' '}
+                      <span className="font-mono text-slate-700 dark:text-slate-300">{messageDetails.teamId}</span> •{' '}
+                      {t('common.channel')}:{' '}
+                      <span className="text-sky-600 dark:text-sky-300 font-semibold">{messageDetails.channel}</span> •{' '}
+                      {t('common.recipient')}:{' '}
+                      <span className="font-mono text-slate-700 dark:text-slate-300">{messageDetails.recipient}</span>
                     </DialogDescription>
                   </div>
 
                   {/* BYOK Envelope Encryption Badge */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs">
                     <Lock className="w-3.5 h-3.5" />
                     <div>
                       <span className="font-semibold">AES-256-GCM</span>
-                      <span className="text-[10px] text-emerald-300/80 block">BYOK KMS Enveloped</span>
+                      <span className="text-[10px] text-emerald-600/80 dark:text-emerald-300/80 block">
+                        BYOK KMS Enveloped
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -368,27 +353,29 @@ export function MessagesPage() {
 
               {/* Interactive W3C Distributed Trace Waterfall */}
               <div>
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Distributed Trace Lifecycle
+                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                  {t('messages.traceDrawerTitle')}
                 </h3>
                 <TraceWaterfall traceparent={messageDetails.traceparent} spans={messageDetails.spans || []} />
               </div>
 
               {/* Message Payload View */}
               <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Message Content & Variables
+                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {t('composer.body')}
                 </h3>
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-2">
                   {messageDetails.content?.subject && (
                     <div>
-                      <span className="text-slate-400">Subject: </span>
-                      <span className="text-white font-semibold">{messageDetails.content.subject}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{t('composer.subject')}: </span>
+                      <span className="text-slate-900 dark:text-white font-semibold">
+                        {messageDetails.content.subject}
+                      </span>
                     </div>
                   )}
                   <div>
-                    <span className="text-slate-400">Body Preview: </span>
-                    <p className="text-slate-200 mt-1 p-2.5 rounded bg-slate-900 border border-slate-800/80 font-mono text-[11px] whitespace-pre-wrap">
+                    <span className="text-slate-500 dark:text-slate-400">{t('composer.preview')}: </span>
+                    <p className="text-slate-800 dark:text-slate-200 mt-1 p-2.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 font-mono text-[11px] whitespace-pre-wrap">
                       {messageDetails.content?.body || 'No text body.'}
                     </p>
                   </div>
@@ -397,33 +384,39 @@ export function MessagesPage() {
 
               {/* Delivery Attempts Table */}
               <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Provider Delivery Attempts ({messageDetails.attempts?.length ?? 0})
+                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {t('providers.title')} ({messageDetails.attempts?.length ?? 0})
                 </h3>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Attempt #</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>HTTP Code</TableHead>
-                      <TableHead>Latency</TableHead>
-                      <TableHead>Attempted At</TableHead>
+                      <TableHead>#</TableHead>
+                      <TableHead>{t('providers.colProvider')}</TableHead>
+                      <TableHead>{t('common.status')}</TableHead>
+                      <TableHead>HTTP</TableHead>
+                      <TableHead>{t('common.latency')}</TableHead>
+                      <TableHead>{t('common.timestamp')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(messageDetails.attempts || []).map((att) => (
                       <TableRow key={att.attemptNumber}>
-                        <TableCell className="font-mono text-xs text-sky-400">#{att.attemptNumber}</TableCell>
-                        <TableCell className="font-mono text-xs font-semibold text-white">{att.providerId}</TableCell>
+                        <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-400">
+                          #{att.attemptNumber}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs font-semibold text-slate-900 dark:text-white">
+                          {att.providerId}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={att.status === 'DELIVERED' ? 'success' : 'default'}>{att.status}</Badge>
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-slate-300">{att.responseCode || 200}</TableCell>
-                        <TableCell className="font-mono text-xs text-emerald-400">
+                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                          {att.responseCode || 200}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
                           {formatDurationMs(att.latencyMs)}
                         </TableCell>
-                        <TableCell className="text-xs text-slate-400 font-mono">
+                        <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                           {formatTimeAgo(att.attemptedAt)}
                         </TableCell>
                       </TableRow>

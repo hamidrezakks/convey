@@ -10,23 +10,24 @@ export function Badge({ className, variant = 'default', dot = false, children, .
   const baseStyles = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium';
 
   const variants = {
-    default: 'bg-slate-800 text-slate-300 border border-slate-700/60',
-    success: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-    warning: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
-    destructive: 'bg-rose-500/10 text-rose-400 border border-rose-500/20',
-    purple: 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
-    cyan: 'bg-sky-500/10 text-sky-400 border border-sky-500/20',
-    outline: 'border border-slate-700 text-slate-400',
+    default:
+      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60',
+    success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
+    warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+    destructive: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
+    purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20',
+    cyan: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20',
+    outline: 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400',
   };
 
   const dotColors = {
     default: 'bg-slate-400',
-    success: 'bg-emerald-400 animate-pulse',
-    warning: 'bg-amber-400',
-    destructive: 'bg-rose-400',
-    purple: 'bg-purple-400',
-    cyan: 'bg-sky-400',
-    outline: 'bg-slate-500',
+    success: 'bg-emerald-500 dark:bg-emerald-400 animate-pulse',
+    warning: 'bg-amber-500 dark:bg-amber-400',
+    destructive: 'bg-rose-500 dark:bg-rose-400',
+    purple: 'bg-purple-500 dark:bg-purple-400',
+    cyan: 'bg-sky-500 dark:bg-sky-400',
+    outline: 'bg-slate-400 dark:bg-slate-500',
   };
 
   return (

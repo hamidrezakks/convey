@@ -16,12 +16,14 @@ import {
 } from '../components/ui/dialog';
 import { Slider } from '../components/ui/slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { providerKeys } from '../lib/queryKeys';
 import { formatDurationMs } from '../lib/utils';
 
 export function ProvidersPage() {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
 
   // Ramp / Override Modal state
@@ -30,12 +32,7 @@ export function ProvidersPage() {
   const [rampPercent, setRampPercent] = useState(20);
 
   // TanStack Query: Load provider matrix
-  const {
-    data: providers = [],
-    isLoading,
-    isFetching,
-    refetch,
-  } = useQuery({
+  const { data: providers = [], isLoading } = useQuery({
     queryKey: providerKeys.all,
     queryFn: () => api.getProviders(),
   });
@@ -61,7 +58,7 @@ export function ProvidersPage() {
   const canaryMutation = useMutation({
     mutationFn: (providerId: string) => api.triggerCanary(providerId),
     onSuccess: (res, providerId) => {
-      toast.success(`Synthetic canary probe passed for ${providerId} (Latency: ${res.result?.latencyMs || 45}ms)`);
+      toast.success(`${t('providers.canarySuccess')}: ${providerId} (${res.result?.latencyMs || 45}ms)`);
       queryClient.invalidateQueries({ queryKey: providerKeys.all });
     },
     onError: (_, providerId) => {
@@ -99,88 +96,89 @@ export function ProvidersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Radio className="w-5 h-5 text-sky-400" />
-            Provider Matrix & Circuit Breaker Cockpit
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Radio className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+            {t('providers.title')}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Real-time circuit states, stepped half-open traffic ramps, autonomous self-healing canary probes, and EMA
-            latency scorecards.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('providers.subtitle')}</p>
         </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          isLoading={isFetching}
-          className="text-xs gap-1.5"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh</span>
-        </Button>
       </div>
 
       {/* Summary KPI Ribbon */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-400 uppercase">Total Providers</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+              {t('providers.totalProviders')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-white">{providers.length}</div>
-            <p className="text-xs text-slate-400 mt-1">Multi-Channel Matrix</p>
+            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">{providers.length}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('overview.multiChannelMatrix')}</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-emerald-400 uppercase">Closed (Healthy)</CardTitle>
+            <CardTitle className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase">
+              {t('providers.circuitClosed')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-400">{closedCount}</div>
-            <p className="text-xs text-slate-400 mt-1">100% Traffic Allowed</p>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{closedCount}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('overview.healthyTraffic')}</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-amber-400 uppercase">Half-Open (Ramping)</CardTitle>
+            <CardTitle className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase">
+              {t('providers.circuitHalfOpen')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-amber-300">{halfOpenCount}</div>
-            <p className="text-xs text-slate-400 mt-1">Stepped Probe Admission</p>
+            <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-300">{halfOpenCount}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('overview.steppedProbe')}</p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-rose-400 uppercase">Open (Tripped)</CardTitle>
+            <CardTitle className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase">
+              {t('providers.circuitOpen')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-rose-400">{openCount}</div>
-            <p className="text-xs text-slate-400 mt-1">Auto-Fallback Engaged</p>
+            <div className="text-2xl font-bold font-mono text-rose-600 dark:text-rose-400">{openCount}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('overview.autoFallback')}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Channel Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        {['ALL', Channel.EMAIL, Channel.SMS, Channel.WHATSAPP, Channel.PUSH, Channel.SLACK, Channel.TOOL].map(
-          (chan) => (
-            <Button
-              key={chan}
-              variant={selectedChannel === chan ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedChannel(chan)}
-              className="text-xs font-medium"
-            >
-              {chan}
-            </Button>
-          ),
-        )}
+        {[
+          'ALL',
+          Channel.EMAIL,
+          Channel.SMS,
+          Channel.WHATSAPP,
+          Channel.CHAT,
+          Channel.PUSH,
+          Channel.SLACK,
+          Channel.TOOL,
+        ].map((chan) => (
+          <Button
+            key={chan}
+            variant={selectedChannel === chan ? 'primary' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedChannel(chan)}
+            className="text-xs font-medium"
+          >
+            {chan === 'ALL' ? t('common.all') : chan}
+          </Button>
+        ))}
       </div>
 
       {/* Providers Matrix Table */}
@@ -189,23 +187,23 @@ export function ProvidersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Provider Adapter</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Circuit State</TableHead>
-                <TableHead>Ramp %</TableHead>
-                <TableHead>EMA Latency</TableHead>
-                <TableHead>24h Success</TableHead>
-                <TableHead>Z-Score Anomaly</TableHead>
-                <TableHead>Unit Cost</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t('providers.colProvider')}</TableHead>
+                <TableHead>{t('providers.colChannel')}</TableHead>
+                <TableHead>{t('providers.colState')}</TableHead>
+                <TableHead>{t('providers.colRamp')}</TableHead>
+                <TableHead>{t('providers.colLatency')}</TableHead>
+                <TableHead>{t('providers.colSuccess24h')}</TableHead>
+                <TableHead>{t('providers.colZScore')}</TableHead>
+                <TableHead>{t('providers.colUnitCost')}</TableHead>
+                <TableHead className="text-end rtl:text-left">{t('providers.colActions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-400" />
-                    Loading provider scorecards...
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
+                    {t('providers.loadingScorecards')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -213,10 +211,10 @@ export function ProvidersPage() {
                   <TableRow key={p.providerId} className="group">
                     <TableCell>
                       <div>
-                        <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span>{p.displayName}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-400">{p.providerId}</span>
+                        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{p.providerId}</span>
                       </div>
                     </TableCell>
 
@@ -239,9 +237,9 @@ export function ProvidersPage() {
                       </Badge>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-slate-300">
+                    <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
                               p.state === CircuitState.CLOSED
@@ -257,29 +255,31 @@ export function ProvidersPage() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-sky-300">
+                    <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-300">
                       {formatDurationMs(p.emaLatencyMs ?? 0)}
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-emerald-400">
+                    <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
                       {(p.rollingSuccessRatePercent ?? 100).toFixed(1)}%
                     </TableCell>
 
                     <TableCell className="font-mono text-xs">
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] ${
-                          (p.anomalyZScore ?? 0) > 3.0 ? 'bg-rose-500/20 text-rose-400 font-bold' : 'text-slate-400'
+                          (p.anomalyZScore ?? 0) > 3.0
+                            ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                         }`}
                       >
                         Z: {(p.anomalyZScore ?? 0).toFixed(2)}
                       </span>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-slate-400">
+                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
                       ${(p.unitCostUsd ?? 0).toFixed(5)}
                     </TableCell>
 
-                    <TableCell className="text-right space-x-2">
+                    <TableCell className="text-end rtl:text-left space-x-2 rtl:space-x-reverse">
                       {/* Synthetic Canary Probe Button with TanStack Mutation */}
                       <Button
                         variant="secondary"
@@ -287,9 +287,9 @@ export function ProvidersPage() {
                         isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
                         onClick={() => canaryMutation.mutate(p.providerId)}
                         className="h-7 text-xs gap-1 hover:border-sky-500/40"
-                        title="Run autonomous synthetic probe"
+                        title={t('providers.canaryTrigger')}
                       >
-                        <Sparkles className="w-3 h-3 text-sky-400" />
+                        <Sparkles className="w-3 h-3 text-sky-500 dark:text-sky-400" />
                         <span>Canary</span>
                       </Button>
 
@@ -300,8 +300,8 @@ export function ProvidersPage() {
                         onClick={() => handleOpenOverrideModal(p)}
                         className="h-7 text-xs gap-1 hover:border-amber-500/40"
                       >
-                        <Sliders className="w-3 h-3 text-amber-400" />
-                        <span>Circuit</span>
+                        <Sliders className="w-3 h-3 text-amber-500 dark:text-amber-400" />
+                        <span>{t('common.edit')}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -316,16 +316,18 @@ export function ProvidersPage() {
       <Dialog open={!!activeProvider} onOpenChange={(open) => !open && setActiveProvider(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Circuit Breaker Manual Override</DialogTitle>
+            <DialogTitle>{t('providers.overrideTitle')}</DialogTitle>
             <DialogDescription>
-              Adjust circuit breaker state and traffic admission ramp for{' '}
-              <span className="font-semibold text-white">{activeProvider?.displayName}</span>.
+              {t('providers.overrideDesc')}{' '}
+              <span className="font-semibold text-slate-900 dark:text-white">{activeProvider?.displayName}</span>.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-3">
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300">Target Circuit State</label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {t('providers.targetState')}
+              </label>
               <div className="grid grid-cols-3 gap-2">
                 <Button
                   type="button"
@@ -334,7 +336,7 @@ export function ProvidersPage() {
                   onClick={() => setOverrideAction('CLOSE')}
                   className="text-xs"
                 >
-                  CLOSED (100%)
+                  {t('providers.stateClosed')}
                 </Button>
                 <Button
                   type="button"
@@ -343,7 +345,7 @@ export function ProvidersPage() {
                   onClick={() => setOverrideAction('FORCE_HALF_OPEN')}
                   className="text-xs"
                 >
-                  HALF-OPEN (Ramp)
+                  {t('providers.stateHalfOpen')}
                 </Button>
                 <Button
                   type="button"
@@ -352,20 +354,20 @@ export function ProvidersPage() {
                   onClick={() => setOverrideAction('FORCE_OPEN')}
                   className="text-xs"
                 >
-                  FORCE OPEN
+                  {t('providers.stateOpen')}
                 </Button>
               </div>
             </div>
 
             {overrideAction === 'FORCE_HALF_OPEN' && (
-              <div className="space-y-2 pt-2 border-t border-slate-800">
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-300 font-semibold">Gradual Traffic Ramp</span>
-                  <span className="font-mono text-sky-400 font-bold">{rampPercent}%</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">{t('providers.gradualRamp')}</span>
+                  <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">{rampPercent}%</span>
                 </div>
                 <Slider value={rampPercent} min={5} max={100} step={5} onValueChange={setRampPercent} />
-                <p className="text-[11px] text-slate-400">
-                  Admit {rampPercent}% of traffic to verify recovery before 100% full restoration.
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {t('providers.admitPercentDesc').replace('{rampPercent}', String(rampPercent))}
                 </p>
               </div>
             )}
@@ -373,10 +375,10 @@ export function ProvidersPage() {
 
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setActiveProvider(null)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="glow" size="sm" isLoading={circuitMutation.isPending} onClick={handleApplyOverride}>
-              Apply State Override
+              {t('providers.applyOverride')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -34,7 +34,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity animate-in fade-in"
+        className="fixed inset-0 bg-slate-950/40 dark:bg-slate-950/80 backdrop-blur-sm transition-opacity animate-in fade-in"
         onClick={() => onOpenChange(false)}
       />
       {/* Content Container */}
@@ -47,7 +47,7 @@ export function DialogContent({ className, children, ...props }: React.HTMLAttri
   return (
     <div
       className={cn(
-        'relative bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 text-slate-100 max-h-[90vh] overflow-y-auto',
+        'relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 text-slate-900 dark:text-slate-100 max-h-[90vh] overflow-y-auto',
         className,
       )}
       {...props}
@@ -58,19 +58,32 @@ export function DialogContent({ className, children, ...props }: React.HTMLAttri
 }
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col space-y-1.5 pb-4 border-b border-slate-800', className)} {...props} />;
+  return (
+    <div
+      className={cn('flex flex-col space-y-1.5 pb-4 border-b border-slate-100 dark:border-slate-800', className)}
+      {...props}
+    />
+  );
 }
 
 export function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn('text-lg font-semibold text-white tracking-tight', className)} {...props} />;
+  return (
+    <h2 className={cn('text-lg font-semibold text-slate-900 dark:text-white tracking-tight', className)} {...props} />
+  );
 }
 
 export function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-xs text-slate-400', className)} {...props} />;
+  return <p className={cn('text-xs text-slate-500 dark:text-slate-400', className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('flex items-center justify-end gap-2 pt-4 border-t border-slate-800', className)} {...props} />
+    <div
+      className={cn(
+        'flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800',
+        className,
+      )}
+      {...props}
+    />
   );
 }
