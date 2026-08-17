@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, type PgColumn, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { MessagePriority } from '../../modules/messaging/messaging.types';
 
 export interface OutboxPayload {
@@ -23,7 +23,7 @@ export const outbox = pgTable(
     processedAt: timestamp('processed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
+  (table: { state: PgColumn; availableAt: PgColumn; shardId: PgColumn; processedAt: PgColumn }) => [
     index('idx_outbox_state_available').on(table.state, table.availableAt),
     index('outbox_shard_state_avail_idx').on(table.shardId, table.state, table.availableAt),
     index('idx_outbox_state_processed').on(table.state, table.processedAt),

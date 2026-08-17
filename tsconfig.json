@@ -3,16 +3,17 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "moduleDetection": "force",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
     "strict": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["@types/bun"],
+    "types": ["bun", "node"],
     "paths": {
-      "@/*": ["./apps/web/src/*"],
       "@convey/shared": ["./packages/shared/src/index.ts"]
     }
-  }
+  },
+  "references": [{ "path": "./packages/shared" }, { "path": "./apps/server" }, { "path": "./apps/web" }],
+  "files": []
 }

@@ -175,7 +175,7 @@ describe('Provider Credentials AES-256-GCM Encryption & Masking Suite', () => {
 
     it('lists configured providers with masked credentials and no plain secrets exposed', async () => {
       const list = await adminService.getConfiguredProviders();
-      const testItem = list.find((p) => p.providerId === testProviderId);
+      const testItem = list.find((p: { providerId?: string }) => p.providerId === testProviderId);
 
       expect(testItem).toBeDefined();
       expect(testItem?.credentialsMasked.apiKey).toContain('••••');

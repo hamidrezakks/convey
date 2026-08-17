@@ -10,4 +10,6 @@ export const queryClient = new SQL(env.DATABASE_URL, {
 });
 
 export const db = drizzle({ client: queryClient, schema });
+export type Database = typeof db;
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export { schema };

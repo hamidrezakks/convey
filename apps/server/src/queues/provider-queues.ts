@@ -49,7 +49,7 @@ export function ensureProviderSendWorker(providerId: string, options?: { force?:
 
   worker = new Worker(
     `provider-send-${providerId}`,
-    async (job) => {
+    async (job: Job<ProviderSendJobData>) => {
       await processProviderSendJob({
         ...(job.data as ProviderSendJobData),
         providerId,
@@ -188,7 +188,7 @@ export function ensureProviderWebhookWorker(providerId: string, options?: { forc
 
   worker = new Worker(
     `provider-webhook-${providerId}`,
-    async (job) => {
+    async (job: Job<ProviderWebhookJobData | { payload: unknown; headers: Record<string, string> }>) => {
       const mod = ProviderRegistry.getModule(providerId);
       if (mod?.workers?.processWebhook) {
         return await mod.workers.processWebhook(job as Job<ProviderWebhookJobData>);

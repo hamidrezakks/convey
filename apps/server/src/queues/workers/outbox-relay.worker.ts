@@ -1,6 +1,6 @@
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
-import { db } from '../../db';
-import { type OutboxPayload, outbox } from '../../db/schema';
+import { db, type Transaction } from '../../db';
+import { type OutboxPayload, type OutboxRecord, outbox } from '../../db/schema';
 import { JobName, MessagePriority, OutboxState } from '../../modules/messaging/messaging.types';
 import { heapMemoryGuard } from '../../utils/heap-guard';
 import { createTaskLoop, type TaskLoop } from '../../utils/task-loop';
@@ -86,7 +86,7 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
 
   const now = new Date();
 
-  return await db.transaction(async (tx) => {
+  return await db.transaction(async (tx: Transaction) => {
     const pendingRecords = await tx
       .select()
       .from(outbox)
@@ -101,7 +101,7 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
     const batches = buildJobBatches(pendingRecords);
     await dispatchToBullMQQueues(batches);
 
-    const recordIds = pendingRecords.map((record) => record.id);
+    const recordIds = pendingRecords.map((record: OutboxRecord) => record.id);
     await tx
       .update(outbox)
       .set({
@@ -124,7 +124,7 @@ export async function processOutboxBatch(batchSize = 500): Promise<number> {
 
   const now = new Date();
 
-  return await db.transaction(async (tx) => {
+  return await db.transaction(async (tx: Transaction) => {
     const pendingRecords = await tx
       .select()
       .from(outbox)
@@ -139,7 +139,7 @@ export async function processOutboxBatch(batchSize = 500): Promise<number> {
     const batches = buildJobBatches(pendingRecords);
     await dispatchToBullMQQueues(batches);
 
-    const recordIds = pendingRecords.map((record) => record.id);
+    const recordIds = pendingRecords.map((record: OutboxRecord) => record.id);
     await tx
       .update(outbox)
       .set({

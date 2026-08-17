@@ -258,7 +258,7 @@ export class AdminService {
         .limit(limit)
         .offset(offset);
 
-      const messageSummaries: MessageSummaryDto[] = rows.map((r) => {
+      const messageSummaries: MessageSummaryDto[] = rows.map((r: (typeof rows)[number]) => {
         const firstChan =
           Array.isArray(r.channels) && r.channels[0] ? (r.channels[0] as { channel?: string }).channel : 'email';
         const recipientsObj = r.recipients as { to?: Array<{ email?: string; phone?: string }> } | null;
@@ -523,7 +523,7 @@ export class AdminService {
       const rows = await db.select().from(suppressions).orderBy(desc(suppressions.createdAt)).limit(50);
 
       if (rows.length > 0) {
-        return rows.map((r) => ({
+        return rows.map((r: (typeof rows)[number]) => ({
           id: r.id,
           teamId: r.team || 'default_team',
           recipient: r.recipient || '',
@@ -1129,7 +1129,7 @@ export class AdminService {
       // Query providers table in database
       const dbProviders = await db.select().from(providers);
       if (dbProviders && dbProviders.length > 0) {
-        return dbProviders.map((p) => {
+        return dbProviders.map((p: (typeof dbProviders)[number]) => {
           const creds = decryptProviderCredentials(p.credentials);
           const credentialsMasked = maskProviderCredentials(creds);
           const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);

@@ -1,5 +1,5 @@
 import type { MessagePriority } from '@convey/shared';
-import { Worker } from 'bullmq';
+import { type Job, Worker } from 'bullmq';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages, providers } from '../../db/schema';
@@ -487,7 +487,7 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
 
 export const providerSendWorker = new Worker(
   'provider-send',
-  async (job) => {
+  async (job: Job<SendJobData>) => {
     await processProviderSendJob(job.data as SendJobData);
   },
   {

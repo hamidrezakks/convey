@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq';
+import { type Job, Worker } from 'bullmq';
 import { and, eq, gte, lte, or } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageEvents, messages, providerRoutes } from '../../db/schema';
@@ -304,7 +304,7 @@ export async function processDispatchJob(publicId: string): Promise<void> {
 export function createMessageDispatchWorker(queue = dispatchQueue, concurrency = 10) {
   return new Worker<{ publicId: string }>(
     queue.name,
-    async (job) => {
+    async (job: Job<{ publicId: string }>) => {
       await processDispatchJob(job.data.publicId);
     },
     { connection: redisConnectionOptions, concurrency, prefix: formatBullMQPrefix() },
