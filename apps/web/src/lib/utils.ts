@@ -6,6 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatNumber(num: number): string {
+  if (num === undefined || num === null || Number.isNaN(num)) {
+    return '0';
+  }
   if (num >= 1_000_000) {
     return `${(num / 1_000_000).toFixed(2)}M`;
   }
@@ -16,6 +19,12 @@ export function formatNumber(num: number): string {
 }
 
 export function formatDurationMs(ms: number): string {
+  if (ms === undefined || ms === null || Number.isNaN(ms)) {
+    return '0ms';
+  }
+  if (ms < 0.001) {
+    return '0ms';
+  }
   if (ms < 1) {
     return `${(ms * 1000).toFixed(0)}µs`;
   }
@@ -26,7 +35,11 @@ export function formatDurationMs(ms: number): string {
 }
 
 export function formatTimeAgo(isoString: string): string {
-  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+  if (!isoString) return '-';
+  const parsedTime = new Date(isoString).getTime();
+  if (Number.isNaN(parsedTime)) return '-';
+
+  const seconds = Math.floor((Date.now() - parsedTime) / 1000);
   if (seconds < 5) return 'just now';
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);

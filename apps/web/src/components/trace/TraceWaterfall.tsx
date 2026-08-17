@@ -6,15 +6,15 @@ import { Badge } from '../ui/badge';
 
 export interface TraceWaterfallProps {
   traceparent?: string;
-  spans: TraceSpan[];
+  spans?: TraceSpan[];
 }
 
-export function TraceWaterfall({ traceparent, spans }: TraceWaterfallProps) {
+export function TraceWaterfall({ traceparent, spans = [] }: TraceWaterfallProps) {
   const [copied, setCopied] = useState(false);
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
 
   // Compute total duration of the trace
-  const totalDurationMs = spans.reduce((max, s) => Math.max(max, s.startTimeMs + s.durationMs), 0) || 1;
+  const totalDurationMs = spans.reduce((max, s) => Math.max(max, (s.startTimeMs || 0) + (s.durationMs || 0)), 0) || 1;
 
   const handleCopyTraceparent = () => {
     if (traceparent) {
@@ -96,8 +96,11 @@ export function TraceWaterfall({ traceparent, spans }: TraceWaterfallProps) {
         {/* Spans List */}
         <div className="space-y-2">
           {spans.map((span) => {
-            const leftPercent = Math.max(0, (span.startTimeMs / totalDurationMs) * 100);
-            const widthPercent = Math.max(1.5, (span.durationMs / totalDurationMs) * 100);
+            const leftPercent = Math.min(98.5, Math.max(0, ((span.startTimeMs || 0) / totalDurationMs) * 100));
+            const widthPercent = Math.min(
+              100 - leftPercent,
+              Math.max(1.5, ((span.durationMs || 0) / totalDurationMs) * 100),
+            );
             const isSelected = selectedSpanId === span.id;
 
             return (

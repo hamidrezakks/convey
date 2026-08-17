@@ -37,10 +37,13 @@ export function ComposerPage() {
 
   // Parse variables safely
   let parsedVariables: Record<string, string | number | boolean> = {};
+  let jsonError: string | null = null;
   try {
-    parsedVariables = JSON.parse(variablesJson);
-  } catch {
-    // ignore parse error during typing
+    if (variablesJson.trim()) {
+      parsedVariables = JSON.parse(variablesJson);
+    }
+  } catch (err) {
+    jsonError = err instanceof Error ? err.message : 'Invalid JSON';
   }
 
   // TanStack Mutation: Send test sandbox dispatch
@@ -89,6 +92,10 @@ export function ComposerPage() {
   };
 
   const handleSendTest = () => {
+    if (jsonError) {
+      toast.error(`Invalid dynamic variables JSON: ${jsonError}`);
+      return;
+    }
     sendMutation.mutate({
       channel: selectedChannel,
       recipient,
@@ -205,8 +212,13 @@ export function ComposerPage() {
                 <Textarea
                   value={variablesJson}
                   onChange={(e) => setVariablesJson(e.target.value)}
-                  className="min-h-[90px]"
+                  className={`min-h-[90px] ${jsonError ? 'border-rose-500/80 focus:border-rose-500' : ''}`}
                 />
+                {jsonError && (
+                  <p className="text-[11px] font-mono text-rose-400 mt-1 flex items-center gap-1">
+                    <span>⚠️ Invalid JSON: {jsonError}</span>
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

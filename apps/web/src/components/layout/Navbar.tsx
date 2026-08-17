@@ -20,6 +20,7 @@ export function Navbar({ onOpenCommandPalette }: NavbarProps) {
       <div className="flex items-center gap-4 min-w-0">
         <button
           type="button"
+          aria-label="Quick search commands, messages, and providers (Press Command K)"
           onClick={onOpenCommandPalette}
           className="w-80 md:w-96 h-9 px-3.5 rounded-xl bg-slate-900/80 border border-slate-800/90 hover:border-sky-500/40 hover:bg-slate-900/95 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all duration-150 flex items-center justify-between gap-3 group shadow-sm cursor-pointer"
         >

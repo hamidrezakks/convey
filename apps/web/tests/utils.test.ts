@@ -12,12 +12,19 @@ describe('Web UI Utilities & Formatting Test Suite', () => {
     expect(formatNumber(450)).toBe('450');
     expect(formatNumber(1250)).toBe('1.3k');
     expect(formatNumber(1250000)).toBe('1.25M');
+    expect(formatNumber(undefined as unknown as number)).toBe('0');
+    expect(formatNumber(null as unknown as number)).toBe('0');
+    expect(formatNumber(Number.NaN)).toBe('0');
+    expect(formatNumber(0)).toBe('0');
   });
 
   it('formatDurationMs() formats microsecond and millisecond latencies', () => {
     expect(formatDurationMs(0.45)).toBe('450µs');
     expect(formatDurationMs(12.4)).toBe('12.4ms');
     expect(formatDurationMs(1250)).toBe('1.25s');
+    expect(formatDurationMs(undefined as unknown as number)).toBe('0ms');
+    expect(formatDurationMs(0)).toBe('0ms');
+    expect(formatDurationMs(Number.NaN)).toBe('0ms');
   });
 
   it('formatTimeAgo() formats ISO timestamps into relative time labels', () => {
@@ -35,5 +42,11 @@ describe('Web UI Utilities & Formatting Test Suite', () => {
 
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     expect(formatTimeAgo(threeDaysAgo)).toBe('3d ago');
+
+    // Defensive edge cases
+    expect(formatTimeAgo('')).toBe('-');
+    expect(formatTimeAgo('invalid-date')).toBe('-');
+    expect(formatTimeAgo(undefined as unknown as string)).toBe('-');
+    expect(formatTimeAgo(null as unknown as string)).toBe('-');
   });
 });

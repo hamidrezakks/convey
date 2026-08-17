@@ -143,6 +143,14 @@ export const Combobox: React.FC<ComboboxProps> = ({
     setHighlightedIndex(0);
   }, [filteredItems]);
 
+  // Auto scroll highlighted element into view on keyboard navigation
+  useEffect(() => {
+    if (isOpen && listRef.current) {
+      const highlightedEl = listRef.current.querySelector('[data-highlighted="true"]') as HTMLElement | null;
+      highlightedEl?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedIndex, isOpen]);
+
   // Focus search input when opening
   useEffect(() => {
     if (isOpen) {
@@ -356,6 +364,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
           {/* Scrollable Results List */}
           <div
             ref={listRef}
+            role="listbox"
             tabIndex={-1}
             className="max-h-64 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent"
           >
@@ -395,6 +404,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
                         return (
                           <button
                             type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            data-highlighted={isHighlighted ? 'true' : 'false'}
                             key={item.value}
                             onMouseEnter={() => setHighlightedIndex(globalIndex)}
                             onClick={() => handleSelect(item.value)}

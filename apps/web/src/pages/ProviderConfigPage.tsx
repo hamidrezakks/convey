@@ -653,7 +653,7 @@ export function ProviderConfigPage() {
                                 <Lock className="w-2.5 h-2.5" />
                                 <span>AES-256-GCM</span>
                               </div>
-                              {Object.entries(p.credentialsMasked).map(([k, v]) => (
+                              {Object.entries(p.credentialsMasked || {}).map(([k, v]) => (
                                 <div
                                   key={k}
                                   className="flex items-center justify-between gap-1 text-[11px] bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800"

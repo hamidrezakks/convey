@@ -250,30 +250,34 @@ export function ProvidersPage() {
                                   ? 'bg-amber-400'
                                   : 'bg-rose-500'
                             }`}
-                            style={{ width: `${p.rampPercentage}%` }}
+                            style={{ width: `${p.rampPercentage ?? 0}%` }}
                           />
                         </div>
-                        <span>{p.rampPercentage}%</span>
+                        <span>{p.rampPercentage ?? 0}%</span>
                       </div>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-sky-300">{formatDurationMs(p.emaLatencyMs)}</TableCell>
+                    <TableCell className="font-mono text-xs text-sky-300">
+                      {formatDurationMs(p.emaLatencyMs ?? 0)}
+                    </TableCell>
 
                     <TableCell className="font-mono text-xs text-emerald-400">
-                      {p.rollingSuccessRatePercent.toFixed(1)}%
+                      {(p.rollingSuccessRatePercent ?? 100).toFixed(1)}%
                     </TableCell>
 
                     <TableCell className="font-mono text-xs">
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] ${
-                          p.anomalyZScore > 3.0 ? 'bg-rose-500/20 text-rose-400 font-bold' : 'text-slate-400'
+                          (p.anomalyZScore ?? 0) > 3.0 ? 'bg-rose-500/20 text-rose-400 font-bold' : 'text-slate-400'
                         }`}
                       >
-                        Z: {p.anomalyZScore.toFixed(2)}
+                        Z: {(p.anomalyZScore ?? 0).toFixed(2)}
                       </span>
                     </TableCell>
 
-                    <TableCell className="font-mono text-xs text-slate-400">${p.unitCostUsd.toFixed(5)}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-400">
+                      ${(p.unitCostUsd ?? 0).toFixed(5)}
+                    </TableCell>
 
                     <TableCell className="text-right space-x-2">
                       {/* Synthetic Canary Probe Button with TanStack Mutation */}

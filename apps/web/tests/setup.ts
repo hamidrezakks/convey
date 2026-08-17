@@ -33,6 +33,11 @@ class ResizeObserverMock {
 }
 globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
 
+// Polyfill scrollIntoView
+if (globalThis.HTMLElement && !globalThis.HTMLElement.prototype.scrollIntoView) {
+  globalThis.HTMLElement.prototype.scrollIntoView = () => {};
+}
+
 // Mock navigator.clipboard
 Object.defineProperty(globalThis.navigator, 'clipboard', {
   value: {

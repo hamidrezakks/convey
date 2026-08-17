@@ -247,8 +247,17 @@ export function Sidebar() {
 
               {group.items.map((item) => {
                 const Icon = item.icon;
+                const hasMoreSpecificMatch = NAV_GROUPS.some((g) =>
+                  g.items.some(
+                    (other) =>
+                      other.path !== item.path &&
+                      other.path.startsWith(item.path) &&
+                      (currentPath === other.path || currentPath.startsWith(`${other.path}/`)),
+                  ),
+                );
                 const isActive =
-                  currentPath === item.path || (item.path !== '/overview' && currentPath.startsWith(item.path));
+                  currentPath === item.path ||
+                  (!hasMoreSpecificMatch && item.path !== '/overview' && currentPath.startsWith(`${item.path}/`));
 
                 return (
                   <Link

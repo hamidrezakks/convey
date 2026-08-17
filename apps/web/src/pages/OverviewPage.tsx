@@ -144,9 +144,9 @@ export function OverviewPage() {
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-300 font-mono">
-                {formatNumber(overviewStats?.metrics24h?.totalIngested || 12450)} total
+                {formatNumber(overviewStats?.metrics24h?.totalIngested ?? 12450)} total
               </span>
-              <span className="text-rose-400 font-mono">{overviewStats?.metrics24h?.failed || 19} failed</span>
+              <span className="text-rose-400 font-mono">{overviewStats?.metrics24h?.failed ?? 0} failed</span>
             </div>
           </CardContent>
         </Card>
@@ -163,11 +163,14 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             <div className="text-2xl font-bold font-mono text-amber-300">
-              ${overviewStats?.whatsappCostSavings?.estimatedUsdSaved?.toFixed(2) || '12.60'}
+              $
+              {overviewStats?.whatsappCostSavings?.estimatedUsdSaved !== undefined
+                ? overviewStats.whatsappCostSavings.estimatedUsdSaved.toFixed(2)
+                : '12.60'}
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-300 font-mono">
-                {overviewStats?.whatsappCostSavings?.templateConvertedToSessionCount || 420} sessions
+                {overviewStats?.whatsappCostSavings?.templateConvertedToSessionCount ?? 420} sessions
               </span>
               <span className="text-emerald-400">Zero-cost plain text</span>
             </div>

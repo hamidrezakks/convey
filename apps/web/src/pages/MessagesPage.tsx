@@ -132,7 +132,13 @@ export function MessagesPage() {
 
             {/* Channel Filter */}
             <div className="sm:col-span-3">
-              <Select value={selectedChannel} onChange={(e) => setSelectedChannel(e.target.value)}>
+              <Select
+                value={selectedChannel}
+                onChange={(e) => {
+                  setSelectedChannel(e.target.value);
+                  setPage(1);
+                }}
+              >
                 <option value="ALL">All Channels</option>
                 <option value={Channel.EMAIL}>Email</option>
                 <option value={Channel.SMS}>SMS</option>
@@ -145,7 +151,13 @@ export function MessagesPage() {
 
             {/* Status Filter */}
             <div className="sm:col-span-3 flex gap-2">
-              <Select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
+              <Select
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setPage(1);
+                }}
+              >
                 <option value="ALL">All Statuses</option>
                 <option value={MessageStatus.DELIVERED}>Delivered</option>
                 <option value={MessageStatus.ACCEPTED}>Accepted</option>
@@ -359,7 +371,7 @@ export function MessagesPage() {
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Distributed Trace Lifecycle
                 </h3>
-                <TraceWaterfall traceparent={messageDetails.traceparent} spans={messageDetails.spans} />
+                <TraceWaterfall traceparent={messageDetails.traceparent} spans={messageDetails.spans || []} />
               </div>
 
               {/* Message Payload View */}
@@ -368,7 +380,7 @@ export function MessagesPage() {
                   Message Content & Variables
                 </h3>
                 <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
-                  {messageDetails.content.subject && (
+                  {messageDetails.content?.subject && (
                     <div>
                       <span className="text-slate-400">Subject: </span>
                       <span className="text-white font-semibold">{messageDetails.content.subject}</span>
@@ -377,7 +389,7 @@ export function MessagesPage() {
                   <div>
                     <span className="text-slate-400">Body Preview: </span>
                     <p className="text-slate-200 mt-1 p-2.5 rounded bg-slate-900 border border-slate-800/80 font-mono text-[11px] whitespace-pre-wrap">
-                      {messageDetails.content.body || 'No text body.'}
+                      {messageDetails.content?.body || 'No text body.'}
                     </p>
                   </div>
                 </div>
@@ -386,7 +398,7 @@ export function MessagesPage() {
               {/* Delivery Attempts Table */}
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Provider Delivery Attempts ({messageDetails.attempts.length})
+                  Provider Delivery Attempts ({messageDetails.attempts?.length ?? 0})
                 </h3>
                 <Table>
                   <TableHeader>
@@ -400,7 +412,7 @@ export function MessagesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {messageDetails.attempts.map((att) => (
+                    {(messageDetails.attempts || []).map((att) => (
                       <TableRow key={att.attemptNumber}>
                         <TableCell className="font-mono text-xs text-sky-400">#{att.attemptNumber}</TableCell>
                         <TableCell className="font-mono text-xs font-semibold text-white">{att.providerId}</TableCell>

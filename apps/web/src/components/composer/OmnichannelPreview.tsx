@@ -16,15 +16,17 @@ export function OmnichannelPreview({ channel, recipient, subject, body, variable
   const [deviceViewport, setDeviceViewport] = useState<'desktop' | 'mobile'>('desktop');
 
   // Interpolate variables {{var}}
-  const renderInterpolated = (template: string) => {
+  const renderInterpolated = (template?: string) => {
+    if (!template) return '';
     let output = template;
     for (const [k, v] of Object.entries(variables)) {
-      output = output.replace(new RegExp(`{{\\s*${k}\\s*}}`, 'g'), String(v));
+      const escapedKey = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      output = output.replace(new RegExp(`{{\\s*${escapedKey}\\s*}}`, 'g'), String(v));
     }
     return output;
   };
 
-  const renderedSubject = subject ? renderInterpolated(subject) : '';
+  const renderedSubject = renderInterpolated(subject);
   const renderedBody = renderInterpolated(body);
 
   // SMS GSM-7 Segment Calculation
