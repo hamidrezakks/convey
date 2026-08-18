@@ -1,7 +1,7 @@
 import { Channel } from '@convey/shared';
 import { useMutation } from '@tanstack/react-query';
 import confetti from 'canvas-confetti';
-import { Code2, Eye, FileEdit, Play, Send, Sparkles } from 'lucide-react';
+import { Briefcase, Code2, Eye, FileEdit, Play, Send, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { OmnichannelPreview } from '../components/composer/OmnichannelPreview';
@@ -13,6 +13,7 @@ import { Textarea } from '../components/ui/textarea';
 import { useI18n } from '../i18n/context';
 import type { TestMessageResult } from '../lib/api';
 import { api } from '../lib/api';
+import { useUiMode } from '../mode';
 
 const DEFAULT_TEMPLATES: Record<Channel, { subject?: string; body: string; recipient: string }> = {
   [Channel.EMAIL]: {
@@ -52,11 +53,13 @@ const DEFAULT_TEMPLATES: Record<Channel, { subject?: string; body: string; recip
 
 export function ComposerPage() {
   const { t } = useI18n();
+  const { isOps, isEngineer } = useUiMode();
   const [selectedChannel, setSelectedChannel] = useState<Channel>(Channel.EMAIL);
   const [recipient, setRecipient] = useState(DEFAULT_TEMPLATES[Channel.EMAIL].recipient);
   const [subject, setSubject] = useState(DEFAULT_TEMPLATES[Channel.EMAIL].subject || '');
   const [body, setBody] = useState(DEFAULT_TEMPLATES[Channel.EMAIL].body);
   const [tabletViewTab, setTabletViewTab] = useState<'editor' | 'preview' | 'both'>('both');
+  const [showJsonVariables, setShowJsonVariables] = useState(false);
 
   const [variablesJson, setVariablesJson] = useState(
     JSON.stringify(
@@ -126,16 +129,31 @@ export function ComposerPage() {
     });
   };
 
+  const handleInsertVariable = (varName: string) => {
+    setBody((prev) => `${prev} {{${varName}}}`);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Send className="w-5 h-5 text-sky-500 dark:text-sky-400" />
-            {t('composer.title')}
+            {isOps ? (
+              <>
+                <Briefcase className="w-5 h-5 text-emerald-500" />
+                {t('mode.opsComposerTitle')}
+              </>
+            ) : (
+              <>
+                <Send className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+                {t('composer.title')}
+              </>
+            )}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('composer.subtitle')}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {isOps ? t('mode.opsComposerSubtitle') : t('composer.subtitle')}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -175,7 +193,7 @@ export function ComposerPage() {
             className="text-xs gap-1.5 font-bold"
           >
             <Play className="w-3.5 h-3.5" />
-            <span>{t('composer.sendTest')}</span>
+            <span>{isOps ? 'Send Test Message' : t('composer.sendTest')}</span>
           </Button>
         </div>
       </div>
@@ -205,7 +223,7 @@ export function ComposerPage() {
           <Card className="glass-panel">
             <CardHeader className="py-3">
               <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                {t('common.payload')}
+                {isOps ? 'Message Content' : t('common.payload')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -217,7 +235,9 @@ export function ComposerPage() {
                 <Input
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
-                  placeholder="Email, E.164 phone, slack channel, or push token..."
+                  placeholder={
+                    isOps ? 'Enter customer email or phone...' : 'Email, E.164 phone, slack channel, or push token...'
+                  }
                 />
               </div>
 
@@ -252,30 +272,62 @@ export function ComposerPage() {
                 />
               </div>
 
-              {/* Dynamic Variables JSON Editor */}
-              <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Code2 className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
-                    <span>{t('composer.variables')}</span>
-                  </label>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                    {t('overview.statusBadge')}
-                  </span>
-                </div>
-                <Textarea
-                  value={variablesJson}
-                  onChange={(e) => setVariablesJson(e.target.value)}
-                  className={`min-h-[90px] font-mono text-xs ${jsonError ? 'border-rose-500/80 focus:border-rose-500' : ''}`}
-                />
-                {jsonError && (
-                  <p className="text-[11px] font-mono text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
-                    <span>
-                      ⚠️ {t('composer.syntaxError')}: {jsonError}
+              {/* Ops Mode Variable Insertion Chips */}
+              {isOps && (
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                      Insert Customer Variable:
                     </span>
-                  </p>
-                )}
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowJsonVariables(!showJsonVariables)}
+                      className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                    >
+                      {showJsonVariables ? 'Hide JSON' : 'Advanced JSON'}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['customerName', 'orgId', 'otpCode'].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => handleInsertVariable(v)}
+                        className="px-2 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/20 text-xs font-mono transition-colors cursor-pointer"
+                      >
+                        + {`{{${v}}}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Variables JSON Editor (Engineer Mode or Opt-in) */}
+              {(isEngineer || showJsonVariables) && (
+                <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Code2 className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+                      <span>{t('composer.variables')} (JSON)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                      {t('overview.statusBadge')}
+                    </span>
+                  </div>
+                  <Textarea
+                    value={variablesJson}
+                    onChange={(e) => setVariablesJson(e.target.value)}
+                    className={`min-h-[90px] font-mono text-xs ${jsonError ? 'border-rose-500/80 focus:border-rose-500' : ''}`}
+                  />
+                  {jsonError && (
+                    <p className="text-[11px] font-mono text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
+                      <span>
+                        ⚠️ {t('composer.syntaxError')}: {jsonError}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -285,7 +337,7 @@ export function ComposerPage() {
               <CardHeader className="py-2.5 flex flex-row items-center justify-between">
                 <CardTitle className="text-xs font-semibold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>{t('composer.testSandbox')}</span>
+                  <span>{isOps ? 'Message Sent Successfully' : t('composer.testSandbox')}</span>
                 </CardTitle>
                 <Badge variant="success" dot>
                   {lastReceipt.status}

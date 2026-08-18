@@ -1,6 +1,15 @@
 import type { DlqFailureCategory, DlqReplayResult } from '@convey/shared';
 import confetti from 'canvas-confetti';
-import { AlertTriangle, CheckCircle2, Play, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  Briefcase,
+  CheckCircle2,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
@@ -18,9 +27,11 @@ import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
+import { useUiMode } from '../mode';
 
 export function DlqPage() {
   const { t } = useI18n();
+  const { isOps, isEngineer } = useUiMode();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   // Dry-run simulation & blast radius modal
@@ -37,6 +48,7 @@ export function DlqPage() {
       teamId: 'team_auth',
       category: 'INVALID_RECIPIENT_400' as DlqFailureCategory,
       errorReason: '550 5.1.1 User unknown / MX lookup failure',
+      plainReason: 'Recipient email address domain does not exist',
       attemptsCount: 5,
       failedAt: '8m ago',
     },
@@ -47,6 +59,7 @@ export function DlqPage() {
       teamId: 'team_payments',
       category: 'PROVIDER_5XX' as DlqFailureCategory,
       errorReason: '502 Bad Gateway: Upstream carrier timeout in us-east-1',
+      plainReason: 'Temporary network timeout at telecom carrier',
       attemptsCount: 5,
       failedAt: '24m ago',
     },
@@ -57,6 +70,7 @@ export function DlqPage() {
       teamId: 'team_marketing',
       category: 'RATE_LIMIT_429' as DlqFailureCategory,
       errorReason: '429 Cloud API throughput tier exceeded (80 RPS)',
+      plainReason: 'WhatsApp rate limit temporarily exceeded',
       attemptsCount: 5,
       failedAt: '1h ago',
     },
@@ -67,6 +81,7 @@ export function DlqPage() {
       teamId: 'team_ops',
       category: 'TIMEOUT_504' as DlqFailureCategory,
       errorReason: '504 Gateway Timeout during Google FCM handshake',
+      plainReason: 'Google Push Gateway timeout',
       attemptsCount: 5,
       failedAt: '2h ago',
     },
@@ -126,46 +141,77 @@ export function DlqPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-            {t('dlq.title')}
+            {isOps ? (
+              <>
+                <Briefcase className="w-5 h-5 text-emerald-500" />
+                {t('mode.opsDlqTitle')}
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                {t('dlq.title')}
+              </>
+            )}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('dlq.subtitle')}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {isOps ? t('mode.opsDlqSubtitle') : t('dlq.subtitle')}
+          </p>
         </div>
 
         <Button variant="glow" size="sm" onClick={handleStartDryRun} className="text-xs gap-1.5 font-bold">
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>{t('dlq.autoSimulate')}</span>
+          <span>{isOps ? t('mode.safeRetry') : t('dlq.autoSimulate')}</span>
         </Button>
       </div>
 
-      {/* Failure Category Cluster Breakdown */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: 'Provider 5xx', count: 38, variant: 'destructive', desc: 'Upstream Outages' },
-          { label: 'Rate Limit 429', count: 24, variant: 'warning', desc: 'Provider Throttling' },
-          { label: 'Timeout 504', count: 12, variant: 'warning', desc: 'Socket Drops' },
-          { label: 'Auth Expired', count: 6, variant: 'purple', desc: 'OAuth Refresh' },
-          { label: 'Invalid Recipient', count: 4, variant: 'default', desc: 'Syntax / MX Drop' },
-          { label: 'Policy Blocked', count: 0, variant: 'cyan', desc: 'Quiet Hours' },
-        ].map((cluster) => (
-          <Card key={cluster.label} className="glass-card">
-            <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
-                {cluster.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">{cluster.count}</div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{cluster.desc}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Ops Mode: Reassurance Card */}
+      {isOps && (
+        <Card className="glass-panel border-sky-500/30 bg-gradient-to-r from-sky-500/10 via-white/80 dark:via-slate-900/80 to-transparent">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-sky-500/20 text-sky-600 dark:text-sky-400 shrink-0">
+              <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white">Zero Data Loss Guarantee</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                Any customer messages that encountered a temporary provider outage are safely held in queue and can be
+                re-sent with one click.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Failure Category Cluster Breakdown (Engineer Mode) */}
+      {isEngineer && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: 'Provider 5xx', count: 38, variant: 'destructive', desc: 'Upstream Outages' },
+            { label: 'Rate Limit 429', count: 24, variant: 'warning', desc: 'Provider Throttling' },
+            { label: 'Timeout 504', count: 12, variant: 'warning', desc: 'Socket Drops' },
+            { label: 'Auth Expired', count: 6, variant: 'purple', desc: 'OAuth Refresh' },
+            { label: 'Invalid Recipient', count: 4, variant: 'default', desc: 'Syntax / MX Drop' },
+            { label: 'Policy Blocked', count: 0, variant: 'cyan', desc: 'Quiet Hours' },
+          ].map((cluster) => (
+            <Card key={cluster.label} className="glass-card">
+              <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  {cluster.label}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">{cluster.count}</div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{cluster.desc}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* DLQ Filter & Table */}
       <Card className="glass-panel overflow-hidden">
@@ -188,41 +234,56 @@ export function DlqPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('dlq.colId')}</TableHead>
-                <TableHead>{t('dlq.colChannel')}</TableHead>
+                {isEngineer && <TableHead>{t('dlq.colId')}</TableHead>}
                 <TableHead>{t('dlq.colRecipient')}</TableHead>
+                <TableHead>{t('dlq.colChannel')}</TableHead>
                 <TableHead>{t('dlq.colTeam')}</TableHead>
-                <TableHead>{t('dlq.colCategory')}</TableHead>
-                <TableHead>{t('dlq.colReason')}</TableHead>
-                <TableHead>{t('dlq.colAttempts')}</TableHead>
+                {isEngineer && <TableHead>{t('dlq.colCategory')}</TableHead>}
+                <TableHead>{isOps ? 'Why It Failed' : t('dlq.colReason')}</TableHead>
+                {isEngineer && <TableHead>{t('dlq.colAttempts')}</TableHead>}
                 <TableHead>{t('dlq.colFailedAt')}</TableHead>
+                {isOps && <TableHead className="text-end rtl:text-left">Action</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {dlqItems.map((item) => (
                 <TableRow key={item.id} className="group">
-                  <TableCell className="font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
-                    {item.id}
+                  {isEngineer && (
+                    <TableCell className="font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
+                      {item.id}
+                    </TableCell>
+                  )}
+                  <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
+                    {item.recipient}
                   </TableCell>
                   <TableCell>
                     <Badge variant="cyan">{item.channel}</Badge>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate max-w-xs">
-                    {item.recipient}
-                  </TableCell>
                   <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{item.teamId}</TableCell>
-                  <TableCell>
-                    <Badge variant={getCategoryBadgeVariant(item.category)}>{item.category}</Badge>
+                  {isEngineer && (
+                    <TableCell>
+                      <Badge variant={getCategoryBadgeVariant(item.category)}>{item.category}</Badge>
+                    </TableCell>
+                  )}
+                  <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-md">
+                    {isOps ? item.plainReason : item.errorReason}
                   </TableCell>
-                  <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-mono text-[11px] truncate max-w-md">
-                    {item.errorReason}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                    {item.attemptsCount} / 5
-                  </TableCell>
+                  {isEngineer && (
+                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {item.attemptsCount} / 5
+                    </TableCell>
+                  )}
                   <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                     {item.failedAt}
                   </TableCell>
+                  {isOps && (
+                    <TableCell className="text-end rtl:text-left">
+                      <Button variant="outline" size="sm" onClick={handleStartDryRun} className="h-7 text-xs gap-1">
+                        <RotateCcw className="w-3 h-3 text-sky-500" />
+                        <span>Retry</span>
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

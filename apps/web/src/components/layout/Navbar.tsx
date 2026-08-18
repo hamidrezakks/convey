@@ -1,6 +1,7 @@
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { Globe, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Terminal } from 'lucide-react';
 import { LanguageSwitcher, useI18n } from '../../i18n';
+import { UiModeSwitcher, useUiMode } from '../../mode';
 import { ThemeSwitcher } from '../../theme';
 import { Button } from '../ui/button';
 
@@ -14,6 +15,7 @@ export function Navbar({ onOpenCommandPalette, onToggleSidebar, isSidebarCollaps
   const isFetching = useIsFetching();
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const { isEngineer } = useUiMode();
 
   const handleRefresh = () => {
     queryClient.invalidateQueries();
@@ -69,8 +71,9 @@ export function Navbar({ onOpenCommandPalette, onToggleSidebar, isSidebarCollaps
         </div>
       </div>
 
-      {/* Right Actions: Theme, Lang, Telemetry, Refresh, Swagger */}
+      {/* Right Actions: Mode Switcher, Theme, Lang, Telemetry, Refresh, Swagger */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <UiModeSwitcher variant="navbar" />
         <ThemeSwitcher variant="navbar" />
         <LanguageSwitcher variant="navbar" />
 
@@ -96,18 +99,20 @@ export function Navbar({ onOpenCommandPalette, onToggleSidebar, isSidebarCollaps
           <span className="hidden md:inline">{t('common.refresh')}</span>
         </Button>
 
-        <div className="flex items-center pl-1 rtl:pl-0 rtl:pr-1 border-l rtl:border-l-0 rtl:border-r border-slate-200 dark:border-slate-800">
-          <Button
-            variant="glow"
-            size="sm"
-            className="h-9 px-2.5 sm:px-3 gap-1.5 text-xs text-slate-950 font-bold rounded-lg whitespace-nowrap shrink-0 shadow-sm"
-            onClick={() => window.open('/swagger', '_blank')}
-            title={t('common.openApiSpec')}
-          >
-            <Terminal className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">{t('common.openApiSpec')}</span>
-          </Button>
-        </div>
+        {isEngineer && (
+          <div className="flex items-center pl-1 rtl:pl-0 rtl:pr-1 border-l rtl:border-l-0 rtl:border-r border-slate-200 dark:border-slate-800">
+            <Button
+              variant="glow"
+              size="sm"
+              className="h-9 px-2.5 sm:px-3 gap-1.5 text-xs text-slate-950 font-bold rounded-lg whitespace-nowrap shrink-0 shadow-sm"
+              onClick={() => window.open('/swagger', '_blank')}
+              title={t('common.openApiSpec')}
+            >
+              <Terminal className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden md:inline">{t('common.openApiSpec')}</span>
+            </Button>
+          </div>
+        )}
       </div>
     </header>
   );

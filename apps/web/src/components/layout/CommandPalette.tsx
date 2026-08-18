@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   BookOpen,
+  Briefcase,
   Cpu,
   Globe,
   Inbox,
@@ -22,6 +23,7 @@ import { toast } from 'sonner';
 import type { SupportedLocale, TranslationKey } from '../../i18n';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
+import { useUiMode } from '../../mode';
 import { useTheme } from '../../theme';
 import { Dialog, DialogContent } from '../ui/dialog';
 
@@ -47,6 +49,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { t, locale, setLocale, supportedLocales } = useI18n();
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const { mode, setMode } = useUiMode();
 
   const navigationCommands: Array<{ path: string; titleKey: TranslationKey; icon: React.ElementType }> = [
     { path: '/overview', titleKey: 'overview.title', icon: Activity },
@@ -73,6 +76,31 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         onOpenChange(false);
       },
     }));
+
+    const modeItems: CommandItem[] = [
+      {
+        id: 'mode_engineer',
+        title: t('commandPalette.switchToEngineer'),
+        category: t('commandPalette.categoryMode'),
+        icon: Cpu,
+        badge: mode === 'engineer' ? t('commandPalette.activeLanguage') : 'Shift + E',
+        onSelect: () => {
+          setMode('engineer');
+          onOpenChange(false);
+        },
+      },
+      {
+        id: 'mode_ops',
+        title: t('commandPalette.switchToOps'),
+        category: t('commandPalette.categoryMode'),
+        icon: Briefcase,
+        badge: mode === 'ops' ? t('commandPalette.activeLanguage') : 'Shift + E',
+        onSelect: () => {
+          setMode('ops');
+          onOpenChange(false);
+        },
+      },
+    ];
 
     const themeItems: CommandItem[] = [
       {
@@ -126,8 +154,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       },
     }));
 
-    return [...navItems, ...themeItems, ...langItems];
-  }, [t, navigate, onOpenChange, supportedLocales, locale, setLocale, theme, setTheme, resolvedTheme]);
+    return [...modeItems, ...navItems, ...themeItems, ...langItems];
+  }, [t, navigate, onOpenChange, supportedLocales, locale, setLocale, theme, setTheme, resolvedTheme, mode, setMode]);
 
   const filteredCommands = useMemo(() => {
     if (!query.trim()) return allCommands;

@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import type { TranslationKey } from '../../i18n';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
+import { useUiMode } from '../../mode';
 
 export interface NavItemConfig {
   path: string;
@@ -71,7 +72,7 @@ export const NAV_GROUPS = [
   },
 ];
 
-export const NAV_GROUP_CONFIGS: NavGroupConfig[] = [
+export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
   {
     groupKey: 'nav.groupTelemetry',
     items: [
@@ -125,6 +126,52 @@ export const NAV_GROUP_CONFIGS: NavGroupConfig[] = [
   },
 ];
 
+export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
+  {
+    groupKey: 'nav.groupOpsActivity',
+    items: [
+      {
+        path: '/overview',
+        labelKey: 'nav.overview',
+        icon: Activity,
+        badgeKey: 'nav.overviewBadge',
+        badgeVariant: 'emerald',
+        badgeDot: true,
+      },
+      { path: '/messages', labelKey: 'nav.messages', icon: Inbox },
+    ],
+  },
+  {
+    groupKey: 'nav.groupOpsChannels',
+    items: [
+      {
+        path: '/providers',
+        labelKey: 'nav.providers',
+        icon: Radio,
+      },
+      {
+        path: '/deliverability',
+        labelKey: 'nav.deliverability',
+        icon: ShieldCheck,
+      },
+    ],
+  },
+  {
+    groupKey: 'nav.groupOpsTools',
+    items: [
+      { path: '/composer', labelKey: 'nav.composer', icon: Send },
+      {
+        path: '/dlq',
+        labelKey: 'nav.dlq',
+        icon: AlertTriangle,
+      },
+      { path: '/policies', labelKey: 'nav.policies', icon: Sliders },
+    ],
+  },
+];
+
+export const NAV_GROUP_CONFIGS = ENGINEER_NAV_GROUP_CONFIGS;
+
 export interface WorkspaceEnvironment {
   id: string;
   name: string;
@@ -168,6 +215,7 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
   const location = useLocation();
   const currentPath = location.pathname === '/' ? '/overview' : location.pathname;
   const { t } = useI18n();
+  const { mode } = useUiMode();
 
   // Interactive Workspace Dropdown State
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -193,9 +241,11 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
     toast.success(`Switched active workspace to ${env.name} (${env.region})`);
   };
 
+  const currentConfigs = mode === 'ops' ? OPS_NAV_GROUP_CONFIGS : ENGINEER_NAV_GROUP_CONFIGS;
+
   const navGroups = useMemo(
     () =>
-      NAV_GROUP_CONFIGS.map((g) => ({
+      currentConfigs.map((g) => ({
         group: t(g.groupKey),
         items: g.items.map((item) => ({
           path: item.path,
@@ -206,7 +256,7 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
           badgeDot: item.badgeDot,
         })),
       })),
-    [t],
+    [t, currentConfigs],
   );
 
   return (
