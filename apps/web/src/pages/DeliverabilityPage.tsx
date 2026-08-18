@@ -134,7 +134,12 @@ export function DeliverabilityPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="glow" size="sm" onClick={() => setIsAddOpen(true)} className="text-xs gap-1.5 font-bold">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsAddOpen(true)}
+            className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
+          >
             <Plus className="w-3.5 h-3.5" />
             <span>{isOps ? 'Block a Contact' : t('deliverability.addSuppression')}</span>
           </Button>
@@ -365,10 +370,22 @@ export function DeliverabilityPage() {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddOpen(false)}
+                className="rounded-xl"
+              >
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" variant="glow" size="sm" isLoading={addMutation.isPending}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={addMutation.isPending}
+                className="rounded-xl font-semibold shadow-2xs"
+              >
                 {isOps ? 'Confirm Block' : t('deliverability.addSuppression')}
               </Button>
             </DialogFooter>

@@ -99,7 +99,12 @@ export function OpsFailureExplainer({ errorMessage = '', onUnblock, onRetry }: O
             </Button>
           )}
           {onRetry && (
-            <Button variant="glow" size="sm" onClick={onRetry} className="text-xs gap-1.5 h-8 font-bold">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onRetry}
+              className="text-xs gap-1.5 h-8 font-semibold rounded-xl shadow-2xs"
+            >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{t('mode.safeRetry')}</span>
             </Button>

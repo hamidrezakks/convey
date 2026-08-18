@@ -79,9 +79,9 @@ export function WebhooksPage() {
         </div>
 
         <Button
-          variant="glow"
+          variant="primary"
           size="sm"
-          className="text-xs gap-1.5 font-bold"
+          className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
           onClick={() => toast.info('New subscription wizard')}
         >
           <Plus className="w-3.5 h-3.5" />

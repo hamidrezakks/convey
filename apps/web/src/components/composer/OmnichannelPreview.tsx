@@ -49,14 +49,14 @@ export function OmnichannelPreview({ channel, recipient, subject, body, variable
         </div>
 
         {channel === Channel.EMAIL && (
-          <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300/80 dark:border-slate-700">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setDeviceViewport('desktop')}
               className={cn(
-                'p-1.5 rounded text-xs transition-colors cursor-pointer',
+                'p-1.5 rounded-md text-xs transition-colors cursor-pointer',
                 deviceViewport === 'desktop'
-                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-semibold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
               )}
               title={t('composer.desktopView')}
@@ -67,9 +67,9 @@ export function OmnichannelPreview({ channel, recipient, subject, body, variable
               type="button"
               onClick={() => setDeviceViewport('mobile')}
               className={cn(
-                'p-1.5 rounded text-xs transition-colors cursor-pointer',
+                'p-1.5 rounded-md text-xs transition-colors cursor-pointer',
                 deviceViewport === 'mobile'
-                  ? 'bg-sky-500 text-slate-950 font-bold'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-semibold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
               )}
               title={t('composer.mobileView')}
@@ -213,7 +213,7 @@ export function OmnichannelPreview({ channel, recipient, subject, body, variable
                 <div>
                   <h4 className="text-xs font-bold">{renderedSubject || 'Convey Live Support'}</h4>
                   <div className="flex items-center gap-1 text-[10px] text-sky-100">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     <span>Agent Online</span>
                   </div>
                 </div>

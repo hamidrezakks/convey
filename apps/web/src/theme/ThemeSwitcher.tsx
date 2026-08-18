@@ -136,15 +136,15 @@ export function ThemeSwitcher({ className, variant = 'navbar' }: ThemeSwitcherPr
         aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'h-9 flex items-center gap-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700 text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer shadow-xs group select-none whitespace-nowrap shrink-0',
+          'h-9 flex items-center gap-2 px-2.5 sm:px-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer shadow-2xs group select-none whitespace-nowrap shrink-0',
           isOpen &&
-            'border-sky-500/50 ring-2 ring-sky-500/20 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white',
+            'border-sky-500/50 ring-2 ring-sky-500/20 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white',
         )}
       >
         {getThemeIcon()}
 
         {variant !== 'compact' && (
-          <span className="font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap hidden xl:inline">
+          <span className="font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap hidden xl:inline">
             {getThemeLabel()}
           </span>
         )}
@@ -160,7 +160,7 @@ export function ThemeSwitcher({ className, variant = 'navbar' }: ThemeSwitcherPr
       {isOpen && (
         <div
           role="menu"
-          className="absolute right-0 rtl:right-auto rtl:left-0 mt-2 w-64 p-1.5 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1"
+          className="absolute right-0 rtl:right-auto rtl:left-0 mt-2 w-64 p-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1"
         >
           <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 mb-1">
             <div className="flex items-center gap-1.5">

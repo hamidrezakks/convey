@@ -424,7 +424,7 @@ export function ProvidersPage() {
 
       {/* Circuit Override & Ramp Modal */}
       <Dialog open={!!activeProvider} onOpenChange={(open) => !open && setActiveProvider(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle>{t('providers.overrideTitle')}</DialogTitle>
             <DialogDescription>
@@ -444,7 +444,7 @@ export function ProvidersPage() {
                   variant={overrideAction === 'CLOSE' ? 'primary' : 'outline'}
                   size="sm"
                   onClick={() => setOverrideAction('CLOSE')}
-                  className="text-xs"
+                  className="text-xs rounded-xl"
                 >
                   {t('providers.stateClosed')}
                 </Button>
@@ -453,7 +453,7 @@ export function ProvidersPage() {
                   variant={overrideAction === 'FORCE_HALF_OPEN' ? 'primary' : 'outline'}
                   size="sm"
                   onClick={() => setOverrideAction('FORCE_HALF_OPEN')}
-                  className="text-xs"
+                  className="text-xs rounded-xl"
                 >
                   {t('providers.stateHalfOpen')}
                 </Button>
@@ -462,7 +462,7 @@ export function ProvidersPage() {
                   variant={overrideAction === 'FORCE_OPEN' ? 'destructive' : 'outline'}
                   size="sm"
                   onClick={() => setOverrideAction('FORCE_OPEN')}
-                  className="text-xs"
+                  className="text-xs rounded-xl"
                 >
                   {t('providers.stateOpen')}
                 </Button>
@@ -470,7 +470,7 @@ export function ProvidersPage() {
             </div>
 
             {overrideAction === 'FORCE_HALF_OPEN' && (
-              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-700 dark:text-slate-300 font-semibold">{t('providers.gradualRamp')}</span>
                   <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">{rampPercent}%</span>
@@ -484,10 +484,16 @@ export function ProvidersPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setActiveProvider(null)}>
+            <Button variant="outline" size="sm" onClick={() => setActiveProvider(null)} className="rounded-xl">
               {t('common.cancel')}
             </Button>
-            <Button variant="glow" size="sm" isLoading={circuitMutation.isPending} onClick={handleApplyOverride}>
+            <Button
+              variant="primary"
+              size="sm"
+              isLoading={circuitMutation.isPending}
+              onClick={handleApplyOverride}
+              className="rounded-xl font-semibold shadow-2xs"
+            >
               {t('providers.applyOverride')}
             </Button>
           </DialogFooter>

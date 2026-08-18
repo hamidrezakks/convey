@@ -452,7 +452,12 @@ export function ProviderConfigPage() {
             <span>{t('providerConfig.tabEnv')}</span>
           </Button>
 
-          <Button variant="glow" size="sm" onClick={() => handleOpenRegister()} className="text-xs gap-1.5 font-bold">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => handleOpenRegister()}
+            className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
+          >
             <Plus className="w-3.5 h-3.5" />
             <span>{t('providerConfig.registerProvider')}</span>
           </Button>
@@ -904,7 +909,12 @@ export function ProviderConfigPage() {
                   <Download className="w-3.5 h-3.5" />
                   <span>{t('providerConfig.downloadEnv')}</span>
                 </Button>
-                <Button variant="glow" size="sm" onClick={handleCopyEnv} className="text-xs gap-1.5 font-bold">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleCopyEnv}
+                  className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
+                >
                   {copiedEnv ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedEnv ? t('common.copied') : t('providerConfig.copyEnv')}</span>
                 </Button>
@@ -1445,10 +1455,22 @@ export function ProviderConfigPage() {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsRegisterOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRegisterOpen(false)}
+                className="rounded-xl"
+              >
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" variant="glow" size="sm" isLoading={registerMutation.isPending}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={registerMutation.isPending}
+                className="rounded-xl font-semibold shadow-2xs"
+              >
                 {t('providerConfig.saveConfig')}
               </Button>
             </DialogFooter>
@@ -1458,7 +1480,7 @@ export function ProviderConfigPage() {
 
       {/* MODAL: Full Environment Export */}
       <Dialog open={isEnvExportOpen} onOpenChange={setIsEnvExportOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle>{t('providerConfig.envVaultTitle')}</DialogTitle>
             <DialogDescription>{t('providerConfig.envVaultDesc')}</DialogDescription>
@@ -1471,11 +1493,16 @@ export function ProviderConfigPage() {
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={handleDownloadEnv} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={handleDownloadEnv} className="gap-1.5 rounded-xl">
               <Download className="w-3.5 h-3.5" />
               <span>{t('providerConfig.downloadEnv')}</span>
             </Button>
-            <Button variant="glow" size="sm" onClick={handleCopyEnv} className="gap-1.5 font-bold">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCopyEnv}
+              className="gap-1.5 font-semibold rounded-xl shadow-2xs"
+            >
               {copiedEnv ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedEnv ? t('common.copied') : t('providerConfig.copyEnv')}</span>
             </Button>

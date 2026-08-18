@@ -243,8 +243,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={cn(
-          'flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all cursor-pointer group hover:border-slate-300 dark:hover:border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500',
-          isOpen && 'border-sky-500 ring-1 ring-sky-500 bg-white dark:bg-slate-900',
+          'flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all cursor-pointer group hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-xs',
+          isOpen && 'border-sky-500 ring-2 ring-sky-500/20 bg-white dark:bg-slate-900 shadow-sm',
           disabled && 'cursor-not-allowed opacity-50 bg-slate-100 dark:bg-slate-950',
           triggerClassName,
         )}
@@ -255,8 +255,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
               {selectedItem.icon}
               {selectedItem.badge && (
                 <Badge
-                  variant={selectedItem.badgeVariant || 'outline'}
-                  className="px-1.5 py-0 text-[10px] font-mono shrink-0"
+                  variant={selectedItem.badgeVariant || 'cyan'}
+                  className="px-2 py-0.5 text-[10px] font-mono shrink-0 font-semibold"
                 >
                   {selectedItem.badge}
                 </Badge>
@@ -269,7 +269,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               )}
             </>
           ) : (
-            <span className="text-slate-400 dark:text-slate-400">{placeholder}</span>
+            <span className="text-slate-400 dark:text-slate-500">{placeholder}</span>
           )}
         </div>
 
@@ -278,7 +278,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             <button
               type="button"
               onClick={handleClear}
-              className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               title="Clear selection"
             >
               <X className="w-3.5 h-3.5" />
@@ -293,18 +293,18 @@ export const Combobox: React.FC<ComboboxProps> = ({
         </div>
       </button>
 
-      {/* Dropdown Popover */}
+      {/* Prominent Dropdown Popover */}
       {isOpen && (
         <div
           className={cn(
-            'absolute left-0 top-[calc(100%+6px)] z-50 w-full min-w-[320px] rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95',
+            'absolute left-0 top-[calc(100%+8px)] z-50 w-full min-w-[340px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 backdrop-blur-2xl animate-in fade-in-0 zoom-in-95 duration-150',
             popoverClassName,
           )}
         >
           {/* Search Input Bar */}
-          <div className="relative mb-2 px-1">
+          <div className="relative mb-3">
             <div className="relative flex items-center">
-              <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
+              <Search className="absolute left-3.5 w-4 h-4 text-sky-500 dark:text-sky-400 pointer-events-none" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -313,19 +313,19 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={searchPlaceholder}
-                className="h-9 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 pl-9 pr-16 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                className="h-10 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/90 pl-10 pr-20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all shadow-inner"
               />
-              <div className="absolute right-2 flex items-center gap-1">
+              <div className="absolute right-2.5 flex items-center gap-1.5">
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700">
                   {filteredItems.length}
                 </span>
               </div>
@@ -334,32 +334,35 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
           {/* Category Filter Tabs (if applicable) */}
           {showCategoryTabs && categories.length > 1 && (
-            <div className="flex flex-wrap gap-1 px-1 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
-              {categories.map((cat) => (
-                <button
-                  type="button"
-                  key={cat.key}
-                  onClick={() => setSelectedCategory(cat.key)}
-                  className={cn(
-                    'text-[11px] font-semibold px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer',
-                    selectedCategory === cat.key
-                      ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/40 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 border border-transparent',
-                  )}
-                >
-                  <span>{cat.label}</span>
-                  <span
+            <div className="flex flex-wrap gap-1.5 mb-3 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+              {categories.map((cat) => {
+                const isActive = selectedCategory === cat.key;
+                return (
+                  <button
+                    type="button"
+                    key={cat.key}
+                    onClick={() => setSelectedCategory(cat.key)}
                     className={cn(
-                      'text-[9px] px-1 rounded-full font-mono',
-                      selectedCategory === cat.key
-                        ? 'bg-sky-500 dark:bg-sky-400 text-white dark:text-slate-950 font-bold'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
+                      'text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer border select-none',
+                      isActive
+                        ? 'bg-sky-500/15 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/40 font-semibold shadow-2xs'
+                        : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/60 dark:border-slate-700/60',
                     )}
                   >
-                    {cat.count}
-                  </span>
-                </button>
-              ))}
+                    <span>{cat.label}</span>
+                    <span
+                      className={cn(
+                        'text-[9px] px-1.5 py-0.2 rounded-full font-mono font-semibold',
+                        isActive
+                          ? 'bg-sky-500 text-white dark:bg-sky-400 dark:text-slate-950'
+                          : 'bg-slate-200 dark:bg-slate-700/80 text-slate-600 dark:text-slate-400',
+                      )}
+                    >
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -368,10 +371,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
             ref={listRef}
             role="listbox"
             tabIndex={-1}
-            className="max-h-64 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-800 scrollbar-track-transparent"
+            className="max-h-72 sm:max-h-80 overflow-y-auto space-y-3.5 pr-1 custom-scrollbar"
           >
             {filteredItems.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
+              <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400 space-y-2">
                 <p>No providers matching &quot;{searchQuery}&quot;</p>
                 {searchQuery && (
                   <button
@@ -380,7 +383,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       setSearchQuery('');
                       setSelectedCategory('ALL');
                     }}
-                    className="mt-2 text-sky-600 dark:text-sky-400 hover:text-sky-500 underline text-xs font-semibold cursor-pointer"
+                    className="text-sky-600 dark:text-sky-400 hover:underline font-semibold cursor-pointer"
                   >
                     Clear search filter
                   </button>
@@ -391,13 +394,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 return (
                   <div key={group.label} className="space-y-1">
                     {/* Group Header */}
-                    <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 flex items-center justify-between">
+                    <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
                       <span>{group.label}</span>
-                      <span className="font-mono text-[9px] text-slate-400">{group.items.length}</span>
+                      <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                        {group.items.length}
+                      </span>
                     </div>
 
                     {/* Group Items */}
-                    <div className="space-y-0.5">
+                    <div className="space-y-1 pt-0.5">
                       {group.items.map((item) => {
                         const globalIndex = filteredItems.findIndex((i) => i.value === item.value);
                         const isSelected = item.value === value;
@@ -413,23 +418,21 @@ export const Combobox: React.FC<ComboboxProps> = ({
                             onMouseEnter={() => setHighlightedIndex(globalIndex)}
                             onClick={() => handleSelect(item.value)}
                             className={cn(
-                              'group/opt w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs cursor-pointer transition-colors text-left rtl:text-right',
-                              isSelected && 'bg-sky-500/15 text-sky-700 dark:text-sky-200 font-semibold',
-                              !isSelected &&
-                                isHighlighted &&
-                                'bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white',
-                              !isSelected &&
-                                !isHighlighted &&
-                                'text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-900/60',
+                              'group/opt w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all text-left rtl:text-right border',
+                              isSelected
+                                ? 'bg-sky-500/10 dark:bg-sky-500/15 border-sky-500/30 text-slate-900 dark:text-white font-semibold shadow-2xs'
+                                : isHighlighted
+                                  ? 'bg-slate-100 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                                  : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-slate-200/60 dark:hover:border-slate-700/60',
                             )}
                           >
                             <div className="flex items-center gap-2 truncate min-w-0">
                               {item.icon}
-                              <span className="truncate">{item.label}</span>
+                              <span className="truncate font-medium">{item.label}</span>
                               {item.sublabel && (
                                 <span
                                   className={cn(
-                                    'text-[10px] font-mono shrink-0',
+                                    'text-[11px] font-mono shrink-0',
                                     isSelected
                                       ? 'text-sky-600 dark:text-sky-300'
                                       : 'text-slate-400 group-hover/opt:text-slate-600 dark:group-hover/opt:text-slate-300',
@@ -444,17 +447,17 @@ export const Combobox: React.FC<ComboboxProps> = ({
                               {item.badge && (
                                 <span
                                   className={cn(
-                                    'text-[9px] font-mono px-1.5 py-0.2 rounded border',
+                                    'text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md border',
                                     item.badge === 'EMAIL' &&
-                                      'bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20',
+                                      'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20',
                                     item.badge === 'SMS' &&
-                                      'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-indigo-500/20',
+                                      'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20',
                                     item.badge === 'PUSH' &&
-                                      'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20',
+                                      'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20',
                                     item.badge === 'CHAT' &&
-                                      'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20',
+                                      'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
                                     item.badge === 'TOOL' &&
-                                      'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/20',
+                                      'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
                                     !['EMAIL', 'SMS', 'PUSH', 'CHAT', 'TOOL'].includes(item.badge) &&
                                       'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
                                   )}
@@ -463,7 +466,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
                                 </span>
                               )}
 
-                              {isSelected && <Check className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0" />}
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0 stroke-[2.5]" />
+                              )}
                             </div>
                           </button>
                         );
@@ -473,6 +478,22 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 );
               })
             )}
+          </div>
+
+          {/* Keyboard Hint Footer */}
+          <div className="flex items-center justify-between px-2 pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[9px] font-mono">
+                ↑↓
+              </kbd>
+              <span>Navigate</span>
+              <span className="text-slate-300 dark:text-slate-600">•</span>
+              <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[9px] font-mono">
+                ↵
+              </kbd>
+              <span>Select</span>
+            </span>
+            <span>Turnkey Catalog</span>
           </div>
         </div>
       )}

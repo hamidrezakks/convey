@@ -71,11 +71,11 @@ export function OpsMessageTimeline({ status, createdAt, recipient, attempts = []
         <div className="relative flex items-start gap-3">
           <div
             className={cn(
-              'absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm',
+              'absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-xs',
               lastAttempt || isDelivered
                 ? 'bg-emerald-500 text-slate-950'
                 : isQueued
-                  ? 'bg-sky-500 text-white animate-pulse'
+                  ? 'bg-sky-500 text-white'
                   : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
             )}
           >

@@ -136,33 +136,33 @@ export function ComposerPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             {isOps ? (
               <>
-                <Briefcase className="w-5 h-5 text-emerald-500" />
+                <Briefcase className="w-5 h-5 text-emerald-500 shrink-0" />
                 {t('mode.opsComposerTitle')}
               </>
             ) : (
               <>
-                <Send className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+                <Send className="w-5 h-5 text-sky-500 dark:text-sky-400 shrink-0" />
                 {t('composer.title')}
               </>
             )}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isOps ? t('mode.opsComposerSubtitle') : t('composer.subtitle')}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* View Tab selector on mobile / tablet */}
-          <div className="flex xl:hidden items-center p-0.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700">
+          <div className="flex xl:hidden items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setTabletViewTab('editor')}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${tabletViewTab === 'editor' ? 'bg-sky-500 text-slate-950 font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${tabletViewTab === 'editor' ? 'bg-sky-500 text-slate-950 font-bold shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
             >
               <FileEdit className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Editor</span>
@@ -170,7 +170,7 @@ export function ComposerPage() {
             <button
               type="button"
               onClick={() => setTabletViewTab('preview')}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${tabletViewTab === 'preview' ? 'bg-sky-500 text-slate-950 font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${tabletViewTab === 'preview' ? 'bg-sky-500 text-slate-950 font-bold shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
             >
               <Eye className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Preview</span>
@@ -178,7 +178,7 @@ export function ComposerPage() {
             <button
               type="button"
               onClick={() => setTabletViewTab('both')}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${tabletViewTab === 'both' ? 'bg-sky-500 text-slate-950 font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${tabletViewTab === 'both' ? 'bg-sky-500 text-slate-950 font-bold shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
             >
               <span className="hidden sm:inline">Split</span>
               <span className="sm:hidden">All</span>
@@ -186,11 +186,11 @@ export function ComposerPage() {
           </div>
 
           <Button
-            variant="glow"
+            variant="primary"
             size="sm"
             isLoading={sendMutation.isPending}
             onClick={handleSendTest}
-            className="text-xs gap-1.5 font-bold"
+            className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
           >
             <Play className="w-3.5 h-3.5" />
             <span>{isOps ? 'Send Test Message' : t('composer.sendTest')}</span>
@@ -199,7 +199,7 @@ export function ComposerPage() {
       </div>
 
       {/* Channel Switcher Tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2">
         {[Channel.EMAIL, Channel.SMS, Channel.WHATSAPP, Channel.SLACK, Channel.CHAT, Channel.PUSH, Channel.TOOL].map(
           (chan) => (
             <Button
@@ -208,7 +208,7 @@ export function ComposerPage() {
               variant={selectedChannel === chan ? 'primary' : 'outline'}
               size="sm"
               onClick={() => handleChannelSwitch(chan)}
-              className="text-xs font-semibold"
+              className="text-xs font-medium rounded-xl"
             >
               {chan}
             </Button>

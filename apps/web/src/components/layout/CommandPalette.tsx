@@ -224,9 +224,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 max-w-xl bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-xl">
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-200 dark:border-slate-800">
-          <Search className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+      <DialogContent className="p-0 max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl backdrop-blur-xl rounded-2xl overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-200/80 dark:border-slate-800/80">
+          <Search className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -237,14 +237,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             onKeyDown={handleInputKeyDown}
             className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
           />
-          <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+          <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 shadow-2xs">
             ESC
           </kbd>
         </div>
 
         <div ref={listRef} className="p-2 max-h-80 overflow-y-auto space-y-1 custom-scrollbar">
           {filteredCommands.length === 0 ? (
-            <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
               {t('commandPalette.noResults')}
             </div>
           ) : (
@@ -261,10 +261,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={cn(
-                    'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-colors group cursor-pointer text-left rtl:text-right',
+                    'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors group cursor-pointer text-left rtl:text-right select-none',
                     isHighlighted
-                      ? 'bg-sky-500/15 text-slate-900 dark:text-white font-medium border border-sky-500/30'
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60',
+                      ? 'bg-sky-500/10 dark:bg-sky-500/15 text-slate-900 dark:text-white font-medium border border-sky-500/25'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 border border-transparent',
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -272,7 +272,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                       className={cn(
                         'w-4 h-4 shrink-0 transition-colors',
                         isHighlighted
-                          ? 'text-sky-500 dark:text-sky-400'
+                          ? 'text-sky-600 dark:text-sky-400'
                           : 'text-slate-400 group-hover:text-sky-500 dark:group-hover:text-sky-400',
                       )}
                     />
@@ -292,6 +292,28 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               );
             })
           )}
+        </div>
+
+        {/* Command Palette Keyboard Footer */}
+        <div className="flex items-center justify-between px-4 py-2 bg-slate-50/80 dark:bg-slate-950/60 border-t border-slate-200/80 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[9px] font-mono">
+                ↑
+              </kbd>
+              <kbd className="px-1 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[9px] font-mono">
+                ↓
+              </kbd>
+              <span>Navigate</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[9px] font-mono">
+                ↵
+              </kbd>
+              <span>Select</span>
+            </span>
+          </div>
+          <span>Convey Mission Control</span>
         </div>
       </DialogContent>
     </Dialog>

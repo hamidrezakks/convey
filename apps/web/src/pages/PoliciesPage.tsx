@@ -69,12 +69,17 @@ export function PoliciesPage() {
             size="sm"
             onClick={() => refetch()}
             isLoading={isFetching}
-            className="text-xs gap-1.5"
+            className="text-xs gap-1.5 rounded-xl"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>{t('common.reset')}</span>
           </Button>
-          <Button variant="glow" size="sm" onClick={handleSavePolicies} className="text-xs gap-1.5 font-bold">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSavePolicies}
+            className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
+          >
             <Check className="w-3.5 h-3.5" />
             <span>{isOps ? 'Save Guardrails' : t('policies.deployRedis')}</span>
           </Button>

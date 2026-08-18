@@ -112,24 +112,24 @@ export function MessagesPage() {
   const totalPages = Math.ceil(total / 15) || 1;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-150">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             {isOps ? (
               <>
-                <Briefcase className="w-5 h-5 text-emerald-500" />
+                <Briefcase className="w-5 h-5 text-emerald-500 shrink-0" />
                 {t('mode.opsMessagesTitle')}
               </>
             ) : (
               <>
-                <Inbox className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+                <Inbox className="w-5 h-5 text-sky-500 dark:text-sky-400 shrink-0" />
                 {t('messages.title')}
               </>
             )}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isOps ? t('mode.opsMessagesSubtitle') : t('messages.subtitle')}
           </p>
         </div>
@@ -137,26 +137,31 @@ export function MessagesPage() {
 
       {/* Filter & Search Bar */}
       <Card className="glass-card">
-        <CardContent className="p-4">
-          <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            {/* Search Input */}
-            <div className="sm:col-span-6">
+        <CardContent className="p-3.5 sm:p-4">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full"
+          >
+            {/* Search Input (Expands to fill available width) */}
+            <div className="flex-1 min-w-0">
               <Input
                 placeholder={isOps ? 'Search by email, phone number, or name...' : t('messages.searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 icon={<Search className="w-4 h-4 text-slate-400" />}
+                className="h-10 rounded-xl"
               />
             </div>
 
             {/* Channel Filter */}
-            <div className="sm:col-span-3">
+            <div className="w-full md:w-52 shrink-0">
               <Select
                 value={selectedChannel}
                 onChange={(e) => {
                   setSelectedChannel(e.target.value);
                   setPage(1);
                 }}
+                className="h-10 rounded-xl"
               >
                 <option value="ALL">{t('messages.allChannels')}</option>
                 <option value={Channel.EMAIL}>{t('common.email')}</option>
@@ -170,13 +175,14 @@ export function MessagesPage() {
             </div>
 
             {/* Status Filter */}
-            <div className="sm:col-span-3 flex gap-2">
+            <div className="w-full md:w-52 shrink-0">
               <Select
                 value={selectedStatus}
                 onChange={(e) => {
                   setSelectedStatus(e.target.value);
                   setPage(1);
                 }}
+                className="h-10 rounded-xl"
               >
                 <option value="ALL">{t('messages.allStatuses')}</option>
                 <option value={MessageStatus.DELIVERED}>{t('messages.statusDelivered')}</option>
@@ -186,17 +192,24 @@ export function MessagesPage() {
                 <option value={MessageStatus.FAILED}>{t('messages.statusFailed')}</option>
                 <option value={MessageStatus.SUPPRESSED}>{t('messages.statusSuppressed')}</option>
               </Select>
-              <Button type="submit" variant="primary" size="sm" className="px-4">
-                {t('common.filter')}
-              </Button>
             </div>
+
+            {/* Submit Filter Button */}
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              className="h-10 px-6 rounded-xl font-semibold shrink-0 shadow-2xs"
+            >
+              {t('common.filter')}
+            </Button>
           </form>
         </CardContent>
       </Card>
 
       {/* Messages Data Table */}
       <Card className="glass-panel overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between py-3">
+        <CardHeader className="flex flex-row items-center justify-between py-3.5 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('messages.totalMessagesCount')} ({total.toLocaleString()})
           </CardTitle>
@@ -321,7 +334,7 @@ export function MessagesPage() {
                           setSelectedMessageId(msg.publicId);
                           setShowTechnicalDetailsInOps(false);
                         }}
-                        className="h-7 text-xs gap-1.5"
+                        className="h-7 text-xs gap-1.5 rounded-lg"
                       >
                         <Layers className="w-3 h-3 text-sky-500 dark:text-sky-400" />
                         <span>{isOps ? 'View Journey' : t('common.details')}</span>
@@ -345,7 +358,7 @@ export function MessagesPage() {
                 size="sm"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
-                className="h-8 gap-1"
+                className="h-8 gap-1 rounded-xl"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span>{t('common.back')}</span>
@@ -355,7 +368,7 @@ export function MessagesPage() {
                 size="sm"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
-                className="h-8 gap-1"
+                className="h-8 gap-1 rounded-xl"
               >
                 <span>{t('common.next')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -450,7 +463,7 @@ export function MessagesPage() {
                 <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {t('composer.preview')}
                 </h3>
-                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-2">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs space-y-2">
                   {messageDetails.content?.subject && (
                     <div>
                       <span className="text-slate-500 dark:text-slate-400">{t('composer.subject')}: </span>
@@ -461,7 +474,7 @@ export function MessagesPage() {
                   )}
                   <div>
                     <span className="text-slate-500 dark:text-slate-400">{t('composer.body')}: </span>
-                    <p className="text-slate-800 dark:text-slate-200 mt-1 p-2.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 font-mono text-[11px] whitespace-pre-wrap">
+                    <p className="text-slate-800 dark:text-slate-200 mt-1 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 font-mono text-[11px] whitespace-pre-wrap">
                       {messageDetails.content?.body || 'No text body.'}
                     </p>
                   </div>
@@ -531,7 +544,7 @@ export function MessagesPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowTechnicalDetailsInOps(true)}
-                    className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white gap-1"
+                    className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white gap-1 rounded-xl"
                   >
                     <ChevronDown className="w-3.5 h-3.5" />
                     <span>View Technical W3C Traces & Provider Attempts</span>

@@ -31,7 +31,7 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {/* Card 1: Deliveries Successful */}
-      <Card className="glass-card border-slate-200/80 dark:border-slate-800/80">
+      <Card className="glass-card">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('mode.deliverySuccess')}
@@ -40,11 +40,11 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
             <CheckCircle2 className="w-4 h-4" />
           </div>
         </CardHeader>
-        <CardContent className="space-y-1">
-          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+        <CardContent className="space-y-1.5">
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
             {successRate.toFixed(2)}%
           </div>
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
             <span className="text-slate-600 dark:text-slate-300 font-medium">{formatNumber(delivered)} delivered</span>
             <span className="text-rose-600 dark:text-rose-400 font-medium">{failed} issues</span>
           </div>
@@ -52,7 +52,7 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
       </Card>
 
       {/* Card 2: Total Sent Today */}
-      <Card className="glass-card border-slate-200/80 dark:border-slate-800/80">
+      <Card className="glass-card">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('mode.sentToday')}
@@ -61,12 +61,12 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
             <Send className="w-4 h-4" />
           </div>
         </CardHeader>
-        <CardContent className="space-y-1">
-          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
+        <CardContent className="space-y-1.5">
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-white tracking-tight">
             {formatNumber(totalIngested)}
           </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-semibold">
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-medium">
               <ArrowUpRight className="w-3.5 h-3.5" /> High throughput
             </span>
             <span className="text-slate-500 dark:text-slate-400">Across 5 channels</span>
@@ -75,7 +75,7 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
       </Card>
 
       {/* Card 3: Fast Delivery Speed */}
-      <Card className="glass-card border-slate-200/80 dark:border-slate-800/80">
+      <Card className="glass-card">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('mode.averageDeliverySpeed')}
@@ -84,9 +84,11 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
             <Zap className="w-4 h-4" />
           </div>
         </CardHeader>
-        <CardContent className="space-y-1">
-          <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-300">&lt; 25 ms</div>
-          <div className="flex items-center justify-between text-xs">
+        <CardContent className="space-y-1.5">
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-600 dark:text-amber-300 tracking-tight">
+            &lt; 25 ms
+          </div>
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">Near-instant</span>
             <span className="text-slate-500 dark:text-slate-400">Global edge routing</span>
           </div>
@@ -94,7 +96,7 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
       </Card>
 
       {/* Card 4: WhatsApp Cost Savings */}
-      <Card className="glass-card border-slate-200/80 dark:border-slate-800/80">
+      <Card className="glass-card">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('mode.totalCostSaved')}
@@ -103,11 +105,11 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
             <DollarSign className="w-4 h-4" />
           </div>
         </CardHeader>
-        <CardContent className="space-y-1">
-          <div className="text-2xl font-bold font-mono text-indigo-600 dark:text-indigo-300">
+        <CardContent className="space-y-1.5">
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-indigo-600 dark:text-indigo-300 tracking-tight">
             ${costSaved.toFixed(2)}
           </div>
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
             <span className="text-slate-700 dark:text-slate-300 font-medium">{convertedSessions} sessions</span>
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">Free plain text</span>
           </div>

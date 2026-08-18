@@ -143,27 +143,32 @@ export function DlqPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             {isOps ? (
               <>
-                <Briefcase className="w-5 h-5 text-emerald-500" />
+                <Briefcase className="w-5 h-5 text-emerald-500 shrink-0" />
                 {t('mode.opsDlqTitle')}
               </>
             ) : (
               <>
-                <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
                 {t('dlq.title')}
               </>
             )}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isOps ? t('mode.opsDlqSubtitle') : t('dlq.subtitle')}
           </p>
         </div>
 
-        <Button variant="glow" size="sm" onClick={handleStartDryRun} className="text-xs gap-1.5 font-bold">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleStartDryRun}
+          className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
+        >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>{isOps ? t('mode.safeRetry') : t('dlq.autoSimulate')}</span>
         </Button>
@@ -171,14 +176,14 @@ export function DlqPage() {
 
       {/* Ops Mode: Reassurance Card */}
       {isOps && (
-        <Card className="glass-panel border-sky-500/30 bg-gradient-to-r from-sky-500/10 via-white/80 dark:via-slate-900/80 to-transparent">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-sky-500/20 text-sky-600 dark:text-sky-400 shrink-0">
-              <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
+        <Card className="glass-panel border-sky-500/20 bg-sky-500/5 dark:bg-sky-500/10 shadow-2xs">
+          <CardContent className="p-4 flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 shrink-0 border border-sky-500/20 shadow-xs">
+              <ShieldCheck className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white">Zero Data Loss Guarantee</h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+              <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Zero Data Loss Guarantee</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
                 Any customer messages that encountered a temporary provider outage are safely held in queue and can be
                 re-sent with one click.
               </p>
@@ -368,15 +373,15 @@ export function DlqPage() {
           ) : null}
 
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsSimulatorOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsSimulatorOpen(false)} className="rounded-xl">
               {t('common.cancel')}
             </Button>
             <Button
-              variant="glow"
+              variant="primary"
               size="sm"
               isLoading={isExecuting}
               onClick={handleExecuteLiveReplay}
-              className="gap-1.5 font-bold"
+              className="gap-1.5 font-semibold rounded-xl shadow-2xs"
             >
               <Play className="w-3.5 h-3.5" />
               <span>
