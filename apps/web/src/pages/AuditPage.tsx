@@ -1,50 +1,27 @@
-import { BookOpen, CheckCircle2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { BookOpen, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
+import { api } from '../lib/api';
+import { formatTimeAgo } from '../lib/utils';
 
 export function AuditPage() {
   const { t } = useI18n();
 
-  const auditLogs = [
-    {
-      id: 'aud_01JAX9910',
-      actor: 'admin@convey.io (SRE Oncall)',
-      action: 'CIRCUIT_OVERRIDE',
-      target: 'provider:twilio-sms -> FORCE_HALF_OPEN (20% ramp)',
-      ipAddress: '192.168.1.135',
-      timestamp: '14m ago',
-      sha256Hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    },
-    {
-      id: 'aud_01JAX9909',
-      actor: 'system.autopilot',
-      action: 'DLQ_REPLAY_SIMULATION',
-      target: 'category:PROVIDER_5XX (84 messages)',
-      ipAddress: '10.0.4.12 (Internal Worker)',
-      timestamp: '32m ago',
-      sha256Hash: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e',
-    },
-    {
-      id: 'aud_01JAX9908',
-      actor: 'compliance@convey.io',
-      action: 'SUPPRESSION_ADD',
-      target: 'recipient:spam-trap@domain.com (SPAM_COMPLAINT)',
-      ipAddress: '172.16.0.4',
-      timestamp: '1h ago',
-      sha256Hash: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
-    },
-    {
-      id: 'aud_01JAX9907',
-      actor: 'admin@convey.io',
-      action: 'POLICY_DEPLOY',
-      target: 'policy:drr_scheduler -> quantumEnterprise: 200',
-      ipAddress: '192.168.1.135',
-      timestamp: '3h ago',
-      sha256Hash: '4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a',
-    },
-  ];
+  const {
+    data: auditData,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ['admin', 'audit-logs'],
+    queryFn: () => api.getAuditLogs({ limit: 50 }),
+  });
+
+  const auditLogs = auditData?.logs ?? [];
+  const total = auditData?.total ?? 0;
 
   return (
     <div className="space-y-6">
@@ -58,18 +35,26 @@ export function AuditPage() {
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('audit.subtitle')}</p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span className="font-semibold">{t('audit.verifiedChain')}</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span className="font-semibold">{t('audit.verifiedChain')}</span>
+          </div>
+
+          <Button variant="secondary" size="sm" onClick={() => refetch()} className="gap-1.5 text-xs rounded-xl">
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </Button>
         </div>
       </div>
 
       {/* Audit Log Table */}
       <Card className="glass-panel overflow-hidden">
-        <CardHeader className="py-3">
+        <CardHeader className="py-3 px-4 sm:px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            {t('audit.ledger')} ({auditLogs.length} events)
+            {t('audit.ledger')} ({total} events)
           </CardTitle>
+          <span className="text-xs text-slate-500 font-mono">SHA-256 Tamper-Evident Ledger</span>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -85,29 +70,45 @@ export function AuditPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {auditLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold">
-                    {log.id}
-                  </TableCell>
-                  <TableCell className="text-xs font-medium text-slate-900 dark:text-white">{log.actor}</TableCell>
-                  <TableCell>
-                    <Badge variant="cyan">{log.action}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate max-w-xs">
-                    {log.target}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                    {log.ipAddress}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                    {log.timestamp}
-                  </TableCell>
-                  <TableCell className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
-                    {log.sha256Hash.slice(0, 16)}...
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
+                    Loading audit trail...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : auditLogs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2 opacity-80" />
+                    No audit records recorded yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                auditLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold">
+                      {log.id}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium text-slate-900 dark:text-white">{log.actor}</TableCell>
+                    <TableCell>
+                      <Badge variant="cyan">{log.action}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate max-w-xs">
+                      {log.target}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                      {log.ipAddress || '127.0.0.1'}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                      {formatTimeAgo(log.timestamp)}
+                    </TableCell>
+                    <TableCell className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
+                      {log.sha256Hash ? `${log.sha256Hash.slice(0, 16)}...` : 'N/A'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -75,7 +75,7 @@ describe('RTL Tables Structural Alignment & Integrity Test Suite', () => {
     expect(table).not.toBeNull();
 
     const headers = container.querySelectorAll('th');
-    expect(headers.length).toBe(9);
+    expect(headers.length).toBe(10);
   });
 
   it('renders ProvidersPage in RTL mode with correct action column alignment', () => {

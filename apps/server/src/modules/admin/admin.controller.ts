@@ -7,32 +7,85 @@ export function adminController(app: Elysia) {
   return app.group('/v1/admin', (app) =>
     app
       // Overview metrics
-      .get('/overview', async () => {
-        const overview = await adminService.getOverview();
-        return jsonResponse(overview, 200);
-      })
+      .get(
+        '/overview',
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const overview = await adminService.getOverview(isSandbox);
+          return jsonResponse(overview, 200);
+        },
+      )
 
       // Real-time live telemetry snapshot
-      .get('/telemetry/live', async () => {
-        const snapshot = await adminService.getLiveTelemetrySnapshot();
-        return jsonResponse(snapshot, 200);
-      })
+      .get(
+        '/telemetry/live',
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const snapshot = await adminService.getLiveTelemetrySnapshot(isSandbox);
+          return jsonResponse(snapshot, 200);
+        },
+      )
 
       // Messages explorer
-      .get('/messages', async ({ query }: { query?: Record<string, string | undefined> }) => {
-        const q = query || {};
-        const result = await adminService.listMessages({
-          page: q.page ? Number(q.page) : 1,
-          limit: q.limit ? Number(q.limit) : 20,
-          teamId: q.teamId,
-          channel: q.channel as Channel | undefined,
-          status: q.status as MessageStatus | undefined,
-          search: q.search,
-          startDate: q.startDate,
-          endDate: q.endDate,
-        });
-        return jsonResponse(result, 200);
-      })
+      .get(
+        '/messages',
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const q = query || {};
+          const isSandbox =
+            q.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : q.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+
+          const result = await adminService.listMessages({
+            page: q.page ? Number(q.page) : 1,
+            limit: q.limit ? Number(q.limit) : 20,
+            teamId: q.teamId,
+            channel: q.channel as Channel | undefined,
+            status: q.status as MessageStatus | undefined,
+            search: q.search,
+            isSandbox,
+            startDate: q.startDate,
+            endDate: q.endDate,
+          });
+          return jsonResponse(result, 200);
+        },
+      )
 
       // Message details & trace waterfall
       .get('/messages/:id', async ({ params }: { params: { id: string } }) => {
@@ -46,6 +99,19 @@ export function adminController(app: Elysia) {
           const errMsg = err instanceof Error ? err.message : 'Unknown error';
           return jsonResponse({ error: errMsg }, 500);
         }
+      })
+
+      // Audit logs
+      .get('/audit-logs', async ({ query }: { query?: Record<string, string | undefined> }) => {
+        const q = query || {};
+        const result = await adminService.listAuditLogs({
+          page: q.page ? Number(q.page) : 1,
+          limit: q.limit ? Number(q.limit) : 50,
+          tenantId: q.tenantId,
+          team: q.team,
+          action: q.action,
+        });
+        return jsonResponse(result, 200);
       })
 
       // Provider matrix & circuit breaker cockpit
@@ -108,21 +174,31 @@ export function adminController(app: Elysia) {
       })
 
       // Omnichannel composer sandbox test send
-      .post('/composer/send-test', async ({ body }: { body: unknown }) => {
-        const b = (body || {}) as {
-          channel?: Channel;
-          recipient?: string;
-          payload?: Record<string, unknown>;
-          teamId?: string;
-        };
-        const res = await adminService.sendTestMessage({
-          channel: b.channel || ('EMAIL' as Channel),
-          recipient: b.recipient || '',
-          payload: b.payload || {},
-          teamId: b.teamId,
-        });
-        return jsonResponse(res, 200);
-      })
+      .post(
+        '/composer/send-test',
+        async ({ body, headers }: { body: unknown; headers?: Record<string, string | undefined> }) => {
+          const b = (body || {}) as {
+            channel?: Channel;
+            recipient?: string;
+            payload?: Record<string, unknown>;
+            teamId?: string;
+            isSandbox?: boolean;
+          };
+          const isSandbox =
+            typeof b.isSandbox === 'boolean'
+              ? b.isSandbox
+              : headers?.['x-convey-sandbox'] === 'true' || headers?.['x-convey-environment'] === 'sandbox';
+
+          const res = await adminService.sendTestMessage({
+            channel: b.channel || ('EMAIL' as Channel),
+            recipient: b.recipient || '',
+            payload: b.payload || {},
+            teamId: b.teamId,
+            isSandbox,
+          });
+          return jsonResponse(res, 200);
+        },
+      )
 
       // --- Provider Setup & Registration Studio Endpoints ---
       .get('/providers/catalog', () => {

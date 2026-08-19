@@ -4,7 +4,7 @@ import { Channel } from '@convey/shared';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { OmnichannelPreview } from '../src/components/composer/OmnichannelPreview';
-import { NAV_GROUPS } from '../src/components/layout/Sidebar';
+import { NAV_GROUPS, type NavGroupConfig, type NavItemConfig } from '../src/components/layout/Sidebar';
 import { TraceWaterfall } from '../src/components/trace/TraceWaterfall';
 import { Dialog, DialogContent } from '../src/components/ui/dialog';
 
@@ -45,9 +45,9 @@ describe('Web Navigation, UI Hardening & Edge Cases Suite', () => {
     const currentPath = '/providers/configure';
 
     const getIsActive = (itemPath: string) => {
-      const hasMoreSpecificMatch = NAV_GROUPS.some((g) =>
+      const hasMoreSpecificMatch = NAV_GROUPS.some((g: NavGroupConfig) =>
         g.items.some(
-          (other) =>
+          (other: NavItemConfig) =>
             other.path !== itemPath &&
             other.path.startsWith(itemPath) &&
             (currentPath === other.path || currentPath.startsWith(`${other.path}/`)),
@@ -66,9 +66,9 @@ describe('Web Navigation, UI Hardening & Edge Cases Suite', () => {
     // When on /providers, /providers should be active and /providers/configure should NOT
     const currentPathProviders = '/providers';
     const getIsActiveProviders = (itemPath: string) => {
-      const hasMoreSpecificMatch = NAV_GROUPS.some((g) =>
+      const hasMoreSpecificMatch = NAV_GROUPS.some((g: NavGroupConfig) =>
         g.items.some(
-          (other) =>
+          (other: NavItemConfig) =>
             other.path !== itemPath &&
             other.path.startsWith(itemPath) &&
             (currentPathProviders === other.path || currentPathProviders.startsWith(`${other.path}/`)),

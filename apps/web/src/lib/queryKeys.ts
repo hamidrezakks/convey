@@ -15,6 +15,7 @@ export const messageKeys = {
     channel?: Channel;
     status?: MessageStatus;
     teamId?: string;
+    isSandbox?: boolean;
   }) => [...messageKeys.all, 'list', filters] as const,
   detail: (id: string) => [...messageKeys.all, 'detail', id] as const,
 };

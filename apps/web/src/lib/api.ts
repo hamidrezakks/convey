@@ -1,4 +1,5 @@
 import type {
+  AuditLogDto,
   Channel,
   ConfiguredProviderDto,
   DlqReplayRequest,
@@ -14,8 +15,10 @@ import type {
   SuppressionDto,
   SuppressionReason,
   TestConnectionResult,
+  WebhookSubscriptionDto,
 } from '@convey/shared';
 import ky from 'ky';
+import { getStoredEnvironment } from '../mode/EnvironmentContext';
 
 export interface OverviewData {
   status: string;
@@ -61,13 +64,39 @@ export interface MessagesResponse {
   limit: number;
 }
 
+export interface AuditLogsResponse {
+  logs: AuditLogDto[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface DlqMessageItem {
+  id: string;
+  messageId: string;
+  channel: string;
+  errorCategory: string;
+  errorCode?: string;
+  errorMessage?: string;
+  recipient?: string;
+  team?: string;
+  createdAt: string;
+}
+
+export interface DlqListResponse {
+  items: DlqMessageItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface CanaryProbeResult {
   providerId: string;
   timestamp: string;
   result: {
-    healthy: boolean;
-    latencyMs?: number;
-    status?: string;
+    success: boolean;
+    latencyMs: number;
+    message: string;
   };
 }
 
@@ -76,12 +105,13 @@ export interface TestMessageResult {
   status: string;
   channel: Channel;
   recipient: string;
+  isSandbox?: boolean;
   acceptedAt: string;
   simulatedLatencyMs: number;
   receiptUrl: string;
 }
 
-// Configured Ky instance with prefix, retries, and timeout
+// Configured Ky instance with prefix, retries, timeout, and environment headers
 export const httpClient = ky.create({
   prefix: '/v1/admin',
   timeout: 20000,
@@ -93,15 +123,30 @@ export const httpClient = ky.create({
   headers: {
     Accept: 'application/json',
   },
+  hooks: {
+    beforeRequest: [
+      ({ request }) => {
+        const activeEnv = getStoredEnvironment();
+        if (activeEnv === 'sandbox') {
+          request.headers.set('x-convey-sandbox', 'true');
+        }
+        request.headers.set('x-convey-environment', activeEnv);
+      },
+    ],
+  },
 });
 
 export const api = {
-  async getOverview(): Promise<OverviewData> {
-    return httpClient.get('overview').json<OverviewData>();
+  async getOverview(isSandbox?: boolean): Promise<OverviewData> {
+    const searchParams: Record<string, string> = {};
+    if (typeof isSandbox === 'boolean') searchParams.isSandbox = String(isSandbox);
+    return httpClient.get('overview', { searchParams }).json<OverviewData>();
   },
 
-  async getLiveTelemetry(): Promise<LiveTelemetrySnapshot> {
-    return httpClient.get('telemetry/live').json<LiveTelemetrySnapshot>();
+  async getLiveTelemetry(isSandbox?: boolean): Promise<LiveTelemetrySnapshot> {
+    const searchParams: Record<string, string> = {};
+    if (typeof isSandbox === 'boolean') searchParams.isSandbox = String(isSandbox);
+    return httpClient.get('telemetry/live', { searchParams }).json<LiveTelemetrySnapshot>();
   },
 
   async getMessages(params?: {
@@ -111,6 +156,7 @@ export const api = {
     channel?: Channel;
     status?: MessageStatus;
     search?: string;
+    isSandbox?: boolean;
     startDate?: string;
     endDate?: string;
   }): Promise<MessagesResponse> {
@@ -121,6 +167,7 @@ export const api = {
     if (params?.channel) searchParams.channel = params.channel;
     if (params?.status) searchParams.status = params.status;
     if (params?.search) searchParams.search = params.search;
+    if (typeof params?.isSandbox === 'boolean') searchParams.isSandbox = String(params.isSandbox);
     if (params?.startDate) searchParams.startDate = params.startDate;
     if (params?.endDate) searchParams.endDate = params.endDate;
 
@@ -226,5 +273,53 @@ export const api = {
     return httpClient
       .get('providers/env-export')
       .json<{ envFileContent: string; variableCount: number; providerCount: number }>();
+  },
+
+  // --- Audit Logs ---
+  async getAuditLogs(params?: {
+    page?: number;
+    limit?: number;
+    tenantId?: string;
+    team?: string;
+    action?: string;
+  }): Promise<AuditLogsResponse> {
+    const searchParams: Record<string, string | number> = {};
+    if (params?.page) searchParams.page = params.page;
+    if (params?.limit) searchParams.limit = params.limit;
+    if (params?.tenantId) searchParams.tenantId = params.tenantId;
+    if (params?.team) searchParams.team = params.team;
+    if (params?.action) searchParams.action = params.action;
+
+    return httpClient.get('audit-logs', { searchParams }).json<AuditLogsResponse>();
+  },
+
+  // --- Dead-Letter Queue (DLQ) Inspector ---
+  async getDlqMessages(params?: { limit?: number; offset?: number }): Promise<DlqListResponse> {
+    const searchParams: Record<string, number> = {};
+    if (params?.limit) searchParams.limit = params.limit;
+    if (params?.offset) searchParams.offset = params.offset;
+
+    return httpClient.get('dlq', { prefix: '/v1', searchParams }).json<DlqListResponse>();
+  },
+
+  // --- Webhook Subscriptions ---
+  async getWebhookSubscriptions(): Promise<{ subscriptions: WebhookSubscriptionDto[] }> {
+    return httpClient
+      .get('webhook-subscriptions', { prefix: '/v1' })
+      .json<{ subscriptions: WebhookSubscriptionDto[] }>();
+  },
+
+  async createWebhookSubscription(data: {
+    url: string;
+    events: string[];
+    secret?: string;
+  }): Promise<{ subscription: WebhookSubscriptionDto }> {
+    return httpClient
+      .post('webhook-subscriptions', { prefix: '/v1', json: data })
+      .json<{ subscription: WebhookSubscriptionDto }>();
+  },
+
+  async deleteWebhookSubscription(id: string): Promise<{ success: boolean }> {
+    return httpClient.delete(`webhook-subscriptions/${id}`, { prefix: '/v1' }).json<{ success: boolean }>();
   },
 };

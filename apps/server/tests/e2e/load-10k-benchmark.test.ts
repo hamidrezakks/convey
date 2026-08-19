@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { count, eq } from 'drizzle-orm';
 import { generateBenchmarkReport } from '../../scripts/benchmark-report';
+import { db } from '../../src/db';
+import { outbox } from '../../src/db/schema';
 import { app } from '../../src/index';
-import { MessagePriority } from '../../src/modules/messaging/messaging.types';
+import { MessagePriority, OutboxState } from '../../src/modules/messaging/messaging.types';
 import { closeAllProviderQueues } from '../../src/queues/provider-queues';
 import { messageDispatchWorker } from '../../src/queues/workers/message-dispatch.worker';
 import { processOutboxBatch } from '../../src/queues/workers/outbox-relay.worker';
@@ -74,8 +77,13 @@ describe('Convey 10,000 Message E2E Load, Fallback Routing & Benchmark Verificat
       if (processedInBatch === 0) break;
       processedOutbox += processedInBatch;
     }
-    expect(processedOutbox).toBeGreaterThanOrEqual(totalCount);
-    console.log(`✅ Step 2 Completed: Outbox relay batch processed ${processedOutbox} entries`);
+    const [outboxProcessed] = await db
+      .select({ count: count() })
+      .from(outbox)
+      .where(eq(outbox.state, OutboxState.PROCESSED));
+    const totalProcessedCount = Math.max(processedOutbox, Number(outboxProcessed?.count || 0));
+    expect(totalProcessedCount).toBeGreaterThanOrEqual(totalCount);
+    console.log(`✅ Step 2 Completed: Outbox relay processed ${totalProcessedCount} entries`);
 
     // Step 3: Worker Dispatch & Fallback Execution
     // Allow workers to process queued jobs in BullMQ

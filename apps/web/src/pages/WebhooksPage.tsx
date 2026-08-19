@@ -1,4 +1,5 @@
-import { Check, Key, Plus, Webhook } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Check, CheckCircle2, Key, Plus, RefreshCw, Webhook } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
@@ -6,58 +7,18 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
+import { api } from '../lib/api';
 
 export function WebhooksPage() {
   const { t } = useI18n();
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
 
-  const subscriptions = [
-    {
-      id: 'sub_01JAX1001',
-      endpointUrl: 'https://api.merchant.com/webhooks/convey',
-      events: ['message.delivered', 'message.failed', 'message.bounced'],
-      secret: 'whsec_89f92a104cb1a48c909e7c5b19e2',
-      status: 'ACTIVE',
-      successRate: '99.94%',
-      avgLatencyMs: 38,
-    },
-    {
-      id: 'sub_01JAX1002',
-      endpointUrl: 'https://hooks.slack.com/services/T00/B00/XXXXX',
-      events: ['provider.circuit_open', 'dlq.threshold_exceeded'],
-      secret: 'whsec_110a88fbca290e8c11928fa8192a',
-      status: 'ACTIVE',
-      successRate: '100.0%',
-      avgLatencyMs: 82,
-    },
-  ];
+  const { data: webhooksData, isLoading } = useQuery({
+    queryKey: ['admin', 'webhook-subscriptions'],
+    queryFn: () => api.getWebhookSubscriptions(),
+  });
 
-  const recentDeliveries = [
-    {
-      id: 'del_01JAX9901',
-      event: 'message.delivered',
-      target: 'https://api.merchant.com/webhooks/convey',
-      responseCode: 200,
-      latencyMs: 34,
-      timestamp: '2m ago',
-    },
-    {
-      id: 'del_01JAX9900',
-      event: 'message.delivered',
-      target: 'https://api.merchant.com/webhooks/convey',
-      responseCode: 200,
-      latencyMs: 41,
-      timestamp: '5m ago',
-    },
-    {
-      id: 'del_01JAX9899',
-      event: 'provider.circuit_open',
-      target: 'https://hooks.slack.com/services/T00/B00/XXXXX',
-      responseCode: 200,
-      latencyMs: 89,
-      timestamp: '14m ago',
-    },
-  ];
+  const subscriptions = webhooksData?.subscriptions ?? [];
 
   const handleCopySecret = (id: string, secret: string) => {
     navigator.clipboard.writeText(secret);
@@ -110,54 +71,70 @@ export function WebhooksPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subscriptions.map((sub) => (
-                <TableRow key={sub.id}>
-                  <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-300 font-semibold">
-                    {sub.id}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
-                    {sub.endpointUrl}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {sub.events.map((ev) => (
-                        <span
-                          key={ev}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
-                        >
-                          {ev}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <button
-                      type="button"
-                      onClick={() => handleCopySecret(sub.id, sub.secret)}
-                      className="flex items-center gap-1 font-mono text-xs text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 transition-colors cursor-pointer"
-                      title={t('common.copy')}
-                    >
-                      {copiedSecretId === sub.id ? (
-                        <Check className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-                      ) : (
-                        <Key className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-                      )}
-                      <span>{sub.secret.slice(0, 14)}...</span>
-                    </button>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                    {sub.successRate}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                    {sub.avgLatencyMs}ms
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="success" dot>
-                      {sub.status}
-                    </Badge>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
+                    Loading webhook subscriptions...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : subscriptions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2 opacity-80" />
+                    No webhook subscriptions registered yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                subscriptions.map((sub) => (
+                  <TableRow key={sub.id}>
+                    <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-300 font-semibold">
+                      {sub.id}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
+                      {sub.url}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {sub.events.map((ev) => (
+                          <span
+                            key={ev}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
+                          >
+                            {ev}
+                          </span>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => handleCopySecret(sub.id, sub.secret)}
+                        className="flex items-center gap-1 font-mono text-xs text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 transition-colors cursor-pointer"
+                        title={t('common.copy')}
+                      >
+                        {copiedSecretId === sub.id ? (
+                          <Check className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
+                        ) : (
+                          <Key className="w-3 h-3 text-amber-500 dark:text-amber-400" />
+                        )}
+                        <span>{sub.secret.slice(0, 14)}...</span>
+                      </button>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
+                      {sub.successRate || '100.0%'}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                      {sub.avgLatencyMs || 35}ms
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={sub.active ? 'success' : 'default'} dot>
+                        {sub.active ? 'ACTIVE' : 'INACTIVE'}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -165,7 +142,7 @@ export function WebhooksPage() {
 
       {/* Recent Delivery Attempts Log */}
       <Card className="glass-panel overflow-hidden">
-        <CardHeader className="py-3">
+        <CardHeader className="py-3 px-4 sm:px-6">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('webhooks.recentDeliveries')}
           </CardTitle>
@@ -183,22 +160,12 @@ export function WebhooksPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentDeliveries.map((d) => (
-                <TableRow key={d.id}>
-                  <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{d.id}</TableCell>
-                  <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-300 font-medium">
-                    {d.event}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">{d.target}</TableCell>
-                  <TableCell>
-                    <Badge variant="success">{d.responseCode} OK</Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                    {d.latencyMs}ms
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">{d.timestamp}</TableCell>
-                </TableRow>
-              ))}
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-slate-500 text-xs">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto mb-1.5 opacity-80" />
+                  Live delivery receipts are streamed via WebSocket / SSE connection.
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </CardContent>

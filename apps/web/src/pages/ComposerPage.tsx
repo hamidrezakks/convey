@@ -13,7 +13,7 @@ import { Textarea } from '../components/ui/textarea';
 import { useI18n } from '../i18n/context';
 import type { TestMessageResult } from '../lib/api';
 import { api } from '../lib/api';
-import { useUiMode } from '../mode';
+import { useEnvironment, useUiMode } from '../mode';
 
 const DEFAULT_TEMPLATES: Record<Channel, { subject?: string; body: string; recipient: string }> = {
   [Channel.EMAIL]: {
@@ -54,6 +54,7 @@ const DEFAULT_TEMPLATES: Record<Channel, { subject?: string; body: string; recip
 export function ComposerPage() {
   const { t } = useI18n();
   const { isOps, isEngineer } = useUiMode();
+  const { environment, isSandbox } = useEnvironment();
   const [selectedChannel, setSelectedChannel] = useState<Channel>(Channel.EMAIL);
   const [recipient, setRecipient] = useState(DEFAULT_TEMPLATES[Channel.EMAIL].recipient);
   const [subject, setSubject] = useState(DEFAULT_TEMPLATES[Channel.EMAIL].subject || '');
@@ -86,10 +87,15 @@ export function ComposerPage() {
     }
   }, [variablesJson]);
 
-  // TanStack Mutation: Send message in sandbox mode
+  // TanStack Mutation: Send message with explicit environment tagging
   const sendMutation = useMutation({
-    mutationFn: (data: { channel: Channel; recipient: string; payload: Record<string, unknown>; teamId?: string }) =>
-      api.sendTestMessage(data),
+    mutationFn: (data: {
+      channel: Channel;
+      recipient: string;
+      payload: Record<string, unknown>;
+      teamId?: string;
+      isSandbox?: boolean;
+    }) => api.sendTestMessage(data),
     onSuccess: (receipt: TestMessageResult) => {
       setLastReceipt(receipt);
       confetti({
@@ -100,7 +106,7 @@ export function ComposerPage() {
       toast.success(`${t('composer.sendSuccess')}: ${receipt.publicId}`);
     },
     onError: () => {
-      toast.error('Failed to dispatch test message in sandbox');
+      toast.error('Failed to dispatch message');
     },
   });
 
@@ -125,7 +131,8 @@ export function ComposerPage() {
         body,
         variables: parsedVariables,
       },
-      teamId: 'team_sandbox',
+      teamId: isSandbox ? 'team_sandbox' : 'team_production',
+      isSandbox,
     });
   };
 
@@ -135,6 +142,32 @@ export function ComposerPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Active Environment Banner */}
+      <div
+        className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+          isSandbox
+            ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
+            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">{isSandbox ? '🧪' : '🟢'}</span>
+          <div>
+            <span className="font-bold uppercase tracking-wider">
+              {isSandbox ? 'Sandbox Safe Mode Active' : 'Production Live Dispatch Active'}
+            </span>
+            <p className="text-slate-600 dark:text-slate-400 font-normal">
+              {isSandbox
+                ? 'Messages are processed via Sandbox Adapter with zero provider costs and simulated webhook delivery.'
+                : 'Messages will be dispatched to live provider networks (AWS SES, Twilio, SendGrid) with real financial ledger billing.'}
+            </p>
+          </div>
+        </div>
+        <Badge variant={isSandbox ? 'warning' : 'success'} className="font-mono text-[10px] uppercase shrink-0">
+          {environment}
+        </Badge>
+      </div>
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>

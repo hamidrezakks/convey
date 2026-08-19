@@ -1,4 +1,5 @@
 import type { DlqFailureCategory, DlqReplayResult } from '@convey/shared';
+import { useQuery } from '@tanstack/react-query';
 import confetti from 'canvas-confetti';
 import {
   AlertTriangle,
@@ -27,6 +28,7 @@ import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
+import { formatTimeAgo } from '../lib/utils';
 import { useUiMode } from '../mode';
 
 export function DlqPage() {
@@ -40,52 +42,17 @@ export function DlqPage() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [simulationResult, setSimulationResult] = useState<DlqReplayResult | null>(null);
 
-  const dlqItems = [
-    {
-      id: 'dlq_01JAX7100',
-      channel: 'EMAIL',
-      recipient: 'invalid-mx@nonexistent-domain.xyz',
-      teamId: 'team_auth',
-      category: 'INVALID_RECIPIENT_400' as DlqFailureCategory,
-      errorReason: '550 5.1.1 User unknown / MX lookup failure',
-      plainReason: 'Recipient email address domain does not exist',
-      attemptsCount: 5,
-      failedAt: '8m ago',
-    },
-    {
-      id: 'dlq_01JAX7099',
-      channel: 'SMS',
-      recipient: '+1 (555) 019-9921',
-      teamId: 'team_payments',
-      category: 'PROVIDER_5XX' as DlqFailureCategory,
-      errorReason: '502 Bad Gateway: Upstream carrier timeout in us-east-1',
-      plainReason: 'Temporary network timeout at telecom carrier',
-      attemptsCount: 5,
-      failedAt: '24m ago',
-    },
-    {
-      id: 'dlq_01JAX7098',
-      channel: 'WHATSAPP',
-      recipient: '+44 7700 900077',
-      teamId: 'team_marketing',
-      category: 'RATE_LIMIT_429' as DlqFailureCategory,
-      errorReason: '429 Cloud API throughput tier exceeded (80 RPS)',
-      plainReason: 'WhatsApp rate limit temporarily exceeded',
-      attemptsCount: 5,
-      failedAt: '1h ago',
-    },
-    {
-      id: 'dlq_01JAX7097',
-      channel: 'PUSH',
-      recipient: 'fcm_token_device_981a',
-      teamId: 'team_ops',
-      category: 'TIMEOUT_504' as DlqFailureCategory,
-      errorReason: '504 Gateway Timeout during Google FCM handshake',
-      plainReason: 'Google Push Gateway timeout',
-      attemptsCount: 5,
-      failedAt: '2h ago',
-    },
-  ];
+  const {
+    data: dlqData,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ['admin', 'dlq'],
+    queryFn: () => api.getDlqMessages({ limit: 50 }),
+  });
+
+  const dlqItems = dlqData?.items ?? [];
+  const total = dlqData?.total ?? 0;
 
   const handleStartDryRun = async () => {
     setIsSimulatorOpen(true);
@@ -115,9 +82,10 @@ export function DlqPage() {
         spread: 60,
         origin: { y: 0.8 },
       });
-      toast.success(`${t('dlq.dryRunSuccess')}: ${res.replayedCount || 84} messages`);
+      toast.success(`${t('dlq.dryRunSuccess')}: ${res.replayedCount || total} messages`);
       setIsSimulatorOpen(false);
       setSimulationResult(null);
+      refetch();
     } catch (_err) {
       toast.error('Live DLQ replay failed');
     } finally {
@@ -125,7 +93,7 @@ export function DlqPage() {
     }
   };
 
-  const getCategoryBadgeVariant = (cat: DlqFailureCategory) => {
+  const getCategoryBadgeVariant = (cat: string) => {
     switch (cat) {
       case 'PROVIDER_5XX':
         return 'destructive';
@@ -251,46 +219,62 @@ export function DlqPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dlqItems.map((item) => (
-                <TableRow key={item.id} className="group">
-                  {isEngineer && (
-                    <TableCell className="font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
-                      {item.id}
-                    </TableCell>
-                  )}
-                  <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
-                    {item.recipient}
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={isEngineer ? 8 : 6} className="text-center py-12 text-slate-500">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
+                    Loading failed queue messages...
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="cyan">{item.channel}</Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{item.teamId}</TableCell>
-                  {isEngineer && (
-                    <TableCell>
-                      <Badge variant={getCategoryBadgeVariant(item.category)}>{item.category}</Badge>
-                    </TableCell>
-                  )}
-                  <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-md">
-                    {isOps ? item.plainReason : item.errorReason}
-                  </TableCell>
-                  {isEngineer && (
-                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                      {item.attemptsCount} / 5
-                    </TableCell>
-                  )}
-                  <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    {item.failedAt}
-                  </TableCell>
-                  {isOps && (
-                    <TableCell className="text-end rtl:text-left">
-                      <Button variant="outline" size="sm" onClick={handleStartDryRun} className="h-7 text-xs gap-1">
-                        <RotateCcw className="w-3 h-3 text-sky-500" />
-                        <span>Retry</span>
-                      </Button>
-                    </TableCell>
-                  )}
                 </TableRow>
-              ))}
+              ) : dlqItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isEngineer ? 8 : 6} className="text-center py-12 text-slate-500">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2 opacity-80" />
+                    No failed messages in Dead-Letter Queue. System is healthy!
+                  </TableCell>
+                </TableRow>
+              ) : (
+                dlqItems.map((item) => (
+                  <TableRow key={item.id} className="group">
+                    {isEngineer && (
+                      <TableCell className="font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
+                        {item.messageId || item.id}
+                      </TableCell>
+                    )}
+                    <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
+                      {item.recipient || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="cyan">{item.channel}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {item.team || 'default'}
+                    </TableCell>
+                    {isEngineer && (
+                      <TableCell>
+                        <Badge variant={getCategoryBadgeVariant(item.errorCategory)}>{item.errorCategory}</Badge>
+                      </TableCell>
+                    )}
+                    <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-md">
+                      {item.errorMessage || item.errorCode || 'Provider send failure'}
+                    </TableCell>
+                    {isEngineer && (
+                      <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">3 / 3</TableCell>
+                    )}
+                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      {formatTimeAgo(item.createdAt)}
+                    </TableCell>
+                    {isOps && (
+                      <TableCell className="text-end rtl:text-left">
+                        <Button variant="outline" size="sm" onClick={handleStartDryRun} className="h-7 text-xs gap-1">
+                          <RotateCcw className="w-3 h-3 text-sky-500" />
+                          <span>Retry</span>
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

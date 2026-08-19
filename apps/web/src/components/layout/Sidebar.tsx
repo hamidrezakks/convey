@@ -2,7 +2,6 @@ import { Link, useLocation } from '@tanstack/react-router';
 import {
   Activity,
   AlertTriangle,
-  BookOpen,
   Check,
   ChevronDown,
   Cpu,
@@ -13,7 +12,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Radio,
   Send,
   ShieldCheck,
   Sliders,
@@ -26,7 +24,7 @@ import { toast } from 'sonner';
 import type { TranslationKey } from '../../i18n';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
-import { UiModeSwitcher, useUiMode } from '../../mode';
+import { type Environment, UiModeSwitcher, useEnvironment, useUiMode } from '../../mode';
 
 export interface NavItemConfig {
   path: string;
@@ -43,35 +41,6 @@ export interface NavGroupConfig {
   items: NavItemConfig[];
 }
 
-export const NAV_GROUPS = [
-  {
-    group: 'Telemetry & Observability',
-    items: [
-      { path: '/overview', label: 'Planetary Telemetry', icon: Activity },
-      { path: '/messages', label: 'Message & Trace Explorer', icon: Inbox },
-      { path: '/architecture', label: 'System Topology & Prom', icon: Cpu },
-    ],
-  },
-  {
-    group: 'Traffic & Providers',
-    items: [
-      { path: '/providers', label: 'Provider Matrix & Circuits', icon: Radio },
-      { path: '/providers/configure', label: 'Provider Setup & Env Vault', icon: Key },
-      { path: '/dlq', label: 'DLQ & Surgical Replay', icon: AlertTriangle },
-      { path: '/deliverability', label: 'Deliverability & Autopilot', icon: ShieldCheck },
-    ],
-  },
-  {
-    group: 'Engineering & Policy',
-    items: [
-      { path: '/composer', label: 'Omnichannel Composer', icon: Send },
-      { path: '/policies', label: 'DRR Policies & SLA Studio', icon: Sliders },
-      { path: '/webhooks', label: 'Webhooks & Receipts', icon: Webhook },
-      { path: '/audit', label: 'Audit Log Ledger', icon: BookOpen },
-    ],
-  },
-];
-
 export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
   {
     groupKey: 'nav.groupTelemetry',
@@ -84,20 +53,30 @@ export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         badgeVariant: 'emerald',
         badgeDot: true,
       },
-      { path: '/messages', labelKey: 'nav.messages', icon: Inbox },
-      { path: '/architecture', labelKey: 'nav.architecture', icon: Cpu },
+      {
+        path: '/messages',
+        labelKey: 'nav.messages',
+        icon: Inbox,
+        rawBadge: 'L7 Trace',
+        badgeVariant: 'cyan',
+      },
+      {
+        path: '/providers',
+        labelKey: 'nav.providers',
+        icon: Cpu,
+        rawBadge: '88 catalog',
+        badgeVariant: 'amber',
+      },
+      {
+        path: '/deliverability',
+        labelKey: 'nav.deliverability',
+        icon: ShieldCheck,
+      },
     ],
   },
   {
     groupKey: 'nav.groupTraffic',
     items: [
-      {
-        path: '/providers',
-        labelKey: 'nav.providers',
-        icon: Radio,
-        badgeKey: 'nav.providersBadge',
-        badgeVariant: 'cyan',
-      },
       {
         path: '/providers/configure',
         labelKey: 'nav.providerConfig',
@@ -112,7 +91,6 @@ export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         badgeKey: 'nav.dlqBadge',
         badgeVariant: 'amber',
       },
-      { path: '/deliverability', labelKey: 'nav.deliverability', icon: ShieldCheck },
     ],
   },
   {
@@ -120,8 +98,8 @@ export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
     items: [
       { path: '/composer', labelKey: 'nav.composer', icon: Send },
       { path: '/policies', labelKey: 'nav.policies', icon: Sliders },
+      { path: '/audit', labelKey: 'nav.audit', icon: Layers },
       { path: '/webhooks', labelKey: 'nav.webhooks', icon: Webhook },
-      { path: '/audit', labelKey: 'nav.audit', icon: BookOpen },
     ],
   },
 ];
@@ -138,7 +116,13 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         badgeVariant: 'emerald',
         badgeDot: true,
       },
-      { path: '/messages', labelKey: 'nav.messages', icon: Inbox },
+      {
+        path: '/messages',
+        labelKey: 'nav.messages',
+        icon: Inbox,
+        rawBadge: 'Timeline',
+        badgeVariant: 'cyan',
+      },
     ],
   },
   {
@@ -147,7 +131,9 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
       {
         path: '/providers',
         labelKey: 'nav.providers',
-        icon: Radio,
+        icon: Cpu,
+        rawBadge: '88 catalog',
+        badgeVariant: 'amber',
       },
       {
         path: '/deliverability',
@@ -171,21 +157,24 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
 ];
 
 export const NAV_GROUP_CONFIGS = ENGINEER_NAV_GROUP_CONFIGS;
+export const NAV_GROUPS = ENGINEER_NAV_GROUP_CONFIGS;
 
 export interface WorkspaceEnvironment {
   id: string;
   name: string;
   region: string;
   tier: string;
+  type: Environment;
   status: 'active' | 'degraded' | 'maintenance';
 }
 
 const ENVIRONMENTS: WorkspaceEnvironment[] = [
   {
     id: 'env_prod_useast1',
-    name: 'CONVEY CORE',
+    name: 'CONVEY PRODUCTION',
     region: 'Production • us-east-1',
     tier: 'L7 Primary',
+    type: 'production',
     status: 'active',
   },
   {
@@ -193,13 +182,15 @@ const ENVIRONMENTS: WorkspaceEnvironment[] = [
     name: 'CONVEY STAGING',
     region: 'Staging • eu-central-1',
     tier: 'L7 Canary',
+    type: 'staging',
     status: 'active',
   },
   {
     id: 'env_local_dev',
     name: 'CONVEY SANDBOX',
-    region: 'Local • 127.0.0.1:3000',
-    tier: 'Mock Wire',
+    region: 'Sandbox • Isolated Mock Wire',
+    tier: 'Hermetic Sandbox',
+    type: 'sandbox',
     status: 'active',
   },
 ];
@@ -216,10 +207,11 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
   const currentPath = location.pathname === '/' ? '/overview' : location.pathname;
   const { t } = useI18n();
   const { mode } = useUiMode();
+  const { environment, setEnvironment } = useEnvironment();
 
   // Interactive Workspace Dropdown State
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [activeEnv, setActiveEnv] = useState<WorkspaceEnvironment>(ENVIRONMENTS[0]);
+  const activeEnv = useMemo(() => ENVIRONMENTS.find((e) => e.type === environment) || ENVIRONMENTS[0], [environment]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
@@ -236,9 +228,8 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
   }, [dropdownOpen]);
 
   const handleSelectEnvironment = (env: WorkspaceEnvironment) => {
-    setActiveEnv(env);
+    setEnvironment(env.type);
     setDropdownOpen(false);
-    toast.success(`Switched active workspace to ${env.name} (${env.region})`);
   };
 
   const currentConfigs = mode === 'ops' ? OPS_NAV_GROUP_CONFIGS : ENGINEER_NAV_GROUP_CONFIGS;

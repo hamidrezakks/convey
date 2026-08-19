@@ -34,7 +34,7 @@ import { useI18n } from '../i18n';
 import { api } from '../lib/api';
 import { providerKeys, telemetryKeys } from '../lib/queryKeys';
 import { cn, formatDurationMs, formatNumber, formatTimeAgo } from '../lib/utils';
-import { useUiMode } from '../mode';
+import { useEnvironment, useUiMode } from '../mode';
 import { useTheme } from '../theme';
 
 export function OverviewPage() {
@@ -42,20 +42,21 @@ export function OverviewPage() {
   const { t } = useI18n();
   const { resolvedTheme } = useTheme();
   const { isOps, isEngineer } = useUiMode();
+  const { environment, isSandbox } = useEnvironment();
   const [chartData, setChartData] = useState<Array<{ time: string; rps: number; p95: number }>>([]);
   const [chartMetric, setChartMetric] = useState<'both' | 'rps' | 'p95'>('both');
 
   // TanStack Query: Poll live telemetry snapshot every 15s
   const { data: telemetry } = useQuery({
-    queryKey: telemetryKeys.live(),
-    queryFn: () => api.getLiveTelemetry(),
+    queryKey: [...telemetryKeys.live(), environment],
+    queryFn: () => api.getLiveTelemetry(isSandbox),
     refetchInterval: 15000,
   });
 
   // TanStack Query: Fetch planetary 24h overview stats
   const { data: overviewStats } = useQuery({
-    queryKey: telemetryKeys.overview(),
-    queryFn: () => api.getOverview(),
+    queryKey: [...telemetryKeys.overview(), environment],
+    queryFn: () => api.getOverview(isSandbox),
     staleTime: 10000,
   });
 

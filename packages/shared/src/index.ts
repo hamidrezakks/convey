@@ -79,6 +79,7 @@ export interface MessageSummaryDto {
   recipient: string;
   priority: MessagePriority;
   status: MessageStatus;
+  isSandbox?: boolean;
   providerId?: string;
   latencyMs?: number;
   costUsd?: number;
@@ -89,6 +90,7 @@ export interface MessageSummaryDto {
 // Message Detailed DTO with Trace and Encryption info
 export interface MessageDetailDto extends MessageSummaryDto {
   traceparent?: string;
+  isSandbox?: boolean;
   content: {
     subject?: string;
     body?: string;
@@ -349,6 +351,48 @@ export interface PolicyDto {
   type: 'RATE_LIMIT' | 'TOKEN_BUCKET' | 'QUIET_HOURS' | 'COST_OPTIMIZER' | 'TENANT_SLA';
   config: Record<string, string | number | boolean | null>;
   enabled: boolean;
+  updatedAt: string;
+}
+
+// Environment Types
+export type EnvironmentType = 'production' | 'staging' | 'sandbox';
+
+export interface WorkspaceEnvironment {
+  id: string;
+  name: string;
+  region: string;
+  tier: string;
+  type: EnvironmentType;
+  status: 'active' | 'degraded' | 'maintenance';
+}
+
+// Audit Log Ledger DTO
+export interface AuditLogDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  actor: string;
+  actorRole: string;
+  action: string;
+  target: string;
+  ipAddress?: string;
+  sha256Hash: string;
+  details?: Record<string, unknown>;
+  timestamp: string;
+}
+
+// Webhook Subscription DTO
+export interface WebhookSubscriptionDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  url: string;
+  events: string[];
+  secret: string;
+  active: boolean;
+  successRate?: string;
+  avgLatencyMs?: number;
+  createdAt: string;
   updatedAt: string;
 }
 

@@ -42,11 +42,14 @@ export function MessagesPage() {
   const [activeSearch, setActiveSearch] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedEnv, setSelectedEnv] = useState<string>('ALL');
 
   // Inspector modal state
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showTechnicalDetailsInOps, setShowTechnicalDetailsInOps] = useState(false);
+
+  const isSandboxFilter = selectedEnv === 'SANDBOX' ? true : selectedEnv === 'PRODUCTION' ? false : undefined;
 
   // TanStack Query: Messages list
   const { data: messagesData, isLoading } = useQuery({
@@ -56,6 +59,7 @@ export function MessagesPage() {
       search: activeSearch || undefined,
       channel: selectedChannel !== 'ALL' ? (selectedChannel as Channel) : undefined,
       status: selectedStatus !== 'ALL' ? (selectedStatus as MessageStatus) : undefined,
+      isSandbox: isSandboxFilter,
     }),
     queryFn: () =>
       api.getMessages({
@@ -64,6 +68,7 @@ export function MessagesPage() {
         search: activeSearch || undefined,
         channel: selectedChannel !== 'ALL' ? (selectedChannel as Channel) : undefined,
         status: selectedStatus !== 'ALL' ? (selectedStatus as MessageStatus) : undefined,
+        isSandbox: isSandboxFilter,
       }),
   });
 
@@ -154,8 +159,24 @@ export function MessagesPage() {
               />
             </div>
 
+            {/* Environment Filter */}
+            <div className="w-full md:w-48 shrink-0">
+              <Select
+                value={selectedEnv}
+                onChange={(e) => {
+                  setSelectedEnv(e.target.value);
+                  setPage(1);
+                }}
+                className="h-10 rounded-xl font-medium"
+              >
+                <option value="ALL">🌐 All Envs</option>
+                <option value="PRODUCTION">🟢 Production</option>
+                <option value="SANDBOX">🧪 Sandbox</option>
+              </Select>
+            </div>
+
             {/* Channel Filter */}
-            <div className="w-full md:w-52 shrink-0">
+            <div className="w-full md:w-44 shrink-0">
               <Select
                 value={selectedChannel}
                 onChange={(e) => {
@@ -176,7 +197,7 @@ export function MessagesPage() {
             </div>
 
             {/* Status Filter */}
-            <div className="w-full md:w-52 shrink-0">
+            <div className="w-full md:w-44 shrink-0">
               <Select
                 value={selectedStatus}
                 onChange={(e) => {
@@ -225,6 +246,7 @@ export function MessagesPage() {
                 {isEngineer && <TableHead className="w-56">{t('messages.colPublicId')}</TableHead>}
                 <TableHead>{t('messages.colRecipient')}</TableHead>
                 <TableHead>{t('messages.colChannel')}</TableHead>
+                <TableHead>Environment</TableHead>
                 <TableHead>{t('deliverability.teamLabel')}</TableHead>
                 {isEngineer && <TableHead>{t('policies.tierPriorities')}</TableHead>}
                 {isEngineer && <TableHead>{t('providers.colUnitCost')}</TableHead>}
@@ -236,14 +258,14 @@ export function MessagesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={isEngineer ? 9 : 6} className="text-center py-12 text-slate-500">
+                  <TableCell colSpan={isEngineer ? 10 : 7} className="text-center py-12 text-slate-500">
                     <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
                     {t('common.loading')}
                   </TableCell>
                 </TableRow>
               ) : messages.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isEngineer ? 9 : 6} className="text-center py-12 text-slate-500">
+                  <TableCell colSpan={isEngineer ? 10 : 7} className="text-center py-12 text-slate-500">
                     {t('messages.noMessagesFound')}
                   </TableCell>
                 </TableRow>
@@ -296,6 +318,19 @@ export function MessagesPage() {
                       >
                         {msg.channel}
                       </Badge>
+                    </TableCell>
+
+                    {/* Environment */}
+                    <TableCell>
+                      {msg.isSandbox ? (
+                        <Badge variant="warning" className="gap-1 font-mono text-[10px]">
+                          🧪 Sandbox
+                        </Badge>
+                      ) : (
+                        <Badge variant="success" className="gap-1 font-mono text-[10px]">
+                          🟢 Production
+                        </Badge>
+                      )}
                     </TableCell>
 
                     {/* Team */}

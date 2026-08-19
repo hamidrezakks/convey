@@ -183,19 +183,21 @@ export async function handleSendSuccess(params: {
       and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
     );
 
-  await PolicyEngine.recordLedger({
-    messageId: data.publicId,
-    team: msg.team,
-    amountUsd: 0.005,
-    channel: data.channel,
-    providerId: adapterId,
-  }).catch((err) => {
-    logger.error('ProviderSend', `Financial ledger recording failed for message '${data.publicId}'`, {
-      error: (err as Error).message,
+  if (!msg.isSandbox) {
+    await PolicyEngine.recordLedger({
+      messageId: data.publicId,
       team: msg.team,
+      amountUsd: 0.005,
       channel: data.channel,
+      providerId: adapterId,
+    }).catch((err) => {
+      logger.error('ProviderSend', `Financial ledger recording failed for message '${data.publicId}'`, {
+        error: (err as Error).message,
+        team: msg.team,
+        channel: data.channel,
+      });
     });
-  });
+  }
 
   await ReportingService.recordMetric({
     team: msg.team,
