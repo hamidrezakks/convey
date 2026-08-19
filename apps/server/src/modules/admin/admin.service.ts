@@ -37,10 +37,12 @@ import {
   maskProviderCredentials,
 } from '../../utils/payload-encryption';
 import { appReadiness } from '../../utils/readiness';
+import { formatRecipientDisplay } from '../../utils/recipients';
 import { formatPubSubChannel } from '../../utils/redis-keys';
 import { computePartitionWindow, fetchMessageByPublicId } from '../messaging/messaging.service';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
 import { selfHealingEngine } from '../providers/core/self-healing';
+import { getProviderUnitCost } from '../providers/core/smart-router';
 
 export class AdminService {
   /**
@@ -244,6 +246,7 @@ export class AdminService {
       const rows = await db
         .select({
           publicId: messages.publicId,
+          userId: messages.userId,
           team: messages.team,
           priority: messages.priority,
           state: messages.state,
@@ -261,8 +264,10 @@ export class AdminService {
       const messageSummaries: MessageSummaryDto[] = rows.map((r: (typeof rows)[number]) => {
         const firstChan =
           Array.isArray(r.channels) && r.channels[0] ? (r.channels[0] as { channel?: string }).channel : 'email';
-        const recipientsObj = r.recipients as { to?: Array<{ email?: string; phone?: string }> } | null;
-        const recipientStr = recipientsObj?.to?.[0]?.email || recipientsObj?.to?.[0]?.phone || 'user@enterprise.com';
+        const recipientStr = formatRecipientDisplay(r.recipients, firstChan, r.userId);
+        const normChan = firstChan?.toLowerCase();
+        const costUsd =
+          normChan === 'sms' ? 0.0079 : normChan === 'whatsapp' ? 0.005 : normChan === 'email' ? 0.0001 : 0.0;
 
         return {
           publicId: r.publicId,
@@ -271,7 +276,7 @@ export class AdminService {
           recipient: recipientStr,
           priority: (r.priority?.toUpperCase() || 'DEFAULT') as MessagePriority,
           status: (r.state?.toUpperCase() || 'ACCEPTED') as MessageStatus,
-          costUsd: 0.0001,
+          costUsd,
           createdAt: r.createdAt.toISOString(),
           deliveredAt: r.completedAt?.toISOString(),
         };
@@ -317,8 +322,15 @@ export class AdminService {
       const spans = this.buildTraceSpans(row, attempts);
       const firstChan =
         Array.isArray(row.channels) && row.channels[0] ? (row.channels[0] as { channel?: string }).channel : 'email';
-      const recipientsObj = row.recipients as { to?: Array<{ email?: string; phone?: string }> } | null;
-      const recipientStr = recipientsObj?.to?.[0]?.email || recipientsObj?.to?.[0]?.phone || 'user@enterprise.com';
+      const recipientStr = formatRecipientDisplay(row.recipients, firstChan, row.userId);
+
+      let costUsd = 0;
+      if (attempts.length > 0) {
+        costUsd = attempts.reduce((sum, a) => sum + getProviderUnitCost(a.providerId), 0);
+      } else {
+        const normChan = firstChan?.toLowerCase();
+        costUsd = normChan === 'sms' ? 0.0079 : normChan === 'whatsapp' ? 0.005 : normChan === 'email' ? 0.0001 : 0.0;
+      }
 
       const firstChanObj =
         Array.isArray(row.channels) && row.channels[0]
@@ -332,7 +344,7 @@ export class AdminService {
         recipient: recipientStr,
         priority: (row.priority?.toUpperCase() || 'DEFAULT') as MessagePriority,
         status: (row.state?.toUpperCase() || 'ACCEPTED') as MessageStatus,
-        costUsd: 0.0001,
+        costUsd,
         createdAt: row.createdAt.toISOString(),
         deliveredAt: row.completedAt?.toISOString(),
         traceparent: `00-${publicId.replace(/[^a-f0-9]/gi, '0').padEnd(32, '0')}-00f067aa0ba902b7-01`,

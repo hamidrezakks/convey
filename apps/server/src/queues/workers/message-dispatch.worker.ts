@@ -21,6 +21,7 @@ import { SuppressionsService } from '../../modules/suppressions/suppressions.ser
 import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
 import { type EncryptedPayload, payloadEncryptionManager } from '../../utils/payload-encryption';
+import { extractRecipientIdentifiers } from '../../utils/recipients';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
 import { redisClient, redisConnectionOptions } from '../connection';
 import { ensureProviderSendWorker, getProviderSendQueue } from '../provider-queues';
@@ -251,13 +252,8 @@ export async function processDispatchJob(publicId: string): Promise<void> {
   }
 
   // 3. Suppression check
-  const recipients = msg.recipients;
-  const emailRecipient = recipients.email || '';
-  const phoneRecipient = recipients.phone || '';
-
-  const identifiers: string[] = [];
-  if (emailRecipient) identifiers.push(emailRecipient);
-  if (phoneRecipient) identifiers.push(phoneRecipient);
+  const extracted = extractRecipientIdentifiers(msg.recipients, msg.userId);
+  const identifiers = extracted.map((e) => e.raw).filter(Boolean);
 
   if (identifiers.length > 0) {
     const suppCheck = await SuppressionsService.isSuppressed({

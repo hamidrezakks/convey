@@ -122,6 +122,15 @@ export const AuditLogService = {
       if (typeof cloned.recipients.whatsapp === 'string') {
         cloned.recipients.whatsapp = `${cloned.recipients.whatsapp.slice(0, 4)}****${cloned.recipients.whatsapp.slice(-2)}`;
       }
+      if (typeof cloned.recipients.telegramChatId === 'string') {
+        cloned.recipients.telegramChatId = `${cloned.recipients.telegramChatId.slice(0, 2)}****`;
+      }
+      if (Array.isArray(cloned.recipients.fcmTokens)) {
+        cloned.recipients.fcmTokens = cloned.recipients.fcmTokens.map((t: string) => `${t.slice(0, 4)}****`);
+      }
+      if (Array.isArray(cloned.recipients.apnsTokens)) {
+        cloned.recipients.apnsTokens = cloned.recipients.apnsTokens.map((t: string) => `${t.slice(0, 4)}****`);
+      }
     }
 
     return cloned;

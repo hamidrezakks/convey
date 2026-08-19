@@ -35,9 +35,10 @@ export function resolveRecipientId(recipients: SendMessageRequest['recipients'],
   if (typeof recipients.email === 'string' && recipients.email) return recipients.email;
   if (typeof recipients.phone === 'string' && recipients.phone) return recipients.phone;
   if (typeof recipients.whatsapp === 'string' && recipients.whatsapp) return recipients.whatsapp;
+  if (typeof recipients.telegramChatId === 'string' && recipients.telegramChatId) return recipients.telegramChatId;
+  if (typeof recipients.slack?.channelId === 'string' && recipients.slack.channelId) return recipients.slack.channelId;
   if (Array.isArray(recipients.fcmTokens) && recipients.fcmTokens.length > 0) return recipients.fcmTokens[0];
   if (Array.isArray(recipients.apnsTokens) && recipients.apnsTokens.length > 0) return recipients.apnsTokens[0];
-  if (typeof recipients.telegramChatId === 'string' && recipients.telegramChatId) return recipients.telegramChatId;
   return undefined;
 }
 
@@ -61,6 +62,12 @@ export function validateChannelRecipients(
     }
     if (channel === Channel.APNS && (!recipients.apnsTokens || recipients.apnsTokens.length === 0)) {
       return 'At least one APNs token is required for APNs channel';
+    }
+    if (channel === Channel.TELEGRAM && !recipients.telegramChatId) {
+      return 'Valid Telegram chat ID is required for Telegram channel';
+    }
+    if (channel === Channel.SLACK && !recipients.slack?.channelId) {
+      return 'Valid Slack channel ID is required for Slack channel';
     }
   }
   return null;

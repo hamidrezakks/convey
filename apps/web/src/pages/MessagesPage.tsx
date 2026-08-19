@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { MessageCostExplainer } from '../components/messages/MessageCostExplainer';
 import { OpsFailureExplainer } from '../components/messages/OpsFailureExplainer';
 import { OpsMessageTimeline } from '../components/messages/OpsMessageTimeline';
 import { TraceWaterfall } from '../components/trace/TraceWaterfall';
@@ -457,6 +458,14 @@ export function MessagesPage() {
                   )}
                 </div>
               )}
+
+              {/* Cost Indicator & Financial Explanation */}
+              <MessageCostExplainer
+                channel={messageDetails.channel}
+                costUsd={messageDetails.costUsd}
+                attempts={messageDetails.attempts || []}
+                isOps={isOps}
+              />
 
               {/* Message Payload View */}
               <div className="space-y-2">

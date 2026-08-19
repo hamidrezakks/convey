@@ -144,6 +144,10 @@ export enum IdentifierType {
   EMAIL = 'email',
   PHONE = 'phone',
   WHATSAPP = 'whatsapp',
+  TELEGRAM = 'telegram',
+  SLACK = 'slack',
+  PUSH = 'push',
+  USER_ID = 'user_id',
 }
 
 export enum SystemProvider {
