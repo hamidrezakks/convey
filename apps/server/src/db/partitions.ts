@@ -1,14 +1,14 @@
 import { queryClient } from './index';
 
 /**
- * Ensures PostgreSQL range partitions exist for current and future months
+ * Ensures PostgreSQL range partitions exist for historical, current, and future months
  * for high-volume tables: messages, message_attempts, message_events, budget_ledger.
  */
-export async function ensureMonthlyPartitions(monthsAhead = 3): Promise<void> {
+export async function ensureMonthlyPartitions(monthsAhead = 6, monthsBehind = 3): Promise<void> {
   const tables = ['messages', 'message_attempts', 'message_events', 'budget_ledger'];
   const now = new Date();
 
-  for (let i = -1; i <= monthsAhead; i++) {
+  for (let i = -monthsBehind; i <= monthsAhead; i++) {
     const year = now.getFullYear();
     const month = now.getMonth() + i;
 

@@ -27,6 +27,7 @@
     "biome:lint": "biome lint .",
     "db:generate": "bun --filter @convey/server db:generate",
     "db:migrate": "bun --filter @convey/server db:migrate",
+    "db:seed:million": "bun --filter @convey/server db:seed:million",
     "typecheck": "bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json"
   },
   "devDependencies": {

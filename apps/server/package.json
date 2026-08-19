@@ -16,6 +16,7 @@
     "bench:pipeline": "bun run bench/index.ts --pipeline",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
+    "db:seed:million": "bun scripts/seed-production-million.ts",
     "jobs:dump": "bun scripts/get-job-consumption.ts",
     "benchmark:report": "bun scripts/benchmark-report.ts"
   },
