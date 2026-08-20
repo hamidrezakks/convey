@@ -7,10 +7,12 @@ export interface BenchmarkResult {
   minMs: number;
   maxMs: number;
   avgMs: number;
+  stdDevMs: number;
   p50Ms: number;
   p90Ms: number;
   p95Ms: number;
   p99Ms: number;
+  p999Ms: number;
   memoryDeltaMb: number;
 }
 
@@ -42,15 +44,15 @@ export class BenchmarkSuite {
   }
 
   async runBenchmark(bm: BenchmarkOptions): Promise<BenchmarkResult> {
-    // 1. Warmup phase
+    // 1. Warmup phase to allow V8 JIT compilation and inline caching
     const warmupCount = bm.warmupIterations ?? 10;
     for (let i = 0; i < warmupCount; i++) {
       await bm.fn();
     }
 
-    // Force GC if available
-    if (global.gc) {
-      global.gc();
+    // Force GC before measurement if available
+    if (globalThis.gc) {
+      globalThis.gc();
     }
 
     const startMemory = process.memoryUsage().heapUsed;
@@ -77,6 +79,10 @@ export class BenchmarkSuite {
     const sum = latencies.reduce((acc, val) => acc + val, 0);
     const avgMs = sum / iterations;
 
+    // Calculate sample standard deviation (sigma)
+    const variance = latencies.reduce((acc, val) => acc + (val - avgMs) ** 2, 0) / iterations;
+    const stdDevMs = Math.sqrt(variance);
+
     const getPercentile = (p: number) => {
       const idx = Math.min(latencies.length - 1, Math.floor((p / 100) * latencies.length));
       return latencies[idx];
@@ -86,6 +92,7 @@ export class BenchmarkSuite {
     const p90Ms = getPercentile(90);
     const p95Ms = getPercentile(95);
     const p99Ms = getPercentile(99);
+    const p999Ms = getPercentile(99.9);
     const memoryDeltaMb = Math.max(0, (endMemory - startMemory) / (1024 * 1024));
 
     return {
@@ -97,10 +104,12 @@ export class BenchmarkSuite {
       minMs: Number(minMs.toFixed(3)),
       maxMs: Number(maxMs.toFixed(3)),
       avgMs: Number(avgMs.toFixed(3)),
+      stdDevMs: Number(stdDevMs.toFixed(3)),
       p50Ms: Number(p50Ms.toFixed(3)),
       p90Ms: Number(p90Ms.toFixed(3)),
       p95Ms: Number(p95Ms.toFixed(3)),
       p99Ms: Number(p99Ms.toFixed(3)),
+      p999Ms: Number(p999Ms.toFixed(3)),
       memoryDeltaMb: Number(memoryDeltaMb.toFixed(3)),
     };
   }
@@ -113,7 +122,7 @@ export class BenchmarkSuite {
       process.stdout.write(`  ⏳ Running: ${bm.name}... `);
       const res = await this.runBenchmark(bm);
       results.push(res);
-      console.log(`✅ ${res.opsPerSec.toLocaleString()} ops/sec (p95: ${res.p95Ms}ms)`);
+      console.log(`✅ ${res.opsPerSec.toLocaleString()} ops/sec (p95: ${res.p95Ms}ms, p99.9: ${res.p999Ms}ms)`);
     }
 
     return results;
@@ -121,10 +130,12 @@ export class BenchmarkSuite {
 
   static printResultsTable(results: BenchmarkResult[], title = 'CONVEY BENCHMARK REPORT'): void {
     console.log(
-      '\n====================================================================================================',
+      '\n========================================================================================================================',
     );
     console.log(`                               ${title}`);
-    console.log('====================================================================================================');
+    console.log(
+      '========================================================================================================================',
+    );
 
     // Group by category
     const categories = Array.from(new Set(results.map((r) => r.category)));
@@ -137,18 +148,21 @@ export class BenchmarkSuite {
         'Benchmark Name': r.name,
         'Ops/sec': `${r.opsPerSec.toLocaleString()}/s`,
         'Avg (ms)': `${r.avgMs}ms`,
+        'StdDev (ms)': `${r.stdDevMs}ms`,
         'p50 (ms)': `${r.p50Ms}ms`,
         'p95 (ms)': `${r.p95Ms}ms`,
         'p99 (ms)': `${r.p99Ms}ms`,
+        'p99.9 (ms)': `${r.p999Ms}ms`,
         'Min (ms)': `${r.minMs}ms`,
         'Max (ms)': `${r.maxMs}ms`,
+        'Mem Δ': `${r.memoryDeltaMb}MB`,
         Iters: r.iterations,
       }));
 
       console.table(tableData);
     }
     console.log(
-      '====================================================================================================\n',
+      '========================================================================================================================\n',
     );
   }
 }

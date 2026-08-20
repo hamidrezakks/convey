@@ -36,7 +36,7 @@ export interface CequensWhatsappApiRequest {
   senderId?: string;
   senderName?: string;
   recipientPhone: string;
-  messageType: CequensMessageType | 'text' | 'template' | 'media';
+  messageType: CequensMessageType;
   messageText?: string;
   mediaUrl?: string;
   caption?: string;
@@ -64,8 +64,9 @@ export interface CequensWhatsappApiResponse {
 export interface CequensWhatsappWebhookPayload {
   messageId?: string;
   status?: string;
-  direction?: CequensMessageDirection | 'inbound' | 'outbound';
+  direction?: CequensMessageDirection;
   senderPhone?: string;
+  text?: string;
   timestamp?: string | number;
   rawPayload?: unknown;
 }

@@ -4,6 +4,7 @@ import { redisClient } from '../../queues/connection';
 import { webhookIngestQueue } from '../../queues/queue-definitions';
 import { generateMessageId } from '../../utils/id';
 import { formatRedisKey } from '../../utils/redis-keys';
+import { CascadeManager } from '../messaging/cascade-manager';
 import {
   AttemptState,
   type ClientReceiptPayload,
@@ -16,6 +17,46 @@ import { ProviderRegistry } from '../providers/core/provider-registry';
 
 export const WEBHOOK_DEDUPLICATION_TTL_SECONDS = 86_400; // 24 hours
 export const TRACKING_PIXEL_DEDUPLICATION_TTL_SECONDS = 3_600; // 1 hour
+
+export enum WebhookFlowType {
+  STATUS = 'status',
+  INCOMING = 'incoming',
+  GENERAL = 'general',
+}
+
+export function resolveProviderAlias(providerId: string): string {
+  const normalized = providerId.toLowerCase().trim();
+  if (normalized === 'whatsapp') {
+    return 'whatsapp-business';
+  }
+  return normalized;
+}
+
+export function verifyHubChallenge(
+  _providerId: string,
+  query: Record<string, string | undefined>,
+): { verified: boolean; challenge?: string } {
+  const mode = query['hub.mode'] || query.mode;
+  const token = query['hub.verify_token'] || query.verify_token;
+  const challenge = query['hub.challenge'] || query.challenge;
+
+  if (mode !== 'subscribe' || !challenge) {
+    return { verified: false };
+  }
+
+  const expectedToken =
+    process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
+    process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
+    process.env.WHATSAPP_VERIFY_TOKEN ||
+    process.env.META_VERIFY_TOKEN ||
+    'convey_verify_token';
+
+  if (token === expectedToken) {
+    return { verified: true, challenge };
+  }
+
+  return { verified: false };
+}
 
 export async function verifyWebhookSignature(
   mod: ReturnType<typeof ProviderRegistry.getModule>,
@@ -52,10 +93,18 @@ export function buildReceiptEventRecord(receipt: Record<string, unknown>, now = 
   };
 }
 
-import { CascadeManager } from '../messaging/cascade-manager';
-
 export const WebhooksService = {
-  async ingestWebhook(providerId: string, payload: unknown, headers: Record<string, string>, req?: Request) {
+  verifyHubChallenge,
+  resolveProviderAlias,
+
+  async ingestWebhook(
+    rawProviderId: string,
+    payload: unknown,
+    headers: Record<string, string>,
+    req?: Request,
+    flowType: WebhookFlowType = WebhookFlowType.GENERAL,
+  ) {
+    const providerId = resolveProviderAlias(rawProviderId);
     const mod = ProviderRegistry.getModule(providerId);
     const rawString = typeof payload === 'string' ? payload : JSON.stringify(payload);
 
@@ -66,7 +115,7 @@ export const WebhooksService = {
 
     const eventId = extractEventId(headers, rawString);
     const isNew = await deduplicateEvent(
-      formatRedisKey(`provider-event:${providerId}:${eventId}`),
+      formatRedisKey(`provider-event:${providerId}:${flowType}:${eventId}`),
       WEBHOOK_DEDUPLICATION_TTL_SECONDS,
     );
     if (!isNew) {
@@ -78,6 +127,7 @@ export const WebhooksService = {
         providerId,
         payload,
         headers,
+        flowType,
         receivedAt: new Date().toISOString(),
       });
     } catch (err) {

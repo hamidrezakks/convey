@@ -17,6 +17,50 @@ import type {
   CequensWhatsappWebhookPayload,
 } from './types';
 
+export function normalizeCequensStatus(status?: string): NormalizedStatus {
+  const s = (status || '').toLowerCase();
+  switch (s) {
+    case 'read':
+    case 'seen':
+      return NormalizedStatus.READ;
+    case 'failed':
+    case 'undelivered':
+    case 'rejected':
+    case 'expired':
+    case 'error':
+      return NormalizedStatus.FAILED;
+    case 'bounced':
+      return NormalizedStatus.BOUNCED;
+    case 'opened':
+      return NormalizedStatus.OPENED;
+    default:
+      return NormalizedStatus.DELIVERED;
+  }
+}
+
+export function extractCequensMessageBody(
+  payload: CequensWhatsappWebhookPayload,
+  rawObj: Record<string, unknown>,
+): string {
+  return (
+    payload.text ||
+    (rawObj.text as string) ||
+    (rawObj.body as string) ||
+    (rawObj.messageText as string) ||
+    (rawObj.message as string) ||
+    ''
+  );
+}
+
+export function parseCequensTimestamp(timestamp?: string | number): Date {
+  if (!timestamp) return new Date();
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp);
+  }
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export class CequensWhatsappChatAdapter
   implements ProviderAdapter<CequensWhatsappAdapterConfig, CequensWhatsappApiRequest, CequensWhatsappApiResponse>
 {
@@ -105,29 +149,44 @@ export class CequensWhatsappChatAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as CequensWhatsappWebhookPayload;
-    if (!webhookData?.messageId) return [];
-
-    const isInbound = Boolean(webhookData.direction === 'inbound' || webhookData.senderPhone);
-
-    let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
-    const status = (webhookData.status || '').toLowerCase();
-    if (status === 'read') normalizedStatus = NormalizedStatus.READ;
-    else if (status === 'failed') normalizedStatus = NormalizedStatus.FAILED;
-
     const rawPayloadObj =
       typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : { raw: payload };
+    const webhookData = payload as CequensWhatsappWebhookPayload;
+
+    const messageId =
+      webhookData?.messageId ||
+      (rawPayloadObj.id as string) ||
+      (rawPayloadObj.message_id as string) ||
+      (rawPayloadObj.msgId as string);
+
+    if (!messageId) return [];
+
+    const direction = (webhookData?.direction || (rawPayloadObj.direction as string) || '').toLowerCase();
+    const senderPhone =
+      webhookData?.senderPhone ||
+      (rawPayloadObj.senderPhone as string) ||
+      (rawPayloadObj.from as string) ||
+      (rawPayloadObj.sender as string);
+
+    const isInbound = Boolean(direction === 'inbound' || senderPhone);
+    const normalizedStatus = normalizeCequensStatus(webhookData?.status || (rawPayloadObj.status as string));
+    const bodyText = extractCequensMessageBody(webhookData || {}, rawPayloadObj);
 
     return [
       {
         providerId: this.id,
-        providerMessageId: webhookData.messageId,
+        providerMessageId: messageId,
         normalizedStatus,
         rawPayload: {
           ...rawPayloadObj,
-          ...(isInbound ? { isInboundUserMessage: true, senderPhone: webhookData.senderPhone } : {}),
+          ...(isInbound && {
+            isInboundUserMessage: true,
+            senderPhone,
+            body: bodyText,
+            text: bodyText,
+          }),
         },
-        timestamp: webhookData.timestamp ? new Date(webhookData.timestamp) : new Date(),
+        timestamp: parseCequensTimestamp(webhookData?.timestamp || (rawPayloadObj.timestamp as string | number)),
       },
     ];
   }

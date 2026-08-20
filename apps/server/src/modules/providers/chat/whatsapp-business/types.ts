@@ -66,10 +66,21 @@ export interface WhatsappBusinessWebhookPayload {
     id?: string;
     changes?: Array<{
       value?: {
+        messaging_product?: string;
+        metadata?: {
+          display_phone_number?: string;
+          phone_number_id?: string;
+        };
+        contacts?: Array<{
+          profile?: { name?: string };
+          wa_id?: string;
+        }>;
         statuses?: Array<{
           id?: string;
           status?: WhatsappWebhookStatusType | string;
           timestamp?: string;
+          recipient_id?: string;
+          errors?: Array<{ code?: number; title?: string; message?: string }>;
         }>;
         messages?: Array<{
           id?: string;
@@ -77,6 +88,15 @@ export interface WhatsappBusinessWebhookPayload {
           timestamp?: string;
           type?: WhatsappMessageType | string;
           text?: { body: string };
+          interactive?: {
+            type?: 'button_reply' | 'list_reply' | string;
+            button_reply?: { id?: string; title?: string };
+            list_reply?: { id?: string; title?: string; description?: string };
+          };
+          button?: {
+            text?: string;
+            payload?: string;
+          };
         }>;
       };
     }>;

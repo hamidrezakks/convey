@@ -225,6 +225,8 @@ convey/
 
 - 🎛️ **[Web-UI Mission Control Manual](./docs/web-ui-mission-control.md)** — Complete guide for the React 19 + Base UI console.
 - 📘 **[REST API Specification](./docs/api.md)** — Complete endpoint schemas, query parameters, error matrices, and curl examples.
+- 🔌 **[Provider Integration & Reference Manual](./docs/providers-reference.md)** — Exhaustive guide covering all 88 provider integrations, required env vars, schemas, and webhooks.
+- ⚙️ **[Configuration & Environment Variables Guide](./docs/configuration-env.md)** — Comprehensive reference for core runtime, database pooling, queues, and provider env mappings.
 - 🏛️ **[System Architecture](./docs/architecture.md)** — In-depth breakdown of the 4-stage pipeline, fast path, and graceful shutdown.
 - 💾 **[Database Schema & Partitioning](./docs/database-schema.md)** — 16 Drizzle table schemas, foreign keys, and monthly range partitioning.
 - 🚦 **[Queue Topology & Schedulers](./docs/queue-topology.md)** — BullMQ queue definitions, worker loops, and dual-layer scheduler.

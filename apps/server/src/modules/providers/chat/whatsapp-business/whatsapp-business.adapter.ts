@@ -17,6 +17,27 @@ import {
 } from './types';
 import { whatsappBusinessTransformer } from './whatsapp-business.transformer';
 
+export type WhatsappIncomingMessage = NonNullable<
+  NonNullable<NonNullable<NonNullable<WhatsappWebhookPayload['entry']>[number]['changes']>[number]['value']>['messages']
+>[number];
+
+export function extractWhatsappMessageBody(incomingMsg?: WhatsappIncomingMessage): string {
+  if (!incomingMsg) return '';
+  if (incomingMsg.text?.body) {
+    return incomingMsg.text.body;
+  }
+  if (incomingMsg.interactive?.button_reply?.title) {
+    return incomingMsg.interactive.button_reply.title;
+  }
+  if (incomingMsg.interactive?.list_reply?.title) {
+    return incomingMsg.interactive.list_reply.title;
+  }
+  if (incomingMsg.button?.text) {
+    return incomingMsg.button.text;
+  }
+  return '';
+}
+
 export class WhatsappBusinessChatAdapter
   implements ProviderAdapter<WhatsappBusinessChatAdapterConfig, WhatsappApiRequest, WhatsappApiResponse>
 {
@@ -156,6 +177,8 @@ export class WhatsappBusinessChatAdapter
         for (const incomingMsg of messages) {
           if (!incomingMsg?.from) continue;
 
+          const messageBody = extractWhatsappMessageBody(incomingMsg);
+
           events.push({
             providerId: this.id,
             providerMessageId: incomingMsg.id || `inbound_${Date.now()}`,
@@ -164,6 +187,9 @@ export class WhatsappBusinessChatAdapter
               ...(typeof payload === 'object' && payload !== null ? payload : { raw: payload }),
               isInboundUserMessage: true,
               senderPhone: incomingMsg.from,
+              body: messageBody,
+              text: messageBody,
+              messageType: incomingMsg.type || 'text',
             },
             timestamp: incomingMsg.timestamp ? new Date(Number(incomingMsg.timestamp) * 1000) : new Date(),
           });

@@ -150,7 +150,14 @@ export class TwilioWhatsappChatAdapter
         normalizedStatus,
         rawPayload: {
           ...rawPayloadObj,
-          ...(isInbound ? { isInboundUserMessage: true, senderPhone: webhookData.From } : {}),
+          ...(isInbound
+            ? {
+                isInboundUserMessage: true,
+                senderPhone: webhookData.From,
+                body: webhookData.Body || '',
+                text: webhookData.Body || '',
+              }
+            : {}),
         },
         timestamp: new Date(),
       },

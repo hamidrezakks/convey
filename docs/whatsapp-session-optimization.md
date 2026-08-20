@@ -6,47 +6,57 @@ Under Meta's **WhatsApp Business Platform pricing model**, business-initiated te
 
 However, when an end-user sends an inbound message to a WhatsApp Business Number, WhatsApp opens a **24-Hour Customer Service Window**. During this active 24-hour window, free-form text messages (`type: "text"`) incur **$0.00 Meta template fees** (free tier service conversations).
 
-Convey features an autonomous **WhatsApp Session Optimization Engine** (`src/modules/providers/whatsapp/`) that automatically detects inbound customer messages, tracks active 24-hour conversation windows in Redis and L1 process memory, and dynamically transforms outbound template messages into rendered plain-text session messages at **zero template cost**.
+Convey features an autonomous **WhatsApp Session Optimization Engine** (`src/modules/providers/whatsapp/`) coupled with a **Dual-Webhook Architecture** (`/v1/webhooks/:provider/status` vs `/v1/webhooks/:provider/incoming`) that automatically detects inbound customer messages, tracks active 24-hour conversation windows in Redis and L1 process memory, and dynamically transforms outbound template messages into rendered plain-text session messages at **zero template cost**.
 
 ### Financial Impact Model (1,000,000 Messages / Month)
 | Strategy | Template Cost / Msg | Monthly Expenditure | Annual Expenditure | Annual Savings |
 | :--- | :--- | :--- | :--- | :--- |
 | **Traditional Gateway (Standard Templates)** | $0.015 | $15,000 | $180,000 | Baseline |
 | **Convey Autonomous Session Optimizer (60% Inbound Active)** | $0.000 (Session) / $0.015 (Template) | $6,000 | $72,000 | **$108,000 / year (60% Savings)** |
+| **Convey Autonomous Session Optimizer (85% Inbound Active)** | $0.000 (Session) / $0.015 (Template) | $2,250 | $27,000 | **$153,000 / year (85% Savings)** |
 
 ---
 
-## 2. Architecture & Dataflow Diagram
+## 2. Dual-Webhook Architecture & Endpoints
 
-```text
-[Inbound WhatsApp Webhook] (Meta Cloud API / Twilio / Cequens)
-        │
-        ▼
-[webhook-ingest.worker.ts]
-        │
-        ▼
-[WhatsAppSessionTracker] ──(Atomic Redis Lua Script)──► [Redis wa:session:<providerId>:<phone>]
-        │                                                           │ (24h Expiration TTL)
-        └──────────────────(L1 Sub-Millisecond Cache)───────────────┘
-                                        │
-[Outbound Dispatch Job]                 │
-        │                               ▼
-        └──► [applyWhatsAppSessionOptimization Interceptor]
-                        │
-                        ├── Is 24h Window Active? ──► [WhatsAppTemplateEngine]
-                        │                                    │ (Pre-compiled AST Tokenizer & Dot-Path)
-                        │                                    ▼
-                        │                      Rendered Plain-Text Body ("Order #10928 confirmed!")
-                        │                                    │
-                        │                                    ▼
-                        │                      Dispatched as Plain Text (`type: "text"`) ──► [$0.00 Cost]
-                        │                      Audit Metadata Attached (_sessionOptimizationApplied)
-                        │
-                        └── Is Window Expired / Inactive?
-                                        │
-                                        ▼
-                               Dispatched as Standard Template (`type: "template"`) ──► [Paid Fee]
+To support enterprise segregation and high-throughput routing, Convey exposes two dedicated webhook endpoints for WhatsApp flows:
+
 ```
+                               ┌────────────────────────────────────────────────────────┐
+                               │                 WhatsApp Gateway                       │
+                               │        (Meta Cloud API / Twilio / Cequens)             │
+                               └──────────────────────┬─────────────────────────────────┘
+                                                      │
+                       ┌──────────────────────────────┴──────────────────────────────┐
+                       │                                                             │
+         Status Callback (DLR/Receipts)                              Customer Inbound Messages
+                       │                                                             │
+                       ▼                                                             ▼
+     POST /v1/webhooks/whatsapp/status                          POST /v1/webhooks/whatsapp/incoming
+  (or /v1/webhooks/:provider/status)                         (or /v1/webhooks/:provider/incoming)
+                       │                                                             │
+                       ▼                                                             ▼
+          [webhook-ingest.worker]                                       [webhook-ingest.worker]
+                       │                                                             │
+       ┌───────────────┴───────────────┐                            ┌────────────────┴────────────────┐
+       ▼                               ▼                            ▼                                 ▼
+[Update DB Attempts]         [Cancel Cascades]            [Record 24h Window]           [Dispatch Webhooks]
+[Transition State]           [Record Metrics]             [wa:session:* Redis]          [Keyword Opt-Out]
+                                                                    │
+                                                                    ▼
+                                                       [applyWhatsAppSessionOpt]
+                                                       Transforms Outbound Template
+                                                       ➔ Plain Text ($0.00 Meta Fee)
+```
+
+### 2.1 Webhook Routing Matrix
+
+| Flow Type | Endpoint Path | Method | Primary Purpose | Impact on 24h Window |
+| :--- | :--- | :--- | :--- | :--- |
+| **Status Update Webhook** | `/v1/webhooks/whatsapp/status`<br>`/v1/webhooks/:provider/status` | `POST` | Ingests delivery receipts (`delivered`), read receipts (`read`), and failures (`failed`). Updates message state and cancels fallback cascade steps. | None |
+| **Incoming Message Webhook** | `/v1/webhooks/whatsapp/incoming`<br>`/v1/webhooks/whatsapp/inbound`<br>`/v1/webhooks/:provider/incoming` | `POST` | Ingests user-initiated customer messages (text, buttons, interactive replies). | **Directly opens & refreshes the 24-hour service window** (`wa:session:*`). |
+| **Meta Challenge Verification** | `/v1/webhooks/:provider`<br>`/v1/webhooks/:provider/status`<br>`/v1/webhooks/:provider/incoming` | `GET` | Handshake verification for Meta WhatsApp Cloud API / Facebook App Dashboard (`hub.mode=subscribe`, `hub.challenge`, `hub.verify_token`). | None |
+| **Unified Multiplexing** | `/v1/webhooks/:provider`<br>`/v1/webhooks/whatsapp` | `POST` | Unified endpoint capable of receiving both status updates and inbound messages in single or multi-event batches. | Opens 24h window if inbound message present. |
 
 ---
 
@@ -83,7 +93,77 @@ Convey features an autonomous **WhatsApp Session Optimization Engine** (`src/mod
 
 ---
 
-## 4. Provider Configuration Reference
+## 4. Webhook Payload Examples
+
+### 4.1 Meta Webhook Challenge Verification (GET)
+```http
+GET /v1/webhooks/whatsapp-business/incoming?hub.mode=subscribe&hub.challenge=1158201444&hub.verify_token=convey_wh_verify_secret_123 HTTP/1.1
+Host: api.convey.dev
+```
+**Response**: `200 OK` with raw body `1158201444` (Content-Type: `text/plain`).
+
+### 4.2 Status Update Payload (POST `/v1/webhooks/whatsapp/status`)
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WBA_109283719283",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "statuses": [
+              {
+                "id": "wamid.HBgLMTU1NTA5OTg4Nzc=",
+                "status": "delivered",
+                "timestamp": "1690000120",
+                "recipient_id": "15559876543"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 4.3 Incoming Message Payload (POST `/v1/webhooks/whatsapp/incoming`)
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WBA_109283719283",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "messages": [
+              {
+                "from": "15559876543",
+                "id": "wamid.HBgLMTU1NTk4NzY1NDM=",
+                "timestamp": "1690000000",
+                "text": {
+                  "body": "Where is my delivery?"
+                },
+                "type": "text"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## 5. Provider Configuration Reference
 
 To enable session optimization for a WhatsApp provider, include `sessionOptimization` in the provider configuration:
 
@@ -94,25 +174,17 @@ To enable session optimization for a WhatsApp provider, include `sessionOptimiza
   "sessionOptimization": {
     "enabled": true,
     "ttlSeconds": 86400,
-    "fallbackToTemplateIfMissingText": true
+    "fallbackToTemplateIfMissingText": true,
+    "estimatedCostSavedUsd": 0.015
   }
 }
 ```
 
 ---
 
-## 5. Provider Webhook Support Matrix
+## 6. Automated Testing & Verification
 
-| Provider Module | Provider ID | Webhook Inbound Trigger | Payload Transformation |
-| :--- | :--- | :--- | :--- |
-| **Meta WhatsApp Cloud API** | `whatsapp-business` | `entry[0].changes[0].value.messages[0]` | `type: "template"` ➔ `type: "text"` |
-| **Twilio WhatsApp** | `twilio-whatsapp` | Form POST (`From=whatsapp:+...`, `Body=...`) | `ContentSid` ➔ `Body` |
-| **Cequens WhatsApp** | `cequens-whatsapp` | JSON (`direction: "inbound"`, `senderPhone`) | `messageType: "template"` ➔ `messageType: "text"` |
-
----
-
-## 6. Automated Testing & SLA Verification
-
-The WhatsApp Session Optimization subsystem is verified by comprehensive unit and performance test suites:
-- **Unit & Interceptor Tests**: `tests/whatsapp-session-optimization.test.ts`
-- **AST Render Engine SLA Benchmark**: Verified at **> 1,000,000 renders/sec** in `tests/e2e/load-10k-benchmark.test.ts`.
+The WhatsApp Session Optimization and Dual-Webhook subsystems are verified by test suites:
+- **Dual-Webhook & Lifecycle Tests**: `apps/server/tests/whatsapp-webhooks-flow.test.ts`
+- **Unit & Interceptor Tests**: `apps/server/tests/whatsapp-session-optimization.test.ts`
+- **AST Render Engine SLA Benchmark**: Verified at **> 1,890,000 renders/sec** (p95: 1 µs) in `apps/server/bench/engine-benchmarks.ts`.
