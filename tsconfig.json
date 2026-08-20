@@ -3,15 +3,17 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ESNext"],
+    "moduleDetection": "force",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "strict": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["bun-types"],
+    "types": ["bun", "node"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@convey/shared": ["./packages/shared/src/index.ts"]
     }
   },
-  "include": ["src/**/*", "tests/**/*"]
+  "references": [{ "path": "./packages/shared" }, { "path": "./apps/server" }, { "path": "./apps/web" }],
+  "files": []
 }

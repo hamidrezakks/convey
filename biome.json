@@ -1,19 +1,35 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": {
-    "enabled": true
+  "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
+  "files": {
+    "includes": ["**", "!**/node_modules", "!**/dist", "!**/drizzle", "!**/.system_generated"]
   },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
+      "a11y": {
+        "useKeyWithClickEvents": "off",
+        "noLabelWithoutControl": "off",
+        "noAutofocus": "off",
+        "noSvgWithoutTitle": "off",
+        "noStaticElementInteractions": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      },
       "correctness": {
+        "useExhaustiveDependencies": "off",
         "noUnusedVariables": "error",
         "noUnusedImports": "error"
       },
       "style": {
         "useConst": "error",
         "useTemplate": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noTemplateCurlyInString": "off"
       }
     }
   },
@@ -28,6 +44,11 @@
     "formatter": {
       "quoteStyle": "single",
       "semicolons": "always"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   }
 }

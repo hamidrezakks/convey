@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --border: 214 32% 91%;
+    --ring: 217 91% 60%;
+  }
+
+  .dark {
+    --background: 224 45% 6%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+    --border: 217 33% 14%;
+    --ring: 199 89% 48%;
+  }
+
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family:
+      "Inter", "Google Sans", "Vazirmatn", "IBM Plex Sans Arabic", system-ui, -apple-system, BlinkMacSystemFont,
+      sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .dark body {
+    background-color: #0b0f19;
+    color: #f8fafc;
+  }
+
+  /* Persian (Farsi) Optimized Typography */
+  html[lang="fa"] body,
+  html[lang="fa"] input,
+  html[lang="fa"] select,
+  html[lang="fa"] textarea,
+  html[lang="fa"] button {
+    font-family: "Vazirmatn", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    letter-spacing: 0;
+  }
+
+  /* Arabic Optimized Typography */
+  html[lang="ar"] body,
+  html[lang="ar"] input,
+  html[lang="ar"] select,
+  html[lang="ar"] textarea,
+  html[lang="ar"] button {
+    font-family:
+      "IBM Plex Sans Arabic", "Readex Pro", "Cairo", "Vazirmatn", -apple-system, BlinkMacSystemFont, system-ui,
+      sans-serif;
+    letter-spacing: 0;
+  }
+
+  /* Monospace overrides remain strictly JetBrains Mono & LTR across all locales */
+  .font-mono,
+  code,
+  pre,
+  kbd {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-feature-settings:
+      "tnum" 1,
+      "cv05" 1;
+  }
+
+  /* Sleek modern scrollbars */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+  }
+}
+
+/* RTL Layout Directional Rules */
+[dir="rtl"] {
+  text-align: right;
+}
+
+/* RTL Table Direction & Alignment */
+[dir="rtl"] table {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+/* Monospace text in RTL: Never set display: inline-block on table cells */
+[dir="rtl"] .font-mono:not(td):not(th) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] td.font-mono,
+[dir="rtl"] th.font-mono {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] td.font-mono > span,
+[dir="rtl"] th.font-mono > span {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] code,
+[dir="rtl"] pre,
+[dir="rtl"] kbd {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="search"] {
+  text-align: right;
+}
+
+[dir="rtl"] input.font-mono,
+[dir="rtl"] input[type="password"] {
+  text-align: left;
+  direction: ltr;
+}
+
+/* Google-Caliber Calm Surface & Card Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.03),
+    0 1px 2px -1px rgba(0, 0, 0, 0.03);
+}
+
+.dark .glass-panel {
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.25);
+}
+
+.glass-card {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.03),
+    0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dark .glass-card {
+  background: rgba(17, 24, 39, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.2);
+}
+
+.glass-card:hover {
+  border-color: rgba(203, 213, 225, 0.9);
+}
+
+.dark .glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Calm subtle border focus */
+.focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+
+/* Custom scrollbar utility */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
