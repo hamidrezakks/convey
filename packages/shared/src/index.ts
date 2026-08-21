@@ -8,6 +8,9 @@ import type { Channel } from './channels';
 // Channels supported across Convey
 export * from './channels';
 
+// ISO-4217 Currency Standards & Formatting
+export * from './currencies';
+
 // Priority Tiers
 export enum MessagePriority {
   CRITICAL = 'CRITICAL',
@@ -125,6 +128,9 @@ export interface ProviderHealthDto {
   rollingSuccessRatePercent: number;
   anomalyZScore: number;
   unitCostUsd: number;
+  baseCurrency?: string;
+  unitCostNative?: number;
+  formattedUnitCost?: string;
   totalCalls24h: number;
   lastTripAt?: string;
   isCanaryHealthy: boolean;
@@ -236,6 +242,8 @@ export interface ProviderCatalogItem {
   requiredEnvVars: ProviderEnvVarSpec[];
   defaultPriority: number;
   defaultWeight: number;
+  defaultBaseCurrency?: string;
+  defaultUnitCost?: number;
 }
 
 export interface ProviderFeatureConfigs {
@@ -298,6 +306,9 @@ export interface ConfiguredProviderDto {
   priority: number;
   weight: number;
   fallbackProviderId?: string;
+  baseCurrency?: string;
+  unitCost?: number;
+  formattedUnitCost?: string;
   status: 'ACTIVE' | 'DISABLED' | 'ERROR';
   credentialsMasked: Record<string, string>;
   config?: ProviderFeatureConfigs;
@@ -310,6 +321,8 @@ export interface RegisterProviderRequest {
   providerId: string;
   channel: Channel;
   credentials: Record<string, string>;
+  baseCurrency?: string;
+  unitCost?: number;
   config?: ProviderFeatureConfigs;
   isPrimary?: boolean;
   priority?: number;
@@ -348,9 +361,22 @@ export interface PolicyDto {
   id: string;
   teamId: string;
   name: string;
-  type: 'RATE_LIMIT' | 'TOKEN_BUCKET' | 'QUIET_HOURS' | 'COST_OPTIMIZER' | 'TENANT_SLA';
+  type: 'RATE_LIMIT' | 'TOKEN_BUCKET' | 'QUIET_HOURS' | 'COST_OPTIMIZER' | 'TENANT_SLA' | 'BUDGET';
   config: Record<string, string | number | boolean | null>;
+  currency?: string;
   enabled: boolean;
+  updatedAt: string;
+}
+
+export interface BudgetPolicyDto {
+  id: string;
+  teamId: string;
+  monthlyBudget: number;
+  currency: string;
+  usedAmount: number;
+  remainingAmount: number;
+  currencySymbol: string;
+  hardStop: boolean;
   updatedAt: string;
 }
 
