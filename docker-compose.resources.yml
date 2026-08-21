@@ -1,0 +1,55 @@
+# ==============================================================================
+# 🗄️ CONVEY INFRASTRUCTURE RESOURCES DOCKER COMPOSE
+# PostgreSQL 16 (Partitioned Ledger) + Redis 7 (BullMQ & Idempotency)
+# ==============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: convey-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-db-convey}
+      POSTGRES_USER: ${POSTGRES_USER:-convey}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-convey}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - convey_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-convey} -d ${POSTGRES_DB:-db-convey}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - convey-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: convey-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - convey_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    networks:
+      - convey-network
+
+networks:
+  convey-network:
+    name: convey-network
+    driver: bridge
+
+volumes:
+  convey_postgres_data:
+    name: convey_postgres_data
+  convey_redis_data:
+    name: convey_redis_data

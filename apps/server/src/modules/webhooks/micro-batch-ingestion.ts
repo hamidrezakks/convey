@@ -23,7 +23,9 @@ export class MicroBatchIngestionPipeline {
   private flushIntervalMs = 50;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor() {
+  constructor(options?: { batchSize?: number; flushIntervalMs?: number }) {
+    if (options?.batchSize) this.batchSize = options.batchSize;
+    if (options?.flushIntervalMs) this.flushIntervalMs = options.flushIntervalMs;
     this.startAutoFlush();
   }
 

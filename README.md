@@ -170,9 +170,26 @@ bun run dev
 - 🩺 **Kubernetes Health Probes**: `http://localhost:3000/health/readiness`
 - 📊 **Prometheus Metrics**: `http://localhost:3000/metrics`
 
-### 4. Running Test Suites & Quality Verification
+### 4. 🐳 Docker Deployment
+
+#### Option A: Modular Dual Compose (Resources & Services Separate)
 ```bash
-# Run all 914 tests across the entire monorepo (895 backend + 19 web frontend)
+# 1. Start stateful resources (PostgreSQL 16 + Redis 7)
+docker compose -f docker-compose.resources.yml up -d
+
+# 2. Start Convey API server and Mission Control UI (auto-runs migrations)
+docker compose -f docker-compose.service.yml up -d
+```
+
+#### Option B: Unified Single-Command Deployment
+```bash
+# Launch entire stack in one command
+docker compose up -d
+```
+
+### 5. Running Test Suites & Quality Verification
+```bash
+# Run all tests across the entire monorepo
 bun test
 
 # Run Web-UI test suite only
@@ -196,21 +213,27 @@ convey/
 │   │   │   ├── modules/messaging/
 │   │   │   ├── modules/providers/
 │   │   │   └── ...
-│   │   └── tests/              # 895 tests (Unit, Integration, E2E, Benchmarks)
+│   │   └── tests/              # Tests (Unit, Integration, E2E, Benchmarks)
 │   │
 │   └── web/                    # @convey/web (React 19, Base UI, Tailwind, Obsidian Theme)
 │       ├── src/
 │       │   ├── components/     # UI primitives, layout, waterfall, omnichannel preview
 │       │   ├── pages/          # 10 Mission Control Views
 │       │   └── lib/            # API client & formatting utilities
-│       └── tests/              # 19 Web tests (Happy-DOM, testing-library)
+│       └── tests/              # Web tests (Happy-DOM, testing-library)
 │
 ├── packages/
 │   └── shared/                 # @convey/shared (Domain types, enums, DTOs)
 │       └── src/index.ts
 │
+├── Dockerfile                  # Multi-stage container definition (server + web targets)
+├── docker-entrypoint.sh        # Startup script with automated DB migration & partition prep
+├── docker-compose.resources.yml# Dedicated stateful resources compose (Postgres + Redis)
+├── docker-compose.service.yml  # Dedicated application services compose (Server + Web)
+├── docker-compose.yml          # Unified convenience compose
 ├── ADRs/                       # Architecture Decision Records (ADR 001 - 005)
 ├── docs/                       # Comprehensive documentation & architecture specs
+│   ├── deployment-docker.md    # Complete Docker & container deployment manual
 │   ├── web-ui-mission-control.md # Complete manual for the Web-UI Console
 │   ├── api.md
 │   ├── architecture.md
@@ -223,6 +246,7 @@ convey/
 
 ## 📚 Deep-Dive Documentation Index
 
+- 🐳 **[Docker Deployment Guide](./docs/deployment-docker.md)** — Modular resources & service container deployment instructions.
 - 🎛️ **[Web-UI Mission Control Manual](./docs/web-ui-mission-control.md)** — Complete guide for the React 19 + Base UI console.
 - 📘 **[REST API Specification](./docs/api.md)** — Complete endpoint schemas, query parameters, error matrices, and curl examples.
 - 🔌 **[Provider Integration & Reference Manual](./docs/providers-reference.md)** — Exhaustive guide covering all 88 provider integrations, required env vars, schemas, and webhooks.

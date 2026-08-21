@@ -1,0 +1,131 @@
+# ==============================================================================
+# ⚡ CONVEY UNIFIED DOCKER COMPOSE
+# Complete stack: PostgreSQL 16 + Redis 7 + Convey Server + Mission Control Web
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. PostgreSQL 16 (Monthly Range-Partitioned Ledger)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: convey-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-db-convey}
+      POSTGRES_USER: ${POSTGRES_USER:-convey}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-convey}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - convey_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-convey} -d ${POSTGRES_DB:-db-convey}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - convey-network
+
+  # ----------------------------------------------------------------------------
+  # 2. Redis 7 (BullMQ Queue Topology & 1-RTT Idempotency Locks)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: convey-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - convey_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    networks:
+      - convey-network
+
+  # ----------------------------------------------------------------------------
+  # 3. Convey Server (Elysia HTTP Gateway & Autonomous Worker Engine)
+  # ----------------------------------------------------------------------------
+  convey-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    image: convey-server:latest
+    container_name: convey-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CONVEY_REQUIRE_AUTH: ${CONVEY_REQUIRE_AUTH:-false}
+      POSTGRES_DB: ${POSTGRES_DB:-db-convey}
+      DATABASE_URL: ${DATABASE_URL:-postgres://convey:convey@postgres:5432/db-convey}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-convey}
+      BULLMQ_SCHEDULING_HORIZON_SECONDS: ${BULLMQ_SCHEDULING_HORIZON_SECONDS:-1800}
+      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-20}
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+      # Optional provider configs (passed through from .env if set)
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_DEFAULT_CHANNEL: ${SLACK_DEFAULT_CHANNEL:-}
+      PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/health/liveness').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - convey-network
+
+  # ----------------------------------------------------------------------------
+  # 4. Convey Mission Control Console (React 19 + Base UI)
+  # ----------------------------------------------------------------------------
+  convey-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    image: convey-web:latest
+    container_name: convey-web
+    restart: unless-stopped
+    depends_on:
+      - convey-server
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://convey-server:3000}
+    networks:
+      - convey-network
+
+networks:
+  convey-network:
+    name: convey-network
+    driver: bridge
+
+volumes:
+  convey_postgres_data:
+    name: convey_postgres_data
+  convey_redis_data:
+    name: convey_redis_data

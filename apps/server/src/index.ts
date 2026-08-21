@@ -1,4 +1,5 @@
-import { swagger } from '@elysiajs/swagger';
+import { cors } from '@elysia/cors';
+import { openapi } from '@elysia/openapi';
 import { Elysia } from 'elysia';
 import { Counter, Histogram, Registry } from 'prom-client';
 import { bootstrapService } from './bootstrap';
@@ -80,12 +81,13 @@ export const whatsappSessionCostSavedUsdTotal = new Counter({
 });
 
 const app = new Elysia()
-  .options('/*', ({ set }) => {
-    set.headers['access-control-allow-origin'] = '*';
-    set.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
-    set.headers['access-control-allow-headers'] = 'Content-Type, Authorization, x-api-key, traceparent';
-    return new Response(null, { status: 204, headers: set.headers as Record<string, string> });
-  })
+  .use(
+    cors({
+      origin: '*',
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'traceparent'],
+    }),
+  )
   .derive(({ request, path, set }) => {
     set.headers['access-control-allow-origin'] = '*';
     set.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
@@ -196,7 +198,7 @@ const app = new Elysia()
   .use(webhookSubscriptionsController)
   .use(batchesController)
   .use(
-    swagger({
+    openapi({
       path: '/swagger',
       documentation: {
         info: {

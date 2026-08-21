@@ -1,5 +1,5 @@
 import { MessagingService } from '../src/modules/messaging/messaging.service';
-import { Channel, MessagePriority } from '../src/modules/messaging/messaging.types';
+import { Channel, MessagePriority, type SendMessageRequest } from '../src/modules/messaging/messaging.types';
 import { TokenBucketLimiter } from '../src/modules/policies/token-bucket';
 import { ProviderCircuitBreaker } from '../src/modules/providers/core/circuit-breaker';
 import { MicroBatchIngestionPipeline } from '../src/modules/webhooks/micro-batch-ingestion';
@@ -36,7 +36,7 @@ export async function createStressBenchmarkSuite(): Promise<BenchmarkSuite> {
     async () => {
       thSeq++;
       const sharedKey = `bench_th_herd_${thSeq}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const requestPayload = {
+      const requestPayload: SendMessageRequest = {
         idempotencyKey: sharedKey,
         userId: 'usr_th_shared',
         team: 'payments',
