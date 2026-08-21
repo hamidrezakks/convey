@@ -285,6 +285,8 @@ export interface TranslationSchema {
     weightLabel: string;
     fallbackProviderLabel: string;
     primaryProviderLabel: string;
+    baseCurrencyLabel: string;
+    baseCurrencyHelp: string;
     featureToggles: string;
     openDocs: string;
     noConfiguredProviders: string;
@@ -365,6 +367,17 @@ export interface TranslationSchema {
     colTeam: string;
     colDate: string;
   };
+  suppressions: {
+    title: string;
+    subtitle: string;
+    addSuppression: string;
+    searchRecipient: string;
+    colRecipient: string;
+    colChannel: string;
+    colReason: string;
+    colTeam: string;
+    colDate: string;
+  };
   policies: {
     title: string;
     subtitle: string;
@@ -373,6 +386,13 @@ export interface TranslationSchema {
     quantumWeight: string;
     rateLimits: string;
     budgetPolicies: string;
+    budgetPolicyTitle: string;
+    budgetPolicyDesc: string;
+    currencyLabel: string;
+    monthlyBudgetLabel: string;
+    hardStopLabel: string;
+    fxPreviewLabel: string;
+    usedAmountLabel: string;
     slaStudio: string;
     drrTitle: string;
     drrDesc: string;

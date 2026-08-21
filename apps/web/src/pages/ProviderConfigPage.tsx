@@ -2,6 +2,7 @@ import {
   Channel,
   COMPLETE_88_PROVIDER_CATALOG,
   type ConfiguredProviderDto,
+  CURRENCY_REGISTRY,
   type ProviderCatalogItem,
   type ProviderFeatureConfigs,
 } from '@convey/shared';
@@ -9,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   Code2,
+  Coins,
   Copy,
   DollarSign,
   Download,
@@ -68,6 +70,7 @@ export function ProviderConfigPage() {
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<ProviderCatalogItem | null>(null);
   const [editingConfig, setEditingConfig] = useState<ConfiguredProviderDto | null>(null);
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [baseCurrency, setBaseCurrency] = useState<string>('USD');
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [priority, setPriority] = useState(1);
   const [weight, setWeight] = useState(100);
@@ -242,6 +245,7 @@ export function ProviderConfigPage() {
     }
 
     setCredentials(initialCreds);
+    setBaseCurrency(existingConfig?.baseCurrency || targetItem?.defaultBaseCurrency || 'USD');
     setVisibleSecrets({});
     setPriority(existingConfig?.priority || targetItem?.defaultPriority || 1);
     setWeight(existingConfig?.weight || targetItem?.defaultWeight || 100);
@@ -266,6 +270,7 @@ export function ProviderConfigPage() {
         }
       }
       setCredentials(initialCreds);
+      setBaseCurrency(item.defaultBaseCurrency || 'USD');
       setPriority(item.defaultPriority);
       setWeight(item.defaultWeight);
       setTestResult(null);
@@ -292,6 +297,7 @@ export function ProviderConfigPage() {
       providerId: selectedCatalogItem.id,
       channel: selectedCatalogItem.channel,
       credentials,
+      baseCurrency: baseCurrency.toUpperCase(),
       config: featureConfigs,
       isPrimary,
       priority,
@@ -646,8 +652,18 @@ export function ProviderConfigPage() {
                           </TableCell>
 
                           <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                            <span>#{p.priority}</span> •{' '}
-                            <span className="text-emerald-600 dark:text-emerald-400">{p.weight}%</span>
+                            <div className="flex flex-col gap-0.5">
+                              <div>
+                                <span>#{p.priority}</span> •{' '}
+                                <span className="text-emerald-600 dark:text-emerald-400">{p.weight}%</span>
+                              </div>
+                              {p.baseCurrency && (
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                  <span className="font-semibold text-sky-600 dark:text-sky-400">{p.baseCurrency}</span>
+                                  {p.formattedUnitCost && <span>• {p.formattedUnitCost}</span>}
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
 
                           <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
@@ -1424,6 +1440,33 @@ export function ProviderConfigPage() {
                         Traffic distribution across same priority tier
                       </p>
                     </div>
+                  </div>
+
+                  {/* Base Billing Currency */}
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Coins className="w-3.5 h-3.5 text-amber-500" />
+                        <span>{t('providerConfig.baseCurrencyLabel')}</span>
+                      </label>
+                      <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">{baseCurrency}</span>
+                    </div>
+                    <Combobox
+                      items={Object.entries(CURRENCY_REGISTRY).map(([code, meta]) => ({
+                        value: code,
+                        label: `${meta.flag} ${code} - ${meta.name} (${meta.symbol})`,
+                        sublabel: meta.symbol,
+                        badge: code,
+                      }))}
+                      value={baseCurrency}
+                      onChange={(val) => setBaseCurrency(val || 'USD')}
+                      placeholder="Select provider base billing currency..."
+                      searchPlaceholder="Search currency (e.g. USD, EUR, AED, GBP, JPY)..."
+                      showCategoryTabs={false}
+                    />
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {t('providerConfig.baseCurrencyHelp')}
+                    </p>
                   </div>
 
                   {/* Failover Target Provider */}
