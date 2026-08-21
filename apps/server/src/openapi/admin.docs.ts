@@ -348,6 +348,7 @@ export const AdminDocs = {
             properties: {
               providerId: { type: 'string', example: 'twilio' },
               channel: { type: 'string', example: 'sms' },
+              baseCurrency: { type: 'string', example: 'USD', description: 'ISO-4217 Provider native billing currency (e.g. USD, EUR, AED, GBP)' },
               credentials: {
                 type: 'object',
                 example: { accountSid: 'ACxxx', authToken: 'authxxx', from: '+14155550100' },

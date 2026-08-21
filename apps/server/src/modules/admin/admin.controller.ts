@@ -2,6 +2,7 @@ import type { Channel, MessageStatus, SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
 import { jsonResponse } from '../messaging/messaging.controller';
+import { fxEngine } from '../policies/fx-engine';
 import { adminService } from './admin.service';
 
 export function adminController(app: Elysia) {
@@ -238,6 +239,8 @@ export function adminController(app: Elysia) {
           providerId?: string;
           channel?: Channel;
           credentials?: Record<string, string>;
+          baseCurrency?: string;
+          unitCost?: number;
           config?: Record<string, unknown>;
           isPrimary?: boolean;
           priority?: number;
@@ -248,6 +251,8 @@ export function adminController(app: Elysia) {
           providerId: b.providerId || '',
           channel: b.channel || ('EMAIL' as Channel),
           credentials: b.credentials || {},
+          baseCurrency: b.baseCurrency,
+          unitCost: b.unitCost,
           config: b.config,
           isPrimary: b.isPrimary,
           priority: b.priority,
@@ -284,6 +289,11 @@ export function adminController(app: Elysia) {
       .get('/providers/env-export', { detail: AdminDocs.providersEnvExport }, () => {
         const exported = adminService.exportEnvVariables();
         return jsonResponse(exported, 200);
+      })
+
+      .get('/currencies', () => {
+        const rates = fxEngine.getAllRates();
+        return jsonResponse({ base: 'USD', timestamp: new Date().toISOString(), currencies: rates }, 200);
       }),
   );
 }
