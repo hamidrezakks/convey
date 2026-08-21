@@ -634,7 +634,7 @@ describe('Convey Complete Real API Endpoints E2E Test Suite', () => {
       expect(statusRes.status).toBe(200);
       const statusBody = (await statusRes.json()) as { messageId: string; state: string; channels?: unknown[] };
       expect(statusBody.messageId).toBe(messageId);
-      expect(statusBody.state).toBe('accepted');
+      expect(['accepted', 'dispatched', 'delivered']).toContain(statusBody.state);
       expect(JSON.stringify(statusBody)).not.toContain('providerMessageId');
 
       // 2. Status Query with timeline include

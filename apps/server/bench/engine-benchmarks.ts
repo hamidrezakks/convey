@@ -1,5 +1,6 @@
 import { IdempotencyService } from '../src/modules/messaging/idempotency.service';
 import { Channel, MessagePriority } from '../src/modules/messaging/messaging.types';
+import { TemplateEngine } from '../src/modules/messaging/template-engine';
 import { costOptimizationEngine } from '../src/modules/policies/cost-optimizer';
 import { QuietHoursEngine } from '../src/modules/policies/quiet-hours';
 import { TokenBucketLimiter } from '../src/modules/policies/token-bucket';
@@ -14,6 +15,7 @@ import { DeficitWeightedRoundRobinScheduler } from '../src/utils/drr-scheduler';
 import { BoundedLruCache } from '../src/utils/lru-cache';
 import { payloadEncryptionManager } from '../src/utils/payload-encryption';
 import { formatRecipientDisplay } from '../src/utils/recipients';
+import { shardRouter } from '../src/utils/shard-router';
 import { TraceContext } from '../src/utils/trace-context';
 import { BenchmarkSuite } from './bench-harness';
 
@@ -262,6 +264,31 @@ export function createEngineBenchmarkSuite(): BenchmarkSuite {
       });
     },
     { category: 'Core Micro-Engines', iterations: 200, warmupIterations: 20 },
+  );
+
+  // 18. SIMD Murmur32v3 Consistent Hash Shard Router
+  let shardSeq = 0;
+  suite.add(
+    'ConsistentHashShardRouter.getShardIndex() [SIMD Murmur32v3]',
+    () => {
+      shardSeq++;
+      shardRouter.getShardIndex('enterprise_team', `msg_${shardSeq}`);
+    },
+    { category: 'Core Micro-Engines', iterations: 10000, warmupIterations: 1000 },
+  );
+
+  // 19. Template Engine Fast-Path Compilation
+  const staticTemplate = 'Your verification code is 445566. Please do not share this with anyone.';
+  const dynamicTemplate =
+    'Hello {{recipient.name}}, your order {{orderId}} is confirmed for {{orderTotal | currency: USD}}!';
+  const dynamicContext = { recipient: { name: 'Alice' }, orderId: 'ORD-1234', orderTotal: 49.99 };
+  suite.add(
+    'TemplateEngine.compile() [Fast-Path Static & Dynamic AST Evaluation]',
+    () => {
+      TemplateEngine.compile(staticTemplate, {});
+      TemplateEngine.compile(dynamicTemplate, dynamicContext);
+    },
+    { category: 'Core Micro-Engines', iterations: 5000, warmupIterations: 500 },
   );
 
   return suite;
