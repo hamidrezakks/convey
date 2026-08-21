@@ -314,7 +314,12 @@ export interface TranslationSchema {
     tabProxy: string;
     proxyTitle: string;
     proxySubtitle: string;
+    enableProxy: string;
+    enableProxyHelp: string;
     proxyType: string;
+    proxyTypeHttp: string;
+    proxyTypeHttps: string;
+    proxyTypeSocks5: string;
     proxyHost: string;
     proxyPort: string;
     proxyAuth: string;
