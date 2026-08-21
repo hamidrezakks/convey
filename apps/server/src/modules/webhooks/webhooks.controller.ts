@@ -1,4 +1,5 @@
 import type { Elysia } from 'elysia';
+import { WebhooksDocs } from '../../openapi';
 import { normalizeHeaders } from '../../utils/http';
 import { TraceContext } from '../../utils/trace-context';
 import { jsonErrorResponse, jsonResponse } from '../messaging/messaging.controller';
@@ -38,100 +39,173 @@ export function webhooksController(app: Elysia) {
   return (
     app
       // --- Meta / WhatsApp Webhook Handshake Verification (GET) ---
-      .get('/v1/webhooks/:provider', ({ params: { provider }, query }) => {
-        return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
-      })
-      .get('/v1/webhooks/:provider/status', ({ params: { provider }, query }) => {
-        return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
-      })
-      .get('/v1/webhooks/:provider/incoming', ({ params: { provider }, query }) => {
-        return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
-      })
-      .get('/v1/webhooks/:provider/inbound', ({ params: { provider }, query }) => {
-        return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
-      })
+      .get(
+        '/v1/webhooks/:provider',
+        { detail: WebhooksDocs.hubHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
+        },
+      )
+      .get(
+        '/v1/webhooks/:provider/status',
+        { detail: WebhooksDocs.hubStatusHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
+        },
+      )
+      .get(
+        '/v1/webhooks/:provider/incoming',
+        { detail: WebhooksDocs.hubIncomingHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
+        },
+      )
+      .get(
+        '/v1/webhooks/:provider/inbound',
+        { detail: WebhooksDocs.hubInboundHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
+        },
+      )
 
-      // --- Dedicated WhatsApp Status Update Webhook (POST) ---
-      .post('/v1/webhooks/:provider/status', async ({ params: { provider }, body, headers, request }) => {
-        const headerMap = normalizeHeaders(headers);
-        const trace = TraceContext.extractOrCreate(headerMap);
-        const traceHeader = TraceContext.formatHeader(trace);
-
-        const result = await WebhooksService.ingestWebhook(provider, body, headerMap, request, WebhookFlowType.STATUS);
-        const statusCode = resolveWebhookHttpStatus(result.status);
-        return jsonResponse(result, statusCode, traceHeader);
-      })
-
-      // --- Dedicated WhatsApp Incoming Message Webhook (POST) ---
-      .post('/v1/webhooks/:provider/incoming', async ({ params: { provider }, body, headers, request }) => {
-        const headerMap = normalizeHeaders(headers);
-        const trace = TraceContext.extractOrCreate(headerMap);
-        const traceHeader = TraceContext.formatHeader(trace);
-
-        const result = await WebhooksService.ingestWebhook(
-          provider,
+      // --- Dedicated WhatsApp Status Webhook (Delivery / Read / Failure Receipts) ---
+      .post(
+        '/v1/webhooks/:provider/status',
+        { detail: WebhooksDocs.ingestStatus },
+        async ({
+          params,
           body,
-          headerMap,
+          headers,
           request,
-          WebhookFlowType.INCOMING,
-        );
-        const statusCode = resolveWebhookHttpStatus(result.status);
-        return jsonResponse(result, statusCode, traceHeader);
-      })
-      .post('/v1/webhooks/:provider/inbound', async ({ params: { provider }, body, headers, request }) => {
-        const headerMap = normalizeHeaders(headers);
-        const trace = TraceContext.extractOrCreate(headerMap);
-        const traceHeader = TraceContext.formatHeader(trace);
-
-        const result = await WebhooksService.ingestWebhook(
-          provider,
-          body,
-          headerMap,
-          request,
-          WebhookFlowType.INCOMING,
-        );
-        const statusCode = resolveWebhookHttpStatus(result.status);
-        return jsonResponse(result, statusCode, traceHeader);
-      })
-
-      // --- Unified / General Provider Webhook (POST) ---
-      .post('/v1/webhooks/:provider', async ({ params: { provider }, body, headers, request }) => {
-        const headerMap = normalizeHeaders(headers);
-        const trace = TraceContext.extractOrCreate(headerMap);
-        const traceHeader = TraceContext.formatHeader(trace);
-
-        const result = await WebhooksService.ingestWebhook(provider, body, headerMap, request, WebhookFlowType.GENERAL);
-        const statusCode = resolveWebhookHttpStatus(result.status);
-        return jsonResponse(result, statusCode, traceHeader);
-      })
-
-      // --- Open Tracking Pixel (GET) ---
-      .get('/v1/t/:token', async ({ params: { token } }) => {
-        WebhooksService.ingestTrackingPixel(token).catch((err) => {
-          console.error('Error ingesting tracking pixel:', err);
-        });
-
-        return buildPixelGifResponse();
-      })
-
-      // --- Client In-App Receipts (POST) ---
-      .post('/v1/receipts', async ({ body, headers }) => {
-        const headerMap = normalizeHeaders(headers);
-        const trace = TraceContext.extractOrCreate(headerMap);
-        const traceHeader = TraceContext.formatHeader(trace);
-
-        const parsed = ClientReceiptSchema.safeParse(body);
-        if (!parsed.success) {
-          return jsonErrorResponse(
-            ErrorCode.VALIDATION_ERROR,
-            'Invalid client receipt payload',
-            400,
-            undefined,
-            traceHeader,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
+          const result = await WebhooksService.ingestWebhook(
+            params.provider,
+            body,
+            rawHeaders,
+            request,
+            WebhookFlowType.STATUS,
           );
-        }
-        await WebhooksService.ingestClientReceipt(parsed.data);
-        return jsonResponse({ status: WebhookStatus.ACCEPTED }, 202, traceHeader);
-      })
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
+        },
+      )
+
+      // --- Dedicated WhatsApp Incoming Messages (2-Way Session Customer Replies) ---
+      .post(
+        '/v1/webhooks/:provider/incoming',
+        { detail: WebhooksDocs.ingestIncoming },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
+          const result = await WebhooksService.ingestWebhook(
+            params.provider,
+            body,
+            rawHeaders,
+            request,
+            WebhookFlowType.INCOMING,
+          );
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
+        },
+      )
+
+      // Inbound alias for WhatsApp incoming
+      .post(
+        '/v1/webhooks/:provider/inbound',
+        { detail: WebhooksDocs.ingestInboundAlias },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
+          const result = await WebhooksService.ingestWebhook(
+            params.provider,
+            body,
+            rawHeaders,
+            request,
+            WebhookFlowType.INCOMING,
+          );
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
+        },
+      )
+
+      // --- Unified Inbound Provider Webhook (SendGrid, Twilio, Resend, Cequens, Infobip, etc.) ---
+      .post(
+        '/v1/webhooks/:provider',
+        { detail: WebhooksDocs.ingestProviderWebhook },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
+          const result = await WebhooksService.ingestWebhook(params.provider, body, rawHeaders, request);
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
+        },
+      )
+
+      // --- Email Open Tracking Pixel (1x1 Transparent GIF) ---
+      .get(
+        '/v1/t/:token',
+        { detail: WebhooksDocs.openTrackingPixel },
+        async ({ params }: { params: { token: string } }) => {
+          await WebhooksService.ingestTrackingPixel(params.token);
+          return buildPixelGifResponse();
+        },
+      )
+
+      // --- Client Delivery Receipts (In-App SDKs / Mobile Client Read Receipts) ---
+      .post(
+        '/v1/receipts',
+        { detail: WebhooksDocs.clientReceipt },
+        async ({ body, headers }: { body: unknown; headers?: Record<string, string | undefined> }) => {
+          const incomingTrace = headers?.traceparent;
+          const traceCtx = TraceContext.extractOrCreate({ traceparent: incomingTrace });
+
+          const parseResult = ClientReceiptSchema.safeParse(body);
+          if (!parseResult.success) {
+            return jsonErrorResponse(
+              ErrorCode.INVALID_PAYLOAD,
+              'Invalid client receipt payload',
+              400,
+              parseResult.error.issues,
+              TraceContext.formatHeader(traceCtx),
+            );
+          }
+
+          await WebhooksService.ingestClientReceipt(parseResult.data);
+          return jsonResponse(
+            { status: WebhookStatus.ACCEPTED, received: true },
+            202,
+            TraceContext.formatHeader(traceCtx),
+          );
+        },
+      )
   );
 }

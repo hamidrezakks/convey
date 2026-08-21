@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia';
+import { WebhookSubscriptionsDocs } from '../../openapi';
 import { authMiddleware } from '../auth/auth.middleware';
 import { WebhookSubscriptionsService } from './webhook-subscriptions.service';
 
@@ -8,17 +9,14 @@ export const webhookSubscriptionsController = new Elysia({ prefix: '/v1/webhook-
     '/',
     {
       body: t.Object({
-        url: t.String({ format: 'uri' }),
-        events: t.Array(t.String()),
-        secret: t.Optional(t.String()),
+        url: t.String({ format: 'uri', description: 'HTTPS webhook callback target URL' }),
+        events: t.Array(t.String(), { description: 'Subscribed event types array' }),
+        secret: t.Optional(t.String({ description: 'Optional HMAC-SHA256 signing secret' })),
       }),
-      detail: {
-        tags: ['Webhooks'],
-        summary: 'Create outgoing webhook subscription',
-      },
+      detail: WebhookSubscriptionsDocs.createSubscription,
     },
     async ({ body, auth }) => {
-      const sub = await WebhookSubscriptionsService.createSubscription({
+      const subscription = await WebhookSubscriptionsService.createSubscription({
         tenantId: auth.tenantId,
         team: auth.team,
         url: body.url,
@@ -28,22 +26,19 @@ export const webhookSubscriptionsController = new Elysia({ prefix: '/v1/webhook-
 
       return {
         success: true,
-        subscription: sub,
+        subscription,
       };
     },
   )
   .get(
     '/',
     {
-      detail: {
-        tags: ['Webhooks'],
-        summary: 'List outgoing webhook subscriptions',
-      },
+      detail: WebhookSubscriptionsDocs.listSubscriptions,
     },
     async ({ auth }) => {
-      const subs = await WebhookSubscriptionsService.listSubscriptions(auth.tenantId, auth.team);
+      const subscriptions = await WebhookSubscriptionsService.listSubscriptions(auth.tenantId, auth.team);
       return {
-        subscriptions: subs,
+        subscriptions,
       };
     },
   )
@@ -51,12 +46,9 @@ export const webhookSubscriptionsController = new Elysia({ prefix: '/v1/webhook-
     '/:id',
     {
       params: t.Object({
-        id: t.String(),
+        id: t.String({ description: 'Webhook subscription identifier' }),
       }),
-      detail: {
-        tags: ['Webhooks'],
-        summary: 'Delete webhook subscription',
-      },
+      detail: WebhookSubscriptionsDocs.deleteSubscription,
     },
     async ({ params, auth, set }) => {
       const deleted = await WebhookSubscriptionsService.deleteSubscription(auth.tenantId, auth.team, params.id);
@@ -71,12 +63,9 @@ export const webhookSubscriptionsController = new Elysia({ prefix: '/v1/webhook-
     '/:id/test',
     {
       params: t.Object({
-        id: t.String(),
+        id: t.String({ description: 'Webhook subscription identifier' }),
       }),
-      detail: {
-        tags: ['Webhooks'],
-        summary: 'Send test ping to webhook subscription',
-      },
+      detail: WebhookSubscriptionsDocs.testSubscription,
     },
     async ({ auth }) => {
       await WebhookSubscriptionsService.triggerEventForTenant(auth.tenantId, auth.team, 'ping.test', {

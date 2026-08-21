@@ -1,17 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../src/db';
-import { messageEvents, messages } from '../src/db/schema';
+import { messageAttempts, messageEvents, messages } from '../src/db/schema';
 import { CascadeManager } from '../src/modules/messaging/cascade-manager';
-import { MessagingService } from '../src/modules/messaging/messaging.service';
+import { computePartitionWindow, MessagingService } from '../src/modules/messaging/messaging.service';
 import {
+  AttemptState,
   type CascadeConfig,
   type CascadeStep,
+  CascadeTrigger,
   Channel,
   EventType,
   MessagePriority,
   MessageState,
 } from '../src/modules/messaging/messaging.types';
+import { generateMessageId } from '../src/utils/id';
 import { setupFreshIsolatedDatabase } from './helpers/fresh-db-runner';
 import { disableProviderMock, enableProviderMock } from './mocks/provider-mock';
 
@@ -63,7 +66,10 @@ describe('Omnichannel Cascades & Waterfall Execution Suite', () => {
   it('gracefully short-circuits step execution if message is in DELIVERED state', async () => {
     const team = `team_g003_${dbPrefix}`;
     const cascade: CascadeConfig = {
-      steps: [{ channel: Channel.FCM, waitForReceiptMs: 5000 }, { channel: Channel.SMS }],
+      steps: [
+        { channel: Channel.FCM, waitForReceiptMs: 5000 },
+        { channel: Channel.SMS, triggerOn: CascadeTrigger.IF_UNDELIVERED },
+      ],
     };
     const res = await MessagingService.acceptMessage({
       idempotencyKey: `idem_g003_${Date.now()}`,
@@ -77,7 +83,21 @@ describe('Omnichannel Cascades & Waterfall Execution Suite', () => {
       metadata: { cascade },
     });
     const publicId = (res.body as { messageId: string }).messageId;
-    await db.update(messages).set({ state: MessageState.DELIVERED }).where(eq(messages.publicId, publicId));
+    const { startDate: s1, endDate: e1 } = computePartitionWindow(publicId);
+    await db
+      .update(messages)
+      .set({ state: MessageState.DELIVERED })
+      .where(and(eq(messages.publicId, publicId), gte(messages.createdAt, s1), lte(messages.createdAt, e1)));
+    await db.insert(messageAttempts).values({
+      id: generateMessageId(),
+      messageId: publicId,
+      channel: Channel.FCM,
+      providerId: 'mock-fcm',
+      attemptNo: 1,
+      origin: 'initial',
+      state: AttemptState.DELIVERED,
+      createdAt: new Date(),
+    });
 
     const executed = await CascadeManager.executeStep(publicId, 1);
     expect(executed).toBe(false);
@@ -101,7 +121,21 @@ describe('Omnichannel Cascades & Waterfall Execution Suite', () => {
       },
     });
     const publicId = (res.body as { messageId: string }).messageId;
-    await db.update(messages).set({ state: MessageState.OPENED }).where(eq(messages.publicId, publicId));
+    const { startDate: s2, endDate: e2 } = computePartitionWindow(publicId);
+    await db
+      .update(messages)
+      .set({ state: MessageState.OPENED })
+      .where(and(eq(messages.publicId, publicId), gte(messages.createdAt, s2), lte(messages.createdAt, e2)));
+    await db.insert(messageAttempts).values({
+      id: generateMessageId(),
+      messageId: publicId,
+      channel: Channel.FCM,
+      providerId: 'mock-fcm',
+      attemptNo: 1,
+      origin: 'initial',
+      state: AttemptState.OPENED,
+      createdAt: new Date(),
+    });
 
     const executed = await CascadeManager.executeStep(publicId, 1);
     expect(executed).toBe(false);
@@ -125,7 +159,21 @@ describe('Omnichannel Cascades & Waterfall Execution Suite', () => {
       },
     });
     const publicId = (res.body as { messageId: string }).messageId;
-    await db.update(messages).set({ state: MessageState.READ }).where(eq(messages.publicId, publicId));
+    const { startDate: s3, endDate: e3 } = computePartitionWindow(publicId);
+    await db
+      .update(messages)
+      .set({ state: MessageState.READ })
+      .where(and(eq(messages.publicId, publicId), gte(messages.createdAt, s3), lte(messages.createdAt, e3)));
+    await db.insert(messageAttempts).values({
+      id: generateMessageId(),
+      messageId: publicId,
+      channel: Channel.WHATSAPP,
+      providerId: 'mock-whatsapp',
+      attemptNo: 1,
+      origin: 'initial',
+      state: AttemptState.READ,
+      createdAt: new Date(),
+    });
 
     const executed = await CascadeManager.executeStep(publicId, 1);
     expect(executed).toBe(false);
@@ -255,12 +303,29 @@ describe('Omnichannel Cascades & Waterfall Execution Suite', () => {
       channels: [{ channel: Channel.SMS, content: { text: 'Test' } }],
       metadata: {
         cascade: {
-          steps: [{ channel: Channel.SMS, waitForReceiptMs: 5000 }, { channel: Channel.EMAIL }],
+          steps: [
+            { channel: Channel.SMS, waitForReceiptMs: 5000 },
+            { channel: Channel.EMAIL, triggerOn: CascadeTrigger.IF_UNDELIVERED },
+          ],
         },
       },
     });
     const publicId = (res.body as { messageId: string }).messageId;
-    await db.update(messages).set({ state: MessageState.DELIVERED }).where(eq(messages.publicId, publicId));
+    const { startDate: s4, endDate: e4 } = computePartitionWindow(publicId);
+    await db
+      .update(messages)
+      .set({ state: MessageState.DELIVERED })
+      .where(and(eq(messages.publicId, publicId), gte(messages.createdAt, s4), lte(messages.createdAt, e4)));
+    await db.insert(messageAttempts).values({
+      id: generateMessageId(),
+      messageId: publicId,
+      channel: Channel.SMS,
+      providerId: 'mock-sms',
+      attemptNo: 1,
+      origin: 'initial',
+      state: AttemptState.DELIVERED,
+      createdAt: new Date(),
+    });
 
     await CascadeManager.executeStep(publicId, 1);
     const events = await db.select().from(messageEvents).where(eq(messageEvents.messageId, publicId));

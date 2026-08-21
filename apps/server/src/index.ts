@@ -14,6 +14,14 @@ import { providerCircuitBreaker } from './modules/providers/core/circuit-breaker
 import { suppressionsController } from './modules/suppressions/suppressions.controller';
 import { webhookSubscriptionsController } from './modules/webhooks/webhook-subscriptions.controller';
 import { webhooksController } from './modules/webhooks/webhooks.controller';
+import {
+  ObservabilityDocs,
+  OpenAPIComponentsSchemas,
+  OpenAPIInfo,
+  OpenAPISecuritySchemes,
+  OpenAPIServers,
+  OpenAPITags,
+} from './openapi';
 import { redisClient } from './queues/connection';
 import { logger } from './utils/logger';
 import { appReadiness } from './utils/readiness';
@@ -106,7 +114,7 @@ const app = new Elysia()
     const durationSeconds = (performance.now() - (startTime || performance.now())) / 1000;
     httpRequestDuration.observe({ method: request.method, path: pathname || request.url }, durationSeconds);
   })
-  .get('/health', async () => {
+  .get('/health', { detail: ObservabilityDocs.health }, async () => {
     let dbStatus = 'disconnected';
     let redisStatus = 'disconnected';
 
@@ -144,7 +152,7 @@ const app = new Elysia()
       { status: statusCode, headers: { 'Content-Type': 'application/json' } },
     );
   })
-  .get('/health/readiness', async () => {
+  .get('/health/readiness', { detail: ObservabilityDocs.readiness }, async () => {
     const status = appReadiness.getStatus();
     const statusCode = status.ready ? 200 : 503;
 
@@ -172,7 +180,7 @@ const app = new Elysia()
       { status: statusCode, headers: { 'Content-Type': 'application/json' } },
     );
   })
-  .get('/health/liveness', () => {
+  .get('/health/liveness', { detail: ObservabilityDocs.liveness }, () => {
     return new Response(
       JSON.stringify({
         status: 'alive',
@@ -182,7 +190,7 @@ const app = new Elysia()
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   })
-  .get('/metrics', async () => {
+  .get('/metrics', { detail: ObservabilityDocs.metrics }, async () => {
     const metrics = await metricsRegistry.metrics();
     return new Response(metrics, {
       status: 200,
@@ -201,15 +209,13 @@ const app = new Elysia()
     openapi({
       path: '/swagger',
       documentation: {
-        info: {
-          title: 'Convey Communication Service API',
-          version: '1.0.0',
-          description: 'High-performance, resilient multi-tenant communication infrastructure service.',
+        info: OpenAPIInfo,
+        servers: OpenAPIServers,
+        tags: OpenAPITags,
+        components: {
+          schemas: OpenAPIComponentsSchemas,
+          securitySchemes: OpenAPISecuritySchemes,
         },
-        tags: [
-          { name: 'Messages', description: 'Message send and status endpoints' },
-          { name: 'Webhooks', description: 'Provider webhooks, open tracking, and client receipts' },
-        ],
       },
     }),
   );

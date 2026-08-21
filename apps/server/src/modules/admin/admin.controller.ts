@@ -1,5 +1,6 @@
 import type { Channel, MessageStatus, SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
+import { AdminDocs } from '../../openapi';
 import { jsonResponse } from '../messaging/messaging.controller';
 import { adminService } from './admin.service';
 
@@ -9,6 +10,7 @@ export function adminController(app: Elysia) {
       // Overview metrics
       .get(
         '/overview',
+        { detail: AdminDocs.overview },
         async ({
           query,
           headers,
@@ -32,6 +34,7 @@ export function adminController(app: Elysia) {
       // Real-time live telemetry snapshot
       .get(
         '/telemetry/live',
+        { detail: AdminDocs.telemetryLive },
         async ({
           query,
           headers,
@@ -55,6 +58,7 @@ export function adminController(app: Elysia) {
       // Messages explorer
       .get(
         '/messages',
+        { detail: AdminDocs.messagesExplorer },
         async ({
           query,
           headers,
@@ -88,7 +92,7 @@ export function adminController(app: Elysia) {
       )
 
       // Message details & trace waterfall
-      .get('/messages/:id', async ({ params }: { params: { id: string } }) => {
+      .get('/messages/:id', { detail: AdminDocs.messageDetails }, async ({ params }: { params: { id: string } }) => {
         try {
           const details = await adminService.getMessageDetails(params.id);
           if (!details) {
@@ -102,20 +106,24 @@ export function adminController(app: Elysia) {
       })
 
       // Audit logs
-      .get('/audit-logs', async ({ query }: { query?: Record<string, string | undefined> }) => {
-        const q = query || {};
-        const result = await adminService.listAuditLogs({
-          page: q.page ? Number(q.page) : 1,
-          limit: q.limit ? Number(q.limit) : 50,
-          tenantId: q.tenantId,
-          team: q.team,
-          action: q.action,
-        });
-        return jsonResponse(result, 200);
-      })
+      .get(
+        '/audit-logs',
+        { detail: AdminDocs.auditLogs },
+        async ({ query }: { query?: Record<string, string | undefined> }) => {
+          const q = query || {};
+          const result = await adminService.listAuditLogs({
+            page: q.page ? Number(q.page) : 1,
+            limit: q.limit ? Number(q.limit) : 50,
+            tenantId: q.tenantId,
+            team: q.team,
+            action: q.action,
+          });
+          return jsonResponse(result, 200);
+        },
+      )
 
       // Provider matrix & circuit breaker cockpit
-      .get('/providers', async () => {
+      .get('/providers', { detail: AdminDocs.providersList }, async () => {
         const providers = await adminService.listProviders();
         return jsonResponse(providers, 200);
       })
@@ -123,6 +131,7 @@ export function adminController(app: Elysia) {
       // Circuit breaker manual override
       .post(
         '/providers/:providerId/circuit',
+        { detail: AdminDocs.circuitOverride },
         async ({ params, body }: { params: { providerId: string }; body: unknown }) => {
           const b = (body || {}) as { action?: 'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN'; rampPercentage?: number };
           const action = b.action || 'FORCE_HALF_OPEN';
@@ -133,25 +142,33 @@ export function adminController(app: Elysia) {
       )
 
       // Trigger synthetic canary probe
-      .post('/providers/:providerId/canary', async ({ params }: { params: { providerId: string } }) => {
-        const res = await adminService.triggerCanaryProbe(params.providerId);
-        return jsonResponse(res, 200);
-      })
+      .post(
+        '/providers/:providerId/canary',
+        { detail: AdminDocs.canaryProbe },
+        async ({ params }: { params: { providerId: string } }) => {
+          const res = await adminService.triggerCanaryProbe(params.providerId);
+          return jsonResponse(res, 200);
+        },
+      )
 
       // Dead-Letter Queue (DLQ) & Replay Simulator
-      .post('/dlq/replay', async ({ body }: { body: unknown }) => {
+      .post('/dlq/replay', { detail: AdminDocs.dlqReplay }, async ({ body }: { body: unknown }) => {
         const b = (body || {}) as { dryRun?: boolean };
         const res = await adminService.replayDlq(b);
         return jsonResponse(res, 200);
       })
 
       // Suppressions
-      .get('/suppressions', async ({ query }: { query?: Record<string, string | undefined> }) => {
-        const list = await adminService.listSuppressions(query?.search);
-        return jsonResponse(list, 200);
-      })
+      .get(
+        '/suppressions',
+        { detail: AdminDocs.suppressionsList },
+        async ({ query }: { query?: Record<string, string | undefined> }) => {
+          const list = await adminService.listSuppressions(query?.search);
+          return jsonResponse(list, 200);
+        },
+      )
 
-      .post('/suppressions', async ({ body }: { body: unknown }) => {
+      .post('/suppressions', { detail: AdminDocs.suppressionsAdd }, async ({ body }: { body: unknown }) => {
         const b = (body || {}) as { teamId?: string; recipient?: string; channel?: string; reason?: string };
         const res = await adminService.addSuppression({
           teamId: b.teamId || 'default_team',
@@ -162,13 +179,17 @@ export function adminController(app: Elysia) {
         return jsonResponse(res, 200);
       })
 
-      .delete('/suppressions/:id', async ({ params }: { params: { id: string } }) => {
-        const res = await adminService.removeSuppression(params.id);
-        return jsonResponse(res, 200);
-      })
+      .delete(
+        '/suppressions/:id',
+        { detail: AdminDocs.suppressionsDelete },
+        async ({ params }: { params: { id: string } }) => {
+          const res = await adminService.removeSuppression(params.id);
+          return jsonResponse(res, 200);
+        },
+      )
 
       // Policies
-      .get('/policies', async () => {
+      .get('/policies', { detail: AdminDocs.policiesList }, async () => {
         const policies = await adminService.listPolicies();
         return jsonResponse(policies, 200);
       })
@@ -176,6 +197,7 @@ export function adminController(app: Elysia) {
       // Omnichannel composer sandbox test send
       .post(
         '/composer/send-test',
+        { detail: AdminDocs.composerSendTest },
         async ({ body, headers }: { body: unknown; headers?: Record<string, string | undefined> }) => {
           const b = (body || {}) as {
             channel?: Channel;
@@ -201,17 +223,17 @@ export function adminController(app: Elysia) {
       )
 
       // --- Provider Setup & Registration Studio Endpoints ---
-      .get('/providers/catalog', () => {
+      .get('/providers/catalog', { detail: AdminDocs.providersCatalog }, () => {
         const catalog = adminService.getProviderCatalog();
         return jsonResponse(catalog, 200);
       })
 
-      .get('/providers/configured', async () => {
+      .get('/providers/configured', { detail: AdminDocs.providersConfigured }, async () => {
         const configured = await adminService.getConfiguredProviders();
         return jsonResponse(configured, 200);
       })
 
-      .post('/providers/register', async ({ body }: { body: unknown }) => {
+      .post('/providers/register', { detail: AdminDocs.providersRegister }, async ({ body }: { body: unknown }) => {
         const b = (body || {}) as {
           providerId?: string;
           channel?: Channel;
@@ -235,23 +257,31 @@ export function adminController(app: Elysia) {
         return jsonResponse(res, 200);
       })
 
-      .delete('/providers/configured/:id', async ({ params }: { params: { id: string } }) => {
-        const res = await adminService.deleteConfiguredProvider(params.id);
-        return jsonResponse(res, 200);
-      })
+      .delete(
+        '/providers/configured/:id',
+        { detail: AdminDocs.providersDeleteConfigured },
+        async ({ params }: { params: { id: string } }) => {
+          const res = await adminService.deleteConfiguredProvider(params.id);
+          return jsonResponse(res, 200);
+        },
+      )
 
-      .post('/providers/test-connection', async ({ body }: { body: unknown }) => {
-        const b = (body || {}) as { providerId?: string; credentials?: Record<string, string> };
-        const res = adminService.testProviderConnection(b.providerId || '', b.credentials || {});
-        return jsonResponse(res, 200);
-      })
+      .post(
+        '/providers/test-connection',
+        { detail: AdminDocs.providersTestConnection },
+        async ({ body }: { body: unknown }) => {
+          const b = (body || {}) as { providerId?: string; credentials?: Record<string, string> };
+          const res = adminService.testProviderConnection(b.providerId || '', b.credentials || {});
+          return jsonResponse(res, 200);
+        },
+      )
 
-      .post('/providers/seed-all', async () => {
+      .post('/providers/seed-all', { detail: AdminDocs.providersSeedAll }, async () => {
         const res = await adminService.seedAllProviders();
         return jsonResponse(res, 200);
       })
 
-      .get('/providers/env-export', () => {
+      .get('/providers/env-export', { detail: AdminDocs.providersEnvExport }, () => {
         const exported = adminService.exportEnvVariables();
         return jsonResponse(exported, 200);
       }),

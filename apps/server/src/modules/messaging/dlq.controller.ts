@@ -1,6 +1,7 @@
 import type { Elysia } from 'elysia';
 import { z } from 'zod';
 import { env } from '../../config/env';
+import { DlqDocs } from '../../openapi';
 import { TraceContext } from '../../utils/trace-context';
 import { verifyApiAuth } from '../auth/auth.middleware';
 import { DlqService } from './dlq.service';
@@ -27,6 +28,7 @@ export function dlqController(app: Elysia) {
       })
       .get(
         '/',
+        { detail: DlqDocs.listFailedMessages },
         async ({
           query,
           headers,
@@ -55,28 +57,37 @@ export function dlqController(app: Elysia) {
           });
         },
       )
-      .post('/replay', async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
-        const trace = TraceContext.extractOrCreate(headers);
-        const traceHeader = TraceContext.formatHeader(trace);
+      .post(
+        '/replay',
+        { detail: DlqDocs.replayFailedMessages },
+        async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
+          const trace = TraceContext.extractOrCreate(headers);
+          const traceHeader = TraceContext.formatHeader(trace);
 
-        const parsed = DlqReplaySchema.safeParse(body);
-        if (!parsed.success) {
-          return new Response(
-            JSON.stringify({
-              error: { code: 'INVALID_REQUEST', message: 'messageIds array is required', details: parsed.error.issues },
-            }),
-            { status: 400, headers: { 'Content-Type': 'application/json', traceparent: traceHeader } },
-          );
-        }
+          const parsed = DlqReplaySchema.safeParse(body);
+          if (!parsed.success) {
+            return new Response(
+              JSON.stringify({
+                error: {
+                  code: 'INVALID_REQUEST',
+                  message: 'messageIds array is required',
+                  details: parsed.error.issues,
+                },
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json', traceparent: traceHeader } },
+            );
+          }
 
-        const result = await DlqService.replayFailedMessages(parsed.data.messageIds);
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', traceparent: traceHeader },
-        });
-      })
+          const result = await DlqService.replayFailedMessages(parsed.data.messageIds);
+          return new Response(JSON.stringify(result), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', traceparent: traceHeader },
+          });
+        },
+      )
       .post(
         '/replay-mutated',
+        { detail: DlqDocs.replayMutatedMessages },
         async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
           const trace = TraceContext.extractOrCreate(headers);
           const traceHeader = TraceContext.formatHeader(trace);

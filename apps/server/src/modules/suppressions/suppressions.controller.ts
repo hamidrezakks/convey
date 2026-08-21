@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia';
+import { SuppressionsDocs } from '../../openapi';
 import { authMiddleware } from '../auth/auth.middleware';
 import { SuppressionsService } from './suppressions.service';
 
@@ -10,9 +11,13 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
       body: t.Object({
         items: t.Array(
           t.Object({
-            identifier: t.String(),
-            identifierType: t.Optional(t.String()),
-            reason: t.String(),
+            identifier: t.String({ description: 'Normalized email or phone address' }),
+            identifierType: t.Optional(
+              t.String({ description: 'Identifier category (email, phone, whatsapp, push, user_id)' }),
+            ),
+            reason: t.String({
+              description: 'Suppression reason code (e.g. HARD_BOUNCE, SPAM_COMPLAINT, UNSUBSCRIBE, MANUAL_BLOCK)',
+            }),
             category: t.Optional(t.String()),
             country: t.Optional(t.String()),
             channel: t.Optional(t.String()),
@@ -21,10 +26,7 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
           }),
         ),
       }),
-      detail: {
-        tags: ['Suppressions'],
-        summary: 'Bulk add recipients to suppression list',
-      },
+      detail: SuppressionsDocs.bulkAddSuppressions,
     },
     async ({ body, auth }) => {
       const parsedItems = body.items.map((item) => ({
@@ -46,19 +48,20 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
     '/',
     {
       body: t.Object({
-        identifier: t.String(),
-        identifierType: t.Optional(t.String()),
-        reason: t.String(),
+        identifier: t.String({ description: 'Normalized recipient address (email or E.164 phone)' }),
+        identifierType: t.Optional(
+          t.String({ description: 'Identifier category (email, phone, whatsapp, push, user_id)' }),
+        ),
+        reason: t.String({
+          description: 'Suppression reason code (e.g. HARD_BOUNCE, SPAM_COMPLAINT, UNSUBSCRIBE, MANUAL_BLOCK)',
+        }),
         category: t.Optional(t.String()),
         country: t.Optional(t.String()),
         channel: t.Optional(t.String()),
         startsAt: t.Optional(t.String()),
         endsAt: t.Optional(t.String()),
       }),
-      detail: {
-        tags: ['Suppressions'],
-        summary: 'Add recipient to suppression list',
-      },
+      detail: SuppressionsDocs.addSuppression,
     },
     async ({ body, auth }) => {
       const supp = await SuppressionsService.addSuppression({
@@ -90,10 +93,7 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
         reason: t.Optional(t.String()),
         search: t.Optional(t.String()),
       }),
-      detail: {
-        tags: ['Suppressions'],
-        summary: 'List suppressions for team',
-      },
+      detail: SuppressionsDocs.listSuppressions,
     },
     async ({ query, auth }) => {
       const result = await SuppressionsService.listSuppressions({
@@ -113,12 +113,9 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
     '/:id',
     {
       params: t.Object({
-        id: t.String(),
+        id: t.String({ description: 'Suppression record identifier' }),
       }),
-      detail: {
-        tags: ['Suppressions'],
-        summary: 'Remove suppression record',
-      },
+      detail: SuppressionsDocs.deleteSuppression,
     },
     async ({ params, auth, set }) => {
       const deleted = await SuppressionsService.deleteSuppression(auth.team, params.id);

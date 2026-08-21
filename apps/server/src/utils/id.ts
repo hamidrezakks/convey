@@ -23,9 +23,15 @@ export function parseMessageIdTimestamp(messageId: string): Date {
   if (!messageId || typeof messageId !== 'string') return new Date();
   const cleanId = messageId.replace(/^msg_/, '').replace(/-/g, '');
   const timestampHex = cleanId.slice(0, 12);
+
+  if (!/^[0-9a-f]{12}$/i.test(timestampHex)) {
+    return new Date();
+  }
+
   const timestampMs = Number.parseInt(timestampHex, 16);
 
-  if (Number.isNaN(timestampMs) || timestampMs <= 0) {
+  // Sanity check: must fall between 2020-01-01 and year 2100
+  if (Number.isNaN(timestampMs) || timestampMs < 1577836800000 || timestampMs > 4102444800000) {
     return new Date();
   }
 

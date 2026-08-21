@@ -1,6 +1,7 @@
 import type { Elysia } from 'elysia';
 import type { z } from 'zod';
 import { env } from '../../config/env';
+import { MessagingDocs } from '../../openapi';
 import { TraceContext } from '../../utils/trace-context';
 import { verifyApiAuth } from '../auth/auth.middleware';
 import { IdempotencyConflictError } from './idempotency.service';
@@ -63,64 +64,73 @@ export function messagingController(app: Elysia) {
           return auth.errorResponse;
         }
       })
-      .post('/bulk', async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
-        const trace = TraceContext.extractOrCreate(headers);
-        const traceHeader = TraceContext.formatHeader(trace);
-        const auth = await verifyApiAuth(headers, env.CONVEY_REQUIRE_AUTH);
+      .post(
+        '/bulk',
+        { detail: MessagingDocs.bulkSendMessage },
+        async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
+          const trace = TraceContext.extractOrCreate(headers);
+          const traceHeader = TraceContext.formatHeader(trace);
+          const auth = await verifyApiAuth(headers, env.CONVEY_REQUIRE_AUTH);
 
-        const rawList = Array.isArray(body) ? { messages: body } : body;
-        const parsed = BulkSendMessageRequestSchema.safeParse(rawList);
-        if (!parsed.success) {
-          const details = formatZodValidationDetails(parsed.error.issues);
-          return jsonErrorResponse(
-            ErrorCode.VALIDATION_ERROR,
-            'Invalid bulk message request',
-            400,
-            details,
-            traceHeader,
-          );
-        }
-
-        const results = await MessagingService.acceptBulkMessages(parsed.data.messages, auth.isSandbox);
-        return jsonResponse({ total: results.length, items: results }, 202, traceHeader);
-      })
-      .post('/', async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
-        const trace = TraceContext.extractOrCreate(headers);
-        const traceHeader = TraceContext.formatHeader(trace);
-        const auth = await verifyApiAuth(headers, env.CONVEY_REQUIRE_AUTH);
-
-        const parsed = SendMessageRequestSchema.safeParse(body);
-        if (!parsed.success) {
-          const details = formatZodValidationDetails(parsed.error.issues);
-          return jsonErrorResponse(ErrorCode.VALIDATION_ERROR, 'Invalid message request', 400, details, traceHeader);
-        }
-
-        try {
-          const result = await MessagingService.acceptMessage(parsed.data, auth.isSandbox);
-          return jsonResponse(result.body, result.statusCode, traceHeader);
-        } catch (err: unknown) {
-          if (err instanceof IdempotencyConflictError) {
-            return jsonErrorResponse(ErrorCode.IDEMPOTENCY_CONFLICT, err.message, 409, undefined, traceHeader);
+          const rawList = Array.isArray(body) ? { messages: body } : body;
+          const parsed = BulkSendMessageRequestSchema.safeParse(rawList);
+          if (!parsed.success) {
+            const details = formatZodValidationDetails(parsed.error.issues);
+            return jsonErrorResponse(
+              ErrorCode.VALIDATION_ERROR,
+              'Invalid bulk message request',
+              400,
+              details,
+              traceHeader,
+            );
           }
-          if (err instanceof SystemOverloadError) {
-            const res = jsonErrorResponse(ErrorCode.SERVICE_UNAVAILABLE, err.message, 503, undefined, traceHeader);
-            res.headers.set('Retry-After', String(err.retryAfterSeconds));
-            return res;
+
+          const results = await MessagingService.acceptBulkMessages(parsed.data.messages, auth.isSandbox);
+          return jsonResponse({ total: results.length, items: results }, 202, traceHeader);
+        },
+      )
+      .post(
+        '/',
+        { detail: MessagingDocs.sendMessage },
+        async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
+          const trace = TraceContext.extractOrCreate(headers);
+          const traceHeader = TraceContext.formatHeader(trace);
+          const auth = await verifyApiAuth(headers, env.CONVEY_REQUIRE_AUTH);
+
+          const parsed = SendMessageRequestSchema.safeParse(body);
+          if (!parsed.success) {
+            const details = formatZodValidationDetails(parsed.error.issues);
+            return jsonErrorResponse(ErrorCode.VALIDATION_ERROR, 'Invalid message request', 400, details, traceHeader);
           }
-          if (err instanceof DomainValidationError) {
-            return jsonErrorResponse(ErrorCode.VALIDATION_ERROR, err.message, 400, undefined, traceHeader);
+
+          try {
+            const result = await MessagingService.acceptMessage(parsed.data, auth.isSandbox);
+            return jsonResponse(result.body, result.statusCode, traceHeader);
+          } catch (err: unknown) {
+            if (err instanceof IdempotencyConflictError) {
+              return jsonErrorResponse(ErrorCode.IDEMPOTENCY_CONFLICT, err.message, 409, undefined, traceHeader);
+            }
+            if (err instanceof SystemOverloadError) {
+              const res = jsonErrorResponse(ErrorCode.SERVICE_UNAVAILABLE, err.message, 503, undefined, traceHeader);
+              res.headers.set('Retry-After', String(err.retryAfterSeconds));
+              return res;
+            }
+            if (err instanceof DomainValidationError) {
+              return jsonErrorResponse(ErrorCode.VALIDATION_ERROR, err.message, 400, undefined, traceHeader);
+            }
+            return jsonErrorResponse(
+              ErrorCode.SERVER_ERROR,
+              (err as Error).message || 'Internal dispatch failure',
+              500,
+              undefined,
+              traceHeader,
+            );
           }
-          return jsonErrorResponse(
-            ErrorCode.SERVER_ERROR,
-            (err as Error).message || 'Internal dispatch failure',
-            500,
-            undefined,
-            traceHeader,
-          );
-        }
-      })
+        },
+      )
       .get(
         '/:messageId',
+        { detail: MessagingDocs.getMessageStatus },
         async ({
           params: { messageId },
           query,
@@ -151,6 +161,7 @@ export function messagingController(app: Elysia) {
       )
       .get(
         '/:messageId/timeline',
+        { detail: MessagingDocs.getMessageTimeline },
         async ({
           params: { messageId },
           headers,
@@ -177,6 +188,7 @@ export function messagingController(app: Elysia) {
       )
       .get(
         '/:messageId/trace',
+        { detail: MessagingDocs.getMessageTrace },
         async ({
           params: { messageId },
           headers,
@@ -203,6 +215,7 @@ export function messagingController(app: Elysia) {
       )
       .post(
         '/templates/preview',
+        { detail: MessagingDocs.previewTemplate },
         async ({ body, headers }: { body: unknown; headers: Record<string, string | undefined> }) => {
           const trace = TraceContext.extractOrCreate(headers);
           const traceHeader = TraceContext.formatHeader(trace);

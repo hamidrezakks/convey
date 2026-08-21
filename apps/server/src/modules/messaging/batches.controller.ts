@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia';
+import { BatchesDocs } from '../../openapi';
 import { authMiddleware } from '../auth/auth.middleware';
 import { BatchesService } from './batches.service';
 
@@ -11,11 +12,7 @@ export const batchesController = new Elysia({ prefix: '/v1/batches' })
         totalCount: t.Number({ minimum: 1, description: 'Total number of items in bulk dispatch' }),
         metadata: t.Optional(t.Record(t.String(), t.Unknown(), { description: 'Custom batch metadata and labels' })),
       }),
-      detail: {
-        tags: ['Batches'],
-        summary: 'Initialize batch dispatch context',
-        description: 'Creates a high-throughput atomic batch dispatches tracking context with Redis counter caching.',
-      },
+      detail: BatchesDocs.createBatch,
     },
     async ({ body, auth, set }) => {
       const batch = await BatchesService.createBatch({
@@ -35,11 +32,7 @@ export const batchesController = new Elysia({ prefix: '/v1/batches' })
   .get(
     '/',
     {
-      detail: {
-        tags: ['Batches'],
-        summary: 'List batch dispatches for team',
-        description: 'Retrieves all batch dispatches belonging to the authenticated tenant and team.',
-      },
+      detail: BatchesDocs.listBatches,
     },
     async ({ auth }) => {
       const list = await BatchesService.listBatches(auth.tenantId, auth.team);
@@ -53,13 +46,9 @@ export const batchesController = new Elysia({ prefix: '/v1/batches' })
     '/:batchId',
     {
       params: t.Object({
-        batchId: t.String({ description: 'Opaque batch identifier (batch_<ULID>)' }),
+        batchId: t.String({ description: 'Public batch identifier (`batch_<ULID>`)' }),
       }),
-      detail: {
-        tags: ['Batches'],
-        summary: 'Get real-time batch metrics and ETA analytics',
-        description: 'Fetches atomic Redis live stats, percentage completed, throughput msg/sec, and ETA.',
-      },
+      detail: BatchesDocs.getBatch,
     },
     async ({ params, auth, set }) => {
       const batch = await BatchesService.getBatch(auth.tenantId, auth.team, params.batchId);
@@ -74,13 +63,9 @@ export const batchesController = new Elysia({ prefix: '/v1/batches' })
     '/:batchId/pause',
     {
       params: t.Object({
-        batchId: t.String({ description: 'Opaque batch identifier (batch_<ULID>)' }),
+        batchId: t.String({ description: 'Public batch identifier (`batch_<ULID>`)' }),
       }),
-      detail: {
-        tags: ['Batches'],
-        summary: 'Pause active batch dispatch',
-        description: 'Temporarily pauses an active batch dispatch pipeline.',
-      },
+      detail: BatchesDocs.pauseBatch,
     },
     async ({ params, auth, set }) => {
       const updated = await BatchesService.pauseBatch(auth.tenantId, auth.team, params.batchId);
@@ -95,13 +80,9 @@ export const batchesController = new Elysia({ prefix: '/v1/batches' })
     '/:batchId/resume',
     {
       params: t.Object({
-        batchId: t.String({ description: 'Opaque batch identifier (batch_<ULID>)' }),
+        batchId: t.String({ description: 'Public batch identifier (`batch_<ULID>`)' }),
       }),
-      detail: {
-        tags: ['Batches'],
-        summary: 'Resume paused batch dispatch',
-        description: 'Resumes a previously paused batch dispatch pipeline.',
-      },
+      detail: BatchesDocs.resumeBatch,
     },
     async ({ params, auth, set }) => {
       const updated = await BatchesService.resumeBatch(auth.tenantId, auth.team, params.batchId);
@@ -116,13 +97,9 @@ export const batchesController = new Elysia({ prefix: '/v1/batches' })
     '/:batchId/cancel',
     {
       params: t.Object({
-        batchId: t.String({ description: 'Opaque batch identifier (batch_<ULID>)' }),
+        batchId: t.String({ description: 'Public batch identifier (`batch_<ULID>`)' }),
       }),
-      detail: {
-        tags: ['Batches'],
-        summary: 'Cancel batch dispatch',
-        description: 'Cancels an active or paused batch dispatch pipeline.',
-      },
+      detail: BatchesDocs.cancelBatch,
     },
     async ({ params, auth, set }) => {
       const updated = await BatchesService.cancelBatch(auth.tenantId, auth.team, params.batchId);

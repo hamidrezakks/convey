@@ -10,10 +10,14 @@ import { disableProviderMock, enableProviderMock } from './mocks/provider-mock';
 
 describe('Inbound 2-Way Reply Loops & Automated Global Suppression Mesh', () => {
   let dbPrefix: string;
+  let team: string;
+  let savedPublicId: string;
+  const recipientPhone = '+14155557788';
 
   beforeAll(async () => {
     const setup = await setupFreshIsolatedDatabase();
     dbPrefix = setup.prefix;
+    team = `team_inbound_${dbPrefix}`;
     enableProviderMock(0);
   });
 
@@ -22,9 +26,6 @@ describe('Inbound 2-Way Reply Loops & Automated Global Suppression Mesh', () => 
   });
 
   it('Automatically creates suppression record when recipient replies STOP via inbound webhook', async () => {
-    const team = `team_inbound_${dbPrefix}`;
-    const recipientPhone = '+14155557788';
-
     // 1. Initial outbound message
     const res = await MessagingService.acceptMessage({
       idempotencyKey: `idem_inbound_${Date.now()}`,
@@ -38,6 +39,7 @@ describe('Inbound 2-Way Reply Loops & Automated Global Suppression Mesh', () => 
     });
 
     const publicId = (res.body as { messageId: string }).messageId;
+    savedPublicId = publicId;
 
     // Create an initial message attempt record
     const attemptId = `att_${Date.now()}`;
@@ -79,17 +81,13 @@ describe('Inbound 2-Way Reply Loops & Automated Global Suppression Mesh', () => 
   });
 
   it('Automatically un-suppresses recipient when they reply START', async () => {
-    const team = `team_inbound_${dbPrefix}`;
-    const recipientPhone = '+14155557788';
-
     // Ingest inbound webhook from Twilio with "START"
     const now = new Date();
-    const attempts = await db.select().from(messageAttempts).limit(1);
 
     await processWebhookEvent({
       providerId: 'twilio',
       payload: {
-        MessageSid: attempts[0]?.providerMessageId || 'SM_start',
+        MessageSid: `SM_inbound_${savedPublicId}`,
         MessageStatus: 'delivered',
         Body: 'START',
         From: recipientPhone,
