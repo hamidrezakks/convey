@@ -4,6 +4,7 @@ export const providers = pgTable('providers', {
   id: text('id').primaryKey(), // e.g. sendgrid, twilio, meta-whatsapp, apns, fcm
   displayName: text('display_name'),
   channel: text('channel').notNull(), // email, sms, whatsapp, telegram, slack, push, tool
+  baseCurrency: text('base_currency').notNull().default('USD'), // Native billing currency (e.g. USD, EUR, GBP, AED, SEK)
   enabled: boolean('enabled').notNull().default(true),
   isPrimary: boolean('is_primary').notNull().default(true),
   priority: integer('priority').notNull().default(1),
