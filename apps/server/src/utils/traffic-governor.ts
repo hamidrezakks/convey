@@ -17,6 +17,11 @@ export class TrafficGovernor {
   private lastElu =
     typeof performance.eventLoopUtilization === 'function' ? performance.eventLoopUtilization() : undefined;
 
+  constructor(options?: { threshold?: number; maxLagMs?: number; shedThresholdRatio?: number }) {
+    if (options?.threshold) this.threshold = options.threshold;
+    if (options?.shedThresholdRatio) this.threshold = options.shedThresholdRatio;
+  }
+
   /**
    * Calculates current V8 event loop utilization factor (0.0 to 1.0).
    */

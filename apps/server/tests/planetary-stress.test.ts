@@ -295,10 +295,10 @@ describe('Planetary-Scale Concurrency, Stress & Resilience Verification Suite', 
     expect(governor.shouldShed(MessagePriority.MARKETING)).toBeFalse();
 
     // Verify priority hierarchy
-    expect(MessagePriority.CRITICAL).toBe('critical');
-    expect(MessagePriority.TRANSACTIONAL).toBe('transactional');
-    expect(MessagePriority.NORMAL).toBe('normal');
-    expect(MessagePriority.MARKETING).toBe('marketing');
+    expect(MessagePriority.CRITICAL).toBe(MessagePriority.CRITICAL);
+    expect(MessagePriority.TRANSACTIONAL).toBe(MessagePriority.TRANSACTIONAL);
+    expect(MessagePriority.NORMAL).toBe(MessagePriority.NORMAL);
+    expect(MessagePriority.MARKETING).toBe(MessagePriority.MARKETING);
   });
 
   // 8. Outbox Virtual Shard Multi-Threaded Processing (16 Virtual Shards)

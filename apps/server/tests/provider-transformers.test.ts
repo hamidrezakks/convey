@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Channel } from '../src/modules/messaging/messaging.types';
 import { cequensWhatsappTransformer } from '../src/modules/providers/chat/cequens-whatsapp/cequens-whatsapp.transformer';
+import { CequensMessageType } from '../src/modules/providers/chat/cequens-whatsapp/types';
 import { chatWebhookTransformer } from '../src/modules/providers/chat/chat-webhook/chat-webhook.transformer';
 import { discordTransformer } from '../src/modules/providers/chat/discord/discord.transformer';
 import { slackTransformer } from '../src/modules/providers/chat/slack/slack.transformer';
@@ -353,7 +354,7 @@ describe('Global to Provider Transformers & Lifecycle Standard', () => {
       );
 
       expect(req.recipientPhone).toBe('+201001234567');
-      expect(req.messageType).toBe('text');
+      expect(req.messageType).toBe(CequensMessageType.TEXT);
       expect(req.text?.body).toBe('Cequens WhatsApp Alert');
     });
   });
