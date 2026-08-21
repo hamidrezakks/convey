@@ -14,6 +14,13 @@ import { providerCircuitBreaker } from './modules/providers/core/circuit-breaker
 import { suppressionsController } from './modules/suppressions/suppressions.controller';
 import { webhookSubscriptionsController } from './modules/webhooks/webhook-subscriptions.controller';
 import { webhooksController } from './modules/webhooks/webhooks.controller';
+import {
+  OpenAPIComponentsSchemas,
+  OpenAPIInfo,
+  OpenAPISecuritySchemes,
+  OpenAPIServers,
+  OpenAPITags,
+} from './openapi/openapi.docs';
 import { redisClient } from './queues/connection';
 import { logger } from './utils/logger';
 import { appReadiness } from './utils/readiness';
@@ -106,89 +113,161 @@ const app = new Elysia()
     const durationSeconds = (performance.now() - (startTime || performance.now())) / 1000;
     httpRequestDuration.observe({ method: request.method, path: pathname || request.url }, durationSeconds);
   })
-  .get('/health', async () => {
-    let dbStatus = 'disconnected';
-    let redisStatus = 'disconnected';
-
-    try {
-      await queryClient.unsafe('SELECT 1');
-      dbStatus = 'connected';
-    } catch {
-      dbStatus = 'error';
-    }
-
-    try {
-      await redisClient.ping();
-      redisStatus = 'connected';
-    } catch {
-      redisStatus = 'error';
-    }
-
-    const currentReadiness = appReadiness.getStatus();
-    const isHealthy = dbStatus === 'connected' && redisStatus === 'connected';
-    const statusCode = isHealthy && (env.NODE_ENV === 'test' || currentReadiness.ready) ? 200 : 503;
-
-    return new Response(
-      JSON.stringify({
-        status: isHealthy ? 'ok' : 'degraded',
-        ready: currentReadiness.ready,
-        uptime: process.uptime(),
-        db: dbStatus,
-        redis: redisStatus,
-        partitions: currentReadiness.partitions,
-        circuitBreakers: providerCircuitBreaker.getCounts(),
-        configuredProvidersCount: currentReadiness.configuredProvidersCount,
-        configuredProvidersByChannel: currentReadiness.configuredProvidersByChannel,
-        timestamp: new Date().toISOString(),
-      }),
-      { status: statusCode, headers: { 'Content-Type': 'application/json' } },
-    );
-  })
-  .get('/health/readiness', async () => {
-    const status = appReadiness.getStatus();
-    const statusCode = status.ready ? 200 : 503;
-
-    return new Response(
-      JSON.stringify({
-        ready: status.ready,
-        uptime: process.uptime(),
-        checks: {
-          db: status.db,
-          redis: status.redis,
-          partitions: status.partitions,
+  .get(
+    '/health',
+    {
+      detail: {
+        tags: ['Health & Observability'],
+        summary: 'Comprehensive Health Check & Subsystem Status',
+        description:
+          'Evaluates PostgreSQL connectivity, Redis cluster ping, monthly partition readiness, active circuit breaker counts, and configured provider tally.',
+        responses: {
+          '200': {
+            description: 'System healthy and ready to process traffic',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/HealthCheckResponse' },
+              },
+            },
+          },
+          '503': {
+            description: 'System degraded (database/Redis disconnected or bootstrapping in progress)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/HealthCheckResponse' },
+              },
+            },
+          },
         },
-        circuitBreakers: {
-          counts: providerCircuitBreaker.getCounts(),
-          statuses: providerCircuitBreaker.getAllStatus(),
+      },
+    },
+    async () => {
+      let dbStatus = 'disconnected';
+      let redisStatus = 'disconnected';
+
+      try {
+        await queryClient.unsafe('SELECT 1');
+        dbStatus = 'connected';
+      } catch {
+        dbStatus = 'error';
+      }
+
+      try {
+        await redisClient.ping();
+        redisStatus = 'connected';
+      } catch {
+        redisStatus = 'error';
+      }
+
+      const currentReadiness = appReadiness.getStatus();
+      const isHealthy = dbStatus === 'connected' && redisStatus === 'connected';
+      const statusCode = isHealthy && (env.NODE_ENV === 'test' || currentReadiness.ready) ? 200 : 503;
+
+      return new Response(
+        JSON.stringify({
+          status: isHealthy ? 'ok' : 'degraded',
+          ready: currentReadiness.ready,
+          uptime: process.uptime(),
+          db: dbStatus,
+          redis: redisStatus,
+          partitions: currentReadiness.partitions,
+          circuitBreakers: providerCircuitBreaker.getCounts(),
+          configuredProvidersCount: currentReadiness.configuredProvidersCount,
+          configuredProvidersByChannel: currentReadiness.configuredProvidersByChannel,
+          timestamp: new Date().toISOString(),
+        }),
+        { status: statusCode, headers: { 'Content-Type': 'application/json' } },
+      );
+    },
+  )
+  .get(
+    '/health/readiness',
+    {
+      detail: {
+        tags: ['Health & Observability'],
+        summary: 'Kubernetes Readiness Probe',
+        description: 'Returns HTTP 200 when all worker loops, database partitions, and provider registries are initialized.',
+        responses: {
+          '200': { description: 'Container ready to receive ingress traffic' },
+          '503': { description: 'Container initializing or during graceful shutdown' },
         },
-        providers: {
-          configuredCount: status.configuredProvidersCount,
-          byChannel: status.configuredProvidersByChannel,
+      },
+    },
+    async () => {
+      const status = appReadiness.getStatus();
+      const statusCode = status.ready ? 200 : 503;
+
+      return new Response(
+        JSON.stringify({
+          ready: status.ready,
+          uptime: process.uptime(),
+          checks: {
+            db: status.db,
+            redis: status.redis,
+            partitions: status.partitions,
+          },
+          circuitBreakers: {
+            counts: providerCircuitBreaker.getCounts(),
+            statuses: providerCircuitBreaker.getAllStatus(),
+          },
+          providers: {
+            configuredCount: status.configuredProvidersCount,
+            byChannel: status.configuredProvidersByChannel,
+          },
+          workers: status.activeWorkers,
+          bootstrappedAt: status.bootstrappedAt,
+          timestamp: new Date().toISOString(),
+        }),
+        { status: statusCode, headers: { 'Content-Type': 'application/json' } },
+      );
+    },
+  )
+  .get(
+    '/health/liveness',
+    {
+      detail: {
+        tags: ['Health & Observability'],
+        summary: 'Kubernetes Liveness Probe',
+        description: 'Returns HTTP 200 indicating process is alive and event loop is responsive.',
+        responses: {
+          '200': { description: 'Process alive' },
         },
-        workers: status.activeWorkers,
-        bootstrappedAt: status.bootstrappedAt,
-        timestamp: new Date().toISOString(),
-      }),
-      { status: statusCode, headers: { 'Content-Type': 'application/json' } },
-    );
-  })
-  .get('/health/liveness', () => {
-    return new Response(
-      JSON.stringify({
-        status: 'alive',
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString(),
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
-  })
-  .get('/metrics', async () => {
-    const metrics = await metricsRegistry.metrics();
-    return new Response(metrics, {
-      status: 200,
-      headers: { 'Content-Type': metricsRegistry.contentType },
-    });
-  })
+      },
+    },
+    () => {
+      return new Response(
+        JSON.stringify({
+          status: 'alive',
+          uptime: process.uptime(),
+          timestamp: new Date().toISOString(),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    },
+  )
+  .get(
+    '/metrics',
+    {
+      detail: {
+        tags: ['Health & Observability'],
+        summary: 'Prometheus Metrics Exposition',
+        description: 'Exposes all platform metrics in standard Prometheus text format.',
+        responses: {
+          '200': {
+            description: 'Prometheus metrics text output',
+            content: { 'text/plain; version=0.0.4': { schema: { type: 'string' } } },
+          },
+        },
+      },
+    },
+    async () => {
+      const metrics = await metricsRegistry.metrics();
+      return new Response(metrics, {
+        status: 200,
+        headers: { 'Content-Type': metricsRegistry.contentType },
+      });
+    },
+  )
   .use(messagingController)
   .use(adminController)
   .use(webhooksController)
@@ -201,15 +280,13 @@ const app = new Elysia()
     openapi({
       path: '/swagger',
       documentation: {
-        info: {
-          title: 'Convey Communication Service API',
-          version: '1.0.0',
-          description: 'High-performance, resilient multi-tenant communication infrastructure service.',
+        info: OpenAPIInfo,
+        servers: OpenAPIServers,
+        tags: OpenAPITags,
+        components: {
+          schemas: OpenAPIComponentsSchemas,
+          securitySchemes: OpenAPISecuritySchemes,
         },
-        tags: [
-          { name: 'Messages', description: 'Message send and status endpoints' },
-          { name: 'Webhooks', description: 'Provider webhooks, open tracking, and client receipts' },
-        ],
       },
     }),
   );
