@@ -81,6 +81,28 @@ export const whatsappSessionInboundTotal = new Counter({
   registers: [metricsRegistry],
 });
 
+export const providerProxyRequestsTotal = new Counter({
+  name: 'convey_provider_proxy_requests_total',
+  help: 'Total outbound requests executed through transport proxies',
+  labelNames: ['providerId', 'proxyType', 'status'],
+  registers: [metricsRegistry],
+});
+
+export const providerProxyDuration = new Histogram({
+  name: 'convey_provider_proxy_duration_seconds',
+  help: 'Latency of outbound requests routed via transport proxies',
+  labelNames: ['providerId', 'proxyType'],
+  buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [metricsRegistry],
+});
+
+export const providerProxyErrorsTotal = new Counter({
+  name: 'convey_provider_proxy_errors_total',
+  help: 'Total errors encountered during proxy transport execution',
+  labelNames: ['providerId', 'proxyType', 'errorCode'],
+  registers: [metricsRegistry],
+});
+
 export const whatsappSessionCostSavedUsdTotal = new Counter({
   name: 'convey_whatsapp_session_cost_saved_usd_total',
   help: 'Total estimated USD saved by optimizing template messages to session text messages',
