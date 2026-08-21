@@ -1,4 +1,4 @@
-import { SupportedCurrency, formatCurrencyAmount, getCurrencyMetadata } from '@convey/shared';
+import { formatCurrencyAmount, getCurrencyMetadata, SupportedCurrency } from '@convey/shared';
 import { redisClient } from '../../queues/connection';
 import { logger } from '../../utils/logger';
 import { formatRedisKey } from '../../utils/redis-keys';
@@ -84,20 +84,22 @@ export class FxEngine {
     return Number(crossRate.toFixed(8));
   }
 
-  /**
-   * Converts an amount from source currency to target currency with exact fixed-point arithmetic.
-   */
-  public convert(amount: number, fromCurrency: string = 'USD', toCurrency: string = 'USD'): FxConversionResult {
+  public convert(
+    amount: number,
+    fromCurrency: string = 'USD',
+    toCurrency: string = 'USD',
+    precision: number = 4,
+  ): FxConversionResult {
     const from = (fromCurrency || 'USD').toUpperCase();
     const to = (toCurrency || 'USD').toUpperCase();
     const rate = this.getExchangeRate(from, to);
 
-    // Fixed-point 4-decimal currency rounding
-    const convertedAmount = Number((amount * rate).toFixed(4));
+    // Fixed-point currency rounding
+    const convertedAmount = Number((amount * rate).toFixed(precision));
 
     // USD base amount for reporting and indexing
     const fromRate = this.getRateToUsd(from);
-    const amountUsd = from === 'USD' ? amount : Number((amount / fromRate).toFixed(4));
+    const amountUsd = from === 'USD' ? amount : Number((amount / fromRate).toFixed(precision));
 
     return {
       sourceAmount: amount,
@@ -106,7 +108,7 @@ export class FxEngine {
       exchangeRate: rate,
       convertedAmount,
       amountUsd,
-      formattedConverted: formatCurrencyAmount(convertedAmount, to),
+      formattedConverted: formatCurrencyAmount(convertedAmount, to, { maximumFractionDigits: precision }),
     };
   }
 

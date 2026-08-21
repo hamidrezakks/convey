@@ -46,7 +46,6 @@ import { AuditLogService, UserRole } from '../auth/audit-log.service';
 import { DlqService } from '../messaging/dlq.service';
 import { computePartitionWindow, fetchMessageByPublicId, MessagingService } from '../messaging/messaging.service';
 import type { SendMessageRequest } from '../messaging/messaging.types';
-import { fxEngine } from '../policies/fx-engine';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
 import { selfHealingEngine } from '../providers/core/self-healing';
 import { getProviderBaseCurrency, getProviderRate, getProviderUnitCost } from '../providers/core/smart-router';
@@ -1191,11 +1190,7 @@ export class AdminService {
       };
       const config = item.defaultFeatureConfigs || {};
       const encryptedCredentials = encryptProviderCredentials(credentials);
-      const baseCurrency = (
-        item.defaultBaseCurrency ||
-        getProviderBaseCurrency(item.id) ||
-        'USD'
-      ).toUpperCase();
+      const baseCurrency = (item.defaultBaseCurrency || getProviderBaseCurrency(item.id) || 'USD').toUpperCase();
 
       try {
         await db
@@ -1460,7 +1455,10 @@ export class AdminService {
           },
         });
     } catch (err) {
-      logger.error('AdminService', `Failed to persist configured provider ${data.providerId} to database: ${(err as Error).message}`);
+      logger.error(
+        'AdminService',
+        `Failed to persist configured provider ${data.providerId} to database: ${(err as Error).message}`,
+      );
     }
 
     const credentialsMasked = maskProviderCredentials(mergedCredentials);
