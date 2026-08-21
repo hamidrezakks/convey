@@ -186,7 +186,7 @@ export async function handleComplianceKeywords(team: string, senderPhone: string
       identifier: senderPhone,
       identifierType: senderPhone.includes('@') ? IdentifierType.EMAIL : IdentifierType.PHONE,
       reason: 'inbound_opt_out',
-      channel: Channel.CHAT,
+      channel: 'ALL',
     }).catch((err) => logger.warn('WebhookIngest', `Suppression add warning: ${(err as Error).message}`));
 
     logger.info('WebhookIngest', `Recipient '${senderPhone}' auto-suppressed via keyword '${normalizedKeyword}'`);
@@ -373,6 +373,33 @@ export async function handleStatusUpdate(
       ev.normalizedStatus === MessageState.READ
     ) {
       await CascadeManager.cancelRemainingSteps(attempt.messageId);
+    }
+
+    const rawPayloadObj =
+      typeof ev.rawPayload === 'object' && ev.rawPayload !== null
+        ? (ev.rawPayload as Record<string, unknown>)
+        : undefined;
+
+    const inboundText = ((rawPayloadObj?.body || rawPayloadObj?.Body || rawPayloadObj?.text || '') as string).trim();
+    const senderIdentifier = (
+      (rawPayloadObj?.senderPhone || rawPayloadObj?.From || rawPayloadObj?.from || '') as string
+    ).trim();
+
+    if (inboundText && senderIdentifier) {
+      await handleComplianceKeywords(updatedMsg.team, senderIdentifier, inboundText);
+      await customerWebhookDispatchQueue
+        .add('dispatch-webhook', {
+          team: updatedMsg.team,
+          event: 'inbound.message_received',
+          data: {
+            from: senderIdentifier,
+            body: inboundText,
+            channel: attempt.channel,
+            providerId: attempt.providerId,
+            receivedAt: ev.timestamp.toISOString(),
+          },
+        })
+        .catch(() => {});
     }
   }
 
