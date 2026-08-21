@@ -11,6 +11,8 @@ import type {
   PolicyDto,
   ProviderCatalogItem,
   ProviderHealthDto,
+  ProviderProxyConfig,
+  ProxyDiagnosticResult,
   RegisterProviderRequest,
   SuppressionDto,
   SuppressionReason,
@@ -251,10 +253,18 @@ export const api = {
     return httpClient.delete(`providers/configured/${id}`).json<{ success: boolean; id: string }>();
   },
 
-  async testProviderConnection(providerId: string, credentials: Record<string, string>): Promise<TestConnectionResult> {
+  async testProviderConnection(
+    providerId: string,
+    credentials: Record<string, string>,
+    config?: Record<string, unknown>,
+  ): Promise<TestConnectionResult> {
     return httpClient
-      .post('providers/test-connection', { json: { providerId, credentials } })
+      .post('providers/test-connection', { json: { providerId, credentials, config } })
       .json<TestConnectionResult>();
+  },
+
+  async testProxyConnection(proxy: ProviderProxyConfig): Promise<ProxyDiagnosticResult> {
+    return httpClient.post('providers/test-proxy', { json: { proxy } }).json<ProxyDiagnosticResult>();
   },
 
   async seedAllProviders(): Promise<{

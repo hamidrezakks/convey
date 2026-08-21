@@ -5,10 +5,14 @@ import {
   CURRENCY_REGISTRY,
   type ProviderCatalogItem,
   type ProviderFeatureConfigs,
+  type ProviderProxyConfig,
+  type ProxyDiagnosticResult,
 } from '@convey/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Activity,
   Check,
+  CheckCircle2,
   Code2,
   Coins,
   Copy,
@@ -17,9 +21,11 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Globe,
   Key,
   Layers,
   Lock,
+  Network,
   Plus,
   Radio,
   RefreshCw,
@@ -29,6 +35,7 @@ import {
   Sliders,
   Sparkles,
   Trash2,
+  XCircle,
   Zap,
 } from 'lucide-react';
 import type React from 'react';
@@ -111,8 +118,22 @@ export function ProviderConfigPage() {
     },
   });
 
-  // Modal Inner Tab (Credentials vs Features vs Routing)
-  const [modalTab, setModalTab] = useState<'creds' | 'features' | 'routing'>('creds');
+  // Modal Inner Tab (Credentials vs Proxy vs Features vs Routing)
+  const [modalTab, setModalTab] = useState<'creds' | 'proxy' | 'features' | 'routing'>('creds');
+
+  // Outbound Transport Proxy State
+  const [proxyConfig, setProxyConfig] = useState<ProviderProxyConfig>({
+    enabled: false,
+    type: 'http',
+    host: '',
+    port: 8080,
+    auth: { username: '', password: '' },
+    noProxy: ['localhost', '127.0.0.1'],
+    timeoutMs: 10000,
+  });
+  const [proxyBypassInput, setProxyBypassInput] = useState('localhost, 127.0.0.1, *.internal');
+  const [showProxyPassword, setShowProxyPassword] = useState(false);
+  const [proxyTestResult, setProxyTestResult] = useState<ProxyDiagnosticResult | null>(null);
 
   // Test Connection Modal / State
   const [testResult, setTestResult] = useState<{ success: boolean; latencyMs: number; message: string } | null>(null);
@@ -163,17 +184,19 @@ export function ProviderConfigPage() {
       providerId: string;
       channel: Channel;
       credentials: Record<string, string>;
+      baseCurrency?: string;
       config?: ProviderFeatureConfigs;
       isPrimary?: boolean;
       priority?: number;
       weight?: number;
       fallbackProviderId?: string;
-    }) => api.registerProvider(data),
+    }) => api.registerProvider(data as unknown as Parameters<typeof api.registerProvider>[0]),
     onSuccess: (res) => {
       toast.success(`Registered and configured ${res.displayName} in database!`);
       queryClient.invalidateQueries({ queryKey: providerKeys.all });
       setIsRegisterOpen(false);
       setTestResult(null);
+      setProxyTestResult(null);
     },
     onError: () => {
       toast.error('Failed to register provider');
@@ -208,8 +231,8 @@ export function ProviderConfigPage() {
 
   // TanStack Mutation: Test Connection
   const testConnMutation = useMutation({
-    mutationFn: (vars: { providerId: string; credentials: Record<string, string> }) =>
-      api.testProviderConnection(vars.providerId, vars.credentials),
+    mutationFn: (vars: { providerId: string; credentials: Record<string, string>; config?: Record<string, unknown> }) =>
+      api.testProviderConnection(vars.providerId, vars.credentials, vars.config),
     onSuccess: (res) => {
       setTestResult(res);
       if (res.success) {
@@ -220,6 +243,22 @@ export function ProviderConfigPage() {
     },
     onError: () => {
       toast.error('Connection probe failed');
+    },
+  });
+
+  // TanStack Mutation: Test Outbound Proxy Connection
+  const testProxyMutation = useMutation({
+    mutationFn: (cfg: ProviderProxyConfig) => api.testProxyConnection(cfg),
+    onSuccess: (res) => {
+      setProxyTestResult(res);
+      if (res.success) {
+        toast.success(`Proxy probe successful: ${res.proxyType.toUpperCase()} tunnel verified (${res.e2eLatencyMs}ms)`);
+      } else {
+        toast.error(`Proxy probe failed: ${res.error || 'Connection refused'}`);
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(`Proxy test failed: ${err.message}`);
     },
   });
 
@@ -253,9 +292,49 @@ export function ProviderConfigPage() {
     setIsPrimary(existingConfig?.isPrimary ?? true);
     if (existingConfig?.config) {
       setFeatureConfigs(existingConfig.config);
+      if (existingConfig.config.proxy) {
+        const p = existingConfig.config.proxy;
+        setProxyConfig({
+          enabled: p.enabled ?? false,
+          type: p.type || 'http',
+          host: p.host || '',
+          port: p.port || 8080,
+          auth: {
+            username: p.auth?.username || '',
+            password: p.auth?.password || '',
+          },
+          noProxy: p.noProxy || ['localhost', '127.0.0.1'],
+          timeoutMs: p.timeoutMs || 10000,
+        });
+        setProxyBypassInput((p.noProxy || ['localhost', '127.0.0.1']).join(', '));
+      } else {
+        setProxyConfig({
+          enabled: false,
+          type: 'http',
+          host: '',
+          port: 8080,
+          auth: { username: '', password: '' },
+          noProxy: ['localhost', '127.0.0.1'],
+          timeoutMs: 10000,
+        });
+        setProxyBypassInput('localhost, 127.0.0.1, *.internal');
+      }
+    } else {
+      setProxyConfig({
+        enabled: false,
+        type: 'http',
+        host: '',
+        port: 8080,
+        auth: { username: '', password: '' },
+        noProxy: ['localhost', '127.0.0.1'],
+        timeoutMs: 10000,
+      });
+      setProxyBypassInput('localhost, 127.0.0.1, *.internal');
     }
     setModalTab('creds');
     setTestResult(null);
+    setProxyTestResult(null);
+    setShowProxyPassword(false);
     setIsRegisterOpen(true);
   };
 
@@ -274,6 +353,7 @@ export function ProviderConfigPage() {
       setPriority(item.defaultPriority);
       setWeight(item.defaultWeight);
       setTestResult(null);
+      setProxyTestResult(null);
     }
   };
 
@@ -283,9 +363,35 @@ export function ProviderConfigPage() {
 
   const handleTestProbe = () => {
     if (!selectedCatalogItem) return;
+    const cleanNoProxy = proxyBypassInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const effectiveProxyConfig: ProviderProxyConfig | undefined = proxyConfig.enabled
+      ? {
+          ...proxyConfig,
+          noProxy: cleanNoProxy.length > 0 ? cleanNoProxy : undefined,
+        }
+      : undefined;
+
     testConnMutation.mutate({
       providerId: selectedCatalogItem.id,
       credentials,
+      config: {
+        ...featureConfigs,
+        proxy: effectiveProxyConfig,
+      },
+    });
+  };
+
+  const handleTestProxyOnly = () => {
+    const cleanNoProxy = proxyBypassInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    testProxyMutation.mutate({
+      ...proxyConfig,
+      noProxy: cleanNoProxy.length > 0 ? cleanNoProxy : undefined,
     });
   };
 
@@ -293,12 +399,26 @@ export function ProviderConfigPage() {
     e.preventDefault();
     if (!selectedCatalogItem) return;
 
+    const cleanNoProxy = proxyBypassInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const effectiveProxyConfig: ProviderProxyConfig | undefined = proxyConfig.enabled
+      ? {
+          ...proxyConfig,
+          noProxy: cleanNoProxy.length > 0 ? cleanNoProxy : undefined,
+        }
+      : undefined;
+
     registerMutation.mutate({
       providerId: selectedCatalogItem.id,
       channel: selectedCatalogItem.channel,
       credentials,
       baseCurrency: baseCurrency.toUpperCase(),
-      config: featureConfigs,
+      config: {
+        ...featureConfigs,
+        proxy: effectiveProxyConfig,
+      },
       isPrimary,
       priority,
       weight,
@@ -648,6 +768,12 @@ export function ProviderConfigPage() {
                                   Unfurl Media
                                 </span>
                               )}
+                              {cfg?.proxy?.enabled && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 font-mono flex items-center gap-1">
+                                  <Server className="w-3 h-3 text-cyan-500" />
+                                  {cfg.proxy.type.toUpperCase()}:{cfg.proxy.port}
+                                </span>
+                              )}
                             </div>
                           </TableCell>
 
@@ -981,20 +1107,27 @@ export function ProviderConfigPage() {
                 />
               </div>
 
-              {/* Sub-Tabs for Modal: Credentials, Features/Cost-Savings, Routing */}
-              <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'creds' | 'features' | 'routing')}>
-                <TabsList className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-1 rounded-xl grid grid-cols-3">
+              {/* Sub-Tabs for Modal: Credentials, Proxy, Features/Cost-Savings, Routing */}
+              <Tabs
+                value={modalTab}
+                onValueChange={(v) => setModalTab(v as 'creds' | 'proxy' | 'features' | 'routing')}
+              >
+                <TabsList className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-1 rounded-xl grid grid-cols-4">
                   <TabsTrigger value="creds" className="text-xs font-semibold gap-1.5">
                     <Key className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-                    <span>Credentials (.env)</span>
+                    <span>Credentials</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="proxy" className="text-xs font-semibold gap-1.5">
+                    <Server className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
+                    <span>{t('providerConfig.tabProxy')}</span>
                   </TabsTrigger>
                   <TabsTrigger value="features" className="text-xs font-semibold gap-1.5">
                     <Zap className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-                    <span>Feature Configs</span>
+                    <span>Features</span>
                   </TabsTrigger>
                   <TabsTrigger value="routing" className="text-xs font-semibold gap-1.5">
                     <Sliders className="w-3 h-3 text-sky-500 dark:text-sky-400" />
-                    <span>Routing & Failover</span>
+                    <span>Routing</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -1097,7 +1230,7 @@ export function ProviderConfigPage() {
                         Validate Credentials Probe
                       </span>
                       <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Sends an authenticated ping to verify credentials without sending messages.
+                        Sends an authenticated ping to verify credentials and proxy connectivity.
                       </span>
                     </div>
 
@@ -1129,6 +1262,312 @@ export function ProviderConfigPage() {
                       <span className="font-mono font-bold text-xs">{testResult.latencyMs}ms</span>
                     </div>
                   )}
+                </TabsContent>
+
+                {/* SUB-TAB 2: Transport Layer & Enterprise Proxy Configuration */}
+                <TabsContent value="proxy" className="space-y-4 pt-3">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 shadow-inner space-y-4">
+                    {/* Header Toggle */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                          <Network className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                            {t('providerConfig.proxyTitle')}
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {t('providerConfig.proxySubtitle')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Switch
+                        checked={proxyConfig.enabled}
+                        onCheckedChange={(checked) => setProxyConfig((prev) => ({ ...prev, enabled: checked }))}
+                      />
+                    </div>
+
+                    {proxyConfig.enabled ? (
+                      <div className="space-y-4 pt-1">
+                        {/* Protocol Selection Pill Group */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {t('providerConfig.proxyType')}
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(
+                              [
+                                { type: 'http', label: 'HTTP', desc: 'Forward / CONNECT' },
+                                { type: 'https', label: 'HTTPS', desc: 'TLS-in-TLS Tunnel' },
+                                { type: 'socks5', label: 'SOCKS5', desc: 'RFC 1928 / 1929' },
+                              ] as const
+                            ).map((p) => {
+                              const isSelected = proxyConfig.type === p.type;
+                              return (
+                                <button
+                                  key={p.type}
+                                  type="button"
+                                  onClick={() => setProxyConfig((prev) => ({ ...prev, type: p.type }))}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                    isSelected
+                                      ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-900 dark:text-cyan-100 shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="text-xs font-bold font-mono">{p.label}</span>
+                                    {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />}
+                                  </div>
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{p.desc}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Host & Port Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                              {t('providerConfig.proxyHost')} <span className="text-rose-500">*</span>
+                            </label>
+                            <Input
+                              placeholder="e.g. proxy.corp.internal or 10.0.1.50"
+                              value={proxyConfig.host}
+                              onChange={(e) => setProxyConfig((prev) => ({ ...prev, host: e.target.value }))}
+                              className="font-mono text-xs"
+                              required={proxyConfig.enabled}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                              {t('providerConfig.proxyPort')} <span className="text-rose-500">*</span>
+                            </label>
+                            <Input
+                              type="number"
+                              placeholder={proxyConfig.type === 'socks5' ? '1080' : '8080'}
+                              value={proxyConfig.port}
+                              onChange={(e) =>
+                                setProxyConfig((prev) => ({ ...prev, port: Number.parseInt(e.target.value, 10) || 0 }))
+                              }
+                              className="font-mono text-xs"
+                              required={proxyConfig.enabled}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Authentication Box */}
+                        <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {t('providerConfig.proxyAuth')}
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-auto">
+                              Encrypted at rest with AES-256-GCM
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[11px] text-slate-600 dark:text-slate-400">
+                                {t('providerConfig.proxyUsername')}
+                              </label>
+                              <Input
+                                placeholder="proxy_user"
+                                value={proxyConfig.auth?.username || ''}
+                                onChange={(e) =>
+                                  setProxyConfig((prev) => ({
+                                    ...prev,
+                                    auth: { ...prev.auth, username: e.target.value },
+                                  }))
+                                }
+                                className="font-mono text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] text-slate-600 dark:text-slate-400">
+                                {t('providerConfig.proxyPassword')}
+                              </label>
+                              <div className="relative flex items-center">
+                                <Input
+                                  type={showProxyPassword ? 'text' : 'password'}
+                                  placeholder={
+                                    editingConfig?.config?.proxy?.auth?.password === '***'
+                                      ? '*** (Leave blank to keep existing)'
+                                      : '••••••••'
+                                  }
+                                  value={proxyConfig.auth?.password || ''}
+                                  onChange={(e) =>
+                                    setProxyConfig((prev) => ({
+                                      ...prev,
+                                      auth: { ...prev.auth, password: e.target.value },
+                                    }))
+                                  }
+                                  className="font-mono text-xs pr-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowProxyPassword((prev) => !prev)}
+                                  className="absolute right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                                >
+                                  {showProxyPassword ? (
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Eye className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bypass List (No Proxy) */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <label className="font-semibold text-slate-700 dark:text-slate-300">
+                              {t('providerConfig.proxyBypass')}
+                            </label>
+                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                              CIDR & Domain Wildcards
+                            </span>
+                          </div>
+                          <Input
+                            placeholder="localhost, 127.0.0.1, *.internal, 10.0.0.0/8"
+                            value={proxyBypassInput}
+                            onChange={(e) => setProxyBypassInput(e.target.value)}
+                            className="font-mono text-xs"
+                          />
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {t('providerConfig.proxyBypassHelp')}
+                          </p>
+                        </div>
+
+                        {/* Timeout Slider */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex justify-between text-xs">
+                            <label className="font-semibold text-slate-700 dark:text-slate-300">
+                              {t('providerConfig.proxyTimeout')}
+                            </label>
+                            <span className="font-mono text-cyan-600 dark:text-cyan-400 font-bold">
+                              {((proxyConfig.timeoutMs || 10000) / 1000).toFixed(1)}s ({proxyConfig.timeoutMs || 10000}
+                              ms)
+                            </span>
+                          </div>
+                          <Slider
+                            min={1000}
+                            max={30000}
+                            step={500}
+                            value={[proxyConfig.timeoutMs || 10000]}
+                            onValueChange={([val]) => setProxyConfig((prev) => ({ ...prev, timeoutMs: val }))}
+                          />
+                        </div>
+
+                        {/* Diagnostic Action Bar */}
+                        <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                              Diagnostic Connection Probe
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Verifies socket handshake and TLS negotiation through the proxy server.
+                            </span>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={!proxyConfig.host || !proxyConfig.port}
+                            isLoading={testProxyMutation.isPending}
+                            onClick={handleTestProxyOnly}
+                            className="text-xs gap-1.5 font-semibold"
+                          >
+                            <Activity className="w-3.5 h-3.5 text-cyan-500" />
+                            <span>{t('providerConfig.testProxyBtn')}</span>
+                          </Button>
+                        </div>
+
+                        {/* Diagnostics Result Card */}
+                        {proxyTestResult && (
+                          <div
+                            className={`p-3.5 rounded-xl border text-xs space-y-2 transition-all ${
+                              proxyTestResult.success
+                                ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-900 dark:text-cyan-100'
+                                : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {proxyTestResult.success ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                                ) : (
+                                  <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                                )}
+                                <span className="font-bold">
+                                  {proxyTestResult.success
+                                    ? t('providerConfig.proxyDiagnosticSuccess')
+                                    : t('providerConfig.proxyDiagnosticFailed')}
+                                </span>
+                              </div>
+                              <Badge
+                                variant={proxyTestResult.success ? 'success' : 'destructive'}
+                                className="font-mono text-[10px]"
+                              >
+                                {proxyTestResult.proxyType.toUpperCase()} PROXY
+                              </Badge>
+                            </div>
+
+                            {proxyTestResult.success ? (
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                <div className="p-2 rounded-lg bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/40 dark:border-slate-800/60">
+                                  <span className="text-[9px] text-slate-500 block">HOST & PORT</span>
+                                  <span>
+                                    {proxyTestResult.proxyHost}:{proxyTestResult.proxyPort}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/40 dark:border-slate-800/60">
+                                  <span className="text-[9px] text-slate-500 block">HANDSHAKE</span>
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                    {proxyTestResult.handshakeLatencyMs}ms
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/40 dark:border-slate-800/60">
+                                  <span className="text-[9px] text-slate-500 block">TOTAL RTT</span>
+                                  <span className="text-cyan-600 dark:text-cyan-400 font-bold">
+                                    {proxyTestResult.e2eLatencyMs}ms
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/40 dark:border-slate-800/60">
+                                  <span className="text-[9px] text-slate-500 block">DNS MODE</span>
+                                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                                    {proxyTestResult.dnsResolution || 'REMOTE'}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-rose-700 dark:text-rose-300 text-xs font-mono">
+                                {proxyTestResult.error || 'Connection timed out'}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center text-slate-500 text-xs space-y-1">
+                        <Globe className="w-8 h-8 mx-auto text-slate-400 opacity-60 mb-2" />
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">Direct Ingress / Egress</p>
+                        <p className="text-[11px] max-w-sm mx-auto">
+                          Requests to this provider connect directly to the target API without routing through an
+                          intermediate proxy tunnel.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </TabsContent>
 
                 {/* SUB-TAB 2: Advanced Feature Configs & WhatsApp Cost Saver */}
