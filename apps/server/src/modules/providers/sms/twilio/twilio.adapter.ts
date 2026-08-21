@@ -8,6 +8,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { createTransportFetch } from '../../core/transport';
 import { twilioTransformer } from './twilio.transformer';
 import type { TwilioAdapterConfig, TwilioApiRequest, TwilioApiResponse, TwilioWebhookPayload } from './types';
 
@@ -62,9 +63,10 @@ export class TwilioSmsAdapter implements ProviderAdapter<TwilioAdapterConfig, Tw
     }
 
     const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+    const transportFetch = createTransportFetch(config?.proxy);
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await transportFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
