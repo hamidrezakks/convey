@@ -1,8 +1,5 @@
 import type { Elysia } from 'elysia';
-import {
-  CommonHeaders,
-  StandardResponseExamples,
-} from '../../openapi/openapi.docs';
+import { WebhooksDocs } from '../../openapi';
 import { normalizeHeaders } from '../../utils/http';
 import { TraceContext } from '../../utils/trace-context';
 import { jsonErrorResponse, jsonResponse } from '../messaging/messaging.controller';
@@ -44,383 +41,170 @@ export function webhooksController(app: Elysia) {
       // --- Meta / WhatsApp Webhook Handshake Verification (GET) ---
       .get(
         '/v1/webhooks/:provider',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Meta / WhatsApp Webhook Challenge Handshake',
-            description: 'Handles Meta WhatsApp Cloud API / Facebook Graph API hub verification handshake request.',
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-              { name: 'hub.mode', in: 'query', required: true, schema: { type: 'string', example: 'subscribe' } },
-              { name: 'hub.verify_token', in: 'query', required: true, schema: { type: 'string', example: 'cv_verify_token_123' } },
-              { name: 'hub.challenge', in: 'query', required: true, schema: { type: 'string', example: '1158201444' } },
-            ],
-            responses: {
-              '200': {
-                description: 'Challenge string returned in plain text on successful verification',
-                content: { 'text/plain': { schema: { type: 'string', example: '1158201444' } } },
-              },
-              '403': { description: 'Invalid verify token or handshake parameters' },
-            },
-          },
-        },
-        ({ params: { provider }, query }) => {
-          return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
+        { detail: WebhooksDocs.hubHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
         },
       )
       .get(
         '/v1/webhooks/:provider/status',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'WhatsApp Dedicated Status Webhook Handshake',
-            description: 'Verification handshake for dedicated WhatsApp status callback endpoint.',
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-            ],
-          },
-        },
-        ({ params: { provider }, query }) => {
-          return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
+        { detail: WebhooksDocs.hubStatusHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
         },
       )
       .get(
         '/v1/webhooks/:provider/incoming',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'WhatsApp Dedicated Incoming Message Webhook Handshake',
-            description: 'Verification handshake for dedicated WhatsApp 2-way incoming message endpoint.',
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-            ],
-          },
-        },
-        ({ params: { provider }, query }) => {
-          return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
+        { detail: WebhooksDocs.hubIncomingHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
         },
       )
       .get(
         '/v1/webhooks/:provider/inbound',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'WhatsApp Dedicated Inbound Webhook Handshake',
-            description: 'Verification handshake for dedicated WhatsApp inbound endpoint alias.',
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-            ],
-          },
-        },
-        ({ params: { provider }, query }) => {
-          return handleHubChallengeVerification(provider, query as Record<string, string | undefined>);
+        { detail: WebhooksDocs.hubInboundHandshake },
+        ({ params, query }: { params: { provider: string }; query?: Record<string, string | undefined> }) => {
+          return handleHubChallengeVerification(params.provider, query || {});
         },
       )
 
-      // --- Dedicated WhatsApp Status Update Webhook (POST) ---
+      // --- Dedicated WhatsApp Status Webhook (Delivery / Read / Failure Receipts) ---
       .post(
         '/v1/webhooks/:provider/status',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Ingest WhatsApp Dedicated Status Webhook',
-            description: 'Ingests WhatsApp delivery and read receipts (delivered, read, failed).',
-            headers: CommonHeaders,
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-            ],
-            responses: {
-              '200': {
-                description: 'Status update ingested successfully',
-                content: {
-                  'application/json': {
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        status: { type: 'string', enum: ['accepted', 'duplicate_ignored', 'unauthorized'], example: 'accepted' },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        async ({ params: { provider }, body, headers, request }) => {
-          const headerMap = normalizeHeaders(headers);
-          const trace = TraceContext.extractOrCreate(headerMap);
-          const traceHeader = TraceContext.formatHeader(trace);
-
-          const result = await WebhooksService.ingestWebhook(provider, body, headerMap, request, WebhookFlowType.STATUS);
-          const statusCode = resolveWebhookHttpStatus(result.status);
-          return jsonResponse(result, statusCode, traceHeader);
+        { detail: WebhooksDocs.ingestStatus },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
+          const result = await WebhooksService.ingestWebhook(
+            params.provider,
+            body,
+            rawHeaders,
+            request,
+            WebhookFlowType.STATUS,
+          );
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
         },
       )
 
-      // --- Dedicated WhatsApp Incoming Message Webhook (POST) ---
+      // --- Dedicated WhatsApp Incoming Messages (2-Way Session Customer Replies) ---
       .post(
         '/v1/webhooks/:provider/incoming',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Ingest WhatsApp Dedicated Incoming 2-Way Message',
-            description:
-              'Ingests customer-initiated 2-way incoming WhatsApp messages, refreshing the 24-hour service window for zero-cost session optimization.',
-            headers: CommonHeaders,
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-            ],
-            responses: {
-              '200': {
-                description: 'Inbound message processed and 24h window refreshed',
-                content: {
-                  'application/json': {
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        status: { type: 'string', example: 'accepted' },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        async ({ params: { provider }, body, headers, request }) => {
-          const headerMap = normalizeHeaders(headers);
-          const trace = TraceContext.extractOrCreate(headerMap);
-          const traceHeader = TraceContext.formatHeader(trace);
-
+        { detail: WebhooksDocs.ingestIncoming },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
           const result = await WebhooksService.ingestWebhook(
-            provider,
+            params.provider,
             body,
-            headerMap,
+            rawHeaders,
             request,
             WebhookFlowType.INCOMING,
           );
-          const statusCode = resolveWebhookHttpStatus(result.status);
-          return jsonResponse(result, statusCode, traceHeader);
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
         },
       )
+
+      // Inbound alias for WhatsApp incoming
       .post(
         '/v1/webhooks/:provider/inbound',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Ingest Inbound Message (Alias)',
-            description: 'Alias for incoming message ingestion endpoint.',
-            parameters: [
-              { name: 'provider', in: 'path', required: true, schema: { type: 'string', example: 'whatsapp' } },
-            ],
-          },
-        },
-        async ({ params: { provider }, body, headers, request }) => {
-          const headerMap = normalizeHeaders(headers);
-          const trace = TraceContext.extractOrCreate(headerMap);
-          const traceHeader = TraceContext.formatHeader(trace);
-
+        { detail: WebhooksDocs.ingestInboundAlias },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
           const result = await WebhooksService.ingestWebhook(
-            provider,
+            params.provider,
             body,
-            headerMap,
+            rawHeaders,
             request,
             WebhookFlowType.INCOMING,
           );
-          const statusCode = resolveWebhookHttpStatus(result.status);
-          return jsonResponse(result, statusCode, traceHeader);
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
         },
       )
 
-      // --- Unified / General Provider Webhook (POST) ---
+      // --- Unified Inbound Provider Webhook (SendGrid, Twilio, Resend, Cequens, Infobip, etc.) ---
       .post(
         '/v1/webhooks/:provider',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Unified Inbound Provider Webhook Ingestion',
-            description:
-              'Ingests delivery receipts, bounces, spam complaints, and incoming messages from upstream providers (Twilio, SendGrid, Resend, Cequens, Infobip, etc.).',
-            headers: CommonHeaders,
-            parameters: [
-              { name: 'provider', in: 'path', required: true, description: 'Provider identifier slug', schema: { type: 'string', example: 'sendgrid' } },
-            ],
-            requestBody: {
-              required: true,
-              description: 'Provider-specific delivery webhook event payload',
-              content: {
-                'application/json': {
-                  examples: {
-                    sendgrid_delivered: {
-                      summary: 'SendGrid Delivery Receipt',
-                      value: [
-                        {
-                          email: 'customer@example.com',
-                          event: 'delivered',
-                          sg_message_id: 'sg_10928312.filter',
-                          timestamp: 1786500600,
-                        },
-                      ],
-                    },
-                    twilio_sms_delivered: {
-                      summary: 'Twilio SMS Status Callback',
-                      value: {
-                        MessageSid: 'SM1234567890abcdef',
-                        MessageStatus: 'delivered',
-                        To: '+971501234567',
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            responses: {
-              '200': {
-                description: 'Webhook successfully parsed and enqueued',
-                content: {
-                  'application/json': {
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        status: { type: 'string', example: 'accepted' },
-                      },
-                    },
-                  },
-                },
-              },
-              '401': {
-                description: 'Invalid Webhook Cryptographic Signature',
-                content: {
-                  'application/json': {
-                    schema: { $ref: '#/components/schemas/ErrorResponse' },
-                    examples: { unauthorized: StandardResponseExamples.unauthorized },
-                  },
-                },
-              },
-            },
-          },
-        },
-        async ({ params: { provider }, body, headers, request }) => {
-          const headerMap = normalizeHeaders(headers);
-          const trace = TraceContext.extractOrCreate(headerMap);
-          const traceHeader = TraceContext.formatHeader(trace);
-
-          const result = await WebhooksService.ingestWebhook(provider, body, headerMap, request, WebhookFlowType.GENERAL);
-          const statusCode = resolveWebhookHttpStatus(result.status);
-          return jsonResponse(result, statusCode, traceHeader);
+        { detail: WebhooksDocs.ingestProviderWebhook },
+        async ({
+          params,
+          body,
+          headers,
+          request,
+        }: {
+          params: { provider: string };
+          body: unknown;
+          headers?: Record<string, string | undefined>;
+          request?: Request;
+        }) => {
+          const rawHeaders = normalizeHeaders(headers || {});
+          const result = await WebhooksService.ingestWebhook(params.provider, body, rawHeaders, request);
+          return jsonResponse({ status: result.status, received: true }, resolveWebhookHttpStatus(result.status));
         },
       )
 
-      // --- Open Tracking Pixel (GET) ---
+      // --- Email Open Tracking Pixel (1x1 Transparent GIF) ---
       .get(
         '/v1/t/:token',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Email Open Tracking Pixel (1x1 Transparent GIF)',
-            description: 'Zero-footprint 1x1 transparent GIF tracking endpoint for recording email open events.',
-            parameters: [
-              { name: 'token', in: 'path', required: true, description: 'Encrypted message open tracking token', schema: { type: 'string', example: 'tok_01J0N...' } },
-            ],
-            responses: {
-              '200': {
-                description: '1x1 Transparent GIF Image',
-                content: {
-                  'image/gif': {
-                    schema: { type: 'string', format: 'binary' },
-                  },
-                },
-              },
-            },
-          },
-        },
-        async ({ params: { token } }) => {
-          WebhooksService.ingestTrackingPixel(token).catch((err) => {
-            console.error('Error ingesting tracking pixel:', err);
-          });
-
+        { detail: WebhooksDocs.openTrackingPixel },
+        async ({ params }: { params: { token: string } }) => {
+          await WebhooksService.ingestTrackingPixel(params.token);
           return buildPixelGifResponse();
         },
       )
 
-      // --- Client In-App Receipts (POST) ---
+      // --- Client Delivery Receipts (In-App SDKs / Mobile Client Read Receipts) ---
       .post(
         '/v1/receipts',
-        {
-          detail: {
-            tags: ['Webhooks'],
-            summary: 'Ingest Client In-App Delivery / Read Receipts',
-            description: 'Ingests delivery, read, or interaction confirmations directly from client mobile applications or SDKs.',
-            headers: CommonHeaders,
-            requestBody: {
-              required: true,
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      messageId: { type: 'string', example: 'msg_01J0N7C0W7X2R6S8V9Q9B1E4G3' },
-                      channel: { type: 'string', example: 'push' },
-                      event: { type: 'string', enum: ['delivered', 'read', 'clicked'], example: 'read' },
-                    },
-                    required: ['messageId'],
-                  },
-                  examples: {
-                    in_app_receipt: {
-                      summary: 'Client Read Receipt',
-                      value: {
-                        messageId: 'msg_01J0N7C0W7X2R6S8V9Q9B1E4G3',
-                        channel: 'push',
-                        event: 'read',
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            responses: {
-              '202': {
-                description: 'Receipt accepted for processing',
-                content: {
-                  'application/json': {
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        status: { type: 'string', example: 'accepted' },
-                      },
-                    },
-                  },
-                },
-              },
-              '400': {
-                description: 'Invalid Receipt Payload',
-                content: {
-                  'application/json': {
-                    schema: { $ref: '#/components/schemas/ErrorResponse' },
-                    examples: { validation_error: StandardResponseExamples.bad_request_validation },
-                  },
-                },
-              },
-            },
-          },
-        },
-        async ({ body, headers }) => {
-          const headerMap = normalizeHeaders(headers);
-          const trace = TraceContext.extractOrCreate(headerMap);
-          const traceHeader = TraceContext.formatHeader(trace);
+        { detail: WebhooksDocs.clientReceipt },
+        async ({ body, headers }: { body: unknown; headers?: Record<string, string | undefined> }) => {
+          const incomingTrace = headers?.traceparent;
+          const traceCtx = TraceContext.extractOrCreate({ traceparent: incomingTrace });
 
-          const parsed = ClientReceiptSchema.safeParse(body);
-          if (!parsed.success) {
+          const parseResult = ClientReceiptSchema.safeParse(body);
+          if (!parseResult.success) {
             return jsonErrorResponse(
-              ErrorCode.VALIDATION_ERROR,
+              ErrorCode.INVALID_PAYLOAD,
               'Invalid client receipt payload',
               400,
-              undefined,
-              traceHeader,
+              parseResult.error.issues,
+              TraceContext.formatHeader(traceCtx),
             );
           }
-          await WebhooksService.ingestClientReceipt(parsed.data);
-          return jsonResponse({ status: WebhookStatus.ACCEPTED }, 202, traceHeader);
+
+          await WebhooksService.ingestClientReceipt(parseResult.data);
+          return jsonResponse(
+            { status: WebhookStatus.ACCEPTED, received: true },
+            202,
+            TraceContext.formatHeader(traceCtx),
+          );
         },
       )
   );
