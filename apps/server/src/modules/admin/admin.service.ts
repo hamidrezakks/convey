@@ -5,6 +5,7 @@ import {
   COMPLETE_88_PROVIDER_CATALOG,
   type DlqReplayRequest,
   type DlqReplayResult,
+  formatCurrencyAmount,
   type LiveTelemetrySnapshot,
   type MessageDetailDto,
   type MessagePriority,
@@ -47,7 +48,7 @@ import { computePartitionWindow, fetchMessageByPublicId, MessagingService } from
 import type { SendMessageRequest } from '../messaging/messaging.types';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
 import { selfHealingEngine } from '../providers/core/self-healing';
-import { getProviderUnitCost } from '../providers/core/smart-router';
+import { getProviderBaseCurrency, getProviderRate, getProviderUnitCost } from '../providers/core/smart-router';
 
 export class AdminService {
   /**
@@ -492,6 +493,10 @@ export class AdminService {
     for (const p of providerList) {
       const liveStatus = allStatuses[p.id];
       const state = liveStatus?.state ?? CircuitState.CLOSED;
+      const rate = getProviderRate(p.id);
+      const baseCurrency = rate.currency || 'USD';
+      const unitCostNative = p.unitCost ?? rate.cost;
+      const unitCostUsd = getProviderUnitCost(p.id, 'USD');
 
       providers.push({
         providerId: p.id,
@@ -502,7 +507,10 @@ export class AdminService {
         emaLatencyMs: p.avgLat,
         rollingSuccessRatePercent: state === CircuitState.OPEN ? 0.0 : state === CircuitState.HALF_OPEN ? 85.0 : 99.8,
         anomalyZScore: state === CircuitState.OPEN ? 3.4 : 0.25,
-        unitCostUsd: p.unitCost,
+        unitCostUsd,
+        baseCurrency,
+        unitCostNative,
+        formattedUnitCost: formatCurrencyAmount(unitCostNative, baseCurrency),
         totalCalls24h: Math.floor(Math.random() * 5000 + 1200),
         isCanaryHealthy: state !== CircuitState.OPEN,
       });
@@ -1182,6 +1190,7 @@ export class AdminService {
       };
       const config = item.defaultFeatureConfigs || {};
       const encryptedCredentials = encryptProviderCredentials(credentials);
+      const baseCurrency = (item.defaultBaseCurrency || getProviderBaseCurrency(item.id) || 'USD').toUpperCase();
 
       try {
         await db
@@ -1190,6 +1199,7 @@ export class AdminService {
             id: item.id,
             displayName: item.displayName,
             channel: item.channel.toLowerCase(),
+            baseCurrency,
             enabled: true,
             isPrimary: item.defaultPriority === 1,
             priority: item.defaultPriority,
@@ -1205,6 +1215,7 @@ export class AdminService {
             set: {
               displayName: item.displayName,
               channel: item.channel.toLowerCase(),
+              baseCurrency,
               enabled: true,
               priority: item.defaultPriority,
               weight: item.defaultWeight,
@@ -1226,6 +1237,7 @@ export class AdminService {
         providerId: item.id,
         displayName: item.displayName,
         channel: item.channel,
+        baseCurrency,
         isPrimary: item.defaultPriority === 1,
         priority: item.defaultPriority,
         weight: item.defaultWeight,
@@ -1264,12 +1276,18 @@ export class AdminService {
           const creds = decryptProviderCredentials(p.credentials);
           const credentialsMasked = maskProviderCredentials(creds);
           const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
+          const rate = getProviderRate(p.id);
+          const baseCurrency = p.baseCurrency || rate.currency || 'USD';
+          const unitCost = rate.cost;
 
           return {
             id: p.id,
             providerId: p.id,
             displayName: p.displayName || p.id.toUpperCase(),
             channel: (p.channel?.toUpperCase() as Channel) || Channel.EMAIL,
+            baseCurrency,
+            unitCost,
+            formattedUnitCost: formatCurrencyAmount(unitCost, baseCurrency),
             isPrimary: p.isPrimary ?? true,
             priority: p.priority ?? 1,
             weight: p.weight ?? 100,
@@ -1290,12 +1308,17 @@ export class AdminService {
     return this.configuredProviders.map((p) => {
       const credentialsMasked = maskProviderCredentials(p.credentials);
       const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
+      const rate = getProviderRate(p.providerId);
+      const baseCurrency = p.baseCurrency || rate.currency || 'USD';
 
       return {
         id: p.id,
         providerId: p.providerId,
         displayName: p.displayName,
         channel: p.channel,
+        baseCurrency,
+        unitCost: rate.cost,
+        formattedUnitCost: formatCurrencyAmount(rate.cost, baseCurrency),
         isPrimary: p.isPrimary,
         priority: p.priority,
         weight: p.weight,
@@ -1317,6 +1340,8 @@ export class AdminService {
     providerId: string;
     channel: Channel;
     credentials: Record<string, string>;
+    baseCurrency?: string;
+    unitCost?: number;
     config?: Record<string, unknown>;
     isPrimary?: boolean;
     priority?: number;
@@ -1326,6 +1351,12 @@ export class AdminService {
     const catalog = this.getProviderCatalog();
     const catalogItem = catalog.find((c) => c.id === data.providerId);
     const displayName = catalogItem?.displayName || data.providerId.toUpperCase();
+    const baseCurrency = (
+      data.baseCurrency ||
+      catalogItem?.defaultBaseCurrency ||
+      getProviderBaseCurrency(data.providerId) ||
+      'USD'
+    ).toUpperCase();
 
     // Check existing credentials in DB or memory to selectively merge
     let existingCreds: Record<string, string> = {};
@@ -1362,6 +1393,7 @@ export class AdminService {
       providerId: data.providerId,
       displayName,
       channel: data.channel,
+      baseCurrency,
       isPrimary: data.isPrimary ?? (existingIndex >= 0 ? this.configuredProviders[existingIndex].isPrimary : true),
       priority: data.priority ?? 1,
       weight: data.weight ?? 100,
@@ -1395,6 +1427,7 @@ export class AdminService {
           id: data.providerId,
           displayName,
           channel: data.channel.toLowerCase(),
+          baseCurrency,
           enabled: true,
           isPrimary: newConfig.isPrimary,
           priority: newConfig.priority,
@@ -1410,6 +1443,7 @@ export class AdminService {
           set: {
             displayName,
             channel: data.channel.toLowerCase(),
+            baseCurrency,
             enabled: true,
             isPrimary: newConfig.isPrimary,
             priority: newConfig.priority,
@@ -1420,8 +1454,11 @@ export class AdminService {
             updatedAt: new Date(),
           },
         });
-    } catch {
-      // Postgres error fallback
+    } catch (err) {
+      logger.error(
+        'AdminService',
+        `Failed to persist configured provider ${data.providerId} to database: ${(err as Error).message}`,
+      );
     }
 
     const credentialsMasked = maskProviderCredentials(mergedCredentials);

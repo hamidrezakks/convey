@@ -385,8 +385,15 @@ export function ProvidersPage() {
                           </span>
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                          ${(p.unitCostUsd ?? 0).toFixed(5)}
+                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                          <div className="flex items-center gap-1.5">
+                            <span>{p.formattedUnitCost || `$${(p.unitCostUsd ?? 0).toFixed(4)}`}</span>
+                            {p.baseCurrency && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono text-slate-500">
+                                {p.baseCurrency}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
 
                         <TableCell className="text-end rtl:text-left space-x-2 rtl:space-x-reverse">

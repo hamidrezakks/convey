@@ -1,3 +1,4 @@
+import { formatCurrencyAmount } from '@convey/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { budgetLedger, budgetPolicies, budgetUsage, rateLimitPolicies } from '../../db/schema';
@@ -7,6 +8,7 @@ import { generateMessageId } from '../../utils/id';
 import { BoundedLruCache } from '../../utils/lru-cache';
 import { formatRedisKey } from '../../utils/redis-keys';
 import type { MessagePriority } from '../messaging/messaging.types';
+import { fxEngine } from './fx-engine';
 import { QuietHoursEngine } from './quiet-hours';
 import { TokenBucketLimiter, type TokenBucketResult } from './token-bucket';
 
@@ -72,27 +74,31 @@ export function findMatchingRateLimitPolicy(
  * 1. Zero Duplicate Key Errors: Uses `ON CONFLICT (id) DO UPDATE` to safely handle simultaneous
  *    inserts when multiple worker threads process messages for the same tenant at the start of a month.
  * 2. Zero Lost Updates: Performs arithmetic addition directly at the database engine level
- *    (`budget_usage.used_usd::numeric + amountUsd`), eliminating read-modify-write lost updates.
+ *    (`budget_usage.used_usd::numeric + amount`), eliminating read-modify-write lost updates.
  * 3. Exact Precision: Casts values to `numeric(12, 4)` to eliminate floating-point rounding errors.
+ * 4. Multi-Currency Support: Tracks usage in the team policy's configured currency.
  *
  * @param policyId Unique identifier of the budget policy.
  * @param month Target billing month formatted as YYYY-MM.
- * @param amountUsd Expenditure amount in USD to add.
+ * @param amountInPolicyCurrency Expenditure amount in the policy's currency to add.
+ * @param currency Currency code of the policy (e.g. 'USD', 'EUR', 'AED').
  * @param now Current timestamp for updatedAt tracking.
  */
 export async function updateMonthlyBudgetUsage(
   policyId: string,
   month: string,
-  amountUsd: number,
-  now: Date,
+  amountInPolicyCurrency: number,
+  currency = 'USD',
+  now = new Date(),
 ): Promise<void> {
   const usageId = `${policyId}_${month}`;
-  const amountStr = amountUsd.toFixed(4);
+  const amountStr = amountInPolicyCurrency.toFixed(4);
 
   await db.execute(sql`
-    INSERT INTO budget_usage (id, policy_id, month, used_usd, updated_at)
-    VALUES (${usageId}, ${policyId}, ${month}, ${amountStr}::numeric, ${now})
+    INSERT INTO budget_usage (id, policy_id, month, currency, used_usd, updated_at)
+    VALUES (${usageId}, ${policyId}, ${month}, ${currency}, ${amountStr}::numeric, ${now})
     ON CONFLICT (id) DO UPDATE SET
+      currency = EXCLUDED.currency,
       used_usd = (budget_usage.used_usd + EXCLUDED.used_usd)::numeric(12, 4),
       updated_at = EXCLUDED.updated_at;
   `);
@@ -172,9 +178,17 @@ export const PolicyEngine = {
     return TokenBucketLimiter.consume(teamKey, capacity, refillRatePerSec, requested);
   },
 
-  async checkBudget(
-    team: string,
-  ): Promise<{ allowed: boolean; policyId?: string; usedUsd?: number; limitUsd?: number }> {
+  async checkBudget(team: string): Promise<{
+    allowed: boolean;
+    policyId?: string;
+    currency?: string;
+    usedAmount?: number;
+    limitAmount?: number;
+    formattedUsed?: string;
+    formattedLimit?: string;
+    usedUsd?: number;
+    limitUsd?: number;
+  }> {
     const policies = await getBudgetPoliciesForTeam(team);
 
     if (!policies.length) {
@@ -183,19 +197,28 @@ export const PolicyEngine = {
 
     const policy = policies[0];
     const month = getUtcMonthString();
+    const policyCurrency = (policy.currency || 'USD').toUpperCase();
 
     const usageRecords = await db
       .select()
       .from(budgetUsage)
       .where(and(eq(budgetUsage.policyId, policy.id), eq(budgetUsage.month, month)));
 
-    const usedUsd = usageRecords.length ? Number.parseFloat(usageRecords[0].usedUsd) : 0;
-    const limitUsd = Number.parseFloat(policy.monthlyBudgetUsd);
+    const usedAmount = usageRecords.length ? Number.parseFloat(usageRecords[0].usedUsd) : 0;
+    const limitAmount = Number.parseFloat(policy.monthlyBudgetUsd);
 
-    if (usedUsd >= limitUsd && policy.hardStop === 'true') {
+    const usedUsd = fxEngine.toUsd(usedAmount, policyCurrency);
+    const limitUsd = fxEngine.toUsd(limitAmount, policyCurrency);
+
+    if (usedAmount >= limitAmount && policy.hardStop === 'true') {
       return {
         allowed: false,
         policyId: policy.id,
+        currency: policyCurrency,
+        usedAmount,
+        limitAmount,
+        formattedUsed: formatCurrencyAmount(usedAmount, policyCurrency),
+        formattedLimit: formatCurrencyAmount(limitAmount, policyCurrency),
         usedUsd,
         limitUsd,
       };
@@ -204,6 +227,11 @@ export const PolicyEngine = {
     return {
       allowed: true,
       policyId: policy.id,
+      currency: policyCurrency,
+      usedAmount,
+      limitAmount,
+      formattedUsed: formatCurrencyAmount(usedAmount, policyCurrency),
+      formattedLimit: formatCurrencyAmount(limitAmount, policyCurrency),
       usedUsd,
       limitUsd,
     };
@@ -212,7 +240,9 @@ export const PolicyEngine = {
   async recordLedger(params: {
     messageId: string;
     team: string;
-    amountUsd: number;
+    amount?: number;
+    currency?: string;
+    amountUsd?: number;
     channel: string;
     providerId: string;
   }): Promise<void> {
@@ -220,19 +250,34 @@ export const PolicyEngine = {
     const month = getUtcMonthString(now);
     const ledgerId = generateMessageId();
 
+    const providerCurrency = (params.currency || 'USD').toUpperCase();
+    const originalAmount = params.amount ?? params.amountUsd ?? 0.005;
+
+    // Resolve team policy to determine policy currency
+    const policies = await getBudgetPoliciesForTeam(params.team);
+    const policyCurrency = policies.length ? (policies[0].currency || 'USD').toUpperCase() : 'USD';
+
+    // High-precision FX conversion
+    const fxResult = fxEngine.convert(originalAmount, providerCurrency, policyCurrency);
+    const exchangeRate = fxResult.exchangeRate;
+    const amountInPolicyCurrency = fxResult.convertedAmount;
+    const amountUsd = fxResult.amountUsd;
+
     await db.insert(budgetLedger).values({
       id: ledgerId,
       messageId: params.messageId,
       team: params.team,
-      amountUsd: params.amountUsd.toFixed(4),
+      amountUsd: amountUsd.toFixed(4),
+      currency: providerCurrency,
+      exchangeRate: exchangeRate.toFixed(8),
+      amountInPolicyCurrency: amountInPolicyCurrency.toFixed(4),
       channel: params.channel,
       providerId: params.providerId,
       createdAt: now,
     });
 
-    const policies = await getBudgetPoliciesForTeam(params.team);
     if (policies.length) {
-      await updateMonthlyBudgetUsage(policies[0].id, month, params.amountUsd, now);
+      await updateMonthlyBudgetUsage(policies[0].id, month, amountInPolicyCurrency, policyCurrency, now);
     }
   },
 

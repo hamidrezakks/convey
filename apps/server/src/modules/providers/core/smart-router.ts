@@ -1,9 +1,11 @@
+import { formatCurrencyAmount } from '@convey/shared';
 import { redisClient } from '../../../queues/connection';
 import { logger } from '../../../utils/logger';
 import { BoundedLruCache } from '../../../utils/lru-cache';
 import { formatRedisKey } from '../../../utils/redis-keys';
 import { Channel } from '../../messaging/messaging.types';
 import { costOptimizationEngine } from '../../policies/cost-optimizer';
+import { fxEngine } from '../../policies/fx-engine';
 import { providerCircuitBreaker } from './circuit-breaker';
 import { ProviderRegistry } from './provider-registry';
 
@@ -15,29 +17,59 @@ export interface ProviderScorecard {
   score: number;
   betaSample?: number;
   unitCostUsd?: number;
+  baseCurrency?: string;
+  unitCostNative?: number;
+  formattedUnitCost?: string;
 }
 
-export const RateCardRegistry: Record<string, number> = {
-  ses: 0.0001,
-  postmark: 0.00085,
-  resend: 0.0008,
-  sendgrid: 0.001,
-  mailgun: 0.0009,
-  telnyx: 0.0035,
-  twilio: 0.0079,
-  bandwidth: 0.004,
-  sinch: 0.0065,
-  plivo: 0.0045,
-  infobip: 0.007,
-  whatsapp: 0.005,
-  fcm: 0.0,
-  apns: 0.0,
-  slack: 0.0,
-  telegram: 0.0,
+export interface ProviderRateCard {
+  cost: number;
+  currency: string;
+}
+
+export const RateCardRegistry: Record<string, ProviderRateCard> = {
+  ses: { cost: 0.0001, currency: 'USD' },
+  postmark: { cost: 0.00085, currency: 'USD' },
+  resend: { cost: 0.0008, currency: 'USD' },
+  sendgrid: { cost: 0.001, currency: 'USD' },
+  mailgun: { cost: 0.0009, currency: 'USD' },
+  telnyx: { cost: 0.0035, currency: 'USD' },
+  twilio: { cost: 0.0079, currency: 'USD' },
+  bandwidth: { cost: 0.004, currency: 'USD' },
+  sinch: { cost: 0.0065, currency: 'EUR' },
+  plivo: { cost: 0.0045, currency: 'USD' },
+  infobip: { cost: 0.007, currency: 'EUR' },
+  brevo: { cost: 0.00075, currency: 'EUR' },
+  messagebird: { cost: 0.007, currency: 'EUR' },
+  cequens: { cost: 0.025, currency: 'AED' },
+  termii: { cost: 0.005, currency: 'USD' },
+  whatsapp: { cost: 0.005, currency: 'USD' },
+  'whatsapp-business': { cost: 0.005, currency: 'USD' },
+  fcm: { cost: 0.0, currency: 'USD' },
+  apns: { cost: 0.0, currency: 'USD' },
+  slack: { cost: 0.0, currency: 'USD' },
+  telegram: { cost: 0.0, currency: 'USD' },
+  discord: { cost: 0.0, currency: 'USD' },
+  'one-signal': { cost: 0.0, currency: 'USD' },
+  expo: { cost: 0.0, currency: 'USD' },
+  generic: { cost: 0.001, currency: 'USD' },
 };
 
-export function getProviderUnitCost(providerId: string): number {
-  return RateCardRegistry[providerId.toLowerCase()] ?? 0.001;
+export function getProviderRate(providerId: string): ProviderRateCard {
+  return RateCardRegistry[providerId.toLowerCase()] ?? { cost: 0.001, currency: 'USD' };
+}
+
+export function getProviderUnitCost(providerId: string, targetCurrency: string = 'USD'): number {
+  const rate = getProviderRate(providerId);
+  const target = targetCurrency.toUpperCase();
+  if (rate.currency.toUpperCase() === target) {
+    return rate.cost;
+  }
+  return fxEngine.convert(rate.cost, rate.currency, target).convertedAmount;
+}
+
+export function getProviderBaseCurrency(providerId: string): string {
+  return getProviderRate(providerId).currency;
 }
 
 export function getDefaultProviderForChannel(channel: Channel): string {
@@ -136,7 +168,8 @@ export class SmartProviderRouter {
 
   getScorecard(providerId: string): ProviderScorecard {
     const stats = this.scorecards.get(providerId);
-    const unitCost = getProviderUnitCost(providerId);
+    const rate = getProviderRate(providerId);
+    const unitCostUsd = getProviderUnitCost(providerId, 'USD');
 
     if (!stats || stats.total === 0) {
       return {
@@ -144,9 +177,12 @@ export class SmartProviderRouter {
         emaLatencyMs: 100,
         successRate: 1.0,
         totalCalls: 0,
-        score: Math.round(100 - unitCost * 1000),
+        score: Math.round(100 - unitCostUsd * 1000),
         betaSample: 1.0,
-        unitCostUsd: unitCost,
+        unitCostUsd,
+        baseCurrency: rate.currency,
+        unitCostNative: rate.cost,
+        formattedUnitCost: formatCurrencyAmount(rate.cost, rate.currency),
       };
     }
 
@@ -155,10 +191,10 @@ export class SmartProviderRouter {
     const betaSample = sampleBeta(1 + successes, 1 + failures);
     const successRate = stats.successes / stats.total;
 
-    // Multi-Objective Thompson Sampling MAB Score: Beta sample - Latency penalty - Unit cost penalty
+    // Multi-Objective Thompson Sampling MAB Score: Beta sample - Latency penalty - Normalized Unit cost penalty
     const mabComponent = 100 * betaSample;
     const latencyPenalty = stats.emaLatency / 10;
-    const costPenalty = unitCost * 5000;
+    const costPenalty = unitCostUsd * 5000;
     const score = Math.max(0, Math.round(mabComponent - latencyPenalty - costPenalty));
 
     return {
@@ -168,7 +204,10 @@ export class SmartProviderRouter {
       totalCalls: stats.total,
       score,
       betaSample,
-      unitCostUsd: unitCost,
+      unitCostUsd,
+      baseCurrency: rate.currency,
+      unitCostNative: rate.cost,
+      formattedUnitCost: formatCurrencyAmount(rate.cost, rate.currency),
     };
   }
 
@@ -179,11 +218,14 @@ export class SmartProviderRouter {
   getDecisionTrace(
     channel: Channel,
     preferredProviderId?: string,
+    targetCurrency: string = 'USD',
   ): {
     selected: string;
     score: number;
     costUsd: number;
-    competitors: Array<{ provider: string; score: number; costUsd: number }>;
+    costInTargetCurrency: number;
+    currency: string;
+    competitors: Array<{ provider: string; score: number; costUsd: number; costInTargetCurrency: number }>;
   } {
     const configured = ProviderRegistry.getConfiguredAdaptersByChannel(channel);
     const healthyAdapters = configured.filter((a) => providerCircuitBreaker.canExecute(a.id));
@@ -192,10 +234,13 @@ export class SmartProviderRouter {
     const ranked = targetAdapters
       .map((adapter) => {
         const sc = this.getScorecard(adapter.id);
+        const costUsd = sc.unitCostUsd ?? getProviderUnitCost(adapter.id, 'USD');
+        const costInTarget = getProviderUnitCost(adapter.id, targetCurrency);
         return {
           provider: adapter.id,
           score: sc.score,
-          costUsd: sc.unitCostUsd ?? getProviderUnitCost(adapter.id),
+          costUsd,
+          costInTargetCurrency: costInTarget,
         };
       })
       .sort((a, b) => b.score - a.score);
@@ -207,6 +252,8 @@ export class SmartProviderRouter {
       selected,
       score: selectedItem?.score ?? 100,
       costUsd: selectedItem?.costUsd ?? 0.001,
+      costInTargetCurrency: selectedItem?.costInTargetCurrency ?? 0.001,
+      currency: targetCurrency.toUpperCase(),
       competitors: ranked.filter((r) => r.provider !== selected),
     };
   }

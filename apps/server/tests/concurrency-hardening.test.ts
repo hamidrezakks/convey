@@ -75,6 +75,8 @@ describe('Concurrency Hardening & Planetary-Scale Resilience Test Suite', () => 
       await PolicyEngine.recordLedger({
         messageId: msgId,
         team: testTeam,
+        amount: 0.01,
+        currency: 'USD',
         amountUsd: 0.01,
         channel: 'email',
         providerId: 'ses',
@@ -83,6 +85,51 @@ describe('Concurrency Hardening & Planetary-Scale Resilience Test Suite', () => 
       const check = await PolicyEngine.checkBudget(testTeam);
       expect(check.allowed).toBe(true);
       expect(check.usedUsd).toBeGreaterThan(0.25);
+    });
+
+    it('PolicyEngine enforces multi-currency budgets across mixed-currency provider charges', async () => {
+      const euTeam = `team_eu_${Date.now()}`;
+      const euPolicyId = `pol_eu_${Date.now()}`;
+
+      // Team has 50 EUR budget
+      await db.insert(budgetPolicies).values({
+        id: euPolicyId,
+        team: euTeam,
+        currency: 'EUR',
+        monthlyBudgetUsd: '50.0000',
+        hardStop: 'true',
+      });
+
+      // Record charge from Twilio in USD: $10.00 USD -> 9.24 EUR
+      await PolicyEngine.recordLedger({
+        messageId: generateMessageId(),
+        team: euTeam,
+        amount: 10.0,
+        currency: 'USD',
+        channel: 'sms',
+        providerId: 'twilio',
+      });
+
+      // Record charge from Infobip in EUR: €5.00 EUR -> 5.00 EUR
+      await PolicyEngine.recordLedger({
+        messageId: generateMessageId(),
+        team: euTeam,
+        amount: 5.0,
+        currency: 'EUR',
+        channel: 'sms',
+        providerId: 'infobip',
+      });
+
+      const check = await PolicyEngine.checkBudget(euTeam);
+      expect(check.allowed).toBe(true);
+      expect(check.currency).toBe('EUR');
+      // 9.24 + 5.00 = 14.24 EUR
+      expect(check.usedAmount).toBeCloseTo(14.24, 2);
+      expect(check.formattedUsed).toContain('€');
+
+      // Cleanup
+      await db.delete(budgetUsage).where(eq(budgetUsage.policyId, euPolicyId));
+      await db.delete(budgetPolicies).where(eq(budgetPolicies.id, euPolicyId));
     });
   });
 

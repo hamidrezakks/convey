@@ -277,6 +277,8 @@ export const fr: TranslationSchema = {
     weightLabel: 'Poids d’Équilibrage de Charge',
     fallbackProviderLabel: 'Cible de Repli (Failover)',
     primaryProviderLabel: 'Définir comme Adaptateur Principal',
+    baseCurrencyLabel: 'Devise de facturation de base',
+    baseCurrencyHelp: 'Devise native dans laquelle ce fournisseur facture les transactions (ex. USD, EUR, AED, GBP)',
     featureToggles: 'Fonctionnalités et Options Actives',
     openDocs: 'Documentation du Fournisseur',
     noConfiguredProviders: 'Aucun fournisseur configuré. Parcourez le catalogue pour en ajouter un.',
@@ -368,6 +370,14 @@ export const fr: TranslationSchema = {
     quantumWeight: 'Poids Quantique (Quantum)',
     rateLimits: 'Limites de Débit & Seau à Jetons',
     budgetPolicies: 'Plafonds de Budget & Optimiseurs',
+    budgetPolicyTitle: 'Plafond budgétaire mensuel et multi-devises de l’équipe',
+    budgetPolicyDesc:
+      'Suivi automatisé des dépenses avec conversion FX multi-devises en temps réel et limites strictes.',
+    currencyLabel: 'Devise du budget',
+    monthlyBudgetLabel: 'Limite de dépenses mensuelle',
+    hardStopLabel: 'Arrêt strict (Bloquer les envois lorsque le budget est épuisé)',
+    fxPreviewLabel: 'Évaluation FX en temps réel',
+    usedAmountLabel: 'Dépenses cumulées du mois',
     slaStudio: 'Objectifs de SLA Entreprise',
     drrTitle: 'Quotas de l’Ordonnanceur Équitable Multi-Tenant (DRR)',
     drrDesc:

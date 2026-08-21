@@ -57,12 +57,18 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
     ALTER TABLE budget_ledger ALTER COLUMN tenant_id DROP NOT NULL;
     ALTER TABLE budget_ledger ALTER COLUMN amount DROP NOT NULL;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS display_name TEXT;
+    ALTER TABLE providers ADD COLUMN IF NOT EXISTS base_currency TEXT NOT NULL DEFAULT 'USD';
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS weight INT NOT NULL DEFAULT 100;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS fallback_provider_id TEXT;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS credentials JSONB;
     ALTER TABLE providers ADD COLUMN IF NOT EXISTS config JSONB;
+    ALTER TABLE budget_policies ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
+    ALTER TABLE budget_usage ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
+    ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
+    ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(16, 8) NOT NULL DEFAULT '1.00000000';
+    ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS amount_in_policy_currency NUMERIC(12, 4) NOT NULL DEFAULT '0.0000';
   `);
 
   // Clean existing transactional tables for fresh benchmark state

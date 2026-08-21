@@ -15,6 +15,7 @@ export const rateLimitPolicies = pgTable('rate_limit_policies', {
 export const budgetPolicies = pgTable('budget_policies', {
   id: text('id').primaryKey(),
   team: text('team').notNull(),
+  currency: text('currency').notNull().default('USD'),
   monthlyBudgetUsd: numeric('monthly_budget_usd', { precision: 12, scale: 4 }).notNull(),
   hardStop: text('hard_stop').notNull().default('true'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -25,6 +26,7 @@ export const budgetUsage = pgTable('budget_usage', {
   id: text('id').primaryKey(), // policy_id + month (YYYY-MM)
   policyId: text('policy_id').notNull(),
   month: text('month').notNull(), // YYYY-MM
+  currency: text('currency').notNull().default('USD'),
   usedUsd: numeric('used_usd', { precision: 12, scale: 4 }).notNull().default('0.0000'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -36,6 +38,11 @@ export const budgetLedger = pgTable(
     messageId: text('message_id').notNull(),
     team: text('team').notNull(),
     amountUsd: numeric('amount_usd', { precision: 12, scale: 4 }).notNull(),
+    currency: text('currency').notNull().default('USD'),
+    exchangeRate: numeric('exchange_rate', { precision: 16, scale: 8 }).notNull().default('1.00000000'),
+    amountInPolicyCurrency: numeric('amount_in_policy_currency', { precision: 12, scale: 4 })
+      .notNull()
+      .default('0.0000'),
     channel: text('channel').notNull(),
     providerId: text('provider_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
