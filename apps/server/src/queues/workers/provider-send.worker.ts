@@ -20,7 +20,7 @@ import { ProviderRegistry } from '../../modules/providers/core/provider-registry
 import type { UnifiedRecipient } from '../../modules/providers/core/provider-types';
 import { ErrorCategory } from '../../modules/providers/core/provider-types';
 import { sandboxAdapter } from '../../modules/providers/core/sandbox-adapter';
-import { smartProviderRouter } from '../../modules/providers/core/smart-router';
+import { getProviderRate, smartProviderRouter } from '../../modules/providers/core/smart-router';
 import { applyWhatsAppSessionOptimization } from '../../modules/providers/whatsapp/session-interceptor';
 import { ReportingService } from '../../modules/reports/reporting.service';
 import { WebhookSubscriptionsService } from '../../modules/webhooks/webhook-subscriptions.service';
@@ -184,10 +184,13 @@ export async function handleSendSuccess(params: {
     );
 
   if (!msg.isSandbox) {
+    const rateInfo = getProviderRate(adapterId);
     await PolicyEngine.recordLedger({
       messageId: data.publicId,
       team: msg.team,
-      amountUsd: 0.005,
+      amount: rateInfo.cost,
+      currency: rateInfo.currency,
+      amountUsd: rateInfo.cost,
       channel: data.channel,
       providerId: adapterId,
     }).catch((err) => {
