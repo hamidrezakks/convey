@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db';
 import { messages, outbox } from '../src/db/schema';
+
 import { MessagingService } from '../src/modules/messaging/messaging.service';
 import { Channel, MessagePriority, type SendMessageRequest } from '../src/modules/messaging/messaging.types';
 import { TokenBucketLimiter } from '../src/modules/policies/token-bucket';

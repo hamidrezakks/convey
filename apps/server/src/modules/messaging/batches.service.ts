@@ -1,8 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { batches } from '../../db/schema';
+
 import { redisClient } from '../../queues/connection';
-import { generateMessageId } from '../../utils/id';
+import { generateUuidV7 } from '../../utils/id';
 import { logger } from '../../utils/logger';
 import { formatRedisKey } from '../../utils/redis-keys';
 import { BatchStatus, MetricType } from './messaging.types';
@@ -58,7 +59,7 @@ export const BatchesService = {
     totalCount: number;
     metadata?: Record<string, unknown>;
   }) {
-    const id = `batch_${generateMessageId()}`;
+    const id = `batch_${generateUuidV7()}`;
     const now = new Date();
 
     const [batch] = await db

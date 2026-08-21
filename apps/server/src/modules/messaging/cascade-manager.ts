@@ -1,6 +1,7 @@
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages } from '../../db/schema';
+
 import { redisClient } from '../../queues/connection';
 import { fallbackRetryQueue } from '../../queues/queue-definitions';
 import { generateMessageId } from '../../utils/id';
@@ -122,6 +123,21 @@ export const CascadeManager = {
         'CascadeManager',
         `Skipping cascade Step ${stepIndex} for message '${publicId}': short-circuited by recipient delivery`,
       );
+      await db
+        .insert(messageEvents)
+        .values({
+          id: generateMessageId(),
+          messageId: publicId,
+          type: EventType.CASCADE_SHORT_CIRCUITED,
+          source: EventSource.SYSTEM,
+          metadata: {
+            stepIndex,
+            reason: 'pre_cancelled_by_redis_receipt',
+          },
+          occurredAt: new Date(),
+          createdAt: new Date(),
+        })
+        .catch(() => {});
       return false;
     }
 
@@ -165,11 +181,15 @@ export const CascadeManager = {
     const trigger = step?.triggerOn || step?.condition || 'if_unopened';
 
     const shouldShortCircuit =
-      (trigger === 'if_unopened' && hasOpened) ||
-      (trigger === 'if_undelivered' && (hasDelivered || hasOpened)) ||
-      msg.state === MessageState.DELIVERED ||
-      msg.state === MessageState.OPENED ||
-      msg.state === MessageState.READ;
+      (trigger === 'if_unopened' &&
+        (hasOpened || msg.state === MessageState.OPENED || msg.state === MessageState.READ)) ||
+      (trigger === 'if_undelivered' &&
+        (hasDelivered ||
+          hasOpened ||
+          msg.state === MessageState.DELIVERED ||
+          msg.state === MessageState.OPENED ||
+          msg.state === MessageState.READ)) ||
+      (trigger !== 'always' && (hasOpened || msg.state === MessageState.OPENED || msg.state === MessageState.READ));
 
     if (shouldShortCircuit) {
       await this.cancelRemainingSteps(publicId);

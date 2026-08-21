@@ -33,3 +33,12 @@ export function formatPubSubChannel(channel: string): string {
   const prefix = getRedisKeyPrefix();
   return `{${prefix}}:${channel}`;
 }
+
+/**
+ * Formats tenant-scoped Redis keys with cluster hash-tagging on team boundary.
+ * e.g., formatTenantRedisKey('payments', 'idem:key_1') -> 'convey:{payments}:idem:key_1'
+ */
+export function formatTenantRedisKey(team: string, key: string): string {
+  const prefix = getRedisKeyPrefix();
+  return `${prefix}:{${team}}:${key}`;
+}

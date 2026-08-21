@@ -194,13 +194,31 @@ export const IdempotencyService = {
     // Key exists -> fetch payload to verify hash or handle completion polling
     const existing = await redisClient.get(key);
     if (existing) {
-      try {
-        return parseExistingIdempotencyRecord(existing, requestHash);
-      } catch (err) {
-        const polledResult = await pollIdempotencyCompletion(key, requestHash);
-        if (polledResult) return polledResult;
-        throw err;
+      const parsed = JSON.parse(existing) as IdempotencyRecordPayload;
+      if (parsed.hash !== requestHash) {
+        throw new IdempotencyConflictError(
+          'The idempotency key was previously used with a different request',
+          team,
+          idempotencyKey,
+        );
       }
+
+      if (parsed.state === IdempotencyState.COMPLETED) {
+        return {
+          status: ReservationStatus.COMPLETED,
+          messageId: parsed.messageId,
+          responsePayload: parsed.responsePayload,
+        };
+      }
+
+      // If state is still processing from another concurrent contender, poll for completion
+      const polledResult = await pollIdempotencyCompletion(key, requestHash);
+      if (polledResult) return polledResult;
+      throw new IdempotencyConflictError(
+        'A request with this idempotency key is currently processing',
+        team,
+        idempotencyKey,
+      );
     }
 
     return IdempotencyService.reserve(team, idempotencyKey, requestPayload);
