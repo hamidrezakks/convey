@@ -16,7 +16,7 @@ export interface TenantQueueStats {
 }
 
 export class DeficitWeightedRoundRobinScheduler<T> {
-  private queues = new Map<string, { tier: SLATier; tasks: DRRTask<T>[] }>();
+  private queues = new Map<string, { tier: SLATier; tasks: DRRTask<T>[]; head: number }>();
   private deficitMap = new Map<string, number>();
   private activeTenants: string[] = [];
 
@@ -39,7 +39,7 @@ export class DeficitWeightedRoundRobinScheduler<T> {
   enqueue(task: DRRTask<T>): void {
     let tenantQueue = this.queues.get(task.tenantId);
     if (!tenantQueue) {
-      tenantQueue = { tier: task.tier, tasks: [] };
+      tenantQueue = { tier: task.tier, tasks: [], head: 0 };
       this.queues.set(task.tenantId, tenantQueue);
       this.activeTenants.push(task.tenantId);
       this.deficitMap.set(task.tenantId, 0);
@@ -64,11 +64,12 @@ export class DeficitWeightedRoundRobinScheduler<T> {
       iterations++;
       const activeCopy = [...this.activeTenants];
 
-      for (const tenantId of activeCopy) {
+      for (let t = 0; t < activeCopy.length; t++) {
+        const tenantId = activeCopy[t];
         if (dequeued.length >= maxBatchSize) break;
 
         const queueInfo = this.queues.get(tenantId);
-        if (!queueInfo || queueInfo.tasks.length === 0) {
+        if (!queueInfo || queueInfo.head >= queueInfo.tasks.length) {
           // Remove empty queue
           this.queues.delete(tenantId);
           this.deficitMap.delete(tenantId);
@@ -80,27 +81,28 @@ export class DeficitWeightedRoundRobinScheduler<T> {
         const currentDeficit = (this.deficitMap.get(tenantId) || 0) + quantum;
         let remainingDeficit = currentDeficit;
 
-        while (queueInfo.tasks.length > 0 && remainingDeficit > 0 && dequeued.length < maxBatchSize) {
-          const nextTask = queueInfo.tasks[0];
+        while (queueInfo.head < queueInfo.tasks.length && remainingDeficit > 0 && dequeued.length < maxBatchSize) {
+          const nextTask = queueInfo.tasks[queueInfo.head];
           const taskWeight = nextTask.weight || 1;
 
           if (remainingDeficit >= taskWeight) {
             remainingDeficit -= taskWeight;
-            const item = queueInfo.tasks.shift();
-            if (item) {
-              dequeued.push(item);
-            }
+            dequeued.push(queueInfo.tasks[queueInfo.head++]);
           } else {
             break;
           }
         }
 
-        if (queueInfo.tasks.length === 0) {
+        if (queueInfo.head >= queueInfo.tasks.length) {
           this.deficitMap.set(tenantId, 0);
           this.queues.delete(tenantId);
           this.activeTenants = this.activeTenants.filter((id) => id !== tenantId);
         } else {
           this.deficitMap.set(tenantId, remainingDeficit);
+          if (queueInfo.head > 64) {
+            queueInfo.tasks.splice(0, queueInfo.head);
+            queueInfo.head = 0;
+          }
         }
       }
     }
@@ -114,12 +116,15 @@ export class DeficitWeightedRoundRobinScheduler<T> {
   getStats(): TenantQueueStats[] {
     const stats: TenantQueueStats[] = [];
     for (const [tenantId, queueInfo] of this.queues.entries()) {
-      stats.push({
-        tenantId,
-        tier: queueInfo.tier,
-        pendingCount: queueInfo.tasks.length,
-        deficitCredit: this.deficitMap.get(tenantId) || 0,
-      });
+      const pendingCount = queueInfo.tasks.length - queueInfo.head;
+      if (pendingCount > 0) {
+        stats.push({
+          tenantId,
+          tier: queueInfo.tier,
+          pendingCount,
+          deficitCredit: this.deficitMap.get(tenantId) || 0,
+        });
+      }
     }
     return stats;
   }

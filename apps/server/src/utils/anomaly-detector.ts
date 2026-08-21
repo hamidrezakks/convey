@@ -39,9 +39,12 @@ export class StatisticalAnomalyDetector {
       this.latencies.set(providerId, samples);
     }
 
-    samples.push(latencyMs);
-    if (samples.length > this.maxSamples) {
-      samples.shift();
+    if (samples.length < this.maxSamples) {
+      samples.push(latencyMs);
+    } else {
+      // Overwrite oldest sample without re-allocating array
+      samples.copyWithin(0, 1);
+      samples[this.maxSamples - 1] = latencyMs;
     }
   }
 
@@ -56,10 +59,19 @@ export class StatisticalAnomalyDetector {
       return { providerId, meanMs: currentLatencyMs, stdDevMs: 0, zScore: 0, isAnomalous: false };
     }
 
-    const sum = samples.reduce((acc, v) => acc + v, 0);
-    const mean = sum / samples.length;
+    const len = samples.length;
+    let sum = 0;
+    for (let i = 0; i < len; i++) {
+      sum += samples[i];
+    }
+    const mean = sum / len;
 
-    const variance = samples.reduce((acc, v) => acc + (v - mean) ** 2, 0) / samples.length;
+    let varianceSum = 0;
+    for (let i = 0; i < len; i++) {
+      const diff = samples[i] - mean;
+      varianceSum += diff * diff;
+    }
+    const variance = varianceSum / len;
     const stdDev = Math.sqrt(variance);
 
     if (stdDev === 0) {

@@ -80,6 +80,9 @@ function applyFilters(value: unknown, filterChain: string[]): string {
   return result;
 }
 
+const IF_REGEX = /{%\s*if\s+([^%]+)\s*%}([\s\S]*?)(?:{%\s*else\s*%}([\s\S]*?))?{%\s*endif\s*%}/g;
+const VAR_REGEX = /{{\s*([^}]+)\s*}}/g;
+
 export const TemplateEngine = {
   /**
    * Compiles template string by evaluating conditionals ({% if ... %}) and variables ({{ ... }}).
@@ -89,22 +92,29 @@ export const TemplateEngine = {
       return '';
     }
 
+    // Fast-path: Return immediately if template contains no dynamic tags
+    if (!templateStr.includes('{%') && !templateStr.includes('{{')) {
+      return templateStr;
+    }
+
     // 1. Process conditionals: {% if condition %}...{% else %}...{% endif %}
-    let processed = templateStr.replace(
-      /{%\s*if\s+([^%]+)\s*%}([\s\S]*?)(?:{%\s*else\s*%}([\s\S]*?))?{%\s*endif\s*%}/g,
-      (_match, conditionPath, ifBlock, elseBlock = '') => {
+    let processed = templateStr;
+    if (processed.includes('{%')) {
+      processed = processed.replace(IF_REGEX, (_match, conditionPath, ifBlock, elseBlock = '') => {
         const val = resolveValue(conditionPath, context);
         const isTruthy = val !== undefined && val !== null && val !== false && val !== 0 && val !== '';
         return isTruthy ? ifBlock : elseBlock;
-      },
-    );
+      });
+    }
 
     // 2. Process variable tags: {{ path | filter1 | filter2 }}
-    processed = processed.replace(/{{\s*([^}]+)\s*}}/g, (_match, expression) => {
-      const [varPath, ...filterParts] = expression.split('|');
-      const rawVal = resolveValue(varPath, context);
-      return applyFilters(rawVal, filterParts);
-    });
+    if (processed.includes('{{')) {
+      processed = processed.replace(VAR_REGEX, (_match, expression) => {
+        const [varPath, ...filterParts] = expression.split('|');
+        const rawVal = resolveValue(varPath, context);
+        return applyFilters(rawVal, filterParts);
+      });
+    }
 
     return processed;
   },

@@ -7,15 +7,11 @@ export interface TraceContextData {
 
 export const TraceContext = {
   generateTraceId(): string {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Buffer.from(bytes).toString('hex');
+    return crypto.randomUUID().replace(/-/g, '');
   },
 
   generateSpanId(): string {
-    const bytes = new Uint8Array(8);
-    crypto.getRandomValues(bytes);
-    return Buffer.from(bytes).toString('hex');
+    return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   },
 
   create(traceId?: string, parentSpanId?: string, sampled = true): TraceContextData {
