@@ -258,7 +258,12 @@ export class AdminService {
     const offset = (page - 1) * limit;
 
     try {
-      const conditions = [];
+      const now = new Date();
+      const defaultStartDate = new Date(now.getTime() - 60 * 86_400 * 1000);
+      const effectiveStartDate = options.startDate ? new Date(options.startDate) : defaultStartDate;
+      const effectiveEndDate = options.endDate ? new Date(options.endDate) : now;
+
+      const conditions = [gte(messages.createdAt, effectiveStartDate), lte(messages.createdAt, effectiveEndDate)];
 
       if (typeof options.isSandbox === 'boolean') {
         conditions.push(eq(messages.isSandbox, options.isSandbox));
@@ -269,17 +274,11 @@ export class AdminService {
       if (options.status) {
         conditions.push(eq(messages.state, options.status.toLowerCase()));
       }
-      if (options.startDate) {
-        conditions.push(gte(messages.createdAt, new Date(options.startDate)));
-      }
-      if (options.endDate) {
-        conditions.push(lte(messages.createdAt, new Date(options.endDate)));
-      }
       if (options.search) {
         conditions.push(sql`${messages.publicId} ILIKE ${`%${options.search}%`}`);
       }
 
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause = and(...conditions);
 
       const [countResult] = await db.select({ total: count() }).from(messages).where(whereClause);
       const total = Number(countResult?.total || 0);

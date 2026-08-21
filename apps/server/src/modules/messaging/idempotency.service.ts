@@ -176,52 +176,64 @@ export async function pollIdempotencyCompletion(
 }
 
 export const IdempotencyService = {
-  async reserve(team: string, idempotencyKey: string, requestPayload: unknown): Promise<IdempotencyReservationResult> {
+  async reserve(
+    team: string,
+    idempotencyKey: string,
+    requestPayload: unknown,
+    maxAttempts = 3,
+  ): Promise<IdempotencyReservationResult> {
     const key = getIdempotencyKey(team, idempotencyKey);
     const requestHash = hashCanonicalObject(requestPayload);
-    const ownerToken = generateOwnerToken();
-    const value = buildProcessingIdempotencyPayload(requestHash, ownerToken);
 
-    // Fast-path: 1 Redis RTT SET NX acquisition
-    const acquired = await redisClient.set(key, value, 'EX', DEFAULT_IDEMPOTENCY_TTL_SECONDS, 'NX');
-    if (acquired === 'OK') {
-      return {
-        status: ReservationStatus.ACQUIRED,
-        ownerToken,
-      };
-    }
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const ownerToken = generateOwnerToken();
+      const value = buildProcessingIdempotencyPayload(requestHash, ownerToken);
 
-    // Key exists -> fetch payload to verify hash or handle completion polling
-    const existing = await redisClient.get(key);
-    if (existing) {
-      const parsed = JSON.parse(existing) as IdempotencyRecordPayload;
-      if (parsed.hash !== requestHash) {
+      // Fast-path: 1 Redis RTT SET NX acquisition
+      const acquired = await redisClient.set(key, value, 'EX', DEFAULT_IDEMPOTENCY_TTL_SECONDS, 'NX');
+      if (acquired === 'OK') {
+        return {
+          status: ReservationStatus.ACQUIRED,
+          ownerToken,
+        };
+      }
+
+      // Key exists -> fetch payload to verify hash or handle completion polling
+      const existing = await redisClient.get(key);
+      if (existing) {
+        const parsed = JSON.parse(existing) as IdempotencyRecordPayload;
+        if (parsed.hash !== requestHash) {
+          throw new IdempotencyConflictError(
+            'The idempotency key was previously used with a different request',
+            team,
+            idempotencyKey,
+          );
+        }
+
+        if (parsed.state === IdempotencyState.COMPLETED) {
+          return {
+            status: ReservationStatus.COMPLETED,
+            messageId: parsed.messageId,
+            responsePayload: parsed.responsePayload,
+          };
+        }
+
+        // If state is still processing from another concurrent contender, poll for completion
+        const polledResult = await pollIdempotencyCompletion(key, requestHash);
+        if (polledResult) return polledResult;
         throw new IdempotencyConflictError(
-          'The idempotency key was previously used with a different request',
+          'A request with this idempotency key is currently processing',
           team,
           idempotencyKey,
         );
       }
-
-      if (parsed.state === IdempotencyState.COMPLETED) {
-        return {
-          status: ReservationStatus.COMPLETED,
-          messageId: parsed.messageId,
-          responsePayload: parsed.responsePayload,
-        };
-      }
-
-      // If state is still processing from another concurrent contender, poll for completion
-      const polledResult = await pollIdempotencyCompletion(key, requestHash);
-      if (polledResult) return polledResult;
-      throw new IdempotencyConflictError(
-        'A request with this idempotency key is currently processing',
-        team,
-        idempotencyKey,
-      );
     }
 
-    return IdempotencyService.reserve(team, idempotencyKey, requestPayload);
+    throw new IdempotencyConflictError(
+      'Failed to acquire idempotency lock after maximum retries',
+      team,
+      idempotencyKey,
+    );
   },
 
   async complete(

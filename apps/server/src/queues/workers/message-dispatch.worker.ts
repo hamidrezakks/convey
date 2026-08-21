@@ -17,9 +17,9 @@ import { providerCircuitBreaker } from '../../modules/providers/core/circuit-bre
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import { getDefaultProviderForChannel, smartProviderRouter } from '../../modules/providers/core/smart-router';
 import { SuppressionsService } from '../../modules/suppressions/suppressions.service';
-
 import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
+import { BoundedLruCache } from '../../utils/lru-cache';
 import { type EncryptedPayload, payloadEncryptionManager } from '../../utils/payload-encryption';
 import { extractRecipientIdentifiers } from '../../utils/recipients';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
@@ -29,6 +29,15 @@ import { dispatchBulkQueue, dispatchHighQueue, dispatchNormalQueue, dispatchQueu
 import { processProviderSendJob } from './provider-send.worker';
 
 export { getDefaultProviderForChannel };
+
+const routeL1Cache = new BoundedLruCache<string, string>({
+  maxCapacity: 5000,
+  defaultTtlMs: 5000,
+});
+
+export function clearRouteL1Cache(): void {
+  routeL1Cache.clear();
+}
 
 export async function resolveProviderForChannel(
   team: string,
@@ -42,8 +51,14 @@ export async function resolveProviderForChannel(
   }
 
   const cacheKey = formatRedisKey(`route:${team}:${category}:${country}:${channel}`);
+  const l1Route = routeL1Cache.get(cacheKey);
+  if (l1Route && providerCircuitBreaker.canExecute(l1Route)) {
+    return l1Route;
+  }
+
   const cachedRoute = await redisClient.get(cacheKey);
   if (cachedRoute && providerCircuitBreaker.canExecute(cachedRoute)) {
+    routeL1Cache.set(cacheKey, cachedRoute);
     return cachedRoute;
   }
 
@@ -62,6 +77,7 @@ export async function resolveProviderForChannel(
   if (dbRoutes.length > 0) {
     const primaryId = dbRoutes[0].primaryProviderId;
     if (providerCircuitBreaker.canExecute(primaryId)) {
+      routeL1Cache.set(cacheKey, primaryId);
       await redisClient.set(cacheKey, primaryId, 'EX', 60);
       return primaryId;
     }
@@ -78,12 +94,14 @@ export async function resolveProviderForChannel(
 
   const smartOptimalId = smartProviderRouter.selectOptimalProvider(channel, requestedProviderId);
   if (smartOptimalId && providerCircuitBreaker.canExecute(smartOptimalId)) {
+    routeL1Cache.set(cacheKey, smartOptimalId);
     await redisClient.set(cacheKey, smartOptimalId, 'EX', 60);
     return smartOptimalId;
   }
 
   const defaultId = getDefaultProviderForChannel(channel);
   if (providerCircuitBreaker.canExecute(defaultId)) {
+    routeL1Cache.set(cacheKey, defaultId);
     await redisClient.set(cacheKey, defaultId, 'EX', 60);
     return defaultId;
   }
@@ -92,6 +110,7 @@ export async function resolveProviderForChannel(
   const healthyAdapters = configuredAdapters.filter((a) => providerCircuitBreaker.canExecute(a.id));
   const fallbackId = healthyAdapters[0]?.id || defaultId;
 
+  routeL1Cache.set(cacheKey, fallbackId);
   await redisClient.set(cacheKey, fallbackId, 'EX', 60);
   return fallbackId;
 }

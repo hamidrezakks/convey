@@ -81,13 +81,15 @@ export const BatchesService = {
 
     const redisKey = formatRedisKey(`batch:${id}:stats`);
     try {
-      await redisClient.hmset(redisKey, {
+      const pipeline = redisClient.pipeline();
+      pipeline.hmset(redisKey, {
         totalCount: params.totalCount,
         sentCount: 0,
         deliveredCount: 0,
         failedCount: 0,
       });
-      await redisClient.expire(redisKey, 86400 * 7);
+      pipeline.expire(redisKey, 86400 * 7);
+      await pipeline.exec();
     } catch (err: unknown) {
       logger.warn('BatchesService', `Redis initialization failed for batch ${id}: ${err}`);
     }

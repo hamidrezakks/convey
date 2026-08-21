@@ -9,6 +9,7 @@ export interface BunRedisPipeline {
   mget(...keys: (string | string[])[]): this;
   exists(...keys: (string | string[])[]): this;
   hset(key: string, fieldOrObj: string | Record<string, unknown>, value?: unknown): this;
+  hmset(key: string, obj: Record<string, unknown>): this;
   hget(key: string, field: string): this;
   hgetall(key: string): this;
   hincrby(key: string, field: string, increment: number): this;
@@ -106,8 +107,8 @@ export class BunNativeRedis {
   async hset(key: string, fieldOrObj: string | Record<string, unknown>, value?: unknown): Promise<number> {
     if (typeof fieldOrObj === 'object' && fieldOrObj !== null) {
       const entries: string[] = [];
-      for (const [k, v] of Object.entries(fieldOrObj)) {
-        entries.push(k, String(v ?? ''));
+      for (const k in fieldOrObj) {
+        entries.push(k, String(fieldOrObj[k] ?? ''));
       }
       if (entries.length === 0) return 0;
       return (await this.client.send('HSET', [key, ...entries])) as number;
@@ -117,8 +118,8 @@ export class BunNativeRedis {
 
   async hmset(key: string, obj: Record<string, unknown>): Promise<string> {
     const entries: string[] = [];
-    for (const [k, v] of Object.entries(obj)) {
-      entries.push(k, String(v ?? ''));
+    for (const k in obj) {
+      entries.push(k, String(obj[k] ?? ''));
     }
     if (entries.length === 0) return 'OK';
     return (await this.client.send('HSET', [key, ...entries])) as string;
@@ -237,6 +238,10 @@ export class BunNativeRedis {
       },
       hset: (key: string, fieldOrObj: string | Record<string, unknown>, value?: unknown) => {
         operations.push(() => this.hset(key, fieldOrObj, value));
+        return pipe;
+      },
+      hmset: (key: string, obj: Record<string, unknown>) => {
+        operations.push(() => this.hmset(key, obj));
         return pipe;
       },
       hget: (key: string, field: string) => {

@@ -1,93 +1,82 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent } from '@tanstack/react-router';
 import { AppLayout } from './components/layout/AppLayout';
-import { ArchitecturePage } from './pages/ArchitecturePage';
-import { AuditPage } from './pages/AuditPage';
-import { ComposerPage } from './pages/ComposerPage';
-import { DeliverabilityPage } from './pages/DeliverabilityPage';
-import { DlqPage } from './pages/DlqPage';
-import { MessagesPage } from './pages/MessagesPage';
-import { OverviewPage } from './pages/OverviewPage';
-import { PoliciesPage } from './pages/PoliciesPage';
-import { ProviderConfigPage } from './pages/ProviderConfigPage';
-import { ProvidersPage } from './pages/ProvidersPage';
-import { WebhooksPage } from './pages/WebhooksPage';
 
 // 1. Root Route
 const rootRoute = createRootRoute({
   component: AppLayout,
 });
 
-// 2. Individual Page Routes
+// 2. Individual Page Routes with Dynamic Code-Splitting
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: OverviewPage,
+  component: lazyRouteComponent(() => import('./pages/OverviewPage'), 'OverviewPage'),
 });
 
 const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/overview',
-  component: OverviewPage,
+  component: lazyRouteComponent(() => import('./pages/OverviewPage'), 'OverviewPage'),
 });
 
 const messagesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/messages',
-  component: MessagesPage,
+  component: lazyRouteComponent(() => import('./pages/MessagesPage'), 'MessagesPage'),
 });
 
 const providersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/providers',
-  component: ProvidersPage,
+  component: lazyRouteComponent(() => import('./pages/ProvidersPage'), 'ProvidersPage'),
 });
 
 const providerConfigRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/providers/configure',
-  component: ProviderConfigPage,
+  component: lazyRouteComponent(() => import('./pages/ProviderConfigPage'), 'ProviderConfigPage'),
 });
 
 const dlqRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dlq',
-  component: DlqPage,
+  component: lazyRouteComponent(() => import('./pages/DlqPage'), 'DlqPage'),
 });
 
 const deliverabilityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/deliverability',
-  component: DeliverabilityPage,
+  component: lazyRouteComponent(() => import('./pages/DeliverabilityPage'), 'DeliverabilityPage'),
 });
 
 const policiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/policies',
-  component: PoliciesPage,
+  component: lazyRouteComponent(() => import('./pages/PoliciesPage'), 'PoliciesPage'),
 });
 
 const composerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/composer',
-  component: ComposerPage,
+  component: lazyRouteComponent(() => import('./pages/ComposerPage'), 'ComposerPage'),
 });
 
 const webhooksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/webhooks',
-  component: WebhooksPage,
+  component: lazyRouteComponent(() => import('./pages/WebhooksPage'), 'WebhooksPage'),
 });
 
 const architectureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/architecture',
-  component: ArchitecturePage,
+  component: lazyRouteComponent(() => import('./pages/ArchitecturePage'), 'ArchitecturePage'),
 });
 
 const auditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/audit',
-  component: AuditPage,
+  component: lazyRouteComponent(() => import('./pages/AuditPage'), 'AuditPage'),
 });
 
 // 3. Route Tree
