@@ -95,19 +95,21 @@ describe('Transport Layer Proxy Subsystem', () => {
 
     // 3. RFC 1928 / RFC 1929 SOCKS5 Server
     socks5Server = net.createServer((clientSocket) => {
-      clientSocket.once('data', (data) => {
+      clientSocket.once('data', (rawInitData: Buffer | string) => {
+        const data = Buffer.isBuffer(rawInitData) ? rawInitData : Buffer.from(rawInitData);
         if (data[0] !== 5) return clientSocket.destroy();
-        const nmethods = data[1];
+        const nmethods = data[1] as number;
         const methods = Array.from(data.subarray(2, 2 + nmethods));
 
         // If client supports USER_PASS (0x02) and offers it, require auth
         if (methods.includes(0x02)) {
           clientSocket.write(Buffer.from([0x05, 0x02]));
-          clientSocket.once('data', (authData) => {
+          clientSocket.once('data', (rawAuthData: Buffer | string) => {
+            const authData = Buffer.isBuffer(rawAuthData) ? rawAuthData : Buffer.from(rawAuthData);
             if (authData[0] !== 0x01) return clientSocket.destroy();
-            const ulen = authData[1];
+            const ulen = authData[1] as number;
             const user = authData.subarray(2, 2 + ulen).toString();
-            const plen = authData[2 + ulen];
+            const plen = authData[2 + ulen] as number;
             const pass = authData.subarray(3 + ulen, 3 + ulen + plen).toString();
 
             if (user === 'testuser' && pass === 'testpass') {
@@ -127,7 +129,8 @@ describe('Transport Layer Proxy Subsystem', () => {
     });
 
     function handleSocksConnect(clientSocket: net.Socket) {
-      clientSocket.once('data', (reqData) => {
+      clientSocket.once('data', (rawReqData: Buffer | string) => {
+        const reqData = Buffer.isBuffer(rawReqData) ? rawReqData : Buffer.from(rawReqData);
         if (reqData[0] !== 5 || reqData[1] !== 1) return clientSocket.destroy(); // CONNECT
         const atyp = reqData[3];
         let targetHost = '';
@@ -137,7 +140,7 @@ describe('Transport Layer Proxy Subsystem', () => {
           targetHost = reqData.subarray(offset, offset + 4).join('.');
           offset += 4;
         } else if (atyp === 3) {
-          const len = reqData[offset];
+          const len = reqData[offset] as number;
           targetHost = reqData.subarray(offset + 1, offset + 1 + len).toString();
           offset += 1 + len;
         }
@@ -236,7 +239,11 @@ describe('Transport Layer Proxy Subsystem', () => {
       });
 
       expect(res.status).toBe(200);
-      const json = await res.json();
+      const json = (await res.json()) as {
+        status: string;
+        body: Record<string, unknown>;
+        headers: Record<string, string>;
+      };
       expect(json.status).toBe('ok');
       expect(json.body.message).toBe('hello-via-http-proxy');
       expect(json.headers['x-forwarded-by-http-proxy']).toBe('convey-http-proxy');
@@ -283,7 +290,7 @@ describe('Transport Layer Proxy Subsystem', () => {
       });
 
       expect(res.status).toBe(200);
-      const json = await res.json();
+      const json = (await res.json()) as { status: string; body: Record<string, unknown> };
       expect(json.status).toBe('ok');
       expect(json.body.transport).toBe('socks5-no-auth');
     });
@@ -308,7 +315,7 @@ describe('Transport Layer Proxy Subsystem', () => {
       });
 
       expect(res.status).toBe(200);
-      const json = await res.json();
+      const json = (await res.json()) as { status: string; body: Record<string, unknown> };
       expect(json.status).toBe('ok');
       expect(json.body.user).toBe('authenticated-socks5');
     });

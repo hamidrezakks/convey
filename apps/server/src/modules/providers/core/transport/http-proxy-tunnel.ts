@@ -127,7 +127,7 @@ export function createHttpConnectTunnel(options: HttpProxyConnectOptions): Promi
 export function createHttpProxyFetch(proxyConfig: ProviderProxyConfig): typeof globalThis.fetch {
   const isHttpsProxy = proxyConfig.type === 'https' || proxyConfig.protocol === 'https:';
 
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const proxiedFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const parsedUrl = new URL(rawUrl);
     const isTargetHttps = parsedUrl.protocol === 'https:';
@@ -279,4 +279,6 @@ export function createHttpProxyFetch(proxyConfig: ProviderProxyConfig): typeof g
       req.end();
     });
   };
+
+  return proxiedFetch as unknown as typeof globalThis.fetch;
 }

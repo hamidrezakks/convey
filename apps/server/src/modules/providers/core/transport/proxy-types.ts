@@ -54,6 +54,7 @@ export interface ProxyDiagnosticResult {
   proxyHost: string;
   proxyPort: number;
   resolvedIp?: string;
+  dnsResolution?: string;
   dnsLatencyMs?: number;
   handshakeLatencyMs: number;
   tlsLatencyMs?: number;

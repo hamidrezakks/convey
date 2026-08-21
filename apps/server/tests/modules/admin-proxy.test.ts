@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import http from 'node:http';
 import net from 'node:net';
+import { Channel, type ProviderProxyConfig } from '@convey/shared';
 import { adminService } from '../../src/modules/admin/admin.service';
-import { Channel } from '../../src/modules/messaging/messaging.types';
-import type { ProviderProxyConfig } from '../../src/modules/providers/core/transport';
 
 describe('Admin Service & Controller Proxy Integration', () => {
   let mockProxyServer: http.Server;
@@ -80,16 +79,18 @@ describe('Admin Service & Controller Proxy Integration', () => {
 
     expect(registered.providerId).toBe('sendgrid');
     expect(registered.credentialsMasked.SENDGRID_API_KEY).toContain('•');
-    expect(registered.config?.proxy?.enabled).toBe(true);
-    expect(registered.config?.proxy?.auth?.password).toBe('***');
-    expect(registered.config?.proxy?.auth?.username).toBe('corp_proxy_user');
+    const registeredProxy = registered.config?.proxy as ProviderProxyConfig | undefined;
+    expect(registeredProxy?.enabled).toBe(true);
+    expect(registeredProxy?.auth?.password).toBe('***');
+    expect(registeredProxy?.auth?.username).toBe('corp_proxy_user');
 
     // Verify retrieval via getConfiguredProviders
     const allConfigured = await adminService.getConfiguredProviders();
     const sendgrid = allConfigured.find((p) => p.providerId === 'sendgrid');
     expect(sendgrid).toBeDefined();
-    expect(sendgrid?.config?.proxy?.auth?.password).toBe('***');
-    expect(sendgrid?.config?.proxy?.host).toBe('127.0.0.1');
+    const sendgridProxy = sendgrid?.config?.proxy as ProviderProxyConfig | undefined;
+    expect(sendgridProxy?.auth?.password).toBe('***');
+    expect(sendgridProxy?.host).toBe('127.0.0.1');
 
     // Update sendgrid without re-providing password (sending '***')
     const updated = await adminService.registerProvider({
@@ -106,7 +107,8 @@ describe('Admin Service & Controller Proxy Integration', () => {
       },
     });
 
-    expect(updated.config?.proxy?.auth?.password).toBe('***');
+    const updatedProxy = updated.config?.proxy as ProviderProxyConfig | undefined;
+    expect(updatedProxy?.auth?.password).toBe('***');
   });
 
   it('tests provider connection with proxy diagnostics probe', async () => {

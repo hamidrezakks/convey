@@ -311,6 +311,21 @@ export interface TranslationSchema {
     modalTitle: string;
     modalSubtitle: string;
     selectProviderLabel: string;
+    tabProxy: string;
+    proxyTitle: string;
+    proxySubtitle: string;
+    proxyType: string;
+    proxyHost: string;
+    proxyPort: string;
+    proxyAuth: string;
+    proxyUsername: string;
+    proxyPassword: string;
+    proxyBypass: string;
+    proxyBypassHelp: string;
+    proxyTimeout: string;
+    testProxyBtn: string;
+    proxyDiagnosticSuccess: string;
+    proxyDiagnosticFailed: string;
   };
   dlq: {
     title: string;

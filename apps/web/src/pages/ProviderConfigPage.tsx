@@ -1462,8 +1462,8 @@ export function ProviderConfigPage() {
                             min={1000}
                             max={30000}
                             step={500}
-                            value={[proxyConfig.timeoutMs || 10000]}
-                            onValueChange={([val]) => setProxyConfig((prev) => ({ ...prev, timeoutMs: val }))}
+                            value={proxyConfig.timeoutMs || 10000}
+                            onValueChange={(val) => setProxyConfig((prev) => ({ ...prev, timeoutMs: val }))}
                           />
                         </div>
 
@@ -1893,7 +1893,7 @@ export function ProviderConfigPage() {
                     <Combobox
                       items={Object.entries(CURRENCY_REGISTRY).map(([code, meta]) => ({
                         value: code,
-                        label: `${meta.flag} ${code} - ${meta.name} (${meta.symbol})`,
+                        label: `${meta.flagEmoji} ${code} - ${meta.name} (${meta.symbol})`,
                         sublabel: meta.symbol,
                         badge: code,
                       }))}

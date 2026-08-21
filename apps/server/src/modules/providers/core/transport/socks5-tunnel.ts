@@ -142,14 +142,15 @@ export function createSocks5Connection(options: Socks5ConnectOptions): Promise<n
 
       socket.write(connectReq);
 
-      socket.once('data', (connectResChunk) => {
+      socket.once('data', (connectResChunk: Buffer | string) => {
         cleanup();
-        if (connectResChunk.length < 4 || connectResChunk[0] !== 0x05) {
+        const buf = Buffer.isBuffer(connectResChunk) ? connectResChunk : Buffer.from(connectResChunk);
+        if (buf.length < 4 || buf[0] !== 0x05) {
           socket.destroy();
           return reject(new Error('Invalid SOCKS5 CONNECT response from proxy'));
         }
 
-        const rep = connectResChunk[1];
+        const rep = buf[1];
         if (rep !== 0x00) {
           const errMsg = SOCKS5_ERROR_CODES[rep] || `SOCKS5 error code 0x${rep.toString(16)}`;
           socket.destroy();
@@ -167,7 +168,7 @@ export function createSocks5Connection(options: Socks5ConnectOptions): Promise<n
  * Creates a drop-in fetch function that tunnels all HTTP/HTTPS requests over a SOCKS5 proxy.
  */
 export function createSocks5Fetch(proxyConfig: ProviderProxyConfig): typeof globalThis.fetch {
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const proxiedFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const parsedUrl = new URL(rawUrl);
     const isHttps = parsedUrl.protocol === 'https:';
@@ -295,4 +296,6 @@ export function createSocks5Fetch(proxyConfig: ProviderProxyConfig): typeof glob
       req.end();
     });
   };
+
+  return proxiedFetch as unknown as typeof globalThis.fetch;
 }

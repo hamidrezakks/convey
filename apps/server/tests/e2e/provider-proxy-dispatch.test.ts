@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import http from 'node:http';
 import net from 'node:net';
+import { Channel } from '@convey/shared';
 import { adminService } from '../../src/modules/admin/admin.service';
-import { Channel } from '../../src/modules/messaging/messaging.types';
 import { ResendEmailAdapter } from '../../src/modules/providers/email/resend/resend.adapter';
 import { TwilioSmsAdapter } from '../../src/modules/providers/sms/twilio/twilio.adapter';
 import { getCachedProviderConfig, invalidateProviderConfigCache } from '../../src/queues/workers/provider-send.worker';
@@ -86,10 +86,12 @@ describe('Provider Proxy Dispatch E2E Integration', () => {
 
     // 3. RFC 1928 SOCKS5 Server
     socks5Server = net.createServer((clientSocket) => {
-      clientSocket.once('data', (data) => {
+      clientSocket.once('data', (rawInitData: Buffer | string) => {
+        const data = Buffer.isBuffer(rawInitData) ? rawInitData : Buffer.from(rawInitData);
         if (data[0] !== 5) return clientSocket.destroy();
         clientSocket.write(Buffer.from([0x05, 0x00])); // NO_AUTH
-        clientSocket.once('data', (reqData) => {
+        clientSocket.once('data', (rawReqData: Buffer | string) => {
+          const reqData = Buffer.isBuffer(rawReqData) ? rawReqData : Buffer.from(rawReqData);
           if (reqData[0] !== 5 || reqData[1] !== 1) return clientSocket.destroy();
           const atyp = reqData[3];
           let targetHost = '';
@@ -98,7 +100,7 @@ describe('Provider Proxy Dispatch E2E Integration', () => {
             targetHost = reqData.subarray(offset, offset + 4).join('.');
             offset += 4;
           } else if (atyp === 3) {
-            const len = reqData[offset];
+            const len = reqData[offset] as number;
             targetHost = reqData.subarray(offset + 1, offset + 1 + len).toString();
             offset += 1 + len;
           }

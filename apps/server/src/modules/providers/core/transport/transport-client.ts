@@ -15,7 +15,7 @@ export function createTransportFetch(proxyConfig?: ProviderProxyConfig): typeof 
     return globalThis.fetch;
   }
 
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const customFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const targetUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
     // Check if target URL matches noProxy bypass rules
@@ -35,6 +35,8 @@ export function createTransportFetch(proxyConfig?: ProviderProxyConfig): typeof 
 
     return globalThis.fetch(input, init);
   };
+
+  return customFetch as unknown as typeof globalThis.fetch;
 }
 
 /**

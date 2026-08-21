@@ -1041,6 +1041,7 @@ export class AdminService {
     providerId: string;
     displayName: string;
     channel: Channel;
+    baseCurrency?: string;
     isPrimary: boolean;
     priority: number;
     weight: number;
