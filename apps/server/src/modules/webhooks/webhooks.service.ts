@@ -2,6 +2,7 @@ import { db } from '../../db';
 import { messageEvents } from '../../db/schema';
 import { redisClient } from '../../queues/connection';
 import { webhookIngestQueue } from '../../queues/queue-definitions';
+import { safeTimingCompare } from '../../utils/crypto';
 import { generateMessageId } from '../../utils/id';
 import { formatRedisKey } from '../../utils/redis-keys';
 import { CascadeManager } from '../messaging/cascade-manager';
@@ -40,7 +41,7 @@ export function verifyHubChallenge(
   const token = query['hub.verify_token'] || query.verify_token;
   const challenge = query['hub.challenge'] || query.challenge;
 
-  if (mode !== 'subscribe' || !challenge) {
+  if (mode !== 'subscribe' || !challenge || !token) {
     return { verified: false };
   }
 
@@ -51,7 +52,7 @@ export function verifyHubChallenge(
     process.env.META_VERIFY_TOKEN ||
     'convey_verify_token';
 
-  if (token === expectedToken) {
+  if (safeTimingCompare(token, expectedToken)) {
     return { verified: true, challenge };
   }
 

@@ -22,9 +22,7 @@ export class ConsistentHashShardRouter {
    */
   getShardIndex(tenantId: string, messageId: string): number {
     const key = `${tenantId}:${messageId}`;
-    const hash = new Bun.CryptoHasher('md5').update(key).digest('hex');
-    const numericHash = Number.parseInt(hash.slice(0, 8), 16);
-    return numericHash % this.totalShards;
+    return (Bun.hash.murmur32v3(key) >>> 0) % this.totalShards;
   }
 
   /**

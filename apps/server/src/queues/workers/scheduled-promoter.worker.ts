@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import { env } from '../../config/env';
 import { db } from '../../db';
 import { messages, outbox } from '../../db/schema';
@@ -21,12 +21,19 @@ export function buildPromotedOutboxRecord(msg: typeof messages.$inferSelect, now
 export async function promoteScheduledMessages(batchSize = 500): Promise<number> {
   const now = new Date();
   const horizonDate = new Date(now.getTime() + env.BULLMQ_SCHEDULING_HORIZON_SECONDS * 1000);
+  const horizonPastDate = new Date(now.getTime() - 180 * 86_400 * 1000);
 
   return await db.transaction(async (tx) => {
     const scheduledMsgs = await tx
       .select()
       .from(messages)
-      .where(and(eq(messages.state, MessageState.SCHEDULED), lte(messages.scheduledAt, horizonDate)))
+      .where(
+        and(
+          eq(messages.state, MessageState.SCHEDULED),
+          gte(messages.createdAt, horizonPastDate),
+          lte(messages.scheduledAt, horizonDate),
+        ),
+      )
       .limit(batchSize)
       .for('update', { skipLocked: true });
 
@@ -38,7 +45,7 @@ export async function promoteScheduledMessages(batchSize = 500): Promise<number>
     await tx
       .update(messages)
       .set({ state: MessageState.ACCEPTED, updatedAt: now })
-      .where(inArray(messages.publicId, publicIds));
+      .where(and(inArray(messages.publicId, publicIds), gte(messages.createdAt, horizonPastDate)));
 
     const outboxRecords = scheduledMsgs.map((msg) => buildPromotedOutboxRecord(msg, now));
 

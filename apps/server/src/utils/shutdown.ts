@@ -1,7 +1,9 @@
 import { queryClient } from '../db';
 import { stopPartitionMaintenanceLoop } from '../db/partitions';
 import { stopProviderSelfHealingLoop } from '../modules/providers/core/provider-registry';
+import { selfHealingEngine } from '../modules/providers/core/self-healing';
 import { ReportingService, stopMetricsFlusher } from '../modules/reports/reporting.service';
+import { microBatchIngestionPipeline } from '../modules/webhooks/micro-batch-ingestion';
 import { redisClient } from '../queues/connection';
 import { closeAllProviderQueues } from '../queues/provider-queues';
 import { callbackWorker } from '../queues/workers/callback.worker';
@@ -17,6 +19,7 @@ import { stopOutboxPruneLoop, stopOutboxRelayLoop } from '../queues/workers/outb
 import { providerSendWorker } from '../queues/workers/provider-send.worker';
 import { stopScheduledPromoterLoop } from '../queues/workers/scheduled-promoter.worker';
 import { webhookIngestWorker } from '../queues/workers/webhook-ingest.worker';
+import { geoReplicationManager } from './geo-replication';
 import { logger } from './logger';
 import { appReadiness, ComponentStatus, WorkerState } from './readiness';
 
@@ -67,6 +70,9 @@ export class GracefulShutdownOrchestrator {
     stopScheduledPromoterLoop();
     stopPartitionMaintenanceLoop();
     stopProviderSelfHealingLoop();
+    selfHealingEngine.stopSelfHealingLoop();
+    geoReplicationManager.stopHeartbeatLoop();
+    microBatchIngestionPipeline.stopAutoFlush();
     stopMetricsFlusher();
     appReadiness.setActiveWorker('outboxRelay', WorkerState.STOPPED);
     appReadiness.setActiveWorker('scheduledPromoter', WorkerState.STOPPED);
@@ -88,9 +94,12 @@ export class GracefulShutdownOrchestrator {
       closeAllProviderQueues(),
     ]);
 
-    // Stage 4: Flush buffered metrics
-    await ReportingService.flush().catch(() => {});
-    logger.info('Shutdown', '[Stage 4/5] Flushed pending metric buffers');
+    // Stage 4: Flush buffered metrics & in-memory micro-batches
+    await Promise.allSettled([
+      ReportingService.flush().catch(() => {}),
+      microBatchIngestionPipeline.flush().catch(() => {}),
+    ]);
+    logger.info('Shutdown', '[Stage 4/5] Flushed pending metric buffers and micro-batches');
 
     // Stage 5: Gracefully close Redis client & PostgreSQL connection pools
     if (this.closeConnections) {

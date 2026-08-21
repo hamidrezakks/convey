@@ -125,58 +125,81 @@ export const DlqService = {
       opts: { priority: number; jobId: string };
     }> = [];
 
+    // Group message IDs by monthly partition to prune scans and batch queries
+    const partitionMap = new Map<string, { startDate: Date; endDate: Date; ids: string[] }>();
     for (const publicId of publicIds) {
       const createdDate = parseMessageIdTimestamp(publicId);
       const { startDate, endDate } = getUtcMonthBoundary(createdDate);
+      const partKey = `${startDate.getTime()}_${endDate.getTime()}`;
+      let group = partitionMap.get(partKey);
+      if (!group) {
+        group = { startDate, endDate, ids: [] };
+        partitionMap.set(partKey, group);
+      }
+      group.ids.push(publicId);
+    }
 
-      const msgList = await db
+    for (const group of partitionMap.values()) {
+      let msgList = await db
         .select()
         .from(messages)
         .where(
-          and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+          and(
+            inArray(messages.publicId, group.ids),
+            gte(messages.createdAt, group.startDate),
+            lte(messages.createdAt, group.endDate),
+          ),
         );
 
-      if (!msgList.length) continue;
-      const msg = msgList[0];
+      if (!msgList.length) {
+        msgList = await db.select().from(messages).where(inArray(messages.publicId, group.ids));
+      }
 
-      const outboxId = generateMessageId();
+      for (const msg of msgList) {
+        const publicId = msg.publicId;
+        const outboxId = generateMessageId();
 
-      await db.transaction(async (tx) => {
-        await tx
-          .update(messages)
-          .set({
-            state: MessageState.ACCEPTED,
-            completedAt: null,
-            updatedAt: now,
-          })
-          .where(
-            and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
-          );
+        await db.transaction(async (tx) => {
+          await tx
+            .update(messages)
+            .set({
+              state: MessageState.ACCEPTED,
+              completedAt: null,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(messages.publicId, publicId),
+                gte(messages.createdAt, group.startDate),
+                lte(messages.createdAt, group.endDate),
+              ),
+            );
 
-        const outboxRecord: typeof outbox.$inferInsert = {
-          id: outboxId,
-          messageId: publicId,
-          type: OutboxType.MESSAGE_DISPATCH,
-          payload: { publicId, internalId: msg.id, team: msg.team, priority: msg.priority },
-          state: OutboxState.PROCESSED, // Committed directly to BullMQ
-          processedAt: now,
-          availableAt: now,
-          createdAt: now,
-        };
+          const outboxRecord: typeof outbox.$inferInsert = {
+            id: outboxId,
+            messageId: publicId,
+            type: OutboxType.MESSAGE_DISPATCH,
+            payload: { publicId, internalId: msg.id, team: msg.team, priority: msg.priority },
+            state: OutboxState.PROCESSED, // Committed directly to BullMQ
+            processedAt: now,
+            availableAt: now,
+            createdAt: now,
+          };
 
-        await tx.insert(outbox).values(outboxRecord);
-      });
+          await tx.insert(outbox).values(outboxRecord);
+        });
 
-      jobsToAdd.push({
-        name: JobName.MESSAGE_DISPATCH,
-        data: { publicId, outboxId },
-        opts: {
-          priority: msg.priority === MessagePriority.CRITICAL ? 1 : 3,
-          jobId: `outbox_${outboxId}`, // Enforces idempotent deduplication in Redis BullMQ
-        },
-      });
+        jobsToAdd.push({
+          name: JobName.MESSAGE_DISPATCH,
+          data: { publicId, outboxId },
+          opts: {
+            priority: msg.priority === MessagePriority.CRITICAL ? 1 : 3,
+            jobId: `outbox_${outboxId}`, // Enforces idempotent deduplication in Redis BullMQ
+          },
+        });
 
-      replayedIds.push(publicId);
+        replayedIds.push(publicId);
+      }
     }
 
     if (jobsToAdd.length > 0) {

@@ -16,21 +16,25 @@ Convey is benchmarked across four core operational tiers:
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                       CONVEY PERFORMANCE HIGHLIGHTS                                      │
 ├────────────────────────────────────┬────────────────────────────────────┬────────────────────────────────┤
-│       W3C Tracing & Headers        │       High-Concurrency LRU Cache   │   WhatsApp Template AST Engine │
-│        > 4,850,000 ops/sec         │          > 2,870,000 ops/sec       │      > 1,710,000 ops/sec       │
-│             p95: < 1 µs            │              p95: < 1 µs           │           p95: 1 µs            │
+│       SIMD Murmur32v3 Shard Router │       W3C Distributed Tracing      │   Gradual Ramp Controller      │
+│        > 5,250,000 ops/sec         │          > 5,060,000 ops/sec       │      > 4,540,000 ops/sec       │
+│             p95: < 1 µs            │              p95: < 1 µs           │           p95: < 1 µs          │
 ├────────────────────────────────────┼────────────────────────────────────┼────────────────────────────────┤
-│       Pre-Allocated Arena          │          DLP PII Redaction         │    DRR Multi-Tenant Quantum    │
-│        > 1,270,000 ops/sec         │           > 600,000 ops/sec        │       > 450,000 ops/sec        │
-│             p95: 1 µs              │               p95: 3 µs            │           p95: 4 µs            │
+│       Recipient Normalization      │       High-Concurrency LRU Cache   │   Unit Cost Channel Optimizer  │
+│        > 4,440,000 ops/sec         │          > 3,080,000 ops/sec       │      > 2,860,000 ops/sec       │
+│             p95: < 1 µs            │              p95: < 1 µs           │           p95: < 1 µs          │
 ├────────────────────────────────────┼────────────────────────────────────┼────────────────────────────────┤
-│     Statistical Anomaly (Z-Score)  │      Envelope Encryption (GCM)     │    Smart Provider Router (MAB) │
-│          > 620,000 ops/sec         │           > 220,000 ops/sec        │       > 150,000 ops/sec        │
-│              p95: 5 µs             │               p95: 9 µs            │           p95: 8 µs            │
+│   WhatsApp Template AST Engine     │       Pre-Allocated Slab Arena     │     Statistical Anomaly (Z)    │
+│        > 1,730,000 ops/sec         │          > 1,280,000 ops/sec       │        > 900,000 ops/sec       │
+│             p95: 1 µs              │              p95: 1 µs             │           p95: 5 µs            │
 ├────────────────────────────────────┼────────────────────────────────────┼────────────────────────────────┤
-│       Inbound Webhook Ingestion    │       Synchronous API Ingestion    │    Redis Idempotency Set NX    │
-│          > 3,090 events/sec        │           > 610 requests/sec       │        > 10,600 ops/sec        │
-│             p95: 0.45ms            │              p95: 2.00ms           │          p95: 0.136ms          │
+│       Fast-Path Template Engine    │          DLP PII Redaction         │    Speculative Hedged Executor │
+│          > 880,000 ops/sec         │           > 650,000 ops/sec        │       > 620,000 ops/sec        │
+│              p95: 2 µs             │               p95: 3 µs            │           p95: 3 µs            │
+├────────────────────────────────────┼────────────────────────────────────┼────────────────────────────────┤
+│       Twilio Webhook Ingestion     │       Batch Context Initialization │    Redis Idempotency Set NX    │
+│         > 10,200 events/sec        │           > 1,230 batches/sec      │        > 13,700 ops/sec        │
+│             p95: 0.20ms            │              p95: 2.16ms           │          p95: 0.082ms          │
 └────────────────────────────────────┴────────────────────────────────────┴────────────────────────────────┘
 ```
 
@@ -55,49 +59,52 @@ $$Z_i = \frac{X_i - \mu}{\sigma}, \quad M_i = \frac{0.6745 \cdot (X_i - \tilde{X
 
 ## 🔬 1. Core Subsystem Micro-Engine Benchmarks
 
-Micro-engine benchmarks evaluate Convey's core algorithms in isolation with zero mock overhead.
+Micro-engine benchmarks evaluate Convey's core algorithms in isolation with zero mock overhead on **Bun 1.4**:
 
 | Benchmark Operation | Subsystem | Ops/sec | Avg (ms) | StdDev (ms) | p50 (ms) | p95 (ms) | p99 (ms) | p99.9 (ms) | Mem Δ | Iters |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`TraceContext.extractOrCreate()`** | W3C Distributed Tracing | **4,856,330/s** | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | 0.001ms | 0.005ms | 0MB | 5,000 |
-| **`BoundedLruCache.set() & get()`** | In-Memory Policy Cache | **2,879,010/s** | < 0.001ms | 0.001ms | < 0.001ms | < 0.001ms | 0.002ms | 0.015ms | 0MB | 5,000 |
-| **`formatRecipientDisplay()`** | Recipient Handle Normalizer | **2,576,489/s** | < 0.001ms | 0.002ms | < 0.001ms | 0.001ms | 0.002ms | 0.020ms | 0MB | 2,000 |
-| **`CostOptimizationEngine`** | Unit-Cost Channel Optimizer | **2,131,723/s** | < 0.001ms | 0.001ms | < 0.001ms | 0.001ms | 0.002ms | 0.010ms | 0MB | 2,000 |
-| **`WhatsAppTemplateEngine`** | AST Pre-Compilation & Token Tree | **1,711,376/s** | 0.001ms | 0.001ms | < 0.001ms | 0.001ms | 0.002ms | 0.008ms | 0MB | 5,000 |
-| **`ByteBufferPool.acquire() & release()`** | Pre-Allocated Slab Arena | **1,277,465/s** | 0.001ms | < 0.001ms | 0.001ms | 0.001ms | 0.001ms | 0.004ms | 0MB | 5,000 |
-| **`StatisticalAnomalyDetector`** | Z-Score Outlier Computation | **627,960/s** | 0.002ms | 0.003ms | 0.001ms | 0.005ms | 0.015ms | 0.031ms | 0MB | 1,000 |
-| **`DlpScanner.sanitize()`** | CreditCard, SSN, OTP, API Key | **607,225/s** | 0.002ms | 0.002ms | 0.001ms | 0.003ms | 0.005ms | 0.062ms | 0MB | 1,000 |
-| **`DRR Scheduler`** | Multi-Tenant Quantum Arbitration | **455,235/s** | 0.002ms | 0.002ms | 0.002ms | 0.004ms | 0.007ms | 0.048ms | 0MB | 1,000 |
-| **`HedgedExecutor.execute()`** | Speculative Parallel Hedging Race | **441,549/s** | 0.002ms | 0.003ms | 0.002ms | 0.004ms | 0.012ms | 0.049ms | 0MB | 500 |
-| **`DlpScanner.sanitizeObject()`** | Deep JSON Structured Tree Redaction | **261,834/s** | 0.004ms | 0.002ms | 0.003ms | 0.006ms | 0.009ms | 0.056ms | 0MB | 1,000 |
-| **`PayloadEncryptionManager`** | AES-256-GCM Envelope Encrypt + Decrypt | **220,783/s** | 0.004ms | 0.004ms | 0.003ms | 0.009ms | 0.018ms | 0.063ms | 0MB | 500 |
-| **`SmartProviderRouter`** | Thompson Sampling MAB Scorecard | **153,004/s** | 0.006ms | 0.059ms | 0.004ms | 0.008ms | 0.016ms | 1.857ms | 6.28MB | 1,000 |
-| **`IdempotencyService.reserve()`** | Redis `SET NX` 1-RTT Fast-Path | **10,657/s** | 0.094ms | 0.023ms | 0.093ms | 0.136ms | 0.188ms | 0.207ms | 0MB | 200 |
-| **`TokenBucketLimiter.consume()`** | Redis Lua Atomic Rate Smoothing | **7,129/s** | 0.140ms | 0.099ms | 0.117ms | 0.214ms | 0.581ms | 1.329ms | 6.39MB | 200 |
-| **`QuietHoursEngine.evaluate()`** | Timezone Resolution & STO Windowing | **5,871/s** | 0.170ms | 0.214ms | 0.144ms | 0.228ms | 1.096ms | 3.443ms | 0.20MB | 1,000 |
+| **`ConsistentHashShardRouter.getShardIndex()`** | SIMD Murmur32v3 Routing | **5,258,082/s** | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | 0.006ms | 0MB | 10,000 |
+| **`TraceContext.extractOrCreate()`** | Zero-Allocation W3C Tracing | **5,069,708/s** | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | 0.001ms | 0.005ms | 0MB | 5,000 |
+| **`GradualRampController.shouldAdmitTraffic()`** | Stepped Probe Admission | **4,544,586/s** | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | 0.001ms | 0.005ms | 0MB | 2,000 |
+| **`formatRecipientDisplay()`** | Recipient Handle Normalizer | **4,442,391/s** | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | 0.001ms | 0.005ms | 0MB | 2,000 |
+| **`BoundedLruCache.set() & get()`** | In-Memory Policy Cache | **3,080,555/s** | < 0.001ms | 0.001ms | < 0.001ms | < 0.001ms | 0.001ms | 0.012ms | 0MB | 5,000 |
+| **`CostOptimizationEngine`** | Unit-Cost Channel Optimizer | **2,867,724/s** | < 0.001ms | < 0.001ms | < 0.001ms | < 0.001ms | 0.001ms | 0.005ms | 0MB | 2,000 |
+| **`WhatsAppTemplateEngine`** | AST Pre-Compilation & Token Tree | **1,730,228/s** | 0.001ms | 0.001ms | < 0.001ms | 0.001ms | 0.002ms | 0.011ms | 0MB | 5,000 |
+| **`ByteBufferPool.acquire() & release()`** | Pre-Allocated Slab Arena | **1,285,195/s** | 0.001ms | < 0.001ms | 0.001ms | 0.001ms | 0.001ms | 0.003ms | 0MB | 5,000 |
+| **`StatisticalAnomalyDetector`** | Vectorized Z-Score Outlier Computation | **901,645/s** | 0.001ms | 0.002ms | < 0.001ms | 0.005ms | 0.010ms | 0.016ms | 0MB | 1,000 |
+| **`TemplateEngine.compile()`** | Fast-Path Static & Dynamic AST | **887,974/s** | 0.001ms | 0.001ms | 0.001ms | 0.002ms | 0.003ms | 0.009ms | 0MB | 5,000 |
+| **`DlpScanner.sanitize()`** | CreditCard, SSN, OTP, API Key | **656,886/s** | 0.001ms | 0.001ms | 0.001ms | 0.003ms | 0.004ms | 0.016ms | 0MB | 1,000 |
+| **`HedgedExecutor.execute()`** | Speculative Parallel Hedging Race | **625,717/s** | 0.002ms | 0.001ms | 0.001ms | 0.003ms | 0.008ms | 0.016ms | 0MB | 500 |
+| **`DRR Scheduler`** | Multi-Tenant Quantum Arbitration | **519,244/s** | 0.002ms | 0.001ms | 0.002ms | 0.004ms | 0.008ms | 0.018ms | 0MB | 1,000 |
+| **`PayloadEncryptionManager`** | AES-256-GCM Envelope Encrypt + Decrypt | **281,162/s** | 0.004ms | 0.002ms | 0.003ms | 0.007ms | 0.015ms | 0.039ms | 0MB | 500 |
+| **`DlpScanner.sanitizeObject()`** | Deep JSON Structured Tree Redaction | **273,513/s** | 0.004ms | 0.002ms | 0.003ms | 0.006ms | 0.008ms | 0.050ms | 0MB | 1,000 |
+| **`SmartProviderRouter`** | Thompson Sampling MAB Scorecard | **148,424/s** | 0.007ms | 0.056ms | 0.004ms | 0.008ms | 0.017ms | 1.618ms | 7.46MB | 1,000 |
+| **`IdempotencyService.reserve()`** | Redis `SET NX` 1-RTT Fast-Path | **13,741/s** | 0.073ms | 0.108ms | 0.062ms | 0.082ms | 0.148ms | 1.587ms | 10.4MB | 200 |
+| **`TokenBucketLimiter.consume()`** | Redis Lua Atomic Rate Smoothing | **9,516/s** | 0.105ms | 0.014ms | 0.102ms | 0.132ms | 0.152ms | 0.161ms | 0MB | 200 |
+| **`QuietHoursEngine.evaluate()`** | Timezone Resolution & STO Windowing | **7,550/s** | 0.132ms | 0.126ms | 0.114ms | 0.135ms | 0.717ms | 1.813ms | 0.44MB | 1,000 |
 
 ---
 
 ## 🌐 2. HTTP API Ingestion & Webhook Benchmarks
 
-Ingestion benchmarks measure synchronous end-to-end HTTP request/response latency through Elysia.js, including authentication middleware, DLP redaction, envelope encryption, schema validation, and PostgreSQL ACID transaction commit (`INSERT messages` + `INSERT outbox`).
+Ingestion benchmarks measure synchronous end-to-end HTTP request/response latency through Elysia.js on Bun 1.4 with `reusePort: true`, including authentication middleware, DLP redaction, envelope encryption, schema validation, and PostgreSQL ACID transaction commit (`INSERT messages` + `INSERT outbox`).
 
 | Endpoint / Scenario | HTTP Method | Throughput | Avg (ms) | StdDev (ms) | p50 (ms) | p95 (ms) | p99 (ms) | p99.9 (ms) | Mem Δ |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **SendGrid Inbound Webhook** | `POST /v1/webhooks/sendgrid` | **3,096.0/s** | 0.323ms | 0.070ms | 0.306ms | 0.453ms | 0.505ms | 0.727ms | 0MB |
-| **Twilio SMS Webhook** | `POST /v1/webhooks/twilio` | **2,745.1/s** | 0.364ms | 0.201ms | 0.335ms | 0.542ms | 0.737ms | 2.424ms | 0.66MB |
-| **Sandbox Dispatches Inspection** | `GET /v1/sandbox/messages` | **2,074.3/s** | 0.482ms | 0.037ms | 0.475ms | 0.560ms | 0.633ms | 0.633ms | 0MB |
-| **Batch Context Initialization** | `POST /v1/batches` | **1,380.7/s** | 0.724ms | 0.158ms | 0.683ms | 0.910ms | 2.041ms | 2.041ms | 0MB |
-| **Health Check & Status** | `GET /health` | **1,354.6/s** | 0.738ms | 0.571ms | 0.587ms | 1.524ms | 2.559ms | 6.667ms | 0MB |
-| **Message Status Query** | `GET /v1/messages/:id` | **1,221.7/s** | 0.818ms | 0.185ms | 0.789ms | 0.914ms | 1.933ms | 2.902ms | 0.38MB |
-| **Suppression Record Insert** | `POST /v1/suppressions` | **1,181.0/s** | 0.847ms | 0.195ms | 0.808ms | 1.053ms | 2.568ms | 2.568ms | 1.93MB |
-| **Single Message Send (Email)** | `POST /v1/messages` | **611.0/s** | 1.637ms | 0.229ms | 1.610ms | 2.005ms | 2.729ms | 3.017ms | 0.71MB |
-| **Omnichannel Send (Cascade)** | `POST /v1/messages` | **532.3/s** | 1.878ms | 0.338ms | 1.810ms | 2.450ms | 3.941ms | 3.941ms | 0.51MB |
-| **Single Message Send (SMS)** | `POST /v1/messages` | **526.5/s** | 1.899ms | 0.404ms | 1.878ms | 2.651ms | 3.448ms | 4.359ms | 1.52MB |
-| **DLQ Replay Execution** | `POST /v1/dlq/replay` | **330.2/s** | 3.028ms | 1.235ms | 2.790ms | 4.425ms | 10.852ms | 10.852ms | 1.10MB |
-| **Bulk Send (10 msgs/batch)** | `POST /v1/messages/bulk` | **277.8/s (2,778 msg/s)** | 3.599ms | 0.513ms | 3.544ms | 4.450ms | 5.701ms | 5.701ms | 0.99MB |
-| **Bulk Send (50 msgs/batch)** | `POST /v1/messages/bulk` | **89.0/s (4,450 msg/s)** | 11.239ms | 0.659ms | 11.142ms | 12.425ms | 12.425ms | 12.425ms | 1.43MB |
-| **Bulk Send (100 msgs/batch)** | `POST /v1/messages/bulk` | **47.9/s (4,790 msg/s)** | 20.883ms | 0.662ms | 20.843ms | 21.749ms | 21.749ms | 21.749ms | 2.96MB |
+| **Twilio SMS Webhook** | `POST /v1/webhooks/twilio` | **10,233.5/s** | 0.098ms | 0.060ms | 0.075ms | 0.209ms | 0.419ms | 0.433ms | 0MB |
+| **Sandbox Dispatches Inspection** | `GET /v1/sandbox/messages` | **3,843.0/s** | 0.260ms | 0.029ms | 0.255ms | 0.299ms | 0.489ms | 0.489ms | 0MB |
+| **SendGrid Inbound Webhook** | `POST /v1/webhooks/sendgrid` | **2,975.0/s** | 0.336ms | 0.095ms | 0.321ms | 0.484ms | 0.764ms | 0.798ms | 0MB |
+| **Health Check & Status** | `GET /health` | **2,846.7/s** | 0.351ms | 0.040ms | 0.340ms | 0.415ms | 0.562ms | 0.617ms | 0MB |
+| **Batch Context Initialization** | `POST /v1/batches` | **1,230.3/s** | 0.813ms | 0.450ms | 0.659ms | 2.161ms | 2.881ms | 2.881ms | 1.83MB |
+| **Suppression Record Insert** | `POST /v1/suppressions` | **1,092.3/s** | 0.915ms | 0.423ms | 0.799ms | 1.731ms | 3.497ms | 3.497ms | 0MB |
+| **Message Status Query** | `GET /v1/messages/:id` | **949.9/s** | 1.053ms | 0.568ms | 0.718ms | 2.130ms | 2.897ms | 3.630ms | 0.42MB |
+| **Single Message Send (SMS)** | `POST /v1/messages` | **468.0/s** | 2.137ms | 0.405ms | 2.059ms | 2.975ms | 3.793ms | 4.621ms | 13.9MB |
+| **DLQ Replay Execution** | `POST /v1/dlq/replay` | **435.3/s** | 2.297ms | 0.407ms | 2.144ms | 2.863ms | 3.899ms | 3.899ms | 0.97MB |
+| **Single Message Send (Email)** | `POST /v1/messages` | **349.2/s** | 2.864ms | 0.462ms | 2.780ms | 3.660ms | 4.998ms | 5.414ms | 3.51MB |
+| **Omnichannel Send (Cascade)** | `POST /v1/messages` | **235.5/s** | 4.247ms | 0.626ms | 4.144ms | 5.517ms | 6.497ms | 6.497ms | 2.58MB |
+| **Bulk Send (10 msgs/batch)** | `POST /v1/messages/bulk` | **232.2/s (2,322 msg/s)** | 4.306ms | 1.298ms | 3.598ms | 7.063ms | 7.882ms | 7.882ms | 0.95MB |
+| **Bulk Send (50 msgs/batch)** | `POST /v1/messages/bulk` | **72.2/s (3,610 msg/s)** | 13.845ms | 3.672ms | 12.890ms | 21.481ms | 21.481ms | 21.481ms | 2.28MB |
+| **Bulk Send (100 msgs/batch)** | `POST /v1/messages/bulk` | **26.8/s (2,680 msg/s)** | 37.260ms | 7.452ms | 40.614ms | 46.608ms | 46.608ms | 46.608ms | 2.70MB |
 
 ---
 
@@ -105,8 +112,8 @@ Ingestion benchmarks measure synchronous end-to-end HTTP request/response latenc
 
 | Scenario | Concurrency Profile | Throughput | Avg Latency | p50 Latency | p95 Latency | SLA Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Concurrent API Ingestion** | 50 concurrent in-flight HTTP requests | **26.5 batch/s (1,325 msg/s)** | 37.78ms | 36.24ms | 56.05ms | ✅ Passed (< 100ms) |
-| **Outbox Relay Batch Processor** | `FOR UPDATE SKIP LOCKED` (100 items/batch) | **110.8 batch/s (11,080 msg/s)** | 9.02ms | 13.20ms | 14.99ms | ✅ Passed (< 50ms) |
+| **Concurrent API Ingestion** | 50 concurrent in-flight HTTP requests | **29.2 batch/s (1,460 msg/s)** | 34.23ms | 34.22ms | 39.26ms | ✅ Passed (< 100ms) |
+| **Outbox Relay Batch Processor** | `FOR UPDATE SKIP LOCKED` (100 items/batch) | **728.7 batch/s (72,870 msg/s)** | 1.37ms | 1.35ms | 3.02ms | ✅ Passed (< 50ms) |
 
 ---
 
@@ -114,13 +121,13 @@ Ingestion benchmarks measure synchronous end-to-end HTTP request/response latenc
 
 | Scenario / Benchmark | Concurrency Profile | Ops/sec | Avg Latency | p50 Latency | p95 Latency | p99.9 Latency | Resilience Guarantee |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Circuit Breaker Avalanche Trip** | 100% Downstream Outage | **107,786.2/s** | 0.009ms | 0.007ms | 0.023ms | 0.083ms | Sub-1ms trip to OPEN, zero cascading crashes |
-| **AES-256-GCM Envelope Encryption** | 100 Concurrent Derivations | **3,424.8/s** | 0.292ms | 0.286ms | 0.326ms | 0.379ms | Zero memory corruption, 100% data integrity |
-| **DRR Quantum Saturation** | 3,000 Tasks across 300 Tenants | **3,101.4/s** | 0.322ms | 0.269ms | 0.414ms | 1.906ms | Jain's Fairness Index $JFI \ge 0.95$, 0 starvation |
-| **Redis Lua Token Bucket Contention** | 100 Concurrent Worker Threads | **498.5/s** | 2.006ms | 1.692ms | 5.525ms | 5.525ms | Zero token leakage, exact atomic counting |
-| **Outbox 16 Virtual Shards** | 16 Shards `SKIP LOCKED` | **64.3/s** | 15.547ms | 17.082ms | 33.531ms | 33.531ms | Zero deadlocks, zero row-lock collisions |
-| **Webhook Micro-Batch Ingestion** | 1,000 Events / Burst | **126.0/s (~126k evt/s)** | 7.938ms | 7.524ms | 10.408ms | 10.408ms | Zero dropped events, automatic DB compaction |
-| **Thundering Herd Hot-Key Race** | 100 Concurrent Contenders | **9.5/s** | 104.922ms | 104.971ms | 106.417ms | 106.417ms | Exactly 1 DB write transaction, 99 202-responses |
+| **Circuit Breaker Avalanche Trip** | 100% Downstream Outage | **150,298.7/s** | 0.007ms | 0.005ms | 0.013ms | 0.059ms | Sub-1ms trip to OPEN, zero cascading crashes |
+| **AES-256-GCM Envelope Encryption** | 100 Concurrent Derivations | **3,460.2/s** | 0.289ms | 0.283ms | 0.320ms | 0.366ms | Zero memory corruption, 100% data integrity |
+| **DRR Quantum Saturation** | 3,000 Tasks across 300 Tenants | **3,113.8/s** | 0.321ms | 0.294ms | 0.421ms | 1.902ms | Jain's Fairness Index $JFI \ge 0.95$, 0 starvation |
+| **Redis Lua Token Bucket Contention** | 100 Concurrent Worker Threads | **582.1/s** | 1.718ms | 1.709ms | 2.032ms | 2.032ms | Zero token leakage, exact atomic counting |
+| **Outbox 16 Virtual Shards** | 16 Shards `SKIP LOCKED` | **472.0/s** | 2.118ms | 2.073ms | 2.891ms | 2.891ms | Zero deadlocks, zero row-lock collisions |
+| **Webhook Micro-Batch Ingestion** | 1,000 Events / Burst | **326.8/s (~326k evt/s)** | 3.060ms | 3.006ms | 3.388ms | 3.388ms | Zero dropped events, automatic DB compaction |
+| **Thundering Herd Hot-Key Race** | 100 Concurrent Contenders | **9.6/s** | 104.506ms | 104.586ms | 105.872ms | 105.872ms | Exactly 1 DB write transaction, 99 202-responses |
 
 ---
 

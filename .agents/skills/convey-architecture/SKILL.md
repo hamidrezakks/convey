@@ -52,3 +52,11 @@ Use this skill when designing, building, or refactoring features, provider adapt
 - **W3C Distributed TraceContext**: End-to-end W3C `traceparent` context propagation (`TraceContext`) across API handlers, outbox records, queue jobs, provider requests, and webhooks.
 - **Dead-Letter Queue (DLQ) & Replay**: Query failed messages with `DlqService.listFailedMessages()` and replay them using `DlqService.replayFailedMessages()`. REST APIs available at `/v1/dlq` and `/v1/dlq/replay`.
 - **Zero-Data-Loss Graceful Shutdown**: `GracefulShutdownOrchestrator` handles `SIGTERM`/`SIGINT` by marking readiness `false`, pausing outbox loops, draining active worker jobs, flushing metrics (`ReportingService.flush()`), and closing connection pools cleanly.
+
+## 6. Bun 1.4 Native High-Performance Standards
+- **SIMD Shard Hashing**: Use native SIMD `(Bun.hash.murmur32v3(key) >>> 0) % totalShards` for consistent shard hashing. Avoid creating crypto hasher instances or string slicing.
+- **Zero-Allocation Distributed Tracing**: Generate W3C traceparents using native C++ `crypto.randomUUID().replace(/-/g, '')` and `.slice(0, 16)` to avoid `Uint8Array` buffer allocations per request.
+- **$O(1)$ DRR Scheduler Dequeue**: Use head-pointer indices (`head++`) with batch compaction (`splice(0, head)`) instead of $O(N)$ `Array.prototype.shift()`.
+- **In-Memory Worker Route Caching**: Use short-TTL `BoundedLruCache` (5,000ms) in message dispatch workers to eliminate repetitive Redis routing lookups.
+- **Monomorphic Redis Serialization**: Use `for...in` loops in custom Redis wrappers (`hmset`) to eliminate intermediate `Object.entries` tuple allocations.
+- **Kernel Socket Balancing**: Configure `reusePort: true` on `Bun.serve` / Elysia listeners for OS multi-queue socket load balancing.

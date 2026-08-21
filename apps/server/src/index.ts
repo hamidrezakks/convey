@@ -96,10 +96,7 @@ const app = new Elysia()
       allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'traceparent'],
     }),
   )
-  .derive(({ request, path, set }) => {
-    set.headers['access-control-allow-origin'] = '*';
-    set.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
-    set.headers['access-control-allow-headers'] = 'Content-Type, Authorization, x-api-key, traceparent';
+  .derive(({ request, path }) => {
     const pathname =
       path || (request.url.indexOf('/', 8) !== -1 ? request.url.slice(request.url.indexOf('/', 8)) : request.url);
     httpRequestsTotal.inc({ method: request.method, path: pathname });
@@ -224,7 +221,7 @@ if (env.NODE_ENV !== 'test' && import.meta.main) {
   shutdownOrchestrator.registerSignalListeners();
   bootstrapService()
     .then(() => {
-      app.listen({ port: env.PORT, hostname: '0.0.0.0' });
+      app.listen({ port: env.PORT, hostname: '0.0.0.0', reusePort: true });
       logger.info('Server', `🚀 Convey Service is running at http://localhost:${env.PORT}`);
       logger.info('Server', `📚 OpenAPI Documentation available at http://localhost:${env.PORT}/swagger`);
     })

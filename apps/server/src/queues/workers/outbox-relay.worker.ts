@@ -3,6 +3,7 @@ import { db, type Transaction } from '../../db';
 import { type OutboxPayload, type OutboxRecord, outbox } from '../../db/schema';
 import { JobName, MessagePriority, OutboxState } from '../../modules/messaging/messaging.types';
 import { heapMemoryGuard } from '../../utils/heap-guard';
+import { logger } from '../../utils/logger';
 import { createTaskLoop, type TaskLoop } from '../../utils/task-loop';
 import { type BunNativeRedis, redisClient } from '../connection';
 import { dispatchBulkQueue, dispatchHighQueue, dispatchNormalQueue } from '../queue-definitions';
@@ -199,6 +200,9 @@ export function initOutboxFastPathSubscriber() {
   if (process.env.NODE_ENV === 'test') return;
   try {
     fastPathSub = redisClient.duplicate();
+    fastPathSub.on('error', (err: Error) => {
+      logger.warn('OutboxRelay', `Fast-path Redis subscriber error: ${err.message}`);
+    });
     fastPathSub.subscribe('convey:outbox:pending', (err) => {
       if (err) return;
     });
