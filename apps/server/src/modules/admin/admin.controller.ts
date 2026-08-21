@@ -1,10 +1,6 @@
 import type { Channel, MessageStatus, SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
-import {
-  CommonHeaders,
-  StandardResponseExamples,
-  StandardSecurityRequirement,
-} from '../../openapi/openapi.docs';
+import { CommonHeaders, StandardSecurityRequirement } from '../../openapi/openapi.docs';
 import { jsonResponse } from '../messaging/messaging.controller';
 import { adminService } from './admin.service';
 
@@ -18,7 +14,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Get Platform System Overview KPIs',
-            description: 'Retrieves 24-hour total volume, delivery success rates, channel breakdown, and p95 latency percentiles.',
+            description:
+              'Retrieves 24-hour total volume, delivery success rates, channel breakdown, and p95 latency percentiles.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             responses: {
@@ -67,7 +64,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Get Real-Time Engine Telemetry Snapshot',
-            description: 'Fetches real-time V8 heap memory usage, event-loop lag, active BullMQ queue depths, and worker counts.',
+            description:
+              'Fetches real-time V8 heap memory usage, event-loop lag, active BullMQ queue depths, and worker counts.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             responses: {
@@ -117,7 +115,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Messages Explorer Query',
-            description: 'Search and inspect message records across teams, channels, states, date ranges, and full-text keywords.',
+            description:
+              'Search and inspect message records across teams, channels, states, date ranges, and full-text keywords.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             parameters: [
@@ -187,11 +186,18 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Get Message Details & Execution Waterfall',
-            description: 'Retrieves complete message record, attempts history, and W3C distributed trace execution spans.',
+            description:
+              'Retrieves complete message record, attempts history, and W3C distributed trace execution spans.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             parameters: [
-              { name: 'id', in: 'path', required: true, description: 'Message public ULID ID', schema: { type: 'string', example: 'msg_01J0N7C0W7X2R6S8V9Q9B1E4G3' } },
+              {
+                name: 'id',
+                in: 'path',
+                required: true,
+                description: 'Message public ULID ID',
+                schema: { type: 'string', example: 'msg_01J0N7C0W7X2R6S8V9Q9B1E4G3' },
+              },
             ],
             responses: {
               '200': {
@@ -275,7 +281,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'List Provider Matrix & Circuit Breaker Cockpit',
-            description: 'Lists all 80+ supported providers with live circuit breaker states, failure counts, and latency scores.',
+            description:
+              'Lists all 80+ supported providers with live circuit breaker states, failure counts, and latency scores.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             responses: {
@@ -309,7 +316,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Manual Provider Circuit Breaker Override',
-            description: 'Manually force-closes, force-opens, or half-opens a provider circuit breaker with traffic ramp throttling.',
+            description:
+              'Manually force-closes, force-opens, or half-opens a provider circuit breaker with traffic ramp throttling.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             parameters: [
@@ -322,7 +330,11 @@ export function adminController(app: Elysia) {
                   schema: {
                     type: 'object',
                     properties: {
-                      action: { type: 'string', enum: ['CLOSE', 'FORCE_OPEN', 'FORCE_HALF_OPEN'], example: 'FORCE_HALF_OPEN' },
+                      action: {
+                        type: 'string',
+                        enum: ['CLOSE', 'FORCE_OPEN', 'FORCE_HALF_OPEN'],
+                        example: 'FORCE_HALF_OPEN',
+                      },
                       rampPercentage: { type: 'number', example: 20 },
                     },
                   },
@@ -350,7 +362,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Trigger Synthetic Provider Canary Probe',
-            description: 'Executes an immediate background synthetic probe to evaluate provider upstream health and latency.',
+            description:
+              'Executes an immediate background synthetic probe to evaluate provider upstream health and latency.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             parameters: [
@@ -475,9 +488,7 @@ export function adminController(app: Elysia) {
             description: 'Deletes a suppression record.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
-            parameters: [
-              { name: 'id', in: 'path', required: true, schema: { type: 'string', example: 'supp_123' } },
-            ],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', example: 'supp_123' } }],
             responses: {
               '200': { description: 'Suppression deleted' },
             },
@@ -556,7 +567,8 @@ export function adminController(app: Elysia) {
           detail: {
             tags: ['Admin & Mission Control'],
             summary: 'Get Master 80+ Provider Catalog',
-            description: 'Retrieves metadata, required environment variables, supported channels, and schemas for all 80+ supported providers.',
+            description:
+              'Retrieves metadata, required environment variables, supported channels, and schemas for all 80+ supported providers.',
             security: StandardSecurityRequirement,
             headers: CommonHeaders,
             responses: {
@@ -609,7 +621,10 @@ export function adminController(app: Elysia) {
                     properties: {
                       providerId: { type: 'string', example: 'twilio' },
                       channel: { type: 'string', example: 'sms' },
-                      credentials: { type: 'object', example: { accountSid: 'ACxxx', authToken: 'authxxx', from: '+14155550100' } },
+                      credentials: {
+                        type: 'object',
+                        example: { accountSid: 'ACxxx', authToken: 'authxxx', from: '+14155550100' },
+                      },
                       isPrimary: { type: 'boolean', example: true },
                       priority: { type: 'integer', example: 1 },
                       weight: { type: 'integer', example: 100 },

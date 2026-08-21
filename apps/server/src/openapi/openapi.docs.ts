@@ -61,7 +61,8 @@ export const OpenAPITags = [
   },
   {
     name: 'Dead Letter Queue (DLQ)',
-    description: 'Failed message inspection, batch replay, and mutated payload replays with provider/recipient overrides.',
+    description:
+      'Failed message inspection, batch replay, and mutated payload replays with provider/recipient overrides.',
   },
   {
     name: 'Suppressions',
@@ -75,7 +76,8 @@ export const OpenAPITags = [
   },
   {
     name: 'Sandbox',
-    description: 'Isolated mock test simulation environment for end-to-end integration testing without external provider fees.',
+    description:
+      'Isolated mock test simulation environment for end-to-end integration testing without external provider fees.',
   },
   {
     name: 'Admin & Mission Control',
@@ -105,7 +107,8 @@ export const OpenAPISecuritySchemes = {
 
 export const CommonHeaders = {
   traceparent: {
-    description: 'W3C Distributed TraceContext header (e.g. `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`).',
+    description:
+      'W3C Distributed TraceContext header (e.g. `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`).',
     schema: { type: 'string' },
     required: false,
   },
@@ -121,10 +124,7 @@ export const CommonHeaders = {
   },
 };
 
-export const StandardSecurityRequirement = [
-  { ApiKeyAuth: [] },
-  { BearerAuth: [] },
-];
+export const StandardSecurityRequirement = [{ ApiKeyAuth: [] }, { BearerAuth: [] }];
 
 // ============================================================================
 // 1. REUSABLE COMPONENT SCHEMAS
@@ -230,7 +230,11 @@ export const OpenAPIComponentsSchemas = {
   SmsChannelContent: {
     type: 'object',
     properties: {
-      text: { type: 'string', description: 'Plain text SMS message body', example: 'Your verification code is 432109.' },
+      text: {
+        type: 'string',
+        description: 'Plain text SMS message body',
+        example: 'Your verification code is 432109.',
+      },
     },
     required: ['text'],
   },
@@ -287,7 +291,11 @@ export const OpenAPIComponentsSchemas = {
     properties: {
       title: { type: 'string', description: 'Notification title', example: 'Transfer Received 💰' },
       body: { type: 'string', description: 'Notification alert text', example: 'You received $150.00 from Jane Doe.' },
-      data: { type: 'object', description: 'Custom key-value data dictionary', example: { transactionId: 'tx_998811' } },
+      data: {
+        type: 'object',
+        description: 'Custom key-value data dictionary',
+        example: { transactionId: 'tx_998811' },
+      },
     },
     required: ['title', 'body'],
   },
@@ -316,7 +324,11 @@ export const OpenAPIComponentsSchemas = {
   TelegramChannelContent: {
     type: 'object',
     properties: {
-      text: { type: 'string', description: 'Telegram message text', example: '🔔 *Crypto Price Alert*\n*BTC* crossed *$105,000*' },
+      text: {
+        type: 'string',
+        description: 'Telegram message text',
+        example: '🔔 *Crypto Price Alert*\n*BTC* crossed *$105,000*',
+      },
       parseMode: { type: 'string', enum: ['HTML', 'MarkdownV2'], example: 'HTML' },
     },
     required: ['text'],
@@ -561,7 +573,18 @@ export const OpenAPIComponentsSchemas = {
       messageId: { type: 'string', example: 'msg_01J0N7C0W7X2R6S8V9Q9B1E4G3' },
       state: {
         type: 'string',
-        enum: ['accepted', 'scheduled', 'dispatched', 'delivered', 'failed', 'expired', 'cancelled', 'opened', 'read', 'bounced'],
+        enum: [
+          'accepted',
+          'scheduled',
+          'dispatched',
+          'delivered',
+          'failed',
+          'expired',
+          'cancelled',
+          'opened',
+          'read',
+          'bounced',
+        ],
         example: 'delivered',
       },
       userId: { type: 'string', example: 'usr_99182' },
@@ -607,7 +630,11 @@ export const OpenAPIComponentsSchemas = {
       state: { type: 'string', example: 'delivered' },
       team: { type: 'string', example: 'payments' },
       category: { type: 'string', example: 'transactional' },
-      totalDurationMs: { type: 'number', description: 'Total end-to-end delivery latency in milliseconds', example: 342.5 },
+      totalDurationMs: {
+        type: 'number',
+        description: 'Total end-to-end delivery latency in milliseconds',
+        example: 342.5,
+      },
       summary: {
         type: 'object',
         properties: {
@@ -643,7 +670,11 @@ export const OpenAPIComponentsSchemas = {
     type: 'object',
     properties: {
       totalCount: { type: 'integer', minimum: 1, description: 'Total expected items in bulk campaign', example: 10000 },
-      metadata: { type: 'object', description: 'Custom batch labels and campaign tags', example: { campaignName: 'Q3 Blast' } },
+      metadata: {
+        type: 'object',
+        description: 'Custom batch labels and campaign tags',
+        example: { campaignName: 'Q3 Blast' },
+      },
     },
     required: ['totalCount'],
   },
@@ -655,8 +686,16 @@ export const OpenAPIComponentsSchemas = {
       batch: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Public batch identifier (`batch_<ULID>`)', example: 'batch_01J0N88XYZ...' },
-          status: { type: 'string', enum: ['processing', 'completed', 'paused', 'cancelled', 'failed'], example: 'processing' },
+          id: {
+            type: 'string',
+            description: 'Public batch identifier (`batch_<ULID>`)',
+            example: 'batch_01J0N88XYZ...',
+          },
+          status: {
+            type: 'string',
+            enum: ['processing', 'completed', 'paused', 'cancelled', 'failed'],
+            example: 'processing',
+          },
           totalCount: { type: 'integer', example: 10000 },
           processedCount: { type: 'integer', example: 4500 },
           successCount: { type: 'integer', example: 4450 },
@@ -712,7 +751,11 @@ export const OpenAPIComponentsSchemas = {
       team: { type: 'string', example: 'payments' },
       identifier: { type: 'string', example: 'unsubscribed_user@example.com' },
       identifierType: { type: 'string', enum: ['email', 'phone', 'whatsapp', 'push', 'user_id'], example: 'email' },
-      reason: { type: 'string', enum: ['HARD_BOUNCE', 'SPAM_COMPLAINT', 'UNSUBSCRIBE', 'MANUAL_BLOCK'], example: 'UNSUBSCRIBE' },
+      reason: {
+        type: 'string',
+        enum: ['HARD_BOUNCE', 'SPAM_COMPLAINT', 'UNSUBSCRIBE', 'MANUAL_BLOCK'],
+        example: 'UNSUBSCRIBE',
+      },
       channel: { type: 'string', example: 'email' },
       category: { type: 'string', example: 'marketing' },
       createdAt: { type: 'string', format: 'date-time', example: '2026-08-21T10:00:00.000Z' },
@@ -733,7 +776,11 @@ export const OpenAPIComponentsSchemas = {
         items: { type: 'string' },
         example: ['message.delivered', 'message.failed', 'message.opened', 'message.read'],
       },
-      secret: { type: 'string', description: 'HMAC-SHA256 signing secret for payload verification', example: 'whsec_9812739...' },
+      secret: {
+        type: 'string',
+        description: 'HMAC-SHA256 signing secret for payload verification',
+        example: 'whsec_9812739...',
+      },
       createdAt: { type: 'string', format: 'date-time', example: '2026-08-21T10:00:00.000Z' },
     },
     required: ['id', 'url', 'events'],
@@ -782,7 +829,9 @@ export const MessageRequestExamples = {
       channels: [
         {
           channel: 'sms',
-          content: { text: 'Your Convey verification security code is 432109. Valid for 5 minutes. Do not share this code.' },
+          content: {
+            text: 'Your Convey verification security code is 432109. Valid for 5 minutes. Do not share this code.',
+          },
         },
       ],
       metadata: { authFlow: '2fa_challenge', clientIp: '192.0.2.1' },
@@ -966,7 +1015,10 @@ export const MessageRequestExamples = {
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '🚨 *P1 Alert: High Latency Warning*\nProvider: `Stripe / Checkout`\nCurrent p99: `892ms`\nThreshold: `500ms`' },
+                text: {
+                  type: 'mrkdwn',
+                  text: '🚨 *P1 Alert: High Latency Warning*\nProvider: `Stripe / Checkout`\nCurrent p99: `892ms`\nThreshold: `500ms`',
+                },
               },
             ],
           },
@@ -1021,11 +1073,18 @@ export const MessageRequestExamples = {
         rules: [
           {
             when: { channel: 'whatsapp', event: 'failed', afterSeconds: 120 },
-            send: [{ channel: 'sms', content: { text: 'Flight EK201 check-in open. Visit bit.ly/ek201 to check in.' } }],
+            send: [
+              { channel: 'sms', content: { text: 'Flight EK201 check-in open. Visit bit.ly/ek201 to check in.' } },
+            ],
           },
           {
             when: { channel: 'sms', event: 'failed' },
-            send: [{ channel: 'email', content: { subject: 'Flight EK201 Check-In Open', text: 'Please complete your check-in online.' } }],
+            send: [
+              {
+                channel: 'email',
+                content: { subject: 'Flight EK201 Check-In Open', text: 'Please complete your check-in online.' },
+              },
+            ],
           },
         ],
       },
@@ -1047,7 +1106,10 @@ export const MessageRequestExamples = {
       channels: [
         {
           channel: 'email',
-          content: { subject: 'Exclusive VIP Early Access Starts Now!', text: 'Shop the VIP collection before anyone else.' },
+          content: {
+            subject: 'Exclusive VIP Early Access Starts Now!',
+            text: 'Shop the VIP collection before anyone else.',
+          },
         },
       ],
     },
@@ -1055,7 +1117,8 @@ export const MessageRequestExamples = {
 
   sandbox_test_dispatch: {
     summary: '12. Zero-Cost Mock Sandbox Simulation',
-    description: 'Dispatches simulated message for end-to-end integration testing without calling external vendor APIs.',
+    description:
+      'Dispatches simulated message for end-to-end integration testing without calling external vendor APIs.',
     value: {
       idempotencyKey: 'idemp_sandbox_77665',
       userId: 'usr_sandbox_01',
@@ -1121,7 +1184,11 @@ export const StandardResponseExamples = {
         code: 'VALIDATION_ERROR',
         message: 'Invalid message request payload',
         details: [
-          { path: 'recipients.phone', code: 'invalid_string', message: 'Required E.164 phone number missing for SMS channel' },
+          {
+            path: 'recipients.phone',
+            code: 'invalid_string',
+            message: 'Required E.164 phone number missing for SMS channel',
+          },
         ],
       },
     },

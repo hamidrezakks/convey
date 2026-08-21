@@ -1,9 +1,5 @@
 import { Elysia, t } from 'elysia';
-import {
-  CommonHeaders,
-  StandardResponseExamples,
-  StandardSecurityRequirement,
-} from '../../openapi/openapi.docs';
+import { CommonHeaders, StandardResponseExamples, StandardSecurityRequirement } from '../../openapi/openapi.docs';
 import { authMiddleware } from '../auth/auth.middleware';
 import { SuppressionsService } from './suppressions.service';
 
@@ -16,8 +12,12 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
         items: t.Array(
           t.Object({
             identifier: t.String({ description: 'Normalized email or phone address' }),
-            identifierType: t.Optional(t.String({ enum: ['email', 'phone', 'whatsapp', 'push', 'user_id'] })),
-            reason: t.String({ enum: ['HARD_BOUNCE', 'SPAM_COMPLAINT', 'UNSUBSCRIBE', 'MANUAL_BLOCK'] }),
+            identifierType: t.Optional(
+              t.String({ description: 'Identifier category (email, phone, whatsapp, push, user_id)' }),
+            ),
+            reason: t.String({
+              description: 'Suppression reason code (e.g. HARD_BOUNCE, SPAM_COMPLAINT, UNSUBSCRIBE, MANUAL_BLOCK)',
+            }),
             category: t.Optional(t.String()),
             country: t.Optional(t.String()),
             channel: t.Optional(t.String()),
@@ -41,7 +41,12 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
                   summary: 'Bulk Add Bounces & Unsubscribes',
                   value: {
                     items: [
-                      { identifier: 'bounced_user@example.com', identifierType: 'email', reason: 'HARD_BOUNCE', channel: 'email' },
+                      {
+                        identifier: 'bounced_user@example.com',
+                        identifierType: 'email',
+                        reason: 'HARD_BOUNCE',
+                        channel: 'email',
+                      },
                       { identifier: '+14155550199', identifierType: 'phone', reason: 'UNSUBSCRIBE', channel: 'sms' },
                     ],
                   },
@@ -99,8 +104,12 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
     {
       body: t.Object({
         identifier: t.String({ description: 'Normalized recipient address (email or E.164 phone)' }),
-        identifierType: t.Optional(t.String({ enum: ['email', 'phone', 'whatsapp', 'push', 'user_id'] })),
-        reason: t.String({ enum: ['HARD_BOUNCE', 'SPAM_COMPLAINT', 'UNSUBSCRIBE', 'MANUAL_BLOCK'] }),
+        identifierType: t.Optional(
+          t.String({ description: 'Identifier category (email, phone, whatsapp, push, user_id)' }),
+        ),
+        reason: t.String({
+          description: 'Suppression reason code (e.g. HARD_BOUNCE, SPAM_COMPLAINT, UNSUBSCRIBE, MANUAL_BLOCK)',
+        }),
         category: t.Optional(t.String()),
         country: t.Optional(t.String()),
         channel: t.Optional(t.String()),
@@ -110,7 +119,8 @@ export const suppressionsController = new Elysia({ prefix: '/v1/suppressions' })
       detail: {
         tags: ['Suppressions'],
         summary: 'Add Single Recipient Suppression',
-        description: 'Records an individual suppression entry to protect sender reputation and enforce GDPR/CAN-SPAM compliance.',
+        description:
+          'Records an individual suppression entry to protect sender reputation and enforce GDPR/CAN-SPAM compliance.',
         security: StandardSecurityRequirement,
         headers: CommonHeaders,
         requestBody: {
