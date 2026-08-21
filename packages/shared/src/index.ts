@@ -246,7 +246,56 @@ export interface ProviderCatalogItem {
   defaultUnitCost?: number;
 }
 
+// Transport Layer Proxy Types
+export type ProxyType = 'http' | 'https' | 'socks5' | 'socks5h';
+
+export interface ProviderProxyAuth {
+  username?: string;
+  password?: string;
+}
+
+export interface ProviderProxyTls {
+  rejectUnauthorized?: boolean;
+  ca?: string;
+  cert?: string;
+  key?: string;
+  servername?: string;
+}
+
+export interface ProviderProxyConfig {
+  enabled: boolean;
+  type: ProxyType;
+  host: string;
+  port: number;
+  protocol?: 'http:' | 'https:' | 'socks5:' | 'socks5h:';
+  auth?: ProviderProxyAuth;
+  headers?: Record<string, string>;
+  tls?: ProviderProxyTls;
+  timeoutMs?: number;
+  noProxy?: string[];
+  rawUrl?: string;
+}
+
+export interface ProxyDiagnosticResult {
+  success: boolean;
+  proxyType: ProxyType;
+  proxyHost: string;
+  proxyPort: number;
+  resolvedIp?: string;
+  dnsResolution?: string;
+  dnsLatencyMs?: number;
+  handshakeLatencyMs: number;
+  tlsLatencyMs?: number;
+  e2eLatencyMs: number;
+  statusCode?: number;
+  message?: string;
+  error?: string;
+  timestamp: string;
+}
+
 export interface ProviderFeatureConfigs {
+  // Transport Layer Outbound Proxy
+  proxy?: ProviderProxyConfig;
   // WhatsApp Cost Saving & Interactive Features
   whatsapp?: {
     costSaving24hSession?: boolean; // Converts template to free session plain text within 24h
@@ -334,6 +383,7 @@ export interface RegisterProviderRequest {
 export interface TestConnectionRequest {
   providerId: string;
   credentials: Record<string, string>;
+  config?: ProviderFeatureConfigs;
 }
 
 export interface TestConnectionResult {
@@ -342,6 +392,7 @@ export interface TestConnectionResult {
   latencyMs: number;
   message: string;
   testedAt: string;
+  diagnostics?: ProxyDiagnosticResult;
 }
 
 // Suppression Record

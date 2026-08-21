@@ -1,6 +1,13 @@
 import { Channel } from '../../messaging/messaging.types';
+import type { ProviderProxyConfig } from './transport/proxy-types';
 
+export type { ProviderProxyConfig };
 export { Channel };
+
+export interface BaseProviderConfig {
+  proxy?: ProviderProxyConfig;
+  [key: string]: unknown;
+}
 
 export enum ProviderState {
   UNCONFIGURED = 'UNCONFIGURED',

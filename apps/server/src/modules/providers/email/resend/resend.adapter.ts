@@ -8,6 +8,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { createTransportFetch } from '../../core/transport';
 import { resendTransformer } from './resend.transformer';
 import type { ResendApiRequest, ResendApiResponse, ResendEmailAdapterConfig, ResendWebhookPayload } from './types';
 
@@ -71,9 +72,10 @@ export class ResendEmailAdapter
     }
 
     const endpoint = 'https://api.resend.com/emails';
+    const transportFetch = createTransportFetch(config?.proxy);
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await transportFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,

@@ -311,6 +311,26 @@ export interface TranslationSchema {
     modalTitle: string;
     modalSubtitle: string;
     selectProviderLabel: string;
+    tabProxy: string;
+    proxyTitle: string;
+    proxySubtitle: string;
+    enableProxy: string;
+    enableProxyHelp: string;
+    proxyType: string;
+    proxyTypeHttp: string;
+    proxyTypeHttps: string;
+    proxyTypeSocks5: string;
+    proxyHost: string;
+    proxyPort: string;
+    proxyAuth: string;
+    proxyUsername: string;
+    proxyPassword: string;
+    proxyBypass: string;
+    proxyBypassHelp: string;
+    proxyTimeout: string;
+    testProxyBtn: string;
+    proxyDiagnosticSuccess: string;
+    proxyDiagnosticFailed: string;
   };
   dlq: {
     title: string;
@@ -361,17 +381,6 @@ export interface TranslationSchema {
     spamComplaint: string;
     unsubscribe: string;
     manualBlock: string;
-    colRecipient: string;
-    colChannel: string;
-    colReason: string;
-    colTeam: string;
-    colDate: string;
-  };
-  suppressions: {
-    title: string;
-    subtitle: string;
-    addSuppression: string;
-    searchRecipient: string;
     colRecipient: string;
     colChannel: string;
     colReason: string;

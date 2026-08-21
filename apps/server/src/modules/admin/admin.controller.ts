@@ -275,11 +275,24 @@ export function adminController(app: Elysia) {
         '/providers/test-connection',
         { detail: AdminDocs.providersTestConnection },
         async ({ body }: { body: unknown }) => {
-          const b = (body || {}) as { providerId?: string; credentials?: Record<string, string> };
-          const res = adminService.testProviderConnection(b.providerId || '', b.credentials || {});
+          const b = (body || {}) as {
+            providerId?: string;
+            credentials?: Record<string, string>;
+            config?: Record<string, unknown>;
+          };
+          const res = await adminService.testProviderConnection(b.providerId || '', b.credentials || {}, b.config);
           return jsonResponse(res, 200);
         },
       )
+
+      .post('/providers/test-proxy', async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as { proxy?: import('../providers/core/transport').ProviderProxyConfig };
+        if (!b.proxy) {
+          return jsonResponse({ success: false, error: 'No proxy configuration provided' }, 400);
+        }
+        const res = await adminService.testProxyConnection(b.proxy);
+        return jsonResponse(res, 200);
+      })
 
       .post('/providers/seed-all', { detail: AdminDocs.providersSeedAll }, async () => {
         const res = await adminService.seedAllProviders();

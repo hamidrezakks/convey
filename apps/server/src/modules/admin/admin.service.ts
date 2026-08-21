@@ -49,6 +49,12 @@ import type { SendMessageRequest } from '../messaging/messaging.types';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
 import { selfHealingEngine } from '../providers/core/self-healing';
 import { getProviderBaseCurrency, getProviderRate, getProviderUnitCost } from '../providers/core/smart-router';
+import {
+  maskProxyConfig,
+  type ProviderProxyConfig,
+  type ProxyDiagnosticResult,
+  testProxyConnectivity,
+} from '../providers/core/transport';
 
 export class AdminService {
   /**
@@ -1035,6 +1041,7 @@ export class AdminService {
     providerId: string;
     displayName: string;
     channel: Channel;
+    baseCurrency?: string;
     isPrimary: boolean;
     priority: number;
     weight: number;
@@ -1280,6 +1287,12 @@ export class AdminService {
           const baseCurrency = p.baseCurrency || rate.currency || 'USD';
           const unitCost = rate.cost;
 
+          const rawConfig = (p.config as Record<string, unknown>) || {};
+          const configMasked = { ...rawConfig };
+          if (configMasked.proxy) {
+            configMasked.proxy = maskProxyConfig(configMasked.proxy as ProviderProxyConfig);
+          }
+
           return {
             id: p.id,
             providerId: p.id,
@@ -1294,7 +1307,7 @@ export class AdminService {
             fallbackProviderId: p.fallbackProviderId || undefined,
             status: (p.enabled ? 'ACTIVE' : 'DISABLED') as 'ACTIVE' | 'DISABLED' | 'ERROR',
             credentialsMasked,
-            config: (p.config as Record<string, unknown>) || {},
+            config: configMasked,
             envSnippet: envLines.join('\n'),
             createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
             updatedAt: p.updatedAt ? p.updatedAt.toISOString() : new Date().toISOString(),
@@ -1310,6 +1323,11 @@ export class AdminService {
       const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
       const rate = getProviderRate(p.providerId);
       const baseCurrency = p.baseCurrency || rate.currency || 'USD';
+      const rawConfig = (p.config as Record<string, unknown>) || {};
+      const configMasked = { ...rawConfig };
+      if (configMasked.proxy) {
+        configMasked.proxy = maskProxyConfig(configMasked.proxy as ProviderProxyConfig);
+      }
 
       return {
         id: p.id,
@@ -1325,7 +1343,7 @@ export class AdminService {
         fallbackProviderId: p.fallbackProviderId,
         status: p.status,
         credentialsMasked,
-        config: p.config,
+        config: configMasked,
         envSnippet: envLines.join('\n'),
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
@@ -1360,8 +1378,11 @@ export class AdminService {
 
     // Check existing credentials in DB or memory to selectively merge
     let existingCreds: Record<string, string> = {};
+    let existingRows: (typeof providers.$inferSelect)[] = [];
+    const existingIndex = this.configuredProviders.findIndex((p) => p.providerId === data.providerId);
+
     try {
-      const existingRows = await db.select().from(providers).where(eq(providers.id, data.providerId)).limit(1);
+      existingRows = await db.select().from(providers).where(eq(providers.id, data.providerId)).limit(1);
       if (existingRows.length > 0 && existingRows[0].credentials) {
         existingCreds = decryptProviderCredentials(existingRows[0].credentials);
       }
@@ -1380,10 +1401,30 @@ export class AdminService {
       }
     }
 
+    // Merge Proxy Credentials if proxy.auth is provided with masked password
+    let incomingConfig = (data.config ??
+      (existingIndex >= 0 ? this.configuredProviders[existingIndex].config : {})) as Record<string, unknown>;
+    if (incomingConfig?.proxy) {
+      const incomingProxy = { ...(incomingConfig.proxy as ProviderProxyConfig) };
+      let existingProxy: ProviderProxyConfig | undefined;
+      if (existingRows.length > 0 && existingRows[0].config) {
+        existingProxy = (existingRows[0].config as Record<string, unknown>).proxy as ProviderProxyConfig;
+      } else if (existingIndex >= 0 && this.configuredProviders[existingIndex].config) {
+        existingProxy = (this.configuredProviders[existingIndex].config as Record<string, unknown>)
+          ?.proxy as ProviderProxyConfig;
+      }
+
+      if (existingProxy?.auth?.password && (!incomingProxy.auth?.password || incomingProxy.auth.password === '***')) {
+        incomingProxy.auth = {
+          ...incomingProxy.auth,
+          password: existingProxy.auth.password,
+        };
+      }
+      incomingConfig = { ...incomingConfig, proxy: incomingProxy };
+    }
+
     // Encrypt for database storage
     const encryptedCredentials = encryptProviderCredentials(mergedCredentials);
-
-    const existingIndex = this.configuredProviders.findIndex((p) => p.providerId === data.providerId);
     const now = new Date().toISOString();
     const newConfig = {
       id:
@@ -1400,7 +1441,7 @@ export class AdminService {
       fallbackProviderId: data.fallbackProviderId,
       status: 'ACTIVE' as const,
       credentials: mergedCredentials,
-      config: data.config ?? (existingIndex >= 0 ? this.configuredProviders[existingIndex].config : {}),
+      config: incomingConfig,
       createdAt: existingIndex >= 0 ? this.configuredProviders[existingIndex].createdAt : now,
       updatedAt: now,
     };
@@ -1462,6 +1503,10 @@ export class AdminService {
     }
 
     const credentialsMasked = maskProviderCredentials(mergedCredentials);
+    const configReturned = { ...newConfig.config };
+    if (configReturned.proxy) {
+      configReturned.proxy = maskProxyConfig(configReturned.proxy as ProviderProxyConfig);
+    }
 
     return {
       id: newConfig.id,
@@ -1474,7 +1519,7 @@ export class AdminService {
       fallbackProviderId: newConfig.fallbackProviderId,
       status: newConfig.status,
       credentialsMasked,
-      config: newConfig.config,
+      config: configReturned,
       envSnippet: Object.entries(credentialsMasked)
         .map(([k, v]) => `${k}=${v}`)
         .join('\n'),
@@ -1509,19 +1554,57 @@ export class AdminService {
   }
 
   /**
-   * Test live credentials connection probe for a provider
+   * Test live credentials & proxy connection probe for a provider
    */
-  public testProviderConnection(providerId: string, credentials: Record<string, string>) {
+  public async testProviderConnection(
+    providerId: string,
+    credentials: Record<string, string>,
+    config?: Record<string, unknown>,
+    targetTestUrl?: string,
+  ) {
     const hasKeys = Object.keys(credentials).length > 0;
-    const latency = Math.round(15 + Math.random() * 30);
+    let latency = Math.round(15 + Math.random() * 30);
+    let diagnostics: ProxyDiagnosticResult | undefined;
 
-    if (!hasKeys) {
+    const proxyConfig = config?.proxy as ProviderProxyConfig | undefined;
+
+    if (proxyConfig?.enabled && proxyConfig.host) {
+      try {
+        diagnostics = await testProxyConnectivity(proxyConfig, targetTestUrl);
+        latency = diagnostics.e2eLatencyMs;
+      } catch (err: unknown) {
+        diagnostics = {
+          success: false,
+          proxyType: proxyConfig.type,
+          proxyHost: proxyConfig.host,
+          proxyPort: proxyConfig.port,
+          handshakeLatencyMs: 0,
+          e2eLatencyMs: latency,
+          error: (err as Error).message,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    if (!hasKeys && !proxyConfig?.enabled) {
       return {
         success: false,
         providerId,
         latencyMs: latency,
         message: 'Validation failed: No API credentials provided for connection test.',
         testedAt: new Date().toISOString(),
+        diagnostics,
+      };
+    }
+
+    if (diagnostics && !diagnostics.success) {
+      return {
+        success: false,
+        providerId,
+        latencyMs: latency,
+        message: `Proxy connection test failed: ${diagnostics.error || 'Unable to establish proxy tunnel'}`,
+        testedAt: new Date().toISOString(),
+        diagnostics,
       };
     }
 
@@ -1529,9 +1612,19 @@ export class AdminService {
       success: true,
       providerId,
       latencyMs: latency,
-      message: `Connection successful: Authenticated against ${providerId.toUpperCase()} API endpoint with 200 OK.`,
+      message: diagnostics
+        ? `Connection successful through ${proxyConfig?.type.toUpperCase()} proxy (${proxyConfig?.host}:${proxyConfig?.port}).`
+        : `Connection successful: Authenticated against ${providerId.toUpperCase()} API endpoint with 200 OK.`,
       testedAt: new Date().toISOString(),
+      diagnostics,
     };
+  }
+
+  /**
+   * Standalone live test probe for an outbound proxy configuration
+   */
+  public async testProxyConnection(proxyConfig: ProviderProxyConfig, targetTestUrl?: string) {
+    return await testProxyConnectivity(proxyConfig, targetTestUrl);
   }
 
   /**

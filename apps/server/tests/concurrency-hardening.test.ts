@@ -53,7 +53,7 @@ describe('Concurrency Hardening & Planetary-Scale Resilience Test Suite', () => 
       // Launch 50 concurrent worker threads updating the budget simultaneously
       const updatePromises: Promise<void>[] = [];
       for (let i = 0; i < concurrentIncrements; i++) {
-        updatePromises.push(updateMonthlyBudgetUsage(testPolicyId, testMonth, amountPerMessage, now));
+        updatePromises.push(updateMonthlyBudgetUsage(testPolicyId, testMonth, amountPerMessage, 'USD', now));
       }
 
       // Guarantee all concurrent operations resolve cleanly

@@ -1,11 +1,12 @@
-export interface TwilioSmsAdapterConfig {
+import type { BaseProviderConfig } from '../../core/provider-types';
+
+export interface TwilioSmsAdapterConfig extends BaseProviderConfig {
   accountSid?: string;
   authToken?: string;
   from?: string;
   region?: string;
   apiKey?: string;
   baseUrl?: string;
-  [key: string]: unknown;
 }
 
 export type TwilioAdapterConfig = TwilioSmsAdapterConfig;

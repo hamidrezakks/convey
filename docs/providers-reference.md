@@ -643,3 +643,138 @@ For any provider integration, credentials and parameters are resolved using the 
 ### 7.4 `tool-webhook` — Generic Tool Webhook
 - **Protocol**: Custom HTTP POST
 - **Environment Variables**: `TOOL_WEBHOOK_URL`, `TOOL_WEBHOOK_SECRET`
+
+---
+
+## 8. Outbound Transport Proxy Layer (HTTP, HTTPS, SOCKS5)
+
+Convey features an enterprise-grade outbound transport proxy layer that allows any of the **88 provider adapters** to route outbound API and webhook traffic through an intermediate proxy gateway. This enables compliance with zero-trust networks, strict DMZ egress policies, static IP whitelisting requirements, and air-gapped corporate topologies.
+
+### 8.1 Supported Proxy Protocols
+
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              OUTBOUND TRANSPORT PROXY LAYER                            │
+├───────────────────┬──────────────────────────────────┬─────────────────────────────────┤
+│   Proxy Protocol  │        Target Connection         │         Underlying Engine       │
+├───────────────────┼──────────────────────────────────┼─────────────────────────────────┤
+│   HTTP            │ HTTP & HTTPS Targets             │ HTTP CONNECT Tunnel / Forward   │
+│   HTTPS           │ HTTP & HTTPS Targets             │ TLS-in-TLS Encapsulated Tunnel  │
+│   SOCKS5 / SOCKS5h│ TCP / HTTP / HTTPS Targets       │ RFC 1928 & RFC 1929 Binary Socket│
+└───────────────────┴──────────────────────────────────┴─────────────────────────────────┘
+```
+
+1. **HTTP Proxy (`http://`)**:
+   - For plaintext HTTP targets: Executes standard HTTP forward proxy requests.
+   - For HTTPS targets: Performs an `HTTP/1.1 CONNECT target:443` socket upgrade and initiates TLS directly with the target server.
+   - Supports Basic Authentication (`Proxy-Authorization: Basic <base64>`) and custom headers.
+
+2. **HTTPS Proxy (`https://`)**:
+   - Secure TLS connection between Convey and the proxy server itself.
+   - For HTTPS targets: Performs **TLS-in-TLS encapsulation** (outer TLS handshake to proxy, HTTP CONNECT tunnel, and inner TLS handshake to target server).
+   - Prevents traffic inspection and tampering across untrusted intermediary network hops.
+
+3. **SOCKS5 / SOCKS5h Proxy (`socks5://`, `socks5h://`)**:
+   - Zero-dependency binary implementation of **RFC 1928** (SOCKS Protocol Version 5) and **RFC 1929** (Username/Password Authentication).
+   - Remote DNS Resolution (`SOCKS5h` / `ATYP 0x03` Domain): Domain names are resolved on the remote proxy server, preventing DNS poisoning and leakage.
+   - Supports `NO_AUTH` (`0x00`) and `USER_PASS` (`0x02`) authentication negotiation.
+   - Upgrades socket to TLS (`tls.connect`) for HTTPS destinations with full SNI preservation.
+
+### 8.2 Configuration Schema
+
+Proxy settings are configured per-provider under `config.proxy`:
+
+```typescript
+export interface ProviderProxyConfig {
+  enabled: boolean;
+  type: 'http' | 'https' | 'socks5' | 'socks5h';
+  host: string;
+  port: number;
+  auth?: {
+    username?: string;
+    password?: string;
+  };
+  noProxy?: string[]; // Bypass list: ['localhost', '*.internal', '10.0.0.0/8']
+  timeoutMs?: number; // Socket connect & read timeout (default: 10,000ms)
+  tls?: {
+    rejectUnauthorized?: boolean;
+    ca?: string;
+  };
+  rawUrl?: string; // Optional full URL: socks5://user:pass@proxy.corp:1080
+}
+```
+
+### 8.3 Bypass Engine & CIDR Matching
+
+The proxy matcher engine evaluates the `noProxy` bypass list before dispatching any request. Direct zero-overhead socket connections are established when a destination matches:
+- **Exact Hostnames**: e.g. `localhost`, `api.internal.local`
+- **Wildcard Subdomains**: e.g. `*.internal`, `*.corp.local`
+- **Suffix Matching**: e.g. `.corp`, `.local`
+- **IPv4 CIDR Blocks**: e.g. `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
+
+### 8.4 Security & AES-256-GCM Credential Vault
+
+Proxy passwords and credentials stored in PostgreSQL `providers` table are encrypted using **AES-256-GCM** envelope encryption with unique initialization vectors (IV) and authentication tags. When returned through the Admin API or Mission Control Web-UI:
+- Passwords and auth tokens are masked with `***` or bullet placeholders (`••••••••`).
+- Updates that send `***` preserve the existing encrypted secret without requiring re-entry.
+
+### 8.5 Diagnostic Tools & REST API Endpoints
+
+- **Live Proxy Connection Probe**:
+  ```http
+  POST /v1/admin/providers/test-proxy
+  Content-Type: application/json
+
+  {
+    "proxy": {
+      "enabled": true,
+      "type": "socks5",
+      "host": "10.0.1.50",
+      "port": 1080,
+      "auth": { "username": "corp_user", "password": "SecretPassword123" }
+    }
+  }
+  ```
+  Returns:
+  ```json
+  {
+    "success": true,
+    "proxyType": "socks5",
+    "proxyHost": "10.0.1.50",
+    "proxyPort": 1080,
+    "handshakeLatencyMs": 4,
+    "e2eLatencyMs": 38,
+    "dnsResolution": "REMOTE",
+    "timestamp": "2026-08-21T19:30:00.000Z"
+  }
+  ```
+
+- **Provider Connection Test with Proxy Diagnostics**:
+  ```http
+  POST /v1/admin/providers/test-connection
+  Content-Type: application/json
+
+  {
+    "providerId": "sendgrid",
+    "credentials": { "SENDGRID_API_KEY": "SG.xxx" },
+    "config": {
+      "proxy": {
+        "enabled": true,
+        "type": "http",
+        "host": "proxy.corp.internal",
+        "port": 8080
+      }
+    }
+  }
+  ```
+
+### 8.6 Prometheus Observability Metrics
+
+The transport proxy layer exports real-time metrics scraped at `GET /metrics`:
+
+| Metric Name | Type | Labels | Description |
+|---|---|---|---|
+| `convey_provider_proxy_requests_total` | Counter | `providerId`, `proxyType`, `status` | Total outbound requests dispatched via transport proxies |
+| `convey_provider_proxy_duration_seconds` | Histogram | `providerId`, `proxyType` | End-to-end latency distribution for proxied outbound calls |
+| `convey_provider_proxy_errors_total` | Counter | `providerId`, `proxyType`, `errorCode` | Total errors encountered during proxy transport execution |
+

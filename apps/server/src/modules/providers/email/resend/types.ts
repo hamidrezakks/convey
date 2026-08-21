@@ -1,4 +1,6 @@
-export interface ResendEmailAdapterConfig {
+import type { BaseProviderConfig } from '../../core/provider-types';
+
+export interface ResendEmailAdapterConfig extends BaseProviderConfig {
   apiKey?: string;
   from?: string;
   senderName?: string;
