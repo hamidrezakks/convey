@@ -387,17 +387,6 @@ export interface TranslationSchema {
     colTeam: string;
     colDate: string;
   };
-  suppressions: {
-    title: string;
-    subtitle: string;
-    addSuppression: string;
-    searchRecipient: string;
-    colRecipient: string;
-    colChannel: string;
-    colReason: string;
-    colTeam: string;
-    colDate: string;
-  };
   policies: {
     title: string;
     subtitle: string;
