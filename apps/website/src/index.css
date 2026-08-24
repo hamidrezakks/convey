@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #070b12;
+    --bg-card: rgba(13, 20, 36, 0.7);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-focus: rgba(56, 189, 248, 0.4);
+    --accent-blue: #38bdf8;
+    --accent-cyan: #22d3ee;
+    --accent-violet: #a855f7;
+    --accent-emerald: #10b981;
+  }
+
+  body {
+    background-color: #070b12;
+    color: #f1f5f9;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  pre,
+  kbd {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: "Outfit", "Inter", system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Custom Glass & Glow Utilities */
+.glass-panel {
+  background: rgba(13, 22, 38, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-panel-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(18, 30, 52, 0.85);
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow:
+    0 12px 32px -8px rgba(0, 0, 0, 0.5),
+    0 0 24px -4px rgba(56, 189, 248, 0.15);
+}
+
+.glow-mesh {
+  position: relative;
+}
+.glow-mesh::before {
+  content: "";
+  position: absolute;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(168, 85, 247, 0.08) 50%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Smooth code block syntax highlights */
+.token-keyword {
+  color: #f43f5e;
+  font-weight: 600;
+}
+.token-string {
+  color: #34d399;
+}
+.token-function {
+  color: #38bdf8;
+}
+.token-number {
+  color: #fbbf24;
+}
+.token-property {
+  color: #93c5fd;
+}
+.token-comment {
+  color: #64748b;
+  font-style: italic;
+}
+.token-boolean {
+  color: #c084fc;
+  font-weight: 600;
+}
+.token-operator {
+  color: #f472b6;
+}
+.token-punctuation {
+  color: #94a3b8;
+}
+
+/* Grid Pattern Background */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+.bg-radial-gradient {
+  background: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0) 65%);
+}
