@@ -73,28 +73,24 @@ export function OmnichannelPlayground() {
     }
 
     if (lang === 'typescript') {
-      return `import { ConveyClient, MessagePriority } from '@convey/client';
+      return `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({
+const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
   baseUrl: 'https://api.convey.internal',
 });
 
 const response = await convey.messages.send({
-  channel: '${channel}',
+  channel: '${channel.toUpperCase()}',
   recipient: '${recipient}',
-  priority: MessagePriority.${priority},
+  priority: '${priority}',
   idempotencyKey: 'ord_99218_dispatch',
   content: {
     ${channel === 'email' ? `subject: '${subject}',\n    ` : ''}body: '${body}',
   },
-  routing: {
-    strategy: '${strategy}',
-    fallbackChain: ['vonage', 'infobip'],
-  },
 });
 
-console.log(\`Accepted: \${response.publicId} in \${response.latencyMs}ms\`);`;
+console.log(\`Accepted: \${response.publicId} (\${response.status})\`);`;
     }
 
     if (lang === 'python') {
