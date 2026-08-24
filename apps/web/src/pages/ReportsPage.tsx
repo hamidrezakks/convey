@@ -640,7 +640,7 @@ export function ReportsPage() {
 
       {/* 4. Multi-View Analytics Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-6">
-        <TabsList className="grid grid-cols-3 max-w-md">
+        <TabsList className="inline-flex w-auto max-w-fit">
           <TabsTrigger value="teams" className="text-xs font-semibold">
             Team Reporting & Budgets
           </TabsTrigger>
