@@ -18,12 +18,12 @@ Use this skill when designing, building, or refactoring features, provider adapt
 - **Transactional Outbox Pattern**: Send endpoints write to `messages` + `outbox` in 1 Postgres transaction. `outbox-relay.worker.ts` polls `outbox` using `FOR UPDATE SKIP LOCKED` and enqueues to BullMQ.
 
 ## 3. Database Performance & Range Partitioning
-- **Monthly Partitioning**: High-volume tables (`messages`, `message_attempts`, `message_events`, `budget_ledger`) use range partitioning by month (`PARTITION BY RANGE (created_at)`).
+- **PostgreSQL 18 Monthly Partitioning**: High-volume tables (`messages`, `message_attempts`, `message_events`, `budget_ledger`) use range partitioning by month (`PARTITION BY RANGE (created_at)`).
 - **Partition Pruning Mandatory**: Always include timestamp bounds (`gte(createdAt, startDate)`, `lte(createdAt, endDate)`) using `computePartitionWindow(publicId)` on partitioned table queries and updates to avoid full partition scans.
-- **Fast-Path Send Acceptance**: Keep send acceptance to 1 Redis `SET NX` call + 1 Postgres transaction.
+- **Fast-Path Send Acceptance**: Keep send acceptance to 1 DragonflyDB `SET NX` call + 1 PostgreSQL 18 transaction.
 
-## 4. Redis Idempotency & L1 Caching
-- **1-RTT Fast Path**: `IdempotencyService.reserve()` executes `SET key value EX TTL NX` directly first. Fallback to `GET` only if key already exists.
+## 4. DragonflyDB / Redis Idempotency & L1 Caching
+- **1-RTT Fast Path**: `IdempotencyService.reserve()` executes `SET key value EX TTL NX` directly on DragonflyDB first. Fallback to `GET` only if key already exists.
 - **L1 Policy Caching**: Policy checks (`rateLimitPolicies`, `budgetPolicies`, `budgetUsage`) use a short in-memory TTL cache (5,000ms) to eliminate redundant SQL reads on every message dispatch.
 - **Provider Config Caching**: Cache provider credentials/config in memory (`getCachedProviderConfig`) in worker loops to eliminate per-message database lookups.
 - **Provider Registry Channel Memoization**: Cache resolved channel adapters in `ProviderRegistryStore` (`channelAdaptersCache`) to avoid iterating 80+ manifests per routing lookup.

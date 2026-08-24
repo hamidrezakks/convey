@@ -14,7 +14,7 @@ Convey is engineered for cloud-native deployment with zero external runtime depe
 
 ## 1. Docker Compose Deployment
 
-The fastest way to deploy Convey in production is using Docker Compose:
+The fastest way to deploy Convey in production is using Docker Compose with PostgreSQL 18 and DragonflyDB:
 
 ```yaml
 version: '3.8'
@@ -48,7 +48,7 @@ services:
     restart: always
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
@@ -57,14 +57,14 @@ services:
       - POSTGRES_DB=convey
 
   redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    command: ["dragonfly", "--cache_mode=true"]
     volumes:
-      - redisdata:/data
+      - dragonflydata:/data
 
 volumes:
   pgdata:
-  redisdata:
+  dragonflydata:
 ```
 
 ---
@@ -143,5 +143,5 @@ When receiving `SIGTERM` (e.g., during Kubernetes rolling upgrades), Convey's `G
 
 1. **Stops Ingestion Admission**: Closes HTTP server port 3000 to new connections.
 2. **Drains BullMQ Workers**: Allows active provider requests up to 15 seconds to acknowledge.
-3. **Flushes Micro-Batches**: Commits all pending in-memory telemetry receipts to PostgreSQL.
-4. **Closes Connection Pools**: Closes PostgreSQL connection pool and Redis connections cleanly.
+3. **Flushes Micro-Batches**: Commits all pending in-memory telemetry receipts to PostgreSQL 18.
+4. **Closes Connection Pools**: Closes PostgreSQL 18 connection pool and DragonflyDB connections cleanly.

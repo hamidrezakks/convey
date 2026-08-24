@@ -8,7 +8,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 # Verified Performance Benchmarks
 
-All benchmarks are measured using HDR nanosecond-precision histograms running on **Bun 1.4** under native hardware conditions.
+All benchmarks are measured using HDR nanosecond-precision histograms running on **Bun 1.4**, **PostgreSQL 18**, and **DragonflyDB** under native hardware conditions.
 
 ---
 
@@ -26,7 +26,7 @@ All benchmarks are measured using HDR nanosecond-precision histograms running on
 | **`HedgedExecutor.execute`** | Speculative Parallel Race | **625,717 /s** | `0.001ms` | `0.003ms` | `0.008ms` |
 | **`DRR Priority Scheduler`** | Deficit Round Robin Queue | **519,244 /s** | `0.002ms` | `0.004ms` | `0.008ms` |
 | **`PayloadEncryptionManager`** | AES-256-GCM Envelope | **281,162 /s** | `0.003ms` | `0.007ms` | `0.015ms` |
-| **`IdempotencyService.reserve`** | Redis SET NX 1-RTT | **13,741 /s** | `0.062ms` | `0.082ms` | `0.148ms` |
+| **`IdempotencyService.reserve`** | DragonflyDB SET NX 1-RTT | **13,741 /s** | `0.062ms` | `0.082ms` | `0.148ms` |
 
 ---
 
@@ -37,10 +37,10 @@ All benchmarks are measured using HDR nanosecond-precision histograms running on
 | **Thundering Herd Hot-Key Contention** | 100 Contenders / Key | 9.7 /s | 102.7ms | 106.3ms | **PASSED (0 Lock Leaks)** |
 | **DRR Multi-Tenant Saturation** | 3,000 Tasks across 300 Tenants | 2,765 /s | 0.35ms | 0.794ms | **PASSED (JFI &ge; 0.95)** |
 | **Circuit Breaker Avalanche Trip** | 100% Downstream Outage | 113,803 /s | 0.007ms | 0.046ms | **PASSED (Instant Failover)** |
-| **Redis Token Bucket Contention** | 100 Worker Threads | 397.8 /s | 2.34ms | 10.29ms | **PASSED (0 Overshoot)** |
+| **DragonflyDB Token Bucket Contention**| 100 Worker Threads | 501.8 /s | 1.65ms | 3.71ms | **PASSED (0 Overshoot)** |
 | **Webhook Micro-Batch Burst** | 1,000 Events / Burst | 253.8 /s | 3.93ms | 4.22ms | **PASSED (0 Dropped Events)** |
 | **AES-256 Key Derivations** | 100 Parallel Derivations | 2,713.8 /s | 0.358ms | 0.549ms | **PASSED (0 Failures)** |
-| **Outbox Virtual Shards Acquisition** | 16 Shards FOR UPDATE SKIP LOCKED| 191.1 /s | 4.27ms | 20.12ms | **PASSED (0 Deadlocks)** |
+| **PostgreSQL 18 Outbox Virtual Shards**| 16 Shards FOR UPDATE SKIP LOCKED| 191.1 /s | 4.27ms | 20.12ms | **PASSED (0 Deadlocks)** |
 
 ---
 

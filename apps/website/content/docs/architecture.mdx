@@ -14,14 +14,14 @@ Convey is designed from first principles to guarantee **sub-15ms synchronous sen
 
 ## 1. Fast-Path Ingestion Pipeline
 
-To guarantee sub-15ms synchronous acceptance during thundering herd traffic, Convey executes exactly **one 1-RTT Redis command** and **one atomic PostgreSQL transaction**:
+To guarantee sub-15ms synchronous acceptance during thundering herd traffic, Convey executes exactly **one 1-RTT DragonflyDB command** and **one atomic PostgreSQL 18 transaction**:
 
-1. **Redis 1-RTT Idempotency Lease**:
-   An atomic `SET idempotency:<teamId>:<key> <pending_payload> NX PX 120000` evaluates whether the request is novel. Duplicate submissions return the original `202 Accepted` response in `< 0.1ms`.
-2. **PostgreSQL Dual Insert**:
-   A single transaction inserts into `messages` (the immutable audit record) and `outbox` (the ephemeral delivery buffer).
+1. **DragonflyDB 1-RTT Idempotency Lease**:
+   An atomic `SET idempotency:<teamId>:<key> <pending_payload> NX PX 120000` evaluates whether the request is novel. With DragonflyDB's multi-threaded shared-nothing architecture, duplicate submissions return the original `202 Accepted` response in `< 0.05ms` with zero lock contention.
+2. **PostgreSQL 18 Dual Insert**:
+   A single transaction inserts into `messages` (the immutable partitioned audit record) and `outbox` (the ephemeral delivery buffer).
 3. **HTTP 202 Immediate Return**:
-   The API returns `msg_<ULID>` to the client immediately. Heavy dispatch is asynchronously handed off to workers.
+   The API returns `msg_<ULID>` to the client immediately. Heavy dispatch is asynchronously handed off to BullMQ workers.
 
 ---
 
@@ -30,7 +30,7 @@ To guarantee sub-15ms synchronous acceptance during thundering herd traffic, Con
 Convey eliminates polling lock contention through virtual sharding:
 
 ```
-[ Ingestion API ] ───▶ [ PostgreSQL Outbox (16 Virtual Shards) ]
+[ Ingestion API ] ───▶ [ PostgreSQL 18 Outbox (16 Virtual Shards) ]
                                 │
          ┌──────────────────────┼──────────────────────┐
          ▼                      ▼                      ▼
@@ -53,9 +53,9 @@ Convey eliminates polling lock contention through virtual sharding:
 
 ---
 
-## 3. Monthly Range Partitioning & Pruning Windows
+## 3. PostgreSQL 18 Monthly Range Partitioning & Pruning Windows
 
-The `messages` table uses monthly range partitioning by `created_at`:
+The `messages` table uses PostgreSQL 18 monthly range partitioning by `created_at`:
 
 ```sql
 CREATE TABLE messages (
@@ -66,19 +66,19 @@ CREATE TABLE messages (
   ...
 ) PARTITION BY RANGE (created_at);
 
--- Partitions
+-- Monthly Range Partitions
 CREATE TABLE messages_y2026m08 PARTITION OF messages
   FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
 ```
 
-- **Partition Pruning**: Queries filtering on `created_at >= now() - interval '7 days'` scan only active month partitions.
-- **Instant Data Retention**: Expired partitions older than 90 days are dropped in `O(1)` time via `DROP TABLE messages_y2026m05;` without vacuum overhead.
+- **PostgreSQL 18 Query Pruning**: Queries filtering on `created_at >= now() - interval '7 days'` scan only active month partitions, avoiding global B-Tree index degradation.
+- **Instant Data Retention**: Expired partitions older than 90 days are dropped in `O(1)` time via `DROP TABLE messages_y2026m05;` without table lock or vacuum overhead.
 
 ---
 
 ## 4. Zero-Trust AES-256-GCM Envelope Encryption
 
-All sensitive customer data (recipients, message bodies, template parameters) is encrypted before PostgreSQL storage:
+All sensitive customer data (recipients, message bodies, template parameters) is encrypted before storage in PostgreSQL 18:
 
 - **Key Derivation**: High-entropy 256-bit Master Key derived using HKDF-SHA256.
 - **Unique IV per Record**: 96-bit random IV generated for every ciphertext block.
@@ -89,7 +89,7 @@ All sensitive customer data (recipients, message bodies, template parameters) is
 
 ## 5. Deficit Round Robin (DRR) Multi-Tenant Scheduler
 
-To prevent bulk marketing blasts from starving critical one-time passwords (OTP), Convey implements a **Deficit Round Robin** priority scheduler:
+To prevent bulk marketing blasts from starving critical one-time passwords (OTP), Convey implements a **Deficit Round Robin** priority scheduler in DragonflyDB queues:
 
 - **Enterprise Tier**: Quantum = 200 tasks / round
 - **Pro Tier**: Quantum = 50 tasks / round
@@ -121,17 +121,17 @@ Meta charges business-initiated WhatsApp messages based on template category fee
 [ Inbound User Reply ] ───▶ [ Convey Ingestion Webhook ]
                                     │
                                     ▼
-                 [ Redis 24h Session Window Leased ]
+              [ DragonflyDB 24h Session Window Leased ]
                                     │
  [ Outbound Dispatch ] ───▶ [ Session Lease Valid? ]
                                     │
-                   ┌────────────────┴────────────────┐
-                   ▼                                 ▼
-           [ YES: Free $0.00 ]             [ NO: Template HSM ]
-          (Plain-Text Session Msg)        (Standard Meta Rate)
+                    ┌────────────────┴────────────────┐
+                    ▼                                 ▼
+            [ YES: Free $0.00 ]             [ NO: Template HSM ]
+           (Plain-Text Session Msg)        (Standard Meta Rate)
 ```
 
-- Inbound replies automatically register an active session key in Redis with a 24-hour TTL: `whatsapp:session:<team_id>:<phone>`.
+- Inbound replies automatically register an active session key in DragonflyDB with a 24-hour TTL: `whatsapp:session:<team_id>:<phone>`.
 - When an outbound dispatch is requested, Convey checks the lease. If active, it seamlessly transforms the message into a $0.00 plain-text payload, reducing WhatsApp expenditure by **40% to 75%**.
 
 ---

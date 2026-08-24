@@ -9,15 +9,15 @@ export function FeatureGrid() {
       title: 'Zero-Trust AES-256-GCM Envelope Encryption',
       tag: 'Security at Rest',
       description:
-        'All recipient handles, message bodies, and template variables are encrypted with unique IVs before hitting PostgreSQL. In-memory decryption happens strictly in isolated worker threads.',
+        'All recipient handles, message bodies, and template variables are encrypted with unique IVs before hitting PostgreSQL 18. In-memory decryption happens strictly in isolated worker threads.',
     },
     {
       icon: Zap,
       color: 'sky',
-      title: '1-RTT Redis Idempotency Lease',
+      title: '1-RTT DragonflyDB Idempotency Lease',
       tag: 'Sub-Millisecond Guard',
       description:
-        'Atomic SET NX leases eliminate database row-level locking during traffic spikes. Duplicate submissions receive identical 202 Accepted responses in under 0.1ms.',
+        'Atomic SET NX leases on multi-threaded DragonflyDB eliminate database row-level locking during traffic spikes. Duplicate submissions receive identical 202 Accepted responses in under 0.05ms.',
     },
     {
       icon: Scale,

@@ -183,7 +183,7 @@ export function BenchmarkSection() {
                   },
                   {
                     op: 'IdempotencyService.reserve',
-                    cat: 'Redis SET NX 1-RTT',
+                    cat: 'DragonflyDB SET NX 1-RTT',
                     ops: '13,741/s',
                     p50: '0.062ms',
                     p95: '0.082ms',

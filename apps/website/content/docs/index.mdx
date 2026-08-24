@@ -9,7 +9,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 # Welcome to Convey
 
-**Convey** is a standalone, ultra-high-throughput communication gateway and notification infrastructure built natively on **Bun 1.4**, **Elysia.js**, **PostgreSQL 16**, and **Redis 7**.
+**Convey** is a standalone, ultra-high-throughput communication gateway and notification infrastructure built natively on **Bun 1.4**, **Elysia.js**, **PostgreSQL 18**, and **DragonflyDB**.
 
 It provides synchronous sub-15ms message ingestion acceptance, zero-trust AES-256-GCM envelope encryption at rest, a Deficit Round Robin multi-tenant scheduler, an autonomous WhatsApp 24h session cost autopilot, and 88+ turnkey provider adapters.
 
@@ -23,7 +23,7 @@ It provides synchronous sub-15ms message ingestion acceptance, zero-trust AES-25
 
 <Cards>
   <Card title="⚡ Fast-Path Ingestion" href="/docs/architecture#fast-path-ingestion">
-    1-RTT Redis `SET NX` idempotency lease and synchronous PostgreSQL insert in under 15ms (p99).
+    1-RTT DragonflyDB `SET NX` idempotency lease and synchronous PostgreSQL 18 insert in under 15ms (p99).
   </Card>
   <Card title="🔒 Zero-Trust Encryption" href="/docs/architecture#zero-trust-encryption">
     AES-256-GCM envelope encryption at rest with field-level initialization vectors (IV).

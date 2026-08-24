@@ -12,8 +12,8 @@ Before running Convey, ensure your local or staging environment has the followin
 
 - **Bun**: `v1.4.0` or higher (`curl -fsSL https://bun.sh/install | bash`)
 - **Docker & Docker Compose**: `v24.0+` (optional for containerized setup)
-- **PostgreSQL**: `16.0+` (with `pgcrypto` extension enabled)
-- **Redis**: `7.2+` (with AOF persistence enabled)
+- **PostgreSQL**: `18.0+` (with `pgcrypto` extension enabled)
+- **DragonflyDB**: `latest` / `v1.20+` or Redis-compatible multi-threaded cache (with persistence enabled)
 
 ---
 
@@ -26,7 +26,7 @@ Before running Convey, ensure your local or staging environment has the followin
 git clone https://github.com/convey/convey.git
 cd convey
 
-# 2. Launch PostgreSQL, Redis, Convey API Server, and Mission Control UI
+# 2. Launch PostgreSQL 18, DragonflyDB, Convey API Server, and Mission Control UI
 docker compose up -d
 
 # 3. Verify all containers are healthy
@@ -34,7 +34,7 @@ docker compose ps
 ```
   </Tab>
 
-  <Tab value="Bun Monorepo Native)">
+  <Tab value="Bun Monorepo Native">
 ```bash
 # 1. Install all dependencies across workspaces
 bun install
@@ -56,9 +56,9 @@ bun run dev
 kubectl apply -f deploy/k8s/configmap.yaml
 kubectl apply -f deploy/k8s/secrets.yaml
 
-# 2. Deploy PostgreSQL and Redis StatefulSets
+# 2. Deploy PostgreSQL 18 and DragonflyDB StatefulSets
 kubectl apply -f deploy/k8s/postgres-statefulset.yaml
-kubectl apply -f deploy/k8s/redis-statefulset.yaml
+kubectl apply -f deploy/k8s/dragonfly-statefulset.yaml
 
 # 3. Deploy Convey API & Background Workers with HPA
 kubectl apply -f deploy/k8s/convey-deployment.yaml
@@ -77,8 +77,8 @@ kubectl apply -f deploy/k8s/convey-hpa.yaml
 | **OpenAPI Docs (Swagger)** | `3000` | Interactive OpenAPI 3.1 Swagger UI | `http://localhost:3000/swagger` |
 | **Mission Control UI** | `5173` | React 19 Admin Operations Console | `http://localhost:5173` |
 | **Developer Documentation** | `5174` | Fumadocs Portal & API Playground | `http://localhost:5174` |
-| **PostgreSQL 16** | `5432` | Relational Storage & Range Partitions | `pg_isready -p 5432` |
-| **Redis 7** | `6379` | 1-RTT Idempotency & Rate Limit Token Buckets | `redis-cli ping` |
+| **PostgreSQL 18** | `5432` | Relational Storage & Range Partitions | `pg_isready -p 5432` |
+| **DragonflyDB** | `6379` | Multi-Threaded 1-RTT Idempotency & Rate Limiting | `redis-cli ping` |
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Environment Configuration Reference
-description: Complete .env variable dictionary, PostgreSQL connection tuning, Redis concurrency limits, and zero-downtime AES key rotation runbooks.
+description: Complete .env variable dictionary, PostgreSQL 18 connection tuning, DragonflyDB concurrency limits, and zero-downtime AES key rotation runbooks.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
@@ -24,11 +24,11 @@ Convey uses environment variables for all operational tuning. You can specify va
 
 ---
 
-## Database Configuration (PostgreSQL 16)
+## Database Configuration (PostgreSQL 18)
 
 | Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | `string` | `postgresql://convey:convey@localhost:5432/convey` | Postgres connection string |
+| `DATABASE_URL` | `string` | `postgresql://convey:convey@localhost:5432/convey` | PostgreSQL 18 connection string |
 | `DB_POOL_MIN` | `number` | `5` | Minimum connection pool size |
 | `DB_POOL_MAX` | `number` | `25` | Maximum connection pool size |
 | `DB_IDLE_TIMEOUT_MS` | `number` | `30000` | Idle connection timeout in milliseconds |
@@ -48,12 +48,12 @@ bun run db:migrate
 
 ---
 
-## Cache & Queue Configuration (Redis 7 & BullMQ)
+## In-Memory Cache & Queue Configuration (DragonflyDB & BullMQ)
 
 | Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `REDIS_URL` | `string` | `redis://localhost:6379` | Redis connection string |
-| `REDIS_MAX_CONNECTIONS`| `number` | `50` | Maximum Redis connection pool size |
+| `REDIS_URL` | `string` | `redis://localhost:6379` | DragonflyDB / Redis-compatible connection string |
+| `REDIS_MAX_CONNECTIONS`| `number` | `50` | Maximum connection pool size |
 | `BULLMQ_CONCURRENCY` | `number` | `25` | Worker thread concurrency per process |
 | `OUTBOX_POLL_INTERVAL_MS`| `number`| `100` | Milliseconds between Outbox shard scans |
 | `OUTBOX_BATCH_SIZE` | `number` | `100` | Batch limit for FOR UPDATE SKIP LOCKED |

@@ -23,11 +23,11 @@ These variables control HTTP gateway behavior, runtime modes, and cluster identi
 
 ## 2. Database & Connection Pool Configuration
 
-Convey utilizes PostgreSQL 16+ with **Monthly Range Partitioning** for high-volume message ledgers, audit events, and delivery attempts.
+Convey utilizes PostgreSQL 18+ with **Monthly Range Partitioning** for high-volume message ledgers, audit events, and delivery attempts.
 
 | Variable | Type | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `DATABASE_URL` | String | `postgres://user:password@localhost:5432/db-convey` | Full PostgreSQL connection URI. Supports standard connection strings, connection poolers (PgBouncer in transaction mode), and Unix socket paths. |
+| `DATABASE_URL` | String | `postgres://user:password@localhost:5432/db-convey` | Full PostgreSQL 18 connection URI. Supports standard connection strings, connection poolers (PgBouncer in transaction mode), and Unix socket paths. |
 | `POSTGRES_DB` / `DB_NAME` | String | `db-convey` | Explicit database name override. If specified alongside `DATABASE_URL`, Convey dynamically rewrites the connection URI path to target this database. |
 | `DB_MAX_CONNECTIONS` | Number | `20` | Maximum size of the Postgres connection pool per instance. For high-concurrency worker clusters, size appropriately to prevent exhausting Postgres `max_connections`. |
 
@@ -39,13 +39,13 @@ Convey implements deterministic connection string normalization in `src/config/e
 
 ---
 
-## 3. Redis, Queues & Hybrid Dual-Layer Scheduling
+## 3. In-Memory Store (DragonflyDB), Queues & Hybrid Dual-Layer Scheduling
 
-Convey uses Redis 7+ for **1-RTT Idempotency Locks**, **BullMQ Worker Orchestration**, **Distributed Token-Bucket Rate Limiting**, and **Config Reloader PubSub**.
+Convey uses DragonflyDB (or Redis 7+) for **1-RTT Idempotency Locks**, **BullMQ Worker Orchestration**, **Distributed Token-Bucket Rate Limiting**, and **Config Reloader PubSub**.
 
 | Variable | Type | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `REDIS_URL` | String | `redis://localhost:6379` | Redis connection URI. Supports standalone Redis instances, Redis Sentinel, and AWS ElastiCache / Redis Cluster. |
+| `REDIS_URL` | String | `redis://localhost:6379` | DragonflyDB / Redis connection URI. Supports standalone DragonflyDB, Redis Sentinel, and AWS ElastiCache. |
 | `REDIS_KEY_PREFIX` | String | `convey` | Global namespace prefix for all Redis keys, preventing collisions when sharing Redis clusters with other services. |
 | `BULLMQ_SCHEDULING_HORIZON_SECONDS` | Number | `1800` (30 mins) | **Dual-Layer Hybrid Scheduling Threshold**. Notifications scheduled within this window are enqueued directly into BullMQ delayed queues. Notifications scheduled beyond this window (`> 30m`) are stored in partitioned PostgreSQL and promoted to BullMQ at $T-30$ minutes by `scheduled-promoter.worker.ts`. |
 

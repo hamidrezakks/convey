@@ -408,11 +408,11 @@ export const en: TranslationSchema = {
     freeTier: 'Free Tier',
     slaTarget: 'Guaranteed 350ms P95 SLA target',
     tokenBucketTitle: 'Distributed Token-Bucket Rate Limiter',
-    tokenBucketDesc: 'Redis-backed token bucket limiting with atomic Lua execution and smooth traffic pacing.',
+    tokenBucketDesc: 'DragonflyDB-backed token bucket limiting with atomic Lua execution and smooth traffic pacing.',
     rateLimitLabel: 'Ingress Rate Limit (RPS)',
     burstCapacityLabel: 'Burst Bucket Capacity',
     savePolicies: 'Save Policies',
-    deployRedis: 'Deploy to Redis Cluster',
+    deployRedis: 'Deploy to DragonflyDB / Redis Cluster',
   },
   composer: {
     title: 'Omnichannel Composer & Live Sandbox',
