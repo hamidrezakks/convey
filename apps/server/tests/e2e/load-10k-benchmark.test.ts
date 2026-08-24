@@ -72,9 +72,12 @@ describe('Convey 10,000 Message E2E Load, Fallback Routing & Benchmark Verificat
 
     // Step 2: Outbox Relay Batch Processing
     let processedOutbox = 0;
-    while (processedOutbox < totalCount) {
+    for (let attempt = 0; attempt < 30 && processedOutbox < totalCount; attempt++) {
       const processedInBatch = await processOutboxBatch(500);
-      if (processedInBatch === 0) break;
+      if (processedInBatch === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        continue;
+      }
       processedOutbox += processedInBatch;
     }
     const [outboxProcessed] = await db
