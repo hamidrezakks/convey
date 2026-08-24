@@ -46,6 +46,59 @@ Convey provides **88+ built-in provider adapters** across 5 primary communicatio
 
 ---
 
+## Provider Configuration Schemas
+
+Configure providers in Mission Control UI (`:5173`) or pass credentials via environment variables:
+
+<Tabs items={['Email (Resend & SES)', 'SMS (Twilio & Vonage)', 'WhatsApp Cloud API', 'Push (APNs & FCM)']}>
+  <Tab value="Email (Resend & SES)">
+```json
+{
+  "provider": "resend",
+  "apiKey": "re_123456789",
+  "fromEmail": "notifications@yourdomain.com",
+  "replyTo": "support@yourdomain.com"
+}
+```
+  </Tab>
+
+  <Tab value="SMS (Twilio & Vonage)">
+```json
+{
+  "provider": "twilio",
+  "accountSid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "authToken": "your_auth_token_here",
+  "fromNumber": "+18005550199"
+}
+```
+  </Tab>
+
+  <Tab value="WhatsApp Cloud API">
+```json
+{
+  "provider": "whatsapp_cloud",
+  "phoneNumberId": "100918273645",
+  "accessToken": "EAAX...",
+  "wabaId": "200192837465"
+}
+```
+  </Tab>
+
+  <Tab value="Push (APNs & FCM)">
+```json
+{
+  "provider": "apns",
+  "teamId": "DEF1234567",
+  "keyId": "ABC9876543",
+  "bundleId": "com.acme.app",
+  "privateKey": "-----BEGIN PRIVATE KEY-----\n..."
+}
+```
+  </Tab>
+</Tabs>
+
+---
+
 ## Dynamic Routing Strategies
 
 When dispatching messages, you can select one of four autonomous routing strategies:

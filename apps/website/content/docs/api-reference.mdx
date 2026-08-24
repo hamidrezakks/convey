@@ -1,6 +1,6 @@
 ---
 title: REST API Specification (OpenAPI 3.1)
-description: Complete REST API documentation for Convey message dispatch, bulk ingestion, cursor pagination, DLQ replay, suppressions, and telemetry.
+description: Complete REST API documentation for Convey message dispatch, bulk ingestion, cursor pagination, DLQ replay, suppressions, error codes dictionary, and telemetry.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
@@ -14,13 +14,50 @@ Convey exposes an **OpenAPI 3.1-compliant REST API** served via Elysia.js on por
 
 ## Authentication & Base URL
 
-All requests must include an API Key header:
+All requests must include an API Key in the `Authorization` header:
 
 ```http
 Authorization: Bearer cv_live_your_api_key_here
 ```
 
-Base URL: `http://localhost:3000/v1` (Production: `https://api.convey.internal/v1`)
+| Environment | Base URL |
+| :--- | :--- |
+| **Local Development** | `http://localhost:3000/v1` |
+| **Production VPC / Internal Gateway** | `https://api.convey.internal/v1` |
+| **Interactive Swagger UI** | `http://localhost:3000/swagger` |
+
+---
+
+## Standard Error Response Schema
+
+All error responses from Convey return an RFC 7807-compliant JSON body:
+
+```json
+{
+  "code": "ERR_RATE_LIMITED",
+  "message": "Tenant rate limit exceeded for quantum tier.",
+  "details": {
+    "tier": "FREE",
+    "currentRps": 25,
+    "limitRps": 10,
+    "retryAfterMs": 1250
+  },
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "timestamp": "2026-08-24T19:50:00.000Z"
+}
+```
+
+### Standard Error Codes Dictionary
+
+| Error Code | HTTP Status | Description | Action Required |
+| :--- | :--- | :--- | :--- |
+| `ERR_INVALID_PAYLOAD` | `400 Bad Request` | Missing required fields or schema validation failed | Correct payload schema |
+| `ERR_UNAUTHORIZED` | `401 Unauthorized` | Missing or invalid Bearer API key | Pass valid `cv_live_...` key |
+| `ERR_FORBIDDEN` | `403 Forbidden` | API key lacks permission for team or route | Check key workspace scope |
+| `ERR_MESSAGE_NOT_FOUND` | `404 Not Found` | Specified `msg_<ULID>` was not found | Verify message identifier |
+| `ERR_IDEMPOTENCY_CONFLICT`| `409 Conflict` | Same key submitted with differing payload | Use unique idempotency keys |
+| `ERR_RATE_LIMITED` | `429 Too Many Requests`| Token bucket rate limiter or DRR quantum exceeded | Backoff and retry with jitter |
+| `ERR_CIRCUIT_OPEN` | `503 Service Unavailable`| All downstream providers in fallback chain are OPEN | Wait for canary self-healing |
 
 ---
 
@@ -28,18 +65,18 @@ Base URL: `http://localhost:3000/v1` (Production: `https://api.convey.internal/v
 
 `POST /v1/messages/send`
 
-Ingests a single message into the fast-path pipeline.
+Ingests a single notification message into the fast-path pipeline with synchronous `202 Accepted` response.
 
 ### Headers
 
 | Header | Required | Description |
 | :--- | :--- | :--- |
-| `Authorization` | **Yes** | Bearer token |
+| `Authorization` | **Yes** | `Bearer cv_live_...` |
 | `Content-Type` | **Yes** | `application/json` |
 | `Idempotency-Key` | Recommended | Unique key to guarantee single-execution semantics |
-| `traceparent` | Optional | W3C Distributed Tracing header |
+| `traceparent` | Optional | W3C Distributed Tracing header (`00-<32hex>-<16hex>-01`) |
 
-### Request Body
+### Request Body Schema
 
 ```json
 {
@@ -51,7 +88,13 @@ Ingests a single message into the fast-path pipeline.
   },
   "routing": {
     "strategy": "SMART_SCORECARD",
-    "fallbackChain": ["vonage", "infobip"]
+    "fallbackChain": ["twilio", "vonage", "infobip"],
+    "retry": {
+      "maxAttempts": 3,
+      "backoff": "FULL_JITTER",
+      "initialIntervalMs": 500,
+      "maxIntervalMs": 3000
+    }
   },
   "metadata": {
     "userId": "usr_9921",
@@ -60,7 +103,80 @@ Ingests a single message into the fast-path pipeline.
 }
 ```
 
-### Response (`202 Accepted`)
+<Tabs items={['cURL', 'TypeScript', 'Python', 'Go']}>
+  <Tab value="cURL">
+```bash
+curl -X POST http://localhost:3000/v1/messages/send \
+  -H "Authorization: Bearer cv_live_demo_key" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: auth_msg_001" \
+  -d '{
+    "channel": "sms",
+    "recipient": "+14155552671",
+    "priority": "HIGH",
+    "content": { "body": "Your code is 849201." }
+  }'
+```
+  </Tab>
+  <Tab value="TypeScript">
+```typescript
+import { ConveyClient, MessagePriority } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: 'cv_live_demo_key' });
+const res = await convey.messages.send({
+  channel: 'sms',
+  recipient: '+14155552671',
+  priority: MessagePriority.HIGH,
+  content: { body: 'Your code is 849201.' },
+});
+```
+  </Tab>
+  <Tab value="Python">
+```python
+import asyncio
+from convey import ConveyClient
+
+async def main():
+    convey = ConveyClient(api_key="cv_live_demo_key")
+    res = await convey.messages.send(
+        channel="sms",
+        recipient="+14155552671",
+        priority="HIGH",
+        content={"body": "Your code is 849201."}
+    )
+    print(res.public_id)
+
+asyncio.run(main())
+```
+  </Tab>
+  <Tab value="Go">
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/convey/go-convey/convey"
+)
+
+func main() {
+	client := convey.NewClient("cv_live_demo_key")
+	res, err := client.Messages.Send(context.Background(), &convey.SendParams{
+		Channel:   "sms",
+		Recipient: "+14155552671",
+		Priority:  "HIGH",
+		Content:   convey.Content{Body: "Your code is 849201."},
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Accepted: %s\n", res.PublicID)
+}
+```
+  </Tab>
+</Tabs>
+
+### Expected Response (`202 Accepted`)
 
 ```json
 {
@@ -69,8 +185,8 @@ Ingests a single message into the fast-path pipeline.
   "channel": "sms",
   "recipient": "+14155552671",
   "priority": "HIGH",
-  "idempotencyKey": "ord_99218_dispatch",
-  "latencyMs": 1.42,
+  "idempotencyKey": "auth_msg_001",
+  "latencyMs": 1.14,
   "createdAt": "2026-08-24T19:50:00.000Z"
 }
 ```
@@ -81,24 +197,27 @@ Ingests a single message into the fast-path pipeline.
 
 `POST /v1/messages/bulk`
 
-Ingests up to 1,000 messages in a single atomic transaction.
-
-### Request Body
+Ingests up to 1,000 messages in a single atomic transaction:
 
 ```json
 {
+  "channel": "email",
+  "priority": "LOW",
   "messages": [
     {
-      "channel": "email",
-      "recipient": "user1@enterprise.io",
-      "content": { "subject": "Daily Digest", "body": "Hello user 1" }
+      "recipient": "user1@domain.com",
+      "content": { "subject": "Product Update", "body": "Hello User 1" },
+      "idempotencyKey": "bulk_u1_20260824"
     },
     {
-      "channel": "email",
-      "recipient": "user2@enterprise.io",
-      "content": { "subject": "Daily Digest", "body": "Hello user 2" }
+      "recipient": "user2@domain.com",
+      "content": { "subject": "Product Update", "body": "Hello User 2" },
+      "idempotencyKey": "bulk_u2_20260824"
     }
-  ]
+  ],
+  "metadata": {
+    "campaignId": "newsletter_august_2026"
+  }
 }
 ```
 
@@ -106,24 +225,28 @@ Ingests up to 1,000 messages in a single atomic transaction.
 
 ```json
 {
-  "batchId": "bat_01JB61Z89F8A3C1E2B4D5E6F88",
-  "total": 2,
-  "accepted": 2,
-  "failed": 0,
-  "messages": [
-    { "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F89", "status": "ACCEPTED" },
-    { "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F90", "status": "ACCEPTED" }
-  ]
+  "batchId": "batch_01JB61ZZ89901AA223344",
+  "status": "ACCEPTED",
+  "totalSubmitted": 2,
+  "totalAccepted": 2,
+  "totalRejected": 0,
+  "latencyMs": 4.82,
+  "createdAt": "2026-08-24T19:50:00.000Z"
 }
 ```
 
 ---
 
-## 3. Query Message Telemetry
+## 3. Query Message Status & Tracing
 
-`GET /v1/messages/:publicId`
+`GET /v1/messages/:id`
 
-Retrieves real-time status and delivery timeline for a given message ULID.
+Retrieves the lifecycle delivery status, carrier timeline, and W3C distributed trace waterfall for a message:
+
+```bash
+curl -X GET http://localhost:3000/v1/messages/msg_01JB61Z89F8A3C1E2B4D5E6F77 \
+  -H "Authorization: Bearer cv_live_demo_key"
+```
 
 ### Response (`200 OK`)
 
@@ -133,49 +256,72 @@ Retrieves real-time status and delivery timeline for a given message ULID.
   "status": "DELIVERED",
   "channel": "sms",
   "recipient": "+14155552671",
-  "attempts": 1,
-  "routedProvider": "twilio",
-  "timeline": [
-    { "status": "ACCEPTED", "timestamp": "2026-08-24T19:50:00.012Z" },
-    { "status": "QUEUED", "timestamp": "2026-08-24T19:50:00.018Z" },
-    { "status": "SENT", "timestamp": "2026-08-24T19:50:00.145Z" },
-    { "status": "DELIVERED", "timestamp": "2026-08-24T19:50:01.320Z" }
-  ]
+  "priority": "HIGH",
+  "provider": "twilio",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "attempts": [
+    {
+      "attempt": 1,
+      "provider": "twilio",
+      "status": "DELIVERED",
+      "latencyMs": 142.3,
+      "timestamp": "2026-08-24T19:50:01.142Z"
+    }
+  ],
+  "createdAt": "2026-08-24T19:50:00.000Z",
+  "deliveredAt": "2026-08-24T19:50:01.142Z"
 }
 ```
 
 ---
 
-## 4. Blast-Radius Controlled DLQ Replay
+## 4. Dead-Letter Queue (DLQ) & Mutated Replay
 
-`POST /v1/dlq/replay`
+`GET /v1/dlq` — Query dead-letter messages with root-cause clustering.
 
-Replays failed dead-lettered messages with dry-run simulations and mutated provider fallbacks.
+`POST /v1/dlq/replay` — Execute dry-run or live replay with mutated routing:
 
-### Request Body
-
-```json
-{
-  "dryRun": false,
-  "filter": {
-    "channel": "whatsapp",
-    "failureReason": "PROVIDER_5XX",
-    "timeRange": { "from": "2026-08-24T00:00:00Z", "to": "2026-08-24T12:00:00Z" }
-  },
-  "mutation": {
-    "overrideProvider": "infobip",
-    "maxConcurrency": 50
-  }
-}
+```bash
+curl -X POST http://localhost:3000/v1/dlq/replay \
+  -H "Authorization: Bearer cv_live_demo_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "since": "2026-08-24T00:00:00.000Z",
+    "failureReason": "PROVIDER_RATE_LIMIT_429",
+    "dryRun": false,
+    "overrideRouting": {
+      "strategy": "SMART_SCORECARD",
+      "rateLimitRps": 50
+    }
+  }'
 ```
 
-### Response (`200 OK`)
+---
 
-```json
-{
-  "replayedCount": 1420,
-  "successCount": 1420,
-  "failedCount": 0,
-  "status": "COMPLETED"
-}
+## 5. Suppression Lists
+
+`GET /v1/suppressions` — List suppressed recipient addresses (hard bounces, spam complaints).
+
+`POST /v1/suppressions` — Manually add an address to the global suppression list:
+
+```bash
+curl -X POST http://localhost:3000/v1/suppressions \
+  -H "Authorization: Bearer cv_live_demo_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient": "bad_email@invalid-domain.xyz",
+    "channel": "email",
+    "reason": "HARD_BOUNCE"
+  }'
 ```
+
+---
+
+## 6. Health & Readiness Probes
+
+| Endpoint | Method | Purpose | Response |
+| :--- | :--- | :--- | :--- |
+| `/health` | `GET` | Overall subsystem status | `{"status":"ok","version":"1.0.0"}` |
+| `/health/readiness` | `GET` | Kubernetes readiness probe (PostgreSQL 18 + DragonflyDB) | `{"ready":true,"checks":{"db":"connected","redis":"connected"}}` |
+| `/health/liveness` | `GET` | Kubernetes liveness probe | `{"alive":true}` |
+| `/metrics` | `GET` | Prometheus telemetry metrics scrape endpoint | Text/plain Prometheus format |

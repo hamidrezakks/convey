@@ -41,6 +41,10 @@ export function Navbar() {
             <Terminal className="w-3.5 h-3.5 text-slate-400" />
             <span>Playground</span>
           </a>
+          <a href="#recipes" className="flex items-center gap-1.5 hover:text-sky-400 transition-colors">
+            <Zap className="w-3.5 h-3.5 text-slate-400" />
+            <span>Recipes</span>
+          </a>
           <a href="#providers" className="flex items-center gap-1.5 hover:text-sky-400 transition-colors">
             <Radio className="w-3.5 h-3.5 text-slate-400" />
             <span>Providers</span>

@@ -69,6 +69,16 @@ export function Footer() {
             <h4 className="font-semibold text-slate-200 text-xs uppercase tracking-wider font-mono">Engineering</h4>
             <ul className="space-y-2">
               <li>
+                <Link href="/docs/examples" className="hover:text-sky-400 transition-colors">
+                  Architectural Recipes
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs/webhooks" className="hover:text-sky-400 transition-colors">
+                  Inbound Webhooks & DLR
+                </Link>
+              </li>
+              <li>
                 <Link href="/docs/benchmarks" className="hover:text-sky-400 transition-colors">
                   HDR Percentiles & SLA
                 </Link>
@@ -82,11 +92,6 @@ export function Footer() {
                 <Link href="/docs/sdks" className="hover:text-sky-400 transition-colors">
                   TypeScript, Python & Go
                 </Link>
-              </li>
-              <li>
-                <a href="#playground" className="hover:text-sky-400 transition-colors">
-                  Interactive API Playground
-                </a>
               </li>
             </ul>
           </div>

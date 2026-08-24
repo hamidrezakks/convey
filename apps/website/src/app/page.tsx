@@ -1,5 +1,6 @@
 import { ArchitectureVisualizer } from '@/components/landing/ArchitectureVisualizer';
 import { BenchmarkSection } from '@/components/landing/BenchmarkSection';
+import { CodeRecipesSection } from '@/components/landing/CodeRecipesSection';
 import { FeatureGrid } from '@/components/landing/FeatureGrid';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { OmnichannelPlayground } from '@/components/landing/OmnichannelPlayground';
@@ -22,6 +23,9 @@ export default function HomePage() {
         </div>
         <div id="playground">
           <OmnichannelPlayground />
+        </div>
+        <div id="recipes">
+          <CodeRecipesSection />
         </div>
         <WhatsAppRoiCalculator />
         <div id="providers">
