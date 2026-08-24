@@ -1,19 +1,28 @@
 import type React from 'react';
 import { cn } from '../../lib/utils';
 
-export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  containerClassName?: string;
+}
+
+export function Table({ className, containerClassName, ...props }: TableProps) {
   return (
-    <div className="relative w-full overflow-auto">
+    <div className={cn('relative w-full overflow-auto custom-scrollbar', containerClassName)}>
       <table className={cn('w-full caption-bottom text-sm text-start rtl:text-right', className)} {...props} />
     </div>
   );
 }
 
-export function TableHeader({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
+export interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {
+  sticky?: boolean;
+}
+
+export function TableHeader({ className, sticky, ...props }: TableHeaderProps) {
   return (
     <thead
       className={cn(
         '[&_tr]:border-b border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/80 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-start rtl:text-right select-none',
+        sticky && 'sticky top-0 z-10 backdrop-blur-md bg-slate-50/95 dark:bg-slate-900/95 shadow-2xs',
         className,
       )}
       {...props}
@@ -64,4 +73,20 @@ export function TableCell({ className, ...props }: React.TdHTMLAttributes<HTMLTa
       {...props}
     />
   );
+}
+
+export function TableFooter({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
+  return (
+    <tfoot
+      className={cn(
+        'border-t border-slate-200/90 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 font-medium text-slate-500 dark:text-slate-400 text-xs',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function TableCaption({ className, ...props }: React.HTMLAttributes<HTMLTableCaptionElement>) {
+  return <caption className={cn('mt-4 text-xs text-slate-500 dark:text-slate-400', className)} {...props} />;
 }
