@@ -42,3 +42,13 @@ export const policyKeys = {
   all: ['policies'] as const,
   list: () => [...policyKeys.all, 'list'] as const,
 };
+
+export const reportKeys = {
+  all: ['reports'] as const,
+  overview: (filters?: Record<string, unknown>) => [...reportKeys.all, 'overview', filters] as const,
+  teams: (filters?: Record<string, unknown>) => [...reportKeys.all, 'teams', filters] as const,
+  categories: (filters?: Record<string, unknown>) => [...reportKeys.all, 'categories', filters] as const,
+  campaigns: (filters?: Record<string, unknown>) => [...reportKeys.all, 'campaigns', filters] as const,
+  campaignDetail: (id: string, filters?: Record<string, unknown>) =>
+    [...reportKeys.all, 'campaignDetail', id, filters] as const,
+};

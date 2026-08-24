@@ -74,8 +74,11 @@ export const hi: TranslationSchema = {
     groupOpsTools: 'संचार उपकरण',
     overview: 'अवलोकन',
     overviewBadge: 'लाइव',
+    reports: 'रिपोर्ट और विश्लेषण',
+    reportsBadge: 'अंतर्दृष्टि',
     messages: 'संदेश',
     architecture: 'सिस्टम आर्किटेक्चर',
+
     providers: 'प्रदाता',
     providersBadge: '88 उपलब्ध',
     providerConfig: 'प्रदाता कॉन्फ़िगरेशन',

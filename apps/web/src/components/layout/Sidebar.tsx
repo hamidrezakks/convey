@@ -2,6 +2,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   Check,
   ChevronDown,
   Cpu,
@@ -52,6 +53,13 @@ export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         badgeKey: 'nav.overviewBadge',
         badgeVariant: 'emerald',
         badgeDot: true,
+      },
+      {
+        path: '/reports',
+        labelKey: 'nav.reports',
+        icon: BarChart3,
+        rawBadge: 'Analytics',
+        badgeVariant: 'cyan',
       },
       {
         path: '/messages',
@@ -117,6 +125,13 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         badgeDot: true,
       },
       {
+        path: '/reports',
+        labelKey: 'nav.reports',
+        icon: BarChart3,
+        rawBadge: 'Budgets & ROI',
+        badgeVariant: 'emerald',
+      },
+      {
         path: '/messages',
         labelKey: 'nav.messages',
         icon: Inbox,
@@ -125,6 +140,7 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
       },
     ],
   },
+
   {
     groupKey: 'nav.groupOpsChannels',
     items: [

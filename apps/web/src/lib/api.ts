@@ -1,5 +1,8 @@
 import type {
   AuditLogDto,
+  CampaignDetailDto,
+  CampaignsReportResponse,
+  CategoriesReportResponse,
   Channel,
   ConfiguredProviderDto,
   DlqReplayRequest,
@@ -14,8 +17,10 @@ import type {
   ProviderProxyConfig,
   ProxyDiagnosticResult,
   RegisterProviderRequest,
+  ReportingOverviewResponse,
   SuppressionDto,
   SuppressionReason,
+  TeamsReportResponse,
   TestConnectionResult,
   WebhookSubscriptionDto,
 } from '@convey/shared';
@@ -331,5 +336,123 @@ export const api = {
 
   async deleteWebhookSubscription(id: string): Promise<{ success: boolean }> {
     return httpClient.delete(`webhook-subscriptions/${id}`, { prefix: '/v1' }).json<{ success: boolean }>();
+  },
+
+  // --- Multi-Dimension Analytics & Delivery Reporting ---
+  async getReportingOverview(params?: {
+    startDate?: string;
+    endDate?: string;
+    teamId?: string;
+    category?: string;
+    campaignId?: string;
+    isSandbox?: boolean;
+  }): Promise<ReportingOverviewResponse> {
+    const searchParams: Record<string, string> = {};
+    if (params?.startDate) searchParams.startDate = params.startDate;
+    if (params?.endDate) searchParams.endDate = params.endDate;
+    if (params?.teamId) searchParams.teamId = params.teamId;
+    if (params?.category) searchParams.category = params.category;
+    if (params?.campaignId) searchParams.campaignId = params.campaignId;
+    if (typeof params?.isSandbox === 'boolean') searchParams.isSandbox = String(params.isSandbox);
+
+    return httpClient.get('reports/overview', { searchParams }).json<ReportingOverviewResponse>();
+  },
+
+  async getTeamReports(params?: {
+    startDate?: string;
+    endDate?: string;
+    teamId?: string;
+    isSandbox?: boolean;
+  }): Promise<TeamsReportResponse> {
+    const searchParams: Record<string, string> = {};
+    if (params?.startDate) searchParams.startDate = params.startDate;
+    if (params?.endDate) searchParams.endDate = params.endDate;
+    if (params?.teamId) searchParams.teamId = params.teamId;
+    if (typeof params?.isSandbox === 'boolean') searchParams.isSandbox = String(params.isSandbox);
+
+    return httpClient.get('reports/teams', { searchParams }).json<TeamsReportResponse>();
+  },
+
+  async getCategoryReports(params?: {
+    startDate?: string;
+    endDate?: string;
+    teamId?: string;
+    category?: string;
+    isSandbox?: boolean;
+  }): Promise<CategoriesReportResponse> {
+    const searchParams: Record<string, string> = {};
+    if (params?.startDate) searchParams.startDate = params.startDate;
+    if (params?.endDate) searchParams.endDate = params.endDate;
+    if (params?.teamId) searchParams.teamId = params.teamId;
+    if (params?.category) searchParams.category = params.category;
+    if (typeof params?.isSandbox === 'boolean') searchParams.isSandbox = String(params.isSandbox);
+
+    return httpClient.get('reports/categories', { searchParams }).json<CategoriesReportResponse>();
+  },
+
+  async getCampaignReports(params?: {
+    search?: string;
+    teamId?: string;
+    category?: string;
+    campaignId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+    isSandbox?: boolean;
+  }): Promise<CampaignsReportResponse> {
+    const searchParams: Record<string, string | number> = {};
+    if (params?.search) searchParams.search = params.search;
+    if (params?.teamId) searchParams.teamId = params.teamId;
+    if (params?.category) searchParams.category = params.category;
+    if (params?.campaignId) searchParams.campaignId = params.campaignId;
+    if (params?.startDate) searchParams.startDate = params.startDate;
+    if (params?.endDate) searchParams.endDate = params.endDate;
+    if (params?.page) searchParams.page = params.page;
+    if (params?.limit) searchParams.limit = params.limit;
+    if (typeof params?.isSandbox === 'boolean') searchParams.isSandbox = String(params.isSandbox);
+
+    return httpClient.get('reports/campaigns', { searchParams }).json<CampaignsReportResponse>();
+  },
+
+  async getCampaignDetails(campaignId: string, isSandbox?: boolean): Promise<CampaignDetailDto> {
+    const searchParams: Record<string, string> = {};
+    if (typeof isSandbox === 'boolean') searchParams.isSandbox = String(isSandbox);
+
+    return httpClient
+      .get(`reports/campaigns/${encodeURIComponent(campaignId)}`, { searchParams })
+      .json<CampaignDetailDto>();
+  },
+
+  async downloadReport(
+    type: 'teams' | 'categories' | 'campaigns' | 'overview',
+    format: 'csv' | 'json',
+    params?: {
+      startDate?: string;
+      endDate?: string;
+      teamId?: string;
+      category?: string;
+      campaignId?: string;
+      isSandbox?: boolean;
+    },
+  ): Promise<void> {
+    const searchParams: Record<string, string> = { type, format };
+    if (params?.startDate) searchParams.startDate = params.startDate;
+    if (params?.endDate) searchParams.endDate = params.endDate;
+    if (params?.teamId) searchParams.teamId = params.teamId;
+    if (params?.category) searchParams.category = params.category;
+    if (params?.campaignId) searchParams.campaignId = params.campaignId;
+    if (typeof params?.isSandbox === 'boolean') searchParams.isSandbox = String(params.isSandbox);
+
+    const response = await httpClient.get('reports/export', { searchParams });
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `convey_report_${type}_${new Date().toISOString().slice(0, 10)}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   },
 };

@@ -74,8 +74,11 @@ export const ar: TranslationSchema = {
     groupOpsTools: 'أدوات التواصل',
     overview: 'نظرة عامة',
     overviewBadge: 'مباشر',
+    reports: 'التقارير والتحليلات',
+    reportsBadge: 'إحصائيات',
     messages: 'الرسائل',
     architecture: 'البنية الهندسية',
+
     providers: 'المزودون',
     providersBadge: '88 جاهز',
     providerConfig: 'إعداد المزود',
