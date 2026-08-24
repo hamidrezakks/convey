@@ -1,0 +1,52 @@
+{
+  "name": "@convey/sdk",
+  "version": "1.0.0",
+  "description": "Official zero-dependency Node.js, Bun, and Edge SDK for the Convey communication service",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "require": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "keywords": [
+    "convey",
+    "sdk",
+    "communication",
+    "email",
+    "sms",
+    "whatsapp",
+    "push",
+    "slack",
+    "messaging",
+    "resilience",
+    "idempotency"
+  ],
+  "author": "Convey",
+  "license": "MIT"
+}

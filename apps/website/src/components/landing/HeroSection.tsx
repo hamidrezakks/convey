@@ -12,7 +12,7 @@ export function HeroSection() {
 
   const installCommands = {
     docker: 'docker compose up -d',
-    bun: 'bun add @convey/client',
+    bun: 'bun add @convey/sdk',
     curl: 'curl -X POST http://localhost:3000/v1/messages/send -H "Authorization: Bearer cv_live_..."',
   };
 

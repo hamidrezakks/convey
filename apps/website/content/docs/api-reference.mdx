@@ -120,13 +120,13 @@ curl -X POST http://localhost:3000/v1/messages/send \
   </Tab>
   <Tab value="TypeScript">
 ```typescript
-import { ConveyClient, MessagePriority } from '@convey/client';
+import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({ apiKey: 'cv_live_demo_key' });
+const convey = new Convey({ apiKey: 'sk_live_demo_key' });
 const res = await convey.messages.send({
-  channel: 'sms',
+  channel: 'SMS',
   recipient: '+14155552671',
-  priority: MessagePriority.HIGH,
+  priority: 'HIGH',
   content: { body: 'Your code is 849201.' },
 });
 ```

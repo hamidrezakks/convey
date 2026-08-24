@@ -44,23 +44,19 @@ const recipes: Recipe[] = [
     description:
       'Dispatches an authentication code via SMS, and automatically falls back to WhatsApp and Voice if the primary SMS provider encounters carrier rate limits or delivery degradation.',
     languages: {
-      ts: `import { ConveyClient, MessagePriority, RoutingStrategy } from '@convey/client';
+      ts: `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
 
 export async function dispatchTwoFactorOtp(userId: string, phone: string, code: string) {
   return await convey.messages.send({
-    channel: 'sms',
+    channel: 'SMS',
     recipient: phone,
-    priority: MessagePriority.HIGH,
+    priority: 'CRITICAL',
     content: {
       body: \`Your security verification code is \${code}. Valid for 10 minutes.\`,
     },
-    routing: {
-      strategy: RoutingStrategy.PRIMARY_FALLBACK,
-      fallbackChain: ['twilio', 'vonage', 'infobip'],
-      retry: { maxAttempts: 3, backoff: 'FULL_JITTER' },
-    },
+    category: 'SECURITY',
     idempotencyKey: \`otp_\${userId}_\${Math.floor(Date.now() / 60000)}\`,
   });
 }`,
@@ -110,25 +106,17 @@ async def send_2fa_otp(user_id: str, phone: str, code: str):
     description:
       'Convey checks DragonflyDB for an active 24h user reply session. If valid, expensive Meta marketing templates ($0.05) are transformed into $0.00 plain-text session messages automatically.',
     languages: {
-      ts: `import { ConveyClient } from '@convey/client';
+      ts: `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
 
 export async function sendShippingUpdate(phone: string, orderId: string, url: string) {
-  // DragonflyDB session key evaluated: whatsapp:session:<team>:<phone>
   return await convey.messages.send({
-    channel: 'whatsapp',
+    channel: 'WHATSAPP',
     recipient: phone,
     content: {
-      body: \`Your order #\${orderId} is out for delivery! Track live: \${url}\`,
-      template: {
-        name: 'shipping_update_v2',
-        language: 'en_US',
-        components: [
-          { type: 'body', parameters: [{ type: 'text', text: orderId }] },
-          { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: url }] },
-        ],
-      },
+      templateId: 'shipping_update_v2',
+      variables: { orderId, trackingUrl: url },
     },
     metadata: { orderId, costOptimization: 'AUTOPILOT_ENABLED' },
   });
@@ -140,32 +128,31 @@ export async function sendShippingUpdate(phone: string, orderId: string, url: st
     "channel": "whatsapp",
     "recipient": "+14155552671",
     "content": {
-      "body": "Your order #ORD-9912 is out for delivery!",
+      "body": "Your order has shipped!",
       "template": { "name": "shipping_update_v2", "language": "en_US" }
-    },
-    "metadata": { "costOptimization": "AUTOPILOT_ENABLED" }
+    }
   }'`,
       py: `from convey import ConveyClient
 
 convey = ConveyClient(api_key="cv_live_sec_key_99218")
 
-async def send_whatsapp_order_update(phone: str, order_id: str):
+async def send_whatsapp_update(phone: str, order_id: str, url: str):
     return await convey.messages.send(
         channel="whatsapp",
         recipient=phone,
-        content={"body": f"Order #{order_id} has shipped!"},
-        metadata={"costOptimization": "AUTOPILOT_ENABLED"}
+        content={"template": {"name": "shipping_update_v2"}},
+        metadata={"order_id": order_id}
     )`,
     },
     expectedResponse: {
       status: '202 ACCEPTED',
-      latency: '0.9ms',
-      trace: '00-98dca71822e14ef6a2b84910248c0812-33fa81028ba9012a-01',
-      body: '{\n  "publicId": "msg_01JB61ZZ89901AA223344",\n  "status": "ACCEPTED",\n  "appliedCost": "$0.00 (Active Session)",\n  "channel": "whatsapp"\n}',
+      latency: '1.8ms',
+      trace: '00-99e8a7b6c5d4e3f2a1b0c9d8e7f6a5b4-00f067aa0ba902b7-01',
+      body: '{\n  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",\n  "status": "ACCEPTED",\n  "costUsd": 0.0,\n  "sessionTransformed": true\n}',
     },
   },
   {
-    id: 'drr-bulk-blast',
+    id: 'drr-bulk-broadcast',
     title: '3. Mass Marketing Campaign with Deficit Round Robin (DRR) Pacing',
     shortTitle: 'DRR Bulk Broadcast',
     category: 'High Throughput',
@@ -176,26 +163,23 @@ async def send_whatsapp_order_update(phone: str, order_id: str):
     description:
       'Broadcast 100,000+ marketing emails without starving critical transactional OTPs. Deficit Round Robin quantum scheduling prioritizes high-priority traffic.',
     languages: {
-      ts: `import { ConveyClient, MessagePriority } from '@convey/client';
+      ts: `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
 
 export async function broadcastNewsletter(subscribers: string[], campaignId: string) {
   const items = subscribers.map((email, idx) => ({
+    channel: 'EMAIL' as const,
     recipient: email,
+    priority: 'LOW' as const,
     content: { subject: 'Product Update', body: 'Convey v1.0 is live!' },
     idempotencyKey: \`camp_\${campaignId}_\${idx}\`,
   }));
 
-  // Chunk into 500-message atomic micro-batches for PostgreSQL 18
+  // Chunk into 500-message atomic micro-batches for 1-RTT outbox ingestion
   for (let i = 0; i < items.length; i += 500) {
     const chunk = items.slice(i, i + 500);
-    await convey.messages.sendBulk({
-      channel: 'email',
-      priority: MessagePriority.LOW, // Low DRR quantum
-      messages: chunk,
-      metadata: { campaignId },
-    });
+    await convey.messages.sendBulk(chunk);
   }
 }`,
       curl: `curl -X POST https://api.convey.internal/v1/messages/bulk \\
@@ -236,16 +220,15 @@ async def send_bulk_newsletter(subscribers: list[str]):
     description:
       'All recipient handles, message bodies, and sensitive variables are encrypted with unique IVs before storage in PostgreSQL 18. Plaintext exists only during active provider socket transport.',
     languages: {
-      ts: `import { ConveyClient } from '@convey/client';
+      ts: `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({
+const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
-  encryptionKey: process.env.CONVEY_MASTER_ENCRYPTION_KEY!,
 });
 
 export async function sendMedicalPrescriptionNotice(patientPhone: string, rxId: string) {
   return await convey.messages.send({
-    channel: 'sms',
+    channel: 'SMS',
     recipient: patientPhone, // Encrypted at rest
     content: {
       body: \`Your prescription #\${rxId} is ready for pickup at Main Pharmacy.\`,
@@ -296,22 +279,17 @@ async def send_hipaa_notification(phone: str, rx_id: str):
     description:
       'When an infrastructure alert triggers, Convey speculatively fires a concurrent hedged request to a secondary provider if the primary does not acknowledge within 200ms.',
     languages: {
-      ts: `import { ConveyClient, MessagePriority } from '@convey/client';
+      ts: `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
 
 export async function triggerPagerDutyP1Alert(incidentId: string, title: string) {
   return await convey.messages.send({
-    channel: 'chat',
-    recipient: 'pagerduty:service_key_prd_991',
-    priority: MessagePriority.HIGH,
+    channel: 'SLACK',
+    recipient: 'C0891234567',
+    priority: 'CRITICAL',
     content: {
       body: \`🚨 P1 CRITICAL INCIDENT #\${incidentId}: \${title}\`,
-    },
-    routing: {
-      strategy: 'HEDGED_SPECULATIVE',
-      hedgedDelayMs: 200, // Speculatively race fallback if primary takes > 200ms
-      fallbackChain: ['pagerduty', 'slack_ops', 'twilio_voice'],
     },
     metadata: { incidentId, severity: 'P1' },
   });
@@ -362,23 +340,21 @@ async def send_p1_alert(incident_id: str, desc: str):
     description:
       'Verify cryptographic signatures for inbound carrier webhooks (SendGrid, Twilio, WhatsApp). Micro-batch pipeline buffers up to 52,000 events/s with zero dropped receipts.',
     languages: {
-      ts: `import { ConveyWebhookVerifier } from '@convey/client';
-
-const verifier = new ConveyWebhookVerifier(process.env.CONVEY_WEBHOOK_SECRET!);
+      ts: `import { Convey } from '@convey/sdk';
 
 export async function handleDeliveryWebhook(req: Request) {
-  const signature = req.headers.get('x-convey-signature')!;
+  const signature = req.headers.get('x-convey-signature') || '';
   const rawBody = await req.text();
 
-  // 1. Constant-time cryptographic HMAC-SHA256 signature verification
-  const isValid = verifier.verify(rawBody, signature);
-  if (!isValid) {
-    return new Response('Unauthorized Signature', { status: 401 });
-  }
+  // 1. Constant-time cryptographic HMAC-SHA256 signature verification & deserialization
+  const event = await Convey.webhooks.constructEvent(
+    rawBody,
+    signature,
+    process.env.CONVEY_WEBHOOK_SECRET!,
+  );
 
-  const payload = JSON.parse(rawBody);
-  console.log(\`Delivery receipt for \${payload.publicId}: status = \${payload.status}\`);
-  return new Response(JSON.stringify({ received: true }), { status: 200 });
+  console.log(\`Delivery receipt for \${event.id}: status = \${event.type}\`);
+  return Response.json({ received: true });
 }`,
       curl: `curl -X POST http://localhost:3000/v1/webhooks/generic \\
   -H "Content-Type: application/json" \\
