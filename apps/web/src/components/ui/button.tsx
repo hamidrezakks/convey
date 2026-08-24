@@ -10,26 +10,27 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', isLoading = false, children, disabled, ...props }, ref) => {
     const baseStyles =
-      'inline-flex items-center justify-center font-medium transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/40 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98] cursor-pointer';
+      'inline-flex items-center justify-center font-medium transition-all duration-150 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98] cursor-pointer';
 
     const variants = {
-      primary: 'bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold shadow-xs hover:shadow-sm',
+      primary:
+        'bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold shadow-xs hover:shadow-sm dark:bg-sky-400 dark:hover:bg-sky-300 dark:text-slate-950',
       secondary:
-        'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700/60 shadow-2xs',
+        'bg-slate-100 hover:bg-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-700/90 text-slate-800 dark:text-slate-100 border border-slate-200/90 dark:border-slate-700/70 shadow-2xs',
       outline:
-        'border border-slate-200/90 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700 text-slate-700 hover:bg-slate-100/80 dark:text-slate-200 dark:hover:bg-slate-800/60 bg-white/50 dark:bg-slate-900/40 shadow-2xs',
+        'border border-slate-200/90 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700 text-slate-700 hover:bg-slate-100/80 dark:text-slate-200 dark:hover:bg-slate-800/60 bg-white/80 dark:bg-slate-900/60 shadow-2xs',
       ghost:
-        'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60',
-      destructive: 'bg-rose-600 hover:bg-rose-500 text-white shadow-xs',
+        'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/70',
+      destructive: 'bg-rose-600 hover:bg-rose-500 text-white shadow-xs dark:bg-rose-600 dark:hover:bg-rose-500',
       glow: 'bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 text-slate-950 font-semibold shadow-xs hover:shadow-sm',
       subtle:
         'bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/40 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800',
     };
 
     const sizes = {
-      sm: 'text-xs px-2.5 py-1.5 gap-1.5',
-      md: 'text-xs sm:text-sm px-3.5 py-2 gap-2',
-      lg: 'text-sm sm:text-base px-5 py-2.5 gap-2.5',
+      sm: 'text-xs px-2.5 py-1.5 gap-1.5 h-8',
+      md: 'text-xs sm:text-sm px-3.5 py-2 gap-2 h-9',
+      lg: 'text-sm sm:text-base px-5 py-2.5 gap-2.5 h-10',
       icon: 'p-2 w-9 h-9',
     };
 

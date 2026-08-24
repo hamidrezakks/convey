@@ -187,17 +187,19 @@ export function ProvidersPage() {
                         <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                           {(p.rollingSuccessRatePercent ?? 100).toFixed(1)}%
                         </TableCell>
-                        <TableCell className="text-end rtl:text-left">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
-                            onClick={() => canaryMutation.mutate(p.providerId)}
-                            className="h-7 text-xs gap-1"
-                          >
-                            <Sparkles className="w-3 h-3 text-sky-500" />
-                            <span>Test</span>
-                          </Button>
+                        <TableCell className="text-end rtl:text-left whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
+                              onClick={() => canaryMutation.mutate(p.providerId)}
+                              className="h-7 px-2.5 text-xs font-medium rounded-lg border-slate-200 dark:border-slate-800 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-400 dark:hover:border-sky-700/60 transition-all gap-1 shadow-2xs"
+                            >
+                              <Sparkles className="w-3 h-3 text-sky-500 shrink-0" />
+                              <span>Test</span>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -396,28 +398,30 @@ export function ProvidersPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="text-end rtl:text-left space-x-2 rtl:space-x-reverse">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
-                            onClick={() => canaryMutation.mutate(p.providerId)}
-                            className="h-7 text-xs gap-1 hover:border-sky-500/40"
-                            title={t('providers.canaryTrigger')}
-                          >
-                            <Sparkles className="w-3 h-3 text-sky-500 dark:text-sky-400" />
-                            <span>Canary</span>
-                          </Button>
+                        <TableCell className="text-end rtl:text-left whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
+                              onClick={() => canaryMutation.mutate(p.providerId)}
+                              className="h-7 px-2.5 text-xs font-medium rounded-lg border-slate-200 dark:border-slate-800 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-400 dark:hover:border-sky-700/60 transition-all gap-1 shadow-2xs"
+                              title={t('providers.canaryTrigger')}
+                            >
+                              <Sparkles className="w-3 h-3 text-sky-500 dark:text-sky-400 shrink-0" />
+                              <span>Canary</span>
+                            </Button>
 
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenOverrideModal(p)}
-                            className="h-7 text-xs gap-1 hover:border-amber-500/40"
-                          >
-                            <Sliders className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-                            <span>{t('common.edit')}</span>
-                          </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenOverrideModal(p)}
+                              className="h-7 px-2.5 text-xs font-medium rounded-lg border-slate-200 dark:border-slate-800 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white transition-all gap-1 shadow-2xs"
+                            >
+                              <Sliders className="w-3 h-3 text-slate-500 dark:text-slate-400 shrink-0" />
+                              <span>{t('common.edit')}</span>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

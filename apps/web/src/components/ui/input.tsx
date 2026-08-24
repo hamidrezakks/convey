@@ -9,14 +9,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className
   return (
     <div className="relative flex items-center w-full">
       {icon && (
-        <div className="absolute left-3 text-slate-400 dark:text-slate-400 pointer-events-none flex items-center">
+        <div className="absolute left-3 rtl:left-auto rtl:right-3 text-slate-400 dark:text-slate-500 pointer-events-none flex items-center shrink-0">
           {icon}
         </div>
       )}
       <input
         type={type}
         className={cn(
-          'flex h-9 w-full rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 px-3 py-1.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/60 disabled:cursor-not-allowed disabled:opacity-50 transition-all shadow-2xs',
+          'flex h-9 w-full rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 px-3 py-1.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 focus-visible:border-sky-500/60 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-150 shadow-2xs',
           icon ? 'pl-9 rtl:pl-3 rtl:pr-9' : '',
           className,
         )}

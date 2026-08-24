@@ -33,7 +33,7 @@ export function TabsList({ className, ...props }: React.HTMLAttributes<HTMLDivEl
   return (
     <div
       className={cn(
-        'inline-flex h-9 sm:h-10 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900/90 p-1 text-slate-500 dark:text-slate-400 border border-slate-200/90 dark:border-slate-800/80 gap-1 select-none',
+        'inline-flex h-9 sm:h-10 items-center justify-center rounded-xl bg-slate-100/90 dark:bg-slate-900/90 p-1 text-slate-500 dark:text-slate-400 border border-slate-200/90 dark:border-slate-800/80 gap-1 select-none shadow-2xs',
         className,
       )}
       {...props}
@@ -59,7 +59,7 @@ export function TabsTrigger({
       type="button"
       onClick={() => context?.onValueChange(value)}
       className={cn(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1 text-xs font-medium transition-all duration-150 focus:outline-none disabled:pointer-events-none disabled:opacity-50 cursor-pointer',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1 text-xs font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none',
         isSelected
           ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shadow-xs border border-slate-200/90 dark:border-slate-700/80'
           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',

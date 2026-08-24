@@ -253,7 +253,7 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
   return (
     <aside
       className={cn(
-        'h-screen bg-white/95 dark:bg-[#0c121e]/95 border-r rtl:border-r-0 rtl:border-l border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-50 md:z-20 transition-all duration-200 backdrop-blur-md',
+        'h-screen bg-white/95 dark:bg-[#0d1322]/95 border-r rtl:border-r-0 rtl:border-l border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-50 md:z-20 transition-all duration-200 backdrop-blur-md',
         isMobileOpen
           ? 'fixed inset-y-0 left-0 rtl:left-auto rtl:right-0 w-72 shadow-xl translate-x-0'
           : 'hidden md:flex',

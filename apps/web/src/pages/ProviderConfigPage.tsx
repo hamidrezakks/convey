@@ -1893,9 +1893,10 @@ export function ProviderConfigPage() {
                     <Combobox
                       items={Object.entries(CURRENCY_REGISTRY).map(([code, meta]) => ({
                         value: code,
-                        label: `${meta.flagEmoji} ${code} - ${meta.name} (${meta.symbol})`,
+                        label: `${meta.flagEmoji} ${meta.name}`,
                         sublabel: meta.symbol,
                         badge: code,
+                        keywords: [code, meta.name, meta.symbol],
                       }))}
                       value={baseCurrency}
                       onChange={(val) => setBaseCurrency(val || 'USD')}
@@ -1903,6 +1904,7 @@ export function ProviderConfigPage() {
                       searchPlaceholder="Search currency (e.g. USD, EUR, AED, GBP, JPY)..."
                       showCategoryTabs={false}
                     />
+
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
                       {t('providerConfig.baseCurrencyHelp')}
                     </p>

@@ -231,8 +231,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
     setSearchQuery('');
   };
 
+  const hasExplicitGroups = useMemo(() => {
+    return Boolean((groups && groups.length > 0) || items.some((i) => Boolean(i.group)));
+  }, [groups, items]);
+
   return (
-    <div ref={containerRef} className={cn('relative w-full select-none', className)}>
+    <div ref={containerRef} className={cn('relative w-full select-none', isOpen && 'z-50', className)}>
       {/* Trigger Button */}
       <button
         type="button"
@@ -297,7 +301,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
       {isOpen && (
         <div
           className={cn(
-            'absolute left-0 top-[calc(100%+8px)] z-50 w-full min-w-[340px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 backdrop-blur-2xl animate-in fade-in-0 zoom-in-95 duration-150',
+            'absolute left-0 top-[calc(100%+8px)] z-[100] w-full min-w-[340px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 backdrop-blur-2xl animate-in fade-in-0 zoom-in-95 duration-150',
             popoverClassName,
           )}
         >
@@ -393,13 +397,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
               filteredGroups.map((group) => {
                 return (
                   <div key={group.label} className="space-y-1">
-                    {/* Group Header */}
-                    <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
-                      <span>{group.label}</span>
-                      <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
-                        {group.items.length}
-                      </span>
-                    </div>
+                    {/* Group Header (only when explicitly grouped) */}
+                    {hasExplicitGroups && (
+                      <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
+                        <span>{group.label}</span>
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                          {group.items.length}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Group Items */}
                     <div className="space-y-1 pt-0.5">
