@@ -120,23 +120,23 @@ export async function verifyWebhookSignature(
 /**
  * Parse and verify incoming webhook event payload.
  */
-export async function constructWebhookEvent<T = ConveyWebhookEvent>(
+export async function constructWebhookEvent<T = Record<string, unknown>>(
   payload: string | Uint8Array,
   signatureHeader: string,
   secret: string,
   toleranceSeconds = 300,
-): Promise<T> {
+): Promise<ConveyWebhookEvent<T>> {
   const isValid = await verifyWebhookSignature(payload, signatureHeader, secret, toleranceSeconds);
   if (!isValid) {
-    throw new ConveySecurityError(
-      'Webhook signature verification failed: invalid signature or expired timestamp.',
-    );
+    throw new ConveySecurityError('Webhook signature verification failed: invalid signature or expired timestamp.');
   }
 
   const rawText = typeof payload === 'string' ? payload : new TextDecoder().decode(payload);
   try {
-    return JSON.parse(rawText) as T;
+    return JSON.parse(rawText) as ConveyWebhookEvent<T>;
   } catch (err) {
     throw new ConveySecurityError(`Failed to parse webhook JSON payload: ${(err as Error).message}`);
   }
 }
+
+export const constructEvent = constructWebhookEvent;

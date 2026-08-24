@@ -52,10 +52,7 @@ export class DlqResource {
   /**
    * Auto-paginating async iterator for Dead-Letter Queue messages.
    */
-  listAutoPaging(
-    query?: Omit<ListDlqQuery, 'offset'>,
-    options?: RequestOptions,
-  ): AutoPaginator<MessageDetailDto> {
+  listAutoPaging(query?: Omit<ListDlqQuery, 'offset'>, options?: RequestOptions): AutoPaginator<MessageDetailDto> {
     const limit = query?.limit || 50;
     return new AutoPaginator<MessageDetailDto>(async (offset) => {
       const page = await this.list({ ...query, limit, offset }, options);
@@ -70,10 +67,7 @@ export class DlqResource {
   /**
    * Replay failed messages through the outbox delivery pipeline.
    */
-  async replay(
-    request: DlqReplayRequest | string[],
-    options?: RequestOptions,
-  ): Promise<DlqReplayResult> {
+  async replay(request: DlqReplayRequest | string[], options?: RequestOptions): Promise<DlqReplayResult> {
     const payload = Array.isArray(request) ? { messageIds: request } : request;
     return this.http.request<DlqReplayResult>('/v1/dlq/replay', {
       method: 'POST',
@@ -85,10 +79,7 @@ export class DlqResource {
   /**
    * Run a dry-run simulation or execute a mutated DLQ replay with adjusted concurrency and backoff.
    */
-  async replayMutated(
-    request: DlqMutatedReplayRequest,
-    options?: RequestOptions,
-  ): Promise<DlqMutatedReplayResult> {
+  async replayMutated(request: DlqMutatedReplayRequest, options?: RequestOptions): Promise<DlqMutatedReplayResult> {
     return this.http.request<DlqMutatedReplayResult>('/v1/dlq/replay-mutated', {
       method: 'POST',
       body: request,

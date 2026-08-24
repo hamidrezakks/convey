@@ -1,15 +1,16 @@
 /**
- * @convey/sdk - Webhooks Resource Client & Cryptographic Verification
- * Webhook subscription management and HMAC-SHA256 signature verification with tolerance windows.
+ * @convey/sdk - Webhooks Resource Client
+ * Webhook subscription management, cryptographic HMAC-SHA256 signature verification,
+ * and typed event payload deserialization.
  */
 
 import type { HttpClient } from '../http';
 import type {
   ConveyWebhookEvent,
   CreateWebhookSubscriptionRequest,
+  CreateWebhookSubscriptionResponse,
   ListWebhookSubscriptionsResponse,
   RequestOptions,
-  WebhookSubscriptionDto,
 } from '../types';
 import { constructWebhookEvent, verifyWebhookSignature } from '../utils/crypto';
 
@@ -17,24 +18,21 @@ export class WebhookSubscriptionsResource {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * Create a new HTTPS webhook subscription endpoint with events and HMAC signing secret.
+   * Register a new webhook endpoint subscription to receive real-time message lifecycle events.
    */
   async create(
     request: CreateWebhookSubscriptionRequest,
     options?: RequestOptions,
-  ): Promise<{ success: boolean; subscription: WebhookSubscriptionDto }> {
-    return this.http.request<{ success: boolean; subscription: WebhookSubscriptionDto }>(
-      '/v1/webhook-subscriptions',
-      {
-        method: 'POST',
-        body: request,
-        ...options,
-      },
-    );
+  ): Promise<CreateWebhookSubscriptionResponse> {
+    return this.http.request<CreateWebhookSubscriptionResponse>('/v1/webhook-subscriptions', {
+      method: 'POST',
+      body: request,
+      ...options,
+    });
   }
 
   /**
-   * List all active webhook subscriptions for the authenticated tenant team.
+   * List all configured webhook subscriptions.
    */
   async list(options?: RequestOptions): Promise<ListWebhookSubscriptionsResponse> {
     return this.http.request<ListWebhookSubscriptionsResponse>('/v1/webhook-subscriptions', {
@@ -44,16 +42,13 @@ export class WebhookSubscriptionsResource {
   }
 
   /**
-   * Delete a webhook subscription endpoint by ID.
+   * Delete a webhook subscription by ID.
    */
   async delete(id: string, options?: RequestOptions): Promise<{ success: boolean }> {
-    return this.http.request<{ success: boolean }>(
-      `/v1/webhook-subscriptions/${encodeURIComponent(id)}`,
-      {
-        method: 'DELETE',
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean }>(`/v1/webhook-subscriptions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      ...options,
+    });
   }
 
   /**
@@ -98,12 +93,12 @@ export class WebhooksResource {
    * Verify signature and deserialize the incoming webhook payload into a typed Convey event.
    * Throws `ConveySecurityError` if signature verification fails or payload is malformed.
    */
-  async constructEvent<T = ConveyWebhookEvent>(
+  async constructEvent<T = Record<string, unknown>>(
     payload: string | Uint8Array,
     signature: string,
     secret: string,
     toleranceSeconds = 300,
-  ): Promise<T> {
+  ): Promise<ConveyWebhookEvent<T>> {
     return constructWebhookEvent<T>(payload, signature, secret, toleranceSeconds);
   }
 }

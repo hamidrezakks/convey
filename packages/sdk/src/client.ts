@@ -57,12 +57,12 @@ export class Convey {
     /**
      * Verify signature and deserialize the incoming webhook payload into a typed Convey event.
      */
-    constructEvent<T = ConveyWebhookEvent>(
+    constructEvent<T = Record<string, unknown>>(
       payload: string | Uint8Array,
       signature: string,
       secret: string,
       toleranceSeconds = 300,
-    ): Promise<T> {
+    ): Promise<ConveyWebhookEvent<T>> {
       return constructWebhookEvent<T>(payload, signature, secret, toleranceSeconds);
     },
   };

@@ -20,10 +20,7 @@ export class ReportsResource {
   /**
    * Retrieve aggregated omnichannel delivery metrics, open rates, costs, and hourly time-series.
    */
-  async getOverview(
-    params?: ReportingQueryParams,
-    options?: RequestOptions,
-  ): Promise<ReportingOverviewResponse> {
+  async getOverview(params?: ReportingQueryParams, options?: RequestOptions): Promise<ReportingOverviewResponse> {
     return this.http.request<ReportingOverviewResponse>('/v1/admin/reports/overview', {
       method: 'GET',
       query: params as Record<string, string | number | boolean | undefined>,
@@ -62,10 +59,7 @@ export class ReportsResource {
   /**
    * Retrieve campaign performance metrics with pagination.
    */
-  async getCampaigns(
-    params?: ReportingQueryParams,
-    options?: RequestOptions,
-  ): Promise<CampaignsReportResponse> {
+  async getCampaigns(params?: ReportingQueryParams, options?: RequestOptions): Promise<CampaignsReportResponse> {
     return this.http.request<CampaignsReportResponse>('/v1/admin/reports/campaigns', {
       method: 'GET',
       query: params as Record<string, string | number | boolean | undefined>,
@@ -81,14 +75,11 @@ export class ReportsResource {
     params?: Pick<ReportingQueryParams, 'isSandbox'>,
     options?: RequestOptions,
   ): Promise<CampaignDetailDto> {
-    return this.http.request<CampaignDetailDto>(
-      `/v1/admin/reports/campaigns/${encodeURIComponent(campaignId)}`,
-      {
-        method: 'GET',
-        query: params as Record<string, string | number | boolean | undefined>,
-        ...options,
-      },
-    );
+    return this.http.request<CampaignDetailDto>(`/v1/admin/reports/campaigns/${encodeURIComponent(campaignId)}`, {
+      method: 'GET',
+      query: params as Record<string, string | number | boolean | undefined>,
+      ...options,
+    });
   }
 
   /**

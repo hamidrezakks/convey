@@ -22,22 +22,11 @@ export type Channel =
 
 export type MessagePriority = 'CRITICAL' | 'HIGH' | 'DEFAULT' | 'LOW';
 
-export type MessageStatus =
-  | 'ACCEPTED'
-  | 'QUEUED'
-  | 'SENDING'
-  | 'DELIVERED'
-  | 'FAILED'
-  | 'SUPPRESSED'
-  | 'REPLAYED';
+export type MessageStatus = 'ACCEPTED' | 'QUEUED' | 'SENDING' | 'DELIVERED' | 'FAILED' | 'SUPPRESSED' | 'REPLAYED';
 
 export type CircuitState = 'CLOSED' | 'HALF_OPEN' | 'OPEN';
 
-export type SuppressionReason =
-  | 'HARD_BOUNCE'
-  | 'SPAM_COMPLAINT'
-  | 'UNSUBSCRIBE'
-  | 'MANUAL_BLOCK';
+export type SuppressionReason = 'HARD_BOUNCE' | 'SPAM_COMPLAINT' | 'UNSUBSCRIBE' | 'MANUAL_BLOCK';
 
 export type DlqFailureCategory =
   | 'PROVIDER_5XX'
@@ -153,37 +142,55 @@ export interface MessageContent<TVariables = Record<string, unknown>> {
   }>;
 }
 
-export interface SendMessageRequest<
-  TVariables = Record<string, unknown>,
-  TMetadata = Record<string, unknown>,
-> {
-  channel: Channel;
-  recipient: string;
-  priority?: MessagePriority;
-  content: MessageContent<TVariables>;
+export interface SendMessageRequest<TVariables = Record<string, unknown>, TMetadata = Record<string, unknown>> {
+  channel?: Channel;
+  recipient?: string;
+  priority?: MessagePriority | string;
+  content?: MessageContent<TVariables>;
   category?: string;
   campaignId?: string;
   metadata?: TMetadata;
   idempotencyKey?: string;
   scheduledAt?: string | Date;
+  // Full wire properties (optional)
+  userId?: string;
+  team?: string;
+  country?: string;
+  recipients?: Record<string, unknown>;
+  channels?: Array<{
+    channel: string;
+    content?: Record<string, unknown>;
+  }>;
+  template?: {
+    id?: string;
+    subject?: string;
+    body?: string;
+    html?: string;
+    text?: string;
+    locale?: string;
+  };
+  fallback?: Record<string, unknown>;
+  cascade?: Record<string, unknown>;
+  variables?: TVariables;
 }
 
 export interface MessageAcceptedResponse {
-  success: boolean;
+  messageId: string;
   publicId: string;
+  state: string;
   status: MessageStatus;
-  channel: Channel;
-  recipient: string;
-  priority: MessagePriority;
-  isSandbox: boolean;
+  createdAt: string;
   acceptedAt: string;
+  scheduledAt?: string;
+  success?: boolean;
+  channel?: Channel;
+  recipient?: string;
+  priority?: MessagePriority;
+  isSandbox?: boolean;
   idempotencyKey?: string;
 }
 
-export interface BulkSendMessageRequest<
-  TVariables = Record<string, unknown>,
-  TMetadata = Record<string, unknown>,
-> {
+export interface BulkSendMessageRequest<TVariables = Record<string, unknown>, TMetadata = Record<string, unknown>> {
   messages: Array<SendMessageRequest<TVariables, TMetadata>>;
 }
 
@@ -269,14 +276,27 @@ export interface MessageTraceResponse {
 }
 
 export interface TemplatePreviewRequest {
-  template: string;
+  template:
+    | string
+    | {
+        id?: string;
+        subject?: string;
+        body?: string;
+        html?: string;
+        text?: string;
+        locale?: string;
+      };
   variables?: Record<string, unknown>;
-  recipient?: string;
+  recipient?: string | Record<string, unknown>;
 }
 
 export interface TemplatePreviewResponse {
-  rendered: string;
-  missingVariables: string[];
+  subject?: string;
+  body?: string;
+  text?: string;
+  html?: string;
+  rendered?: string;
+  missingVariables?: string[];
 }
 
 // ==========================================
@@ -386,6 +406,11 @@ export interface WebhookSubscriptionDto {
   avgLatencyMs?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateWebhookSubscriptionResponse {
+  success: boolean;
+  subscription: WebhookSubscriptionDto;
 }
 
 export interface ListWebhookSubscriptionsResponse {

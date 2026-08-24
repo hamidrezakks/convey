@@ -20,8 +20,8 @@ function generateHex(bytesLength: number): string {
 export function generateTraceparent(): string {
   const version = '00';
   const traceId = generateHex(16); // 32 hex chars
-  const parentId = generateHex(8);  // 16 hex chars
-  const traceFlags = '01';          // sampled
+  const parentId = generateHex(8); // 16 hex chars
+  const traceFlags = '01'; // sampled
   return `${version}-${traceId}-${parentId}-${traceFlags}`;
 }
 

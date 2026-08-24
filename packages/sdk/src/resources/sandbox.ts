@@ -4,11 +4,7 @@
  */
 
 import type { HttpClient } from '../http';
-import type {
-  ClearSandboxMessagesResponse,
-  ListSandboxMessagesResponse,
-  RequestOptions,
-} from '../types';
+import type { ClearSandboxMessagesResponse, ListSandboxMessagesResponse, RequestOptions } from '../types';
 
 export class SandboxResource {
   constructor(private readonly http: HttpClient) {}

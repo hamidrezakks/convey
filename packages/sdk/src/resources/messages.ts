@@ -9,6 +9,8 @@ import type {
   BulkSendMessageRequest,
   MessageAcceptedResponse,
   MessageDetailDto,
+  MessagePriority,
+  MessageStatus,
   MessageTimelineResponse,
   MessageTraceResponse,
   RequestOptions,
@@ -16,9 +18,156 @@ import type {
   TemplatePreviewRequest,
   TemplatePreviewResponse,
 } from '../types';
+import { generateUlid } from '../utils/ulid';
 
 export class MessagesResource {
   constructor(private readonly http: HttpClient) {}
+
+  /**
+   * Normalize an ergonomic SDK request into the Convey wire schema.
+   */
+  private normalizeSendPayload(
+    request: SendMessageRequest<Record<string, unknown>, Record<string, unknown>>,
+  ): Record<string, unknown> {
+    // If caller passed fully formed raw wire schema (with channels and recipients), pass it through directly
+    if (request.channels && (request.recipients || request.recipient)) {
+      return {
+        idempotencyKey: request.idempotencyKey || `sdk_${generateUlid()}`,
+        userId: request.userId || 'usr_anonymous',
+        team: request.team || this.http.teamId || 'default-team',
+        category: request.category || 'TRANSACTIONAL',
+        country: request.country || 'US',
+        priority: this.mapPriority(request.priority),
+        recipients: request.recipients || { email: request.recipient },
+        channels: request.channels,
+        template: request.template,
+        variables: request.content?.variables || request.variables,
+        metadata: request.metadata,
+        fallback: request.fallback,
+        cascade: request.cascade,
+        scheduledAt: request.scheduledAt ? new Date(request.scheduledAt).toISOString() : undefined,
+      };
+    }
+
+    const channelStr = String(request.channel || 'EMAIL').toLowerCase();
+    const recipientStr = request.recipient || '';
+    const content = request.content || {};
+
+    const recipientsObj: Record<string, unknown> = request.recipients || {};
+    if (channelStr === 'email') {
+      recipientsObj.email = recipientStr;
+    } else if (channelStr === 'sms') {
+      recipientsObj.phone = recipientStr;
+    } else if (channelStr === 'whatsapp') {
+      recipientsObj.whatsapp = recipientStr;
+    } else if (channelStr === 'slack') {
+      recipientsObj.slack = { channelId: recipientStr };
+    } else if (channelStr === 'push' || channelStr === 'fcm') {
+      recipientsObj.fcmTokens = [recipientStr];
+    } else if (channelStr === 'telegram') {
+      recipientsObj.telegramChatId = recipientStr;
+    }
+
+    const channelsArray: Array<Record<string, unknown>> = [];
+    if (channelStr === 'email') {
+      channelsArray.push({
+        channel: 'email',
+        content: {
+          subject: content.subject || 'Notification',
+          html: content.body || '',
+          text: content.body || '',
+          render: content.templateId
+            ? {
+                template: content.templateId,
+                props: content.variables,
+              }
+            : undefined,
+        },
+      });
+    } else if (channelStr === 'sms') {
+      channelsArray.push({
+        channel: 'sms',
+        content: {
+          text: content.body || '',
+        },
+      });
+    } else if (channelStr === 'whatsapp') {
+      channelsArray.push({
+        channel: 'whatsapp',
+        content: {
+          text: content.body,
+          template: content.templateId,
+          variables: content.variables,
+        },
+      });
+    } else if (channelStr === 'slack') {
+      channelsArray.push({
+        channel: 'slack',
+        content: {
+          text: content.body || '',
+        },
+      });
+    } else if (channelStr === 'push' || channelStr === 'fcm') {
+      channelsArray.push({
+        channel: 'fcm',
+        content: {
+          title: content.subject || '',
+          body: content.body || '',
+        },
+      });
+    } else {
+      channelsArray.push({
+        channel: channelStr,
+        content: {
+          text: content.body || '',
+          subject: content.subject,
+        },
+      });
+    }
+
+    return {
+      idempotencyKey: request.idempotencyKey || `sdk_${generateUlid()}`,
+      userId: request.userId || 'usr_anonymous',
+      team: request.team || this.http.teamId || 'default-team',
+      category: request.category || 'TRANSACTIONAL',
+      country: request.country || 'US',
+      priority: this.mapPriority(request.priority),
+      recipients: recipientsObj,
+      channels: channelsArray,
+      metadata: request.metadata,
+      scheduledAt: request.scheduledAt ? new Date(request.scheduledAt).toISOString() : undefined,
+    };
+  }
+
+  private mapPriority(priority?: MessagePriority | string): string {
+    if (!priority) return 'normal';
+    const p = String(priority).toUpperCase();
+    if (p === 'CRITICAL') return 'critical';
+    if (p === 'HIGH') return 'transactional';
+    if (p === 'DEFAULT' || p === 'NORMAL') return 'normal';
+    if (p === 'LOW' || p === 'MARKETING') return 'marketing';
+    return String(priority).toLowerCase();
+  }
+
+  private formatAcceptedResponse(raw: Record<string, unknown>, isSandbox = false): MessageAcceptedResponse {
+    const id = String(raw.messageId || raw.publicId || '');
+    const state = String(raw.state || raw.status || 'accepted');
+    const statusEnum = (state.toUpperCase() as MessageStatus) || 'ACCEPTED';
+    const createdAt = String(raw.createdAt || new Date().toISOString());
+
+    return {
+      messageId: id,
+      publicId: id,
+      state,
+      status: statusEnum,
+      createdAt,
+      acceptedAt: createdAt,
+      scheduledAt: raw.scheduledAt ? String(raw.scheduledAt) : undefined,
+      success: true,
+      isSandbox: typeof raw.isSandbox === 'boolean' ? raw.isSandbox : isSandbox,
+      idempotencyKey: raw.idempotencyKey ? String(raw.idempotencyKey) : undefined,
+    };
+  }
 
   /**
    * Dispatch a single omnichannel message with zero-provider exposure and idempotency protection.
@@ -27,11 +176,15 @@ export class MessagesResource {
     request: SendMessageRequest<TVariables, TMetadata>,
     options?: RequestOptions,
   ): Promise<MessageAcceptedResponse> {
-    return this.http.request<MessageAcceptedResponse>('/v1/messages', {
+    const wireBody = this.normalizeSendPayload(
+      request as unknown as SendMessageRequest<Record<string, unknown>, Record<string, unknown>>,
+    );
+    const raw = await this.http.request<Record<string, unknown>>('/v1/messages', {
       method: 'POST',
-      body: request,
+      body: wireBody,
       ...options,
     });
+    return this.formatAcceptedResponse(raw, options?.isSandbox ?? this.http.isSandbox);
   }
 
   /**
@@ -41,12 +194,21 @@ export class MessagesResource {
     messages: Array<SendMessageRequest<TVariables, TMetadata>> | BulkSendMessageRequest<TVariables, TMetadata>,
     options?: RequestOptions,
   ): Promise<BulkMessageResponse> {
-    const payload = Array.isArray(messages) ? { messages } : messages;
-    return this.http.request<BulkMessageResponse>('/v1/messages/bulk', {
+    const rawList = Array.isArray(messages) ? messages : messages.messages;
+    const normalized = rawList.map((m) =>
+      this.normalizeSendPayload(m as unknown as SendMessageRequest<Record<string, unknown>, Record<string, unknown>>),
+    );
+    const rawRes = await this.http.request<{ total: number; items: Record<string, unknown>[] }>('/v1/messages/bulk', {
       method: 'POST',
-      body: payload,
+      body: { messages: normalized },
       ...options,
     });
+
+    const isSandbox = options?.isSandbox ?? this.http.isSandbox;
+    return {
+      total: rawRes.total ?? (rawRes.items ? rawRes.items.length : 0),
+      items: (rawRes.items || []).map((item) => this.formatAcceptedResponse(item, isSandbox)),
+    };
   }
 
   /**
@@ -82,14 +244,26 @@ export class MessagesResource {
   /**
    * Preview and test variable rendering against a message template.
    */
-  async previewTemplate(
-    request: TemplatePreviewRequest,
-    options?: RequestOptions,
-  ): Promise<TemplatePreviewResponse> {
-    return this.http.request<TemplatePreviewResponse>('/v1/messages/templates/preview', {
+  async previewTemplate(request: TemplatePreviewRequest, options?: RequestOptions): Promise<TemplatePreviewResponse> {
+    const wireBody = {
+      template: typeof request.template === 'string' ? { body: request.template } : request.template,
+      variables: request.variables || {},
+      recipient: typeof request.recipient === 'string' ? { email: request.recipient } : request.recipient,
+    };
+
+    const res = await this.http.request<TemplatePreviewResponse>('/v1/messages/templates/preview', {
       method: 'POST',
-      body: request,
+      body: wireBody,
       ...options,
     });
+
+    return {
+      subject: res.subject,
+      body: res.body,
+      text: res.text,
+      html: res.html,
+      rendered: res.rendered || res.text || res.body || res.html || '',
+      missingVariables: res.missingVariables || [],
+    };
   }
 }

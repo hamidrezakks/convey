@@ -66,10 +66,7 @@ export class AdminResource {
   /**
    * Query messages across all tenants and teams with multi-parameter filtering.
    */
-  async listMessages(
-    query?: AdminListMessagesQuery,
-    options?: RequestOptions,
-  ): Promise<AdminListMessagesResponse> {
+  async listMessages(query?: AdminListMessagesQuery, options?: RequestOptions): Promise<AdminListMessagesResponse> {
     return this.http.request<AdminListMessagesResponse>('/v1/admin/messages', {
       method: 'GET',
       query: query as Record<string, string | number | boolean | undefined>,
@@ -177,27 +174,21 @@ export class AdminResource {
     request: RegisterProviderRequest,
     options?: RequestOptions,
   ): Promise<{ success: boolean; provider: Record<string, unknown> }> {
-    return this.http.request<{ success: boolean; provider: Record<string, unknown> }>(
-      '/v1/admin/providers/register',
-      {
-        method: 'POST',
-        body: request,
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean; provider: Record<string, unknown> }>('/v1/admin/providers/register', {
+      method: 'POST',
+      body: request,
+      ...options,
+    });
   }
 
   /**
    * Remove a configured provider integration.
    */
   async deleteConfiguredProvider(id: string, options?: RequestOptions): Promise<{ success: boolean }> {
-    return this.http.request<{ success: boolean }>(
-      `/v1/admin/providers/configured/${encodeURIComponent(id)}`,
-      {
-        method: 'DELETE',
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean }>(`/v1/admin/providers/configured/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      ...options,
+    });
   }
 
   /**
@@ -217,10 +208,7 @@ export class AdminResource {
   /**
    * Query the tamper-evident SHA-256 administrative audit log ledger with pagination.
    */
-  async listAuditLogs(
-    query?: ListAuditLogsQuery,
-    options?: RequestOptions,
-  ): Promise<ListAuditLogsResponse> {
+  async listAuditLogs(query?: ListAuditLogsQuery, options?: RequestOptions): Promise<ListAuditLogsResponse> {
     return this.http.request<ListAuditLogsResponse>('/v1/admin/audit-logs', {
       method: 'GET',
       query: query as Record<string, string | number | boolean | undefined>,

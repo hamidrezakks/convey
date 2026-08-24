@@ -15,11 +15,11 @@ export type PageFetcher<T> = (offset: number, page: number) => Promise<PageResul
 
 export class AutoPaginator<T> implements AsyncIterable<T> {
   private readonly fetcher: PageFetcher<T>;
-  private readonly initialLimit: number;
+  readonly pageSize: number;
 
-  constructor(fetcher: PageFetcher<T>, initialLimit = 50) {
+  constructor(fetcher: PageFetcher<T>, pageSize = 50) {
     this.fetcher = fetcher;
-    this.initialLimit = initialLimit;
+    this.pageSize = pageSize;
   }
 
   async *[Symbol.asyncIterator](): AsyncIterator<T> {
@@ -28,42 +28,37 @@ export class AutoPaginator<T> implements AsyncIterable<T> {
     let hasMore = true;
 
     while (hasMore) {
-      const result = await this.fetcher(offset, page);
-      for (const item of result.items) {
+      const pageResult = await this.fetcher(offset, page);
+      const items = pageResult.items || [];
+
+      for (const item of items) {
         yield item;
       }
 
-      if (!result.hasMore || result.items.length === 0) {
-        break;
-      }
-
-      if (result.nextOffset !== undefined) {
-        offset = result.nextOffset;
+      if (pageResult.hasMore && items.length > 0) {
+        offset = pageResult.nextOffset ?? offset + items.length;
+        page = pageResult.nextPage ?? page + 1;
       } else {
-        offset += result.items.length;
+        hasMore = false;
       }
-
-      if (result.nextPage !== undefined) {
-        page = result.nextPage;
-      } else {
-        page += 1;
-      }
-
-      hasMore = result.hasMore;
     }
   }
 
   /**
-   * Accumulate all paginated items up to an optional maximum count into a standard array.
+   * Drain the iterator into a concrete in-memory array up to an optional maximum limit.
+   * Useful when eager loading is required while safeguarding against OOM.
    */
-  async autoPagingToArray(maxItems = Number.POSITIVE_INFINITY): Promise<T[]> {
+  async autoPagingToArray(max?: number): Promise<T[]> {
     const results: T[] = [];
+    const limit = typeof max === 'number' && max > 0 ? max : Number.POSITIVE_INFINITY;
+
     for await (const item of this) {
       results.push(item);
-      if (results.length >= maxItems) {
+      if (results.length >= limit) {
         break;
       }
     }
+
     return results;
   }
 }

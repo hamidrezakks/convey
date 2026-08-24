@@ -52,10 +52,7 @@ export class SuppressionsResource {
   /**
    * Query suppressions with search, filter, and pagination parameters.
    */
-  async list(
-    query?: ListSuppressionsQuery,
-    options?: RequestOptions,
-  ): Promise<ListSuppressionsResponse> {
+  async list(query?: ListSuppressionsQuery, options?: RequestOptions): Promise<ListSuppressionsResponse> {
     const queryParams: Record<string, string | number | undefined> = {};
     if (query?.limit !== undefined) queryParams.limit = query.limit;
     if (query?.offset !== undefined) queryParams.offset = query.offset;

@@ -49,10 +49,14 @@ export class HttpClient {
     }
 
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl || (typeof process !== 'undefined' && process.env?.CONVEY_BASE_URL) || DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.baseUrl = (
+      options.baseUrl ||
+      (typeof process !== 'undefined' && process.env?.CONVEY_BASE_URL) ||
+      DEFAULT_BASE_URL
+    ).replace(/\/+$/, '');
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
-    this.isSandbox = Boolean(options.isSandbox || (options.apiKey.startsWith('sk_test_')));
+    this.isSandbox = Boolean(options.isSandbox || options.apiKey.startsWith('sk_test_'));
     this.teamId = options.teamId;
     this.fetchFn = options.fetch || globalThis.fetch.bind(globalThis);
     this.defaultHeaders = options.defaultHeaders || {};
@@ -82,9 +86,7 @@ export class HttpClient {
     const idempotencyKey = options.idempotencyKey || (isMutating ? `sdk_${generateUlid()}` : undefined);
 
     // Distributed Trace Context
-    const traceparent = options.traceparent
-      ? createChildTraceparent(options.traceparent)
-      : generateTraceparent();
+    const traceparent = options.traceparent ? createChildTraceparent(options.traceparent) : generateTraceparent();
 
     // Headers Assembly
     const headers: Record<string, string> = {
