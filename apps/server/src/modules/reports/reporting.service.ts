@@ -625,7 +625,6 @@ export const ReportingService = {
       .where(and(...conditions))
       .groupBy(reportHourly.team);
 
-    // Fallback if bucket table is empty
     const teamMap = new Map<
       string,
       {
@@ -638,45 +637,61 @@ export const ReportingService = {
       }
     >();
 
-    if (teamBucketRows.length > 0) {
-      for (const row of teamBucketRows) {
-        teamMap.set(row.team, {
-          sent: Number(row.sent),
-          delivered: Number(row.delivered),
-          failed: Number(row.failed),
-          opened: Number(row.opened),
-          read: Number(row.read),
-          costUsd: Number.parseFloat(row.costUsd || '0'),
+    for (const row of teamBucketRows) {
+      teamMap.set(row.team, {
+        sent: Number(row.sent),
+        delivered: Number(row.delivered),
+        failed: Number(row.failed),
+        opened: Number(row.opened),
+        read: Number(row.read),
+        costUsd: Number.parseFloat(row.costUsd || '0'),
+      });
+    }
+
+    // Also check raw messages for any teams missing from report_hourly or with 0 sent
+    const rawWhere = [gte(messages.createdAt, effectiveStartDate), lte(messages.createdAt, effectiveEndDate)];
+    if (options.teamId) rawWhere.push(eq(messages.team, options.teamId));
+
+    const rawRows = await db
+      .select({
+        team: messages.team,
+        total: count(),
+        delivered: count(sql`CASE WHEN ${messages.state} IN ('delivered', 'provider_accepted') THEN 1 END`),
+        failed: count(sql`CASE WHEN ${messages.state} = 'failed' THEN 1 END`),
+      })
+      .from(messages)
+      .where(and(...rawWhere))
+      .groupBy(messages.team);
+
+    for (const r of rawRows) {
+      const existing = teamMap.get(r.team);
+      const rawSent = Number(r.total);
+      const rawDelivered = Number(r.delivered);
+      const rawFailed = Number(r.failed);
+      if (!existing || existing.sent === 0) {
+        teamMap.set(r.team, {
+          sent: rawSent,
+          delivered: rawDelivered,
+          failed: rawFailed,
+          opened: Math.round(rawDelivered * 0.5),
+          read: Math.round(rawDelivered * 0.2),
+          costUsd: Number((rawSent * 0.015).toFixed(4)),
         });
       }
-    } else {
-      // Raw fallback
-      const rawWhere = [gte(messages.createdAt, effectiveStartDate), lte(messages.createdAt, effectiveEndDate)];
-      if (options.teamId) rawWhere.push(eq(messages.team, options.teamId));
+    }
 
-      const rawRows = await db
-        .select({
-          team: messages.team,
-          total: count(),
-          delivered: count(sql`CASE WHEN ${messages.state} IN ('delivered', 'provider_accepted') THEN 1 END`),
-          failed: count(sql`CASE WHEN ${messages.state} = 'failed' THEN 1 END`),
-        })
-        .from(messages)
-        .where(and(...rawWhere))
-        .groupBy(messages.team);
-
-      for (const r of rawRows) {
-        const sent = Number(r.total);
-        const delivered = Number(r.delivered);
-        const failed = Number(r.failed);
-        teamMap.set(r.team, {
-          sent,
-          delivered,
-          failed,
-          opened: Math.round(delivered * 0.5),
-          read: Math.round(delivered * 0.2),
-          costUsd: Number((sent * 0.015).toFixed(4)),
-        });
+    // Incorporate in-flight hot buffer metrics for live real-time accuracy
+    for (const b of metricBuckets.values()) {
+      if (b.hour >= effectiveStartDate && b.hour <= effectiveEndDate) {
+        if (options.teamId && b.team !== options.teamId) continue;
+        const current = teamMap.get(b.team) || { sent: 0, delivered: 0, failed: 0, opened: 0, read: 0, costUsd: 0 };
+        current.sent += b.sent;
+        current.delivered += b.delivered;
+        current.failed += b.failed;
+        current.opened += b.opened;
+        current.read += b.read;
+        current.costUsd += b.costUsd;
+        teamMap.set(b.team, current);
       }
     }
 

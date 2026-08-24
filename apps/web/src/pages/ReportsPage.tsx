@@ -659,16 +659,19 @@ export function ReportsPage() {
             {teams.map((team) => (
               <Card key={team.teamId} className="glass-panel">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold text-xs font-mono">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold text-xs font-mono shrink-0">
                         {team.teamId.slice(0, 2).toUpperCase()}
                       </div>
-                      <div>
-                        <CardTitle className="text-xs font-bold text-slate-900 dark:text-white font-mono">
-                          {team.teamId}
+                      <div className="min-w-0">
+                        <CardTitle
+                          className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate"
+                          title={team.teamName || team.teamId}
+                        >
+                          {team.teamName || team.teamId}
                         </CardTitle>
-                        <CardDescription className="text-[11px]">
+                        <CardDescription className="text-[11px] truncate">
                           Budget: {formatCurrencyAmount(team.monthlyBudget, team.currency)}
                         </CardDescription>
                       </div>
@@ -681,12 +684,13 @@ export function ReportsPage() {
                             ? 'warning'
                             : 'success'
                       }
-                      className="font-mono text-[10px]"
+                      className="font-mono text-[10px] shrink-0 whitespace-nowrap"
                     >
                       {team.budgetUtilizationPercent}% Utilized
                     </Badge>
                   </div>
                 </CardHeader>
+
                 <CardContent className="space-y-3 text-xs">
                   {/* Progress Bar */}
                   <div className="space-y-1">
