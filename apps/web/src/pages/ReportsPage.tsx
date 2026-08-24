@@ -456,16 +456,37 @@ export function ReportsPage() {
             ))}
           </div>
 
-          {/* Refresh Button */}
+          {/* Live Sync Status Indicator & Refresh Button */}
+          <div
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-200',
+              isRefreshing
+                ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 shadow-xs'
+                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
+            )}
+          >
+            {isRefreshing ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-500 shrink-0" />
+                <span className="font-mono text-[11px] font-semibold">Syncing...</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="font-mono text-[11px]">Live</span>
+              </>
+            )}
+          </div>
+
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefreshAll}
-            isLoading={false}
+            isLoading={isRefreshing}
             className="text-xs gap-1.5 rounded-xl cursor-pointer"
           >
-            <RefreshCw className={cn('w-3.5 h-3.5', isRefreshing && 'animate-spin text-sky-500')} />
-            <span>{t('common.refresh')}</span>
+            {!isRefreshing && <RefreshCw className="w-3.5 h-3.5" />}
+            <span>{isRefreshing ? 'Syncing...' : t('common.refresh')}</span>
           </Button>
 
           {/* Doctor Reconcile Button */}
