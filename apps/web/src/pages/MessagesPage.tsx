@@ -1,32 +1,19 @@
 import { Channel, MessageStatus } from '@convey/shared';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Briefcase,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Cpu,
-  Inbox,
-  Layers,
-  Lock,
-  RefreshCw,
-  Search,
-} from 'lucide-react';
+import { Briefcase, ChevronDown, Cpu, Inbox, Layers, Lock, RefreshCw, Search } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { MessageCostExplainer } from '../components/messages/MessageCostExplainer';
 import { OpsFailureExplainer } from '../components/messages/OpsFailureExplainer';
 import { OpsMessageTimeline } from '../components/messages/OpsMessageTimeline';
 import { TraceWaterfall } from '../components/trace/TraceWaterfall';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
+import { type ColumnDef, DataTable, DataTableCopyCell } from '../components/ui/data-table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n';
 import { api } from '../lib/api';
 import { messageKeys } from '../lib/queryKeys';
@@ -46,7 +33,6 @@ export function MessagesPage() {
 
   // Inspector modal state
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showTechnicalDetailsInOps, setShowTechnicalDetailsInOps] = useState(false);
 
   const isSandboxFilter = selectedEnv === 'SANDBOX' ? true : selectedEnv === 'PRODUCTION' ? false : undefined;
@@ -88,12 +74,6 @@ export function MessagesPage() {
     setActiveSearch(search);
   };
 
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(text);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   const getStatusBadgeVariant = (status: MessageStatus | string) => {
     switch (status) {
       case MessageStatus.DELIVERED:
@@ -115,7 +95,176 @@ export function MessagesPage() {
     }
   };
 
-  const totalPages = Math.ceil(total / 15) || 1;
+  // Declarative Column Definitions for Messages Table
+  const columns: ColumnDef<(typeof messages)[number]>[] = useMemo(
+    () => [
+      {
+        id: 'publicId',
+        header: t('messages.colPublicId'),
+        hidden: !isEngineer,
+        width: 'w-56',
+        cell: ({ row }) => (
+          <DataTableCopyCell
+            value={row.publicId}
+            tooltip={t('messages.copyId')}
+            className="font-medium text-sky-600 dark:text-sky-300"
+          />
+        ),
+      },
+      {
+        id: 'recipient',
+        header: t('messages.colRecipient'),
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2 max-w-xs truncate">
+            <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0">
+              {row.recipient.charAt(0).toUpperCase()}
+            </div>
+            <span className="truncate font-medium text-xs text-slate-900 dark:text-white">{row.recipient}</span>
+          </div>
+        ),
+      },
+      {
+        id: 'channel',
+        header: t('messages.colChannel'),
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.channel === Channel.EMAIL
+                ? 'cyan'
+                : row.channel === Channel.SMS
+                  ? 'purple'
+                  : row.channel === Channel.WHATSAPP
+                    ? 'success'
+                    : 'default'
+            }
+          >
+            {row.channel}
+          </Badge>
+        ),
+      },
+      {
+        id: 'environment',
+        header: 'Environment',
+        cell: ({ row }) =>
+          row.isSandbox ? (
+            <Badge variant="warning" className="gap-1 font-mono text-[10px]">
+              🧪 Sandbox
+            </Badge>
+          ) : (
+            <Badge variant="success" className="gap-1 font-mono text-[10px]">
+              🟢 Production
+            </Badge>
+          ),
+      },
+      {
+        id: 'teamId',
+        header: t('deliverability.teamLabel'),
+        cell: ({ row }) => <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{row.teamId}</span>,
+      },
+      {
+        id: 'priority',
+        header: t('policies.tierPriorities'),
+        hidden: !isEngineer,
+        cell: ({ row }) => <span className="text-xs font-mono text-slate-700 dark:text-slate-300">{row.priority}</span>,
+      },
+      {
+        id: 'costUsd',
+        header: t('providers.colUnitCost'),
+        hidden: !isEngineer,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+            ${(row.costUsd ?? 0.0001).toFixed(5)}
+          </span>
+        ),
+      },
+      {
+        id: 'createdAt',
+        header: t('messages.colTime'),
+        cell: ({ row }) => (
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{formatTimeAgo(row.createdAt)}</span>
+        ),
+      },
+      {
+        id: 'status',
+        header: t('messages.colStatus'),
+        cell: ({ row }) => (
+          <Badge variant={getStatusBadgeVariant(row.status)} dot>
+            {row.status}
+          </Badge>
+        ),
+      },
+      {
+        id: 'actions',
+        header: t('common.actions'),
+        align: 'end',
+        cell: ({ row }) => (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedMessageId(row.publicId);
+              setShowTechnicalDetailsInOps(false);
+            }}
+            className="h-7 text-xs gap-1.5 rounded-lg"
+          >
+            <Layers className="w-3 h-3 text-sky-500 dark:text-sky-400" />
+            <span>{isOps ? 'View Journey' : t('common.details')}</span>
+          </Button>
+        ),
+      },
+    ],
+    [isEngineer, isOps, t],
+  );
+
+  // Column definitions for Delivery Attempts modal table
+  const attemptColumns: ColumnDef<NonNullable<typeof messageDetails>['attempts'][number]>[] = useMemo(
+    () => [
+      {
+        id: 'attemptNumber',
+        header: '#',
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-sky-600 dark:text-sky-400">#{row.attemptNumber}</span>
+        ),
+      },
+      {
+        id: 'providerId',
+        header: t('providers.colProvider'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white">{row.providerId}</span>
+        ),
+      },
+      {
+        id: 'status',
+        header: t('common.status'),
+        cell: ({ row }) => <Badge variant={row.status === 'DELIVERED' ? 'success' : 'default'}>{row.status}</Badge>,
+      },
+      {
+        id: 'responseCode',
+        header: 'HTTP',
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">{row.responseCode || 200}</span>
+        ),
+      },
+      {
+        id: 'latencyMs',
+        header: t('common.latency'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
+            {formatDurationMs(row.latencyMs)}
+          </span>
+        ),
+      },
+      {
+        id: 'attemptedAt',
+        header: t('common.timestamp'),
+        cell: ({ row }) => (
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{formatTimeAgo(row.attemptedAt)}</span>
+        ),
+      },
+    ],
+    [t],
+  );
 
   return (
     <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-150">
@@ -229,190 +378,29 @@ export function MessagesPage() {
         </CardContent>
       </Card>
 
-      {/* Messages Data Table */}
-      <Card className="glass-panel overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between py-3.5 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
-          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            {t('messages.totalMessagesCount')} ({total.toLocaleString()})
-          </CardTitle>
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            {page} / {totalPages}
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {isEngineer && <TableHead className="w-56">{t('messages.colPublicId')}</TableHead>}
-                <TableHead>{t('messages.colRecipient')}</TableHead>
-                <TableHead>{t('messages.colChannel')}</TableHead>
-                <TableHead>Environment</TableHead>
-                <TableHead>{t('deliverability.teamLabel')}</TableHead>
-                {isEngineer && <TableHead>{t('policies.tierPriorities')}</TableHead>}
-                {isEngineer && <TableHead>{t('providers.colUnitCost')}</TableHead>}
-                <TableHead>{t('messages.colTime')}</TableHead>
-                <TableHead>{t('messages.colStatus')}</TableHead>
-                <TableHead className="text-end rtl:text-left">{t('common.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={isEngineer ? 10 : 7} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
-                    {t('common.loading')}
-                  </TableCell>
-                </TableRow>
-              ) : messages.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isEngineer ? 10 : 7} className="text-center py-12 text-slate-500">
-                    {t('messages.noMessagesFound')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                messages.map((msg) => (
-                  <TableRow key={msg.publicId} className="group">
-                    {/* Public ID (Engineer Only) */}
-                    {isEngineer && (
-                      <TableCell className="font-mono text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sky-600 dark:text-sky-300 font-medium">{msg.publicId}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(msg.publicId)}
-                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-opacity p-0.5 cursor-pointer"
-                            title={t('messages.copyId')}
-                          >
-                            {copiedId === msg.publicId ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </TableCell>
-                    )}
-
-                    {/* Recipient */}
-                    <TableCell className="font-medium text-xs text-slate-900 dark:text-white max-w-xs truncate">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0">
-                          {msg.recipient.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="truncate">{msg.recipient}</span>
-                      </div>
-                    </TableCell>
-
-                    {/* Channel */}
-                    <TableCell>
-                      <Badge
-                        variant={
-                          msg.channel === Channel.EMAIL
-                            ? 'cyan'
-                            : msg.channel === Channel.SMS
-                              ? 'purple'
-                              : msg.channel === Channel.WHATSAPP
-                                ? 'success'
-                                : 'default'
-                        }
-                      >
-                        {msg.channel}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Environment */}
-                    <TableCell>
-                      {msg.isSandbox ? (
-                        <Badge variant="warning" className="gap-1 font-mono text-[10px]">
-                          🧪 Sandbox
-                        </Badge>
-                      ) : (
-                        <Badge variant="success" className="gap-1 font-mono text-[10px]">
-                          🟢 Production
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    {/* Team */}
-                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">{msg.teamId}</TableCell>
-
-                    {/* Engineer Columns: Priority & Cost */}
-                    {isEngineer && (
-                      <TableCell>
-                        <span className="text-xs font-mono text-slate-700 dark:text-slate-300">{msg.priority}</span>
-                      </TableCell>
-                    )}
-
-                    {isEngineer && (
-                      <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                        ${(msg.costUsd ?? 0.0001).toFixed(5)}
-                      </TableCell>
-                    )}
-
-                    {/* Time */}
-                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                      {formatTimeAgo(msg.createdAt)}
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(msg.status)} dot>
-                        {msg.status}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell className="text-end rtl:text-left">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedMessageId(msg.publicId);
-                          setShowTechnicalDetailsInOps(false);
-                        }}
-                        className="h-7 text-xs gap-1.5 rounded-lg"
-                      >
-                        <Layers className="w-3 h-3 text-sky-500 dark:text-sky-400" />
-                        <span>{isOps ? 'View Journey' : t('common.details')}</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200/80 dark:border-slate-800/80">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {total > 0 ? `${(page - 1) * 15 + 1} - ${Math.min(total, page * 15)} / ${total.toLocaleString()}` : '0'}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="h-8 gap-1 rounded-xl"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>{t('common.back')}</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-                className="h-8 gap-1 rounded-xl"
-              >
-                <span>{t('common.next')}</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Messages Reusable Data Table */}
+      <DataTable
+        columns={columns}
+        data={messages}
+        isLoading={isLoading}
+        getRowKey={(msg) => msg.publicId}
+        onRowClick={(msg) => {
+          setSelectedMessageId(msg.publicId);
+          setShowTechnicalDetailsInOps(false);
+        }}
+        emptyState={{
+          title: t('messages.noMessagesFound'),
+          description: isOps
+            ? 'No customer messages match your filter parameters.'
+            : 'No messages found in ledger for current criteria.',
+        }}
+        pagination={{
+          page,
+          pageSize: 15,
+          total,
+          onPageChange: setPage,
+        }}
+      />
 
       {/* Message Inspector Modal (Adaptive for Ops vs Engineer) */}
       <Dialog
@@ -541,42 +529,15 @@ export function MessagesPage() {
                     <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       {t('providers.title')} ({messageDetails.attempts?.length ?? 0})
                     </h3>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>#</TableHead>
-                          <TableHead>{t('providers.colProvider')}</TableHead>
-                          <TableHead>{t('common.status')}</TableHead>
-                          <TableHead>HTTP</TableHead>
-                          <TableHead>{t('common.latency')}</TableHead>
-                          <TableHead>{t('common.timestamp')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(messageDetails.attempts || []).map((att) => (
-                          <TableRow key={att.attemptNumber}>
-                            <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-400">
-                              #{att.attemptNumber}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs font-semibold text-slate-900 dark:text-white">
-                              {att.providerId}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={att.status === 'DELIVERED' ? 'success' : 'default'}>{att.status}</Badge>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                              {att.responseCode || 200}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                              {formatDurationMs(att.latencyMs)}
-                            </TableCell>
-                            <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                              {formatTimeAgo(att.attemptedAt)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <DataTable
+                      columns={attemptColumns}
+                      data={messageDetails.attempts || []}
+                      density="compact"
+                      emptyState={{
+                        title: 'No delivery attempts',
+                        description: 'This message has not been dispatched to any upstream provider yet.',
+                      }}
+                    />
                   </div>
                 </div>
               )}
