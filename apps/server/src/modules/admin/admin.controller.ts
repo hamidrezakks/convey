@@ -4,6 +4,8 @@ import { AdminDocs } from '../../openapi';
 import { jsonResponse } from '../messaging/messaging.controller';
 import { fxEngine } from '../policies/fx-engine';
 import { ReportingService } from '../reports/reporting.service';
+import { ReportingDoctorService } from '../reports/reporting-doctor.service';
+
 import { adminService } from './admin.service';
 
 export function adminController(app: Elysia) {
@@ -490,13 +492,64 @@ export function adminController(app: Elysia) {
             isSandbox,
           });
 
+          const filename = `convey_report_${type}_${new Date().toISOString().slice(0, 10)}.${format}`;
           return new Response(exported.content, {
             status: 200,
             headers: {
               'Content-Type': exported.contentType,
-              'Content-Disposition': `attachment; filename="${exported.filename}"`,
+              'Content-Disposition': `attachment; filename="${filename}"`,
             },
           });
+        },
+      )
+
+      // Reporting Doctor & Reconciliation Engine
+      .post(
+        '/reports/reconcile',
+        { detail: AdminDocs.reportsReconcile },
+        async ({
+          body,
+        }: {
+          body?: {
+            startDate?: string;
+            endDate?: string;
+            teamId?: string;
+            category?: string;
+            campaignId?: string;
+          };
+        }) => {
+          const result = await ReportingDoctorService.reconcile({
+            startDate: body?.startDate ? new Date(body.startDate) : undefined,
+            endDate: body?.endDate ? new Date(body.endDate) : undefined,
+            teamId: body?.teamId,
+            category: body?.category,
+            campaignId: body?.campaignId,
+          });
+          return jsonResponse(result, 200);
+        },
+      )
+      .post(
+        '/reports/doctor',
+        { detail: AdminDocs.reportsReconcile },
+        async ({
+          body,
+        }: {
+          body?: {
+            startDate?: string;
+            endDate?: string;
+            teamId?: string;
+            category?: string;
+            campaignId?: string;
+          };
+        }) => {
+          const result = await ReportingDoctorService.reconcile({
+            startDate: body?.startDate ? new Date(body.startDate) : undefined,
+            endDate: body?.endDate ? new Date(body.endDate) : undefined,
+            teamId: body?.teamId,
+            category: body?.category,
+            campaignId: body?.campaignId,
+          });
+          return jsonResponse(result, 200);
         },
       ),
   );

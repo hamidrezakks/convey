@@ -501,4 +501,16 @@ export const AdminDocs = {
       '200': { description: 'Report file content' },
     },
   },
+
+  reportsReconcile: {
+    tags: ['Reports & Analytics'],
+    summary: 'Run Reporting Doctor & Reconcile Rollup Buckets',
+    description:
+      'Scans raw message and event partitions, detects any drift, and idempotently recalculates and heals pre-aggregated database buckets.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'Doctor diagnostic and reconciliation report' },
+    },
+  },
 };

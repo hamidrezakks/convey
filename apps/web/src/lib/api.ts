@@ -455,4 +455,28 @@ export const api = {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   },
+
+  async reconcileReportBuckets(params?: {
+    startDate?: string;
+    endDate?: string;
+    teamId?: string;
+    category?: string;
+    campaignId?: string;
+  }): Promise<{
+    status: string;
+    bucketsReconciled: number;
+    campaignBucketsReconciled: number;
+    driftHealedCount: number;
+    durationMs: number;
+    repairedAt: string;
+  }> {
+    return httpClient.post('reports/reconcile', { json: params || {} }).json<{
+      status: string;
+      bucketsReconciled: number;
+      campaignBucketsReconciled: number;
+      driftHealedCount: number;
+      durationMs: number;
+      repairedAt: string;
+    }>();
+  },
 };

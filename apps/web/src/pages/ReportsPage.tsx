@@ -10,9 +10,11 @@ import {
   Layers,
   RefreshCw,
   Search,
+  Sparkles,
   XCircle,
   Zap,
 } from 'lucide-react';
+
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
@@ -125,6 +127,24 @@ export function ReportsPage() {
       toast.success(`Report downloaded successfully`);
     } catch {
       toast.error(`Failed to export ${activeTab} report`);
+    }
+  };
+
+  const [isReconciling, setIsReconciling] = useState(false);
+
+  const handleReconcileBuckets = async () => {
+    try {
+      setIsReconciling(true);
+      toast.info('Reporting Doctor: Reconciling database rollup buckets against ground-truth partitions...');
+      const result = await api.reconcileReportBuckets(filterParams);
+      toast.success(
+        `Reporting Doctor: Successfully reconciled ${result.bucketsReconciled} hourly & ${result.campaignBucketsReconciled} campaign buckets in ${result.durationMs}ms!`,
+      );
+      handleRefreshAll();
+    } catch {
+      toast.error('Reporting Doctor: Failed to reconcile rollup buckets');
+    } finally {
+      setIsReconciling(false);
     }
   };
 
@@ -429,6 +449,19 @@ export function ReportsPage() {
             <span>{t('common.refresh')}</span>
           </Button>
 
+          {/* Doctor Reconcile Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReconcileBuckets}
+            isLoading={isReconciling}
+            className="text-xs gap-1.5 rounded-xl border-sky-500/30 text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 cursor-pointer"
+            title="Reconcile and heal pre-aggregated database buckets against raw ground-truth partitions"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+            <span>Doctor / Reconcile</span>
+          </Button>
+
           {/* Export Dropdown */}
           <div className="flex items-center gap-1">
             <Button
@@ -488,6 +521,12 @@ export function ReportsPage() {
               <option value="billing">Billing & Finance</option>
               <option value="alerts">System Alerts</option>
             </Select>
+          </div>
+
+          {/* Two-Tier OLAP Indicator */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+            <Zap className="w-3 h-3 text-sky-500" />
+            <span>Pre-Aggregated OLAP Buckets (Hot + Cold)</span>
           </div>
         </div>
 
