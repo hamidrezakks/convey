@@ -4,7 +4,7 @@
  */
 
 // ==========================================
-// 1. Core Domain Enums & Literals
+// 1. Core Domain String Types & Literals
 // ==========================================
 
 export type Channel =
@@ -18,15 +18,60 @@ export type Channel =
   | 'IN_APP'
   | 'DISCORD'
   | 'TELEGRAM'
-  | 'WEBHOOK';
+  | 'WEBHOOK'
+  | 'email'
+  | 'sms'
+  | 'whatsapp'
+  | 'push'
+  | 'slack'
+  | 'tool'
+  | 'voice'
+  | 'in_app'
+  | 'discord'
+  | 'telegram'
+  | 'webhook'
+  | (string & {});
 
-export type MessagePriority = 'CRITICAL' | 'HIGH' | 'DEFAULT' | 'LOW';
+export type MessagePriority =
+  | 'CRITICAL'
+  | 'HIGH'
+  | 'DEFAULT'
+  | 'LOW'
+  | 'critical'
+  | 'high'
+  | 'default'
+  | 'low'
+  | (string & {});
 
-export type MessageStatus = 'ACCEPTED' | 'QUEUED' | 'SENDING' | 'DELIVERED' | 'FAILED' | 'SUPPRESSED' | 'REPLAYED';
+export type MessageStatus =
+  | 'ACCEPTED'
+  | 'QUEUED'
+  | 'SENDING'
+  | 'DELIVERED'
+  | 'FAILED'
+  | 'SUPPRESSED'
+  | 'REPLAYED'
+  | 'accepted'
+  | 'queued'
+  | 'sending'
+  | 'delivered'
+  | 'failed'
+  | 'suppressed'
+  | 'replayed'
+  | (string & {});
 
-export type CircuitState = 'CLOSED' | 'HALF_OPEN' | 'OPEN';
+export type CircuitState = 'CLOSED' | 'HALF_OPEN' | 'OPEN' | 'closed' | 'half_open' | 'open' | (string & {});
 
-export type SuppressionReason = 'HARD_BOUNCE' | 'SPAM_COMPLAINT' | 'UNSUBSCRIBE' | 'MANUAL_BLOCK';
+export type SuppressionReason =
+  | 'HARD_BOUNCE'
+  | 'SPAM_COMPLAINT'
+  | 'UNSUBSCRIBE'
+  | 'MANUAL_BLOCK'
+  | 'hard_bounce'
+  | 'spam_complaint'
+  | 'unsubscribe'
+  | 'manual_block'
+  | (string & {});
 
 export type DlqFailureCategory =
   | 'PROVIDER_5XX'
@@ -35,9 +80,10 @@ export type DlqFailureCategory =
   | 'AUTH_EXPIRED_401'
   | 'TIMEOUT_504'
   | 'POLICY_REJECTED'
-  | 'UNKNOWN';
+  | 'UNKNOWN'
+  | (string & {});
 
-export type UserRole = 'ORG_ADMIN' | 'TEAM_ADMIN' | 'DEVELOPER' | 'VIEWER';
+export type UserRole = 'ORG_ADMIN' | 'TEAM_ADMIN' | 'DEVELOPER' | 'VIEWER' | (string & {});
 
 // ==========================================
 // 2. Client Configuration & Request Options
@@ -226,7 +272,7 @@ export interface TraceSpan {
   serviceName: string;
   startTimeMs: number;
   durationMs: number;
-  status: 'OK' | 'ERROR';
+  status: 'OK' | 'ERROR' | (string & {});
   attributes?: Record<string, string | number | boolean>;
 }
 
@@ -335,7 +381,7 @@ export interface BatchDto {
   team: string;
   totalCount: number;
   processedCount: number;
-  state: 'INITIALIZING' | 'PROCESSING' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+  state: 'INITIALIZING' | 'PROCESSING' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | (string & {});
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -507,7 +553,7 @@ export interface DlqMutatedReplayResult {
     estimatedApiCostUsd: number;
     estimatedExecutionTimeSeconds: number;
     affectedTenantsCount: number;
-    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | (string & {});
   };
 }
 

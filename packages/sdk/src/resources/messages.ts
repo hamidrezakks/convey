@@ -152,14 +152,14 @@ export class MessagesResource {
   private formatAcceptedResponse(raw: Record<string, unknown>, isSandbox = false): MessageAcceptedResponse {
     const id = String(raw.messageId || raw.publicId || '');
     const state = String(raw.state || raw.status || 'accepted');
-    const statusEnum = (state.toUpperCase() as MessageStatus) || 'ACCEPTED';
+    const status = (state.toUpperCase() as MessageStatus) || 'ACCEPTED';
     const createdAt = String(raw.createdAt || new Date().toISOString());
 
     return {
       messageId: id,
       publicId: id,
       state,
-      status: statusEnum,
+      status,
       createdAt,
       acceptedAt: createdAt,
       scheduledAt: raw.scheduledAt ? String(raw.scheduledAt) : undefined,
