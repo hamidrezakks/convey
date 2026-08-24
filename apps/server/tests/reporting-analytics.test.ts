@@ -1,10 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { Channel } from '@convey/shared';
+import type {
+  CampaignDetailDto,
+  CampaignsReportResponse,
+  CategoriesReportResponse,
+  ReportingOverviewResponse,
+  TeamsReportResponse,
+} from '@convey/shared';
 import { sql } from 'drizzle-orm';
-
 import { app } from '../src';
 import { db } from '../src/db';
 import { budgetLedger, budgetPolicies, budgetUsage, campaigns, messageEvents, messages } from '../src/db/schema';
+import { Channel } from '../src/modules/messaging/messaging.types';
 import { ReportingService } from '../src/modules/reports/reporting.service';
 import { generateMessageId } from '../src/utils/id';
 
@@ -240,7 +246,7 @@ describe('Reporting & Multi-Dimension Analytics Test Suite', () => {
     it('GET /v1/admin/reports/overview returns 200 with summary KPIs', async () => {
       const res = await app.handle(new Request(`http://localhost/v1/admin/reports/overview?teamId=${testTeamA}`));
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as ReportingOverviewResponse;
       expect(data.summary).toBeDefined();
       expect(data.summary.totalSent).toBeGreaterThanOrEqual(10);
       expect(data.summary.deliveryRatePercent).toBe(80.0);
@@ -249,7 +255,7 @@ describe('Reporting & Multi-Dimension Analytics Test Suite', () => {
     it('GET /v1/admin/reports/teams returns 200 with team list', async () => {
       const res = await app.handle(new Request(`http://localhost/v1/admin/reports/teams?teamId=${testTeamA}`));
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as TeamsReportResponse;
       expect(data.teams).toBeDefined();
       expect(data.teams.length).toBeGreaterThanOrEqual(1);
     });
@@ -257,14 +263,14 @@ describe('Reporting & Multi-Dimension Analytics Test Suite', () => {
     it('GET /v1/admin/reports/categories returns 200 with category list', async () => {
       const res = await app.handle(new Request(`http://localhost/v1/admin/reports/categories?teamId=${testTeamA}`));
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as CategoriesReportResponse;
       expect(data.categories).toBeDefined();
     });
 
     it('GET /v1/admin/reports/campaigns returns 200 with external campaign list', async () => {
       const res = await app.handle(new Request(`http://localhost/v1/admin/reports/campaigns?search=${testCampaign1}`));
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as CampaignsReportResponse;
       expect(data.campaigns).toBeDefined();
       expect(data.campaigns.length).toBe(1);
       expect(data.campaigns[0].campaignId).toBe(testCampaign1);
@@ -273,7 +279,7 @@ describe('Reporting & Multi-Dimension Analytics Test Suite', () => {
     it('GET /v1/admin/reports/campaigns/:campaignId returns 200 with drilldown details', async () => {
       const res = await app.handle(new Request(`http://localhost/v1/admin/reports/campaigns/${testCampaign1}`));
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as CampaignDetailDto;
       expect(data.campaignId).toBe(testCampaign1);
       expect(data.funnel).toBeDefined();
     });

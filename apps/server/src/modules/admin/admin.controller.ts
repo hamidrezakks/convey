@@ -504,53 +504,39 @@ export function adminController(app: Elysia) {
       )
 
       // Reporting Doctor & Reconciliation Engine
-      .post(
-        '/reports/reconcile',
-        { detail: AdminDocs.reportsReconcile },
-        async ({
-          body,
-        }: {
-          body?: {
-            startDate?: string;
-            endDate?: string;
-            teamId?: string;
-            category?: string;
-            campaignId?: string;
-          };
-        }) => {
-          const result = await ReportingDoctorService.reconcile({
-            startDate: body?.startDate ? new Date(body.startDate) : undefined,
-            endDate: body?.endDate ? new Date(body.endDate) : undefined,
-            teamId: body?.teamId,
-            category: body?.category,
-            campaignId: body?.campaignId,
-          });
-          return jsonResponse(result, 200);
-        },
-      )
-      .post(
-        '/reports/doctor',
-        { detail: AdminDocs.reportsReconcile },
-        async ({
-          body,
-        }: {
-          body?: {
-            startDate?: string;
-            endDate?: string;
-            teamId?: string;
-            category?: string;
-            campaignId?: string;
-          };
-        }) => {
-          const result = await ReportingDoctorService.reconcile({
-            startDate: body?.startDate ? new Date(body.startDate) : undefined,
-            endDate: body?.endDate ? new Date(body.endDate) : undefined,
-            teamId: body?.teamId,
-            category: body?.category,
-            campaignId: body?.campaignId,
-          });
-          return jsonResponse(result, 200);
-        },
-      ),
+      .post('/reports/reconcile', { detail: AdminDocs.reportsReconcile }, async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as {
+          startDate?: string;
+          endDate?: string;
+          teamId?: string;
+          category?: string;
+          campaignId?: string;
+        };
+        const result = await ReportingDoctorService.reconcile({
+          startDate: b.startDate ? new Date(b.startDate) : undefined,
+          endDate: b.endDate ? new Date(b.endDate) : undefined,
+          teamId: b.teamId,
+          category: b.category,
+          campaignId: b.campaignId,
+        });
+        return jsonResponse(result, 200);
+      })
+      .post('/reports/doctor', { detail: AdminDocs.reportsReconcile }, async ({ body }: { body: unknown }) => {
+        const b = (body || {}) as {
+          startDate?: string;
+          endDate?: string;
+          teamId?: string;
+          category?: string;
+          campaignId?: string;
+        };
+        const result = await ReportingDoctorService.reconcile({
+          startDate: b.startDate ? new Date(b.startDate) : undefined,
+          endDate: b.endDate ? new Date(b.endDate) : undefined,
+          teamId: b.teamId,
+          category: b.category,
+          campaignId: b.campaignId,
+        });
+        return jsonResponse(result, 200);
+      }),
   );
 }

@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { Channel } from '@convey/shared';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../src/db';
 import {
@@ -11,7 +10,7 @@ import {
   reportCampaignHourly,
   reportHourly,
 } from '../src/db/schema';
-import { MetricType } from '../src/modules/messaging/messaging.types';
+import { Channel, MetricType } from '../src/modules/messaging/messaging.types';
 import { buildReportId, ReportingService } from '../src/modules/reports/reporting.service';
 import { ReportingDoctorService } from '../src/modules/reports/reporting-doctor.service';
 import { getUtcHourBoundary } from '../src/utils/date';
@@ -36,11 +35,7 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
         team: teamAlpha,
         monthlyBudgetUsd: '5000.00',
         currency: 'USD',
-        softThresholdPercent: 80,
-        hardThresholdPercent: 100,
-        enforceHardLimit: true,
-        actionOnHardLimit: 'reject',
-        alertEmails: ['alpha@convey.internal'],
+        hardStop: 'true',
         createdAt: now,
         updatedAt: now,
       },
@@ -49,11 +44,7 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
         team: teamBeta,
         monthlyBudgetUsd: '1200.00',
         currency: 'EUR',
-        softThresholdPercent: 75,
-        hardThresholdPercent: 95,
-        enforceHardLimit: true,
-        actionOnHardLimit: 'reject',
-        alertEmails: ['beta@convey.internal'],
+        hardStop: 'true',
         createdAt: now,
         updatedAt: now,
       },
@@ -406,9 +397,9 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
 
       expect(searchRes.campaigns.length).toBe(1);
       expect(searchRes.campaigns[0].campaignId).toBe(campaignAlpha1);
-      expect(searchRes.pagination.total).toBe(1);
-      expect(searchRes.pagination.page).toBe(1);
-      expect(searchRes.pagination.totalPages).toBe(1);
+      expect(searchRes.pagination?.total).toBe(1);
+      expect(searchRes.pagination?.page).toBe(1);
+      expect(searchRes.pagination?.totalPages).toBe(1);
     });
 
     it('returns complete 5-step conversion funnel in single campaign detail query', async () => {

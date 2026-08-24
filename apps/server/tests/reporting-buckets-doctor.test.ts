@@ -1,16 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { Channel } from '@convey/shared';
 import { eq } from 'drizzle-orm';
 import { app } from '../src';
-
 import { db } from '../src/db';
 import { budgetLedger, campaigns, messageEvents, messages, reportCampaignHourly, reportHourly } from '../src/db/schema';
-import { MetricType } from '../src/modules/messaging/messaging.types';
+import { Channel, MetricType } from '../src/modules/messaging/messaging.types';
 import { buildReportId, ReportingService } from '../src/modules/reports/reporting.service';
-
 import { ReportingDoctorService } from '../src/modules/reports/reporting-doctor.service';
 import { getUtcHourBoundary } from '../src/utils/date';
-
 import { generateMessageId } from '../src/utils/id';
 
 describe('Reporting Doctor & Pre-Aggregated OLAP Buckets Test Suite', () => {
@@ -238,7 +234,11 @@ describe('Reporting Doctor & Pre-Aggregated OLAP Buckets Test Suite', () => {
       );
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as {
+        status: string;
+        bucketsReconciled?: number;
+        durationMs?: number;
+      };
       expect(data.status).toBe('success');
       expect(data.bucketsReconciled).toBeGreaterThan(0);
       expect(data.durationMs).toBeDefined();
@@ -254,7 +254,7 @@ describe('Reporting Doctor & Pre-Aggregated OLAP Buckets Test Suite', () => {
       );
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as { status: string };
       expect(data.status).toBe('success');
     });
   });

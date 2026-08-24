@@ -265,7 +265,7 @@ export function ReportsPage() {
         accessorKey: 'state',
         header: 'State',
         cell: ({ row }) => (
-          <Badge variant={row.state === 'active' ? 'emerald' : row.state === 'paused' ? 'amber' : 'default'}>
+          <Badge variant={row.state === 'active' ? 'success' : row.state === 'paused' ? 'warning' : 'default'}>
             {row.state}
           </Badge>
         ),
@@ -552,7 +552,7 @@ export function ReportsPage() {
             </div>
             <div className="flex items-center justify-between mt-1 text-xs text-slate-500 dark:text-slate-400">
               <span>{summary?.totalDelivered.toLocaleString() ?? '0'} delivered</span>
-              <Badge variant="emerald" className="text-[10px] py-0">
+              <Badge variant="success" className="text-[10px] py-0">
                 SLA Met
               </Badge>
             </div>

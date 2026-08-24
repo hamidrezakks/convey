@@ -490,13 +490,13 @@ export interface ReportingMetrics {
 
 export interface TeamReportDto {
   teamId: string;
-  teamName: string;
+  teamName?: string;
   currency: string;
   monthlyBudget: number;
   usedBudgetUsd: number;
   remainingBudgetUsd: number;
   budgetUtilizationPercent: number;
-  isHardStop: boolean;
+  isHardStop?: boolean;
   metrics: ReportingMetrics;
   activeCampaignsCount: number;
 }
@@ -504,10 +504,10 @@ export interface TeamReportDto {
 export interface CategoryReportDto {
   category: string;
   totalSent: number;
-  delivered: number;
-  opened: number;
-  read: number;
-  failed: number;
+  delivered?: number;
+  opened?: number;
+  read?: number;
+  failed?: number;
   deliveryRatePercent: number;
   openRatePercent: number;
   failRatePercent: number;
@@ -542,6 +542,9 @@ export interface CampaignFunnel {
   opened: number;
   read: number;
   failed: number;
+  deliveryRatePercent?: number;
+  openRatePercent?: number;
+  readRatePercent?: number;
 }
 
 export interface CampaignDetailDto extends CampaignReportDto {
@@ -550,16 +553,17 @@ export interface CampaignDetailDto extends CampaignReportDto {
     channel: Channel;
     sent: number;
     delivered: number;
-    opened: number;
-    read: number;
-    failed: number;
+    opened?: number;
+    read?: number;
+    failed?: number;
     costUsd: number;
   }>;
   hourlyTimeline: Array<{
     hour: string;
     sent: number;
     delivered: number;
-    opened: number;
+    opened?: number;
+    read?: number;
     failed: number;
     costUsd: number;
   }>;
@@ -575,18 +579,21 @@ export interface ReportingSummaryDto {
   openRatePercent: number;
   failRatePercent: number;
   totalCostUsd: number;
-  activeTeamsCount: number;
-  activeCampaignsCount: number;
+  activeTeamsCount?: number;
+  activeCampaignsCount?: number;
 }
 
 export interface ChannelReportingMetric {
   channel: Channel;
-  sent: number;
-  delivered: number;
-  opened: number;
-  failed: number;
-  costUsd: number;
-  deliveryRate: number;
+  sent?: number;
+  delivered?: number;
+  opened?: number;
+  read?: number;
+  failed?: number;
+  costUsd?: number;
+  deliveryRate?: number;
+  metrics?: ReportingMetrics;
+  costPerDeliveredUsd?: number;
 }
 
 export interface ReportingTimeSeriesDataPoint {
@@ -602,23 +609,46 @@ export interface ReportingOverviewResponse {
   summary: ReportingSummaryDto;
   channelBreakdown: ChannelReportingMetric[];
   timeSeries: ReportingTimeSeriesDataPoint[];
+  timeframe?: {
+    startDate: string;
+    endDate: string;
+  };
 }
 
 export interface TeamsReportResponse {
   teams: TeamReportDto[];
-  total: number;
+  total?: number;
+  timeframe?: {
+    startDate: string;
+    endDate: string;
+  };
 }
 
 export interface CategoriesReportResponse {
   categories: CategoryReportDto[];
-  total: number;
+  total?: number;
+  timeframe?: {
+    startDate: string;
+    endDate: string;
+  };
 }
 
 export interface CampaignsReportResponse {
   campaigns: CampaignReportDto[];
-  total: number;
-  page: number;
-  limit: number;
+  total?: number;
+  page?: number;
+  limit?: number;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasMore?: boolean;
+  };
+  timeframe?: {
+    startDate: string;
+    endDate: string;
+  };
 }
 
 // Complete 88 Turnkey Provider Catalog
