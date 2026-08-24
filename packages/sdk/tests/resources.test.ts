@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Convey } from '../src';
+import { BatchState, Channel, Convey, MessageStatus, SuppressionReason } from '../src';
 
 describe('SDK Resource Modules Unit Tests', () => {
   function createMockClient(handler: (path: string, method: string, body?: unknown, query?: unknown) => unknown) {
@@ -57,20 +57,20 @@ describe('SDK Resource Modules Unit Tests', () => {
       });
 
       const single = await client.messages.send({
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         recipient: 'alex@test.com',
         content: { subject: 'Hi', body: 'Hello' },
       });
       expect(single.publicId).toBe('msg_01');
 
       const bulk = await client.messages.sendBulk([
-        { channel: 'EMAIL', recipient: 'u1@test.com', content: { body: '1' } },
-        { channel: 'EMAIL', recipient: 'u2@test.com', content: { body: '2' } },
+        { channel: Channel.EMAIL, recipient: 'u1@test.com', content: { body: '1' } },
+        { channel: Channel.EMAIL, recipient: 'u2@test.com', content: { body: '2' } },
       ]);
       expect(bulk.total).toBe(2);
 
       const detail = await client.messages.get('msg_01');
-      expect(detail.status).toBe('DELIVERED');
+      expect(detail.status).toBe(MessageStatus.DELIVERED);
 
       const timeline = await client.messages.getTimeline('msg_01');
       expect(timeline.timeline.length).toBe(1);
@@ -121,13 +121,13 @@ describe('SDK Resource Modules Unit Tests', () => {
       expect(batch.batch.totalCount).toBe(100);
 
       const paused = await client.batches.pause('batch_01');
-      expect(paused.batch.state).toBe('PAUSED');
+      expect(paused.batch.state).toBe(BatchState.PAUSED);
 
       const resumed = await client.batches.resume('batch_01');
-      expect(resumed.batch.state).toBe('PROCESSING');
+      expect(resumed.batch.state).toBe(BatchState.PROCESSING);
 
       const cancelled = await client.batches.cancel('batch_01');
-      expect(cancelled.batch.state).toBe('CANCELLED');
+      expect(cancelled.batch.state).toBe(BatchState.CANCELLED);
     });
   });
 
@@ -150,10 +150,15 @@ describe('SDK Resource Modules Unit Tests', () => {
         return {};
       });
 
-      const add = await client.suppressions.add({ identifier: 'bounced@test.com', reason: 'HARD_BOUNCE' });
+      const add = await client.suppressions.add({
+        identifier: 'bounced@test.com',
+        reason: SuppressionReason.HARD_BOUNCE,
+      });
       expect(add.suppression.id).toBe('supp_01');
 
-      const bulk = await client.suppressions.addBulk([{ identifier: 'a@test.com', reason: 'UNSUBSCRIBE' }]);
+      const bulk = await client.suppressions.addBulk([
+        { identifier: 'a@test.com', reason: SuppressionReason.UNSUBSCRIBE },
+      ]);
       expect(bulk.count).toBe(2);
 
       const list = await client.suppressions.list({ search: 'bounced' });
@@ -347,7 +352,7 @@ describe('SDK Resource Modules Unit Tests', () => {
 
       const reg = await client.admin.registerProvider({
         providerId: 'sendgrid',
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         credentials: { SENDGRID_API_KEY: 'sg_123' },
       });
       expect(reg.success).toBe(true);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Convey } from '../src';
+import { Channel, Convey, MessagePriority } from '../src';
 
 describe('QA Omnichannel Messages Serialization & Normalization', () => {
   it('should serialize SMS messages into Convey wire schema', async () => {
@@ -15,9 +15,9 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
 
     const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
     const res = await client.messages.send({
-      channel: 'SMS',
+      channel: Channel.SMS,
       recipient: '+14155552671',
-      priority: 'CRITICAL',
+      priority: MessagePriority.CRITICAL,
       content: { body: 'Your security code is 849201' },
       metadata: { action: '2fa_login', ip: '192.168.1.1' },
     });
@@ -48,7 +48,7 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
 
     const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
     await client.messages.send({
-      channel: 'WHATSAPP',
+      channel: Channel.WHATSAPP,
       recipient: '+447911123456',
       content: {
         templateId: 'shipping_update_v2',
@@ -81,7 +81,7 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
 
     const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
     await client.messages.send({
-      channel: 'SLACK',
+      channel: Channel.SLACK,
       recipient: 'C0123456789',
       content: { body: 'Deployment #42 completed successfully.' },
     });
@@ -108,7 +108,7 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
 
     const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
     await client.messages.send({
-      channel: 'PUSH',
+      channel: Channel.PUSH,
       recipient: 'fcm_token_device_abc123',
       content: { subject: 'Breaking News', body: 'New feature released!' },
     });
@@ -137,7 +137,7 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
     const scheduledDate = new Date('2026-12-31T23:59:59.000Z');
 
     await client.messages.send({
-      channel: 'EMAIL',
+      channel: Channel.EMAIL,
       recipient: 'future@test.com',
       content: { body: 'Happy New Year!' },
       scheduledAt: scheduledDate,
@@ -164,7 +164,7 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       team: 'billing',
       category: 'INVOICE',
       country: 'DE',
-      priority: 'HIGH',
+      priority: MessagePriority.HIGH,
       recipients: {
         email: 'billing@client.de',
         phone: '+491512345678',

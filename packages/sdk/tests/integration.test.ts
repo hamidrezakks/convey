@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { app } from '../../../apps/server/src/index';
 import { SEEDED_API_KEY_RAW, seedDatabaseWithRealisticData } from '../../../apps/server/tests/helpers/db-seeder';
-import { Convey } from '../src';
+import { Channel, Convey, MessagePriority, MessageStatus } from '../src';
 
 describe('SDK Live Integration with Convey Server Routes', () => {
   beforeAll(async () => {
@@ -22,9 +22,9 @@ describe('SDK Live Integration with Convey Server Routes', () => {
 
   it('should accept message dispatch through real Elysia router', async () => {
     const result = await client.messages.send({
-      channel: 'EMAIL',
+      channel: Channel.EMAIL,
       recipient: 'integration@test.com',
-      priority: 'HIGH',
+      priority: MessagePriority.HIGH,
       content: {
         subject: 'E2E Live Integration Test',
         body: '<p>Integration test body</p>',
@@ -34,7 +34,7 @@ describe('SDK Live Integration with Convey Server Routes', () => {
 
     expect(result.success).toBe(true);
     expect(result.publicId).toMatch(/^msg_/);
-    expect(result.status).toBe('ACCEPTED');
+    expect(result.status).toBe(MessageStatus.ACCEPTED);
     expect(result.isSandbox).toBe(true);
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Convey, createChildTraceparent, generateTraceparent } from '../src';
+import { Channel, Convey, createChildTraceparent, generateTraceparent } from '../src';
 
 describe('QA W3C Distributed Traceparent Propagation & APM', () => {
   const W3C_TRACEPARENT_REGEX = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
@@ -67,7 +67,7 @@ describe('QA W3C Distributed Traceparent Propagation & APM', () => {
     const incomingTrace = '00-9876543210abcdef9876543210abcdef-1234567890abcdef-01';
     await client.messages.send(
       {
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         recipient: 'apm@test.com',
         content: { body: 'Tracing test' },
       },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Convey, ConveyApiError, ConveyNetworkError } from '../src';
+import { Channel, Convey, ConveyApiError, ConveyNetworkError } from '../src';
 
 describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
   it('should handle HTML 502/504 Bad Gateway / Gateway Timeout responses gracefully', async () => {
@@ -27,7 +27,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
     });
 
     const result = await client.messages.send({
-      channel: 'EMAIL',
+      channel: Channel.EMAIL,
       recipient: 'user@test.com',
       content: { body: 'Testing 502 recovery' },
     });
@@ -50,7 +50,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
     let thrownError: unknown;
     try {
       await client.messages.send({
-        channel: 'SMS',
+        channel: Channel.SMS,
         recipient: '+15551234567',
         content: { body: 'Network fail' },
       });
@@ -89,7 +89,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
     });
 
     const result = await client.messages.send({
-      channel: 'SMS',
+      channel: Channel.SMS,
       recipient: '+15551234567',
       content: { body: 'Testing HTTP-Date retry' },
     });
@@ -115,7 +115,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     expect(
       client.messages.send({
-        channel: 'SMS',
+        channel: Channel.SMS,
         recipient: '+15551234567',
         content: { body: 'No retry' },
       }),
@@ -154,7 +154,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
     await expect(
       client.messages.send(
         {
-          channel: 'EMAIL',
+          channel: Channel.EMAIL,
           recipient: 'user@test.com',
           content: { body: 'Abort test' },
         },
@@ -181,7 +181,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     await client.messages.send(
       {
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         recipient: 'user@test.com',
         content: { body: 'Custom headers' },
       },

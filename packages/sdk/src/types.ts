@@ -201,9 +201,9 @@ export interface MessageContent<TVariables = Record<string, unknown>> {
 }
 
 export interface SendMessageRequest<TVariables = Record<string, unknown>, TMetadata = Record<string, unknown>> {
-  channel?: Channel | `${Channel}` | string;
+  channel?: Channel;
   recipient?: string;
-  priority?: MessagePriority | `${MessagePriority}` | string;
+  priority?: MessagePriority;
   content?: MessageContent<TVariables>;
   category?: string;
   campaignId?: string;
@@ -236,14 +236,14 @@ export interface MessageAcceptedResponse {
   messageId: string;
   publicId: string;
   state: string;
-  status: MessageStatus | `${MessageStatus}` | string;
+  status: MessageStatus;
   createdAt: string;
   acceptedAt: string;
   scheduledAt?: string;
   success?: boolean;
-  channel?: Channel | `${Channel}` | string;
+  channel?: Channel;
   recipient?: string;
-  priority?: MessagePriority | `${MessagePriority}` | string;
+  priority?: MessagePriority;
   isSandbox?: boolean;
   idempotencyKey?: string;
 }
@@ -280,10 +280,10 @@ export interface MessageAttemptDto {
 export interface MessageDetailDto {
   publicId: string;
   teamId: string;
-  channel: Channel | `${Channel}` | string;
+  channel: Channel;
   recipient: string;
-  priority: MessagePriority | `${MessagePriority}` | string;
-  status: MessageStatus | `${MessageStatus}` | string;
+  priority: MessagePriority;
+  status: MessageStatus;
   isSandbox?: boolean;
   providerId?: string;
   latencyMs?: number;
@@ -305,7 +305,7 @@ export interface MessageDetailDto {
   spans: TraceSpan[];
   attempts: MessageAttemptDto[];
   timeline?: Array<{
-    status: MessageStatus | `${MessageStatus}` | string;
+    status: MessageStatus;
     provider?: string;
     attemptNumber?: number;
     latencyMs?: number;
@@ -317,7 +317,7 @@ export interface MessageDetailDto {
 export interface MessageTimelineResponse {
   messageId: string;
   timeline: Array<{
-    status: MessageStatus | `${MessageStatus}` | string;
+    status: MessageStatus;
     provider?: string;
     attemptNumber?: number;
     latencyMs?: number;
@@ -372,7 +372,7 @@ export interface BatchDto {
   team: string;
   totalCount: number;
   processedCount: number;
-  state: BatchState | `${BatchState}` | string;
+  state: BatchState;
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -400,10 +400,10 @@ export interface BatchActionResponse {
 export interface AddSuppressionRequest {
   identifier: string;
   identifierType?: 'email' | 'phone' | 'whatsapp' | 'push' | 'user_id' | string;
-  reason: SuppressionReason | `${SuppressionReason}` | string;
+  reason: SuppressionReason;
   category?: string;
   country?: string;
-  channel?: Channel | `${Channel}` | string;
+  channel?: Channel;
   startsAt?: string | Date;
   endsAt?: string | Date;
 }
@@ -417,10 +417,10 @@ export interface SuppressionDto {
   teamId: string;
   identifier: string;
   identifierType?: string;
-  reason: SuppressionReason | `${SuppressionReason}` | string;
+  reason: SuppressionReason;
   category?: string;
   country?: string;
-  channel?: Channel | `${Channel}` | string;
+  channel?: Channel;
   startsAt?: string;
   endsAt?: string;
   createdAt: string;
@@ -429,9 +429,9 @@ export interface SuppressionDto {
 export interface ListSuppressionsQuery {
   limit?: number;
   offset?: number;
-  channel?: Channel | `${Channel}` | string;
+  channel?: Channel;
   category?: string;
-  reason?: SuppressionReason | `${SuppressionReason}` | string;
+  reason?: SuppressionReason;
   search?: string;
 }
 
@@ -522,9 +522,9 @@ export interface DlqReplayResult {
 
 export interface DlqMutatedReplayRequest {
   dryRun?: boolean;
-  category?: DlqFailureCategory | `${DlqFailureCategory}` | string;
+  category?: DlqFailureCategory;
   filter?: {
-    errorCategory?: DlqFailureCategory | `${DlqFailureCategory}` | string;
+    errorCategory?: DlqFailureCategory;
     providerId?: string;
     timeRange?: 'last_hour' | 'last_2_hours' | 'last_24_hours' | 'all';
     messageIds?: string[];
@@ -605,7 +605,7 @@ export interface ReportingOverviewResponse {
     activeCampaignsCount?: number;
   };
   channelBreakdown: Array<{
-    channel: Channel | `${Channel}` | string;
+    channel: Channel;
     sent?: number;
     delivered?: number;
     opened?: number;
@@ -657,7 +657,7 @@ export interface CategoryReportDto {
   openRatePercent: number;
   failRatePercent: number;
   totalCostUsd: number;
-  topChannel: Channel | `${Channel}` | string;
+  topChannel: Channel;
 }
 
 export interface CategoriesReportResponse {
@@ -697,7 +697,7 @@ export interface CampaignDetailDto extends CampaignReportDto {
     readRatePercent?: number;
   };
   channelBreakdown: Array<{
-    channel: Channel | `${Channel}` | string;
+    channel: Channel;
     sent: number;
     delivered: number;
     opened?: number;
@@ -759,11 +759,11 @@ export interface LiveTelemetrySnapshot {
   recentActivity: Array<{
     id: string;
     type: string;
-    channel: Channel | `${Channel}` | string;
+    channel: Channel;
     teamId: string;
     provider: string;
     latencyMs: number;
-    status: MessageStatus | `${MessageStatus}` | string;
+    status: MessageStatus;
     timestamp: string;
   }>;
 }
@@ -771,8 +771,8 @@ export interface LiveTelemetrySnapshot {
 export interface ProviderHealthDto {
   providerId: string;
   displayName: string;
-  channel: Channel | `${Channel}` | string;
-  state: CircuitState | `${CircuitState}` | string;
+  channel: Channel;
+  state: CircuitState;
   rampPercentage: number;
   emaLatencyMs: number;
   rollingSuccessRatePercent: number;
@@ -785,7 +785,7 @@ export interface ProviderHealthDto {
 
 export interface RegisterProviderRequest {
   providerId: string;
-  channel: Channel | `${Channel}` | string;
+  channel: Channel;
   credentials: Record<string, string>;
   baseCurrency?: string;
   unitCost?: number;
@@ -815,7 +815,7 @@ export interface AuditLogDto {
   tenantId: string;
   team: string;
   actor: string;
-  actorRole: UserRole | `${UserRole}` | string;
+  actorRole: UserRole;
   action: string;
   target: string;
   ipAddress?: string;

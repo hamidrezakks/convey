@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  Channel,
   Convey,
   ConveyAuthenticationError,
   ConveyConflictError,
@@ -24,7 +25,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
 
     const client = new Convey({ apiKey: 'sk_live_12345', fetch: mockFetch as unknown as typeof fetch });
     const result = await client.messages.send({
-      channel: 'EMAIL',
+      channel: Channel.EMAIL,
       recipient: 'user@test.com',
       content: { subject: 'Test', body: 'Hello' },
     });
@@ -56,7 +57,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
 
     const client = new Convey({ apiKey: 'sk_live_123', maxRetries: 2, fetch: mockFetch as unknown as typeof fetch });
     const res = await client.messages.send({
-      channel: 'SMS',
+      channel: Channel.SMS,
       recipient: '+14155550000',
       content: { body: 'Test' },
     });
@@ -110,7 +111,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
     let thrownError: unknown;
     try {
       await client.messages.send({
-        channel: 'SMS',
+        channel: Channel.SMS,
         recipient: 'invalid_phone',
         content: { body: 'Test' },
       });
@@ -136,7 +137,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
     const client = new Convey({ apiKey: 'sk_live_bad', fetch: mockFetch as unknown as typeof fetch });
     expect(
       client.messages.send({
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         recipient: 'user@test.com',
         content: { body: 'Test' },
       }),
@@ -154,7 +155,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
     const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
     expect(
       client.messages.send({
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         recipient: 'user@test.com',
         content: { body: 'Test' },
         idempotencyKey: 'dup_key',
@@ -174,7 +175,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
     let error: ConveyRateLimitError | undefined;
     try {
       await client.messages.send({
-        channel: 'SMS',
+        channel: Channel.SMS,
         recipient: '+14155550000',
         content: { body: 'Test' },
       });
@@ -212,7 +213,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
     });
     expect(
       client.messages.send({
-        channel: 'EMAIL',
+        channel: Channel.EMAIL,
         recipient: 'user@test.com',
         content: { body: 'Slow' },
       }),
