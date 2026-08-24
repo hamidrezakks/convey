@@ -17,6 +17,7 @@
     "build:website": "bun --filter @convey/website build",
     "test": "bun --filter @convey/server test",
     "test:web": "bun --filter @convey/web test",
+    "test:sdk": "bun --filter @convey/sdk test",
     "test:all": "bun test",
     "test:e2e": "bun --filter @convey/server test:e2e",
     "test:bench": "bun --filter @convey/server test:bench",
@@ -33,7 +34,7 @@
     "db:generate": "bun --filter @convey/server db:generate",
     "db:migrate": "bun --filter @convey/server db:migrate",
     "db:seed:million": "bun --filter @convey/server db:seed:million",
-    "typecheck": "bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json",
+    "typecheck": "bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p packages/sdk/tsconfig.json",
     "postinstall": "bun scripts/patch-openapi.ts"
   },
   "devDependencies": {
