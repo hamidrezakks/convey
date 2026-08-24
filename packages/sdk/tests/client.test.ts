@@ -54,4 +54,46 @@ describe('Convey Client Initialization', () => {
     expect(client.reports).toBeDefined();
     expect(client.admin).toBeDefined();
   });
+
+  it('should export all domain enums as runtime values', async () => {
+    const {
+      BatchState,
+      Channel,
+      CircuitState,
+      DlqFailureCategory,
+      MessagePriority,
+      MessageStatus,
+      SuppressionReason,
+      UserRole,
+    } = await import('../src');
+
+    expect(Channel.EMAIL).toBe(Channel.EMAIL);
+    expect(String(Channel.EMAIL)).toBe('EMAIL');
+    expect(String(Channel.SMS)).toBe('SMS');
+    expect(String(Channel.WHATSAPP)).toBe('WHATSAPP');
+    expect(String(Channel.SLACK)).toBe('SLACK');
+    expect(String(Channel.PUSH)).toBe('PUSH');
+
+    expect(String(MessagePriority.CRITICAL)).toBe('CRITICAL');
+    expect(String(MessagePriority.HIGH)).toBe('HIGH');
+    expect(String(MessagePriority.DEFAULT)).toBe('DEFAULT');
+    expect(String(MessagePriority.LOW)).toBe('LOW');
+
+    expect(String(MessageStatus.ACCEPTED)).toBe('ACCEPTED');
+    expect(String(MessageStatus.DELIVERED)).toBe('DELIVERED');
+    expect(String(MessageStatus.FAILED)).toBe('FAILED');
+
+    expect(String(CircuitState.CLOSED)).toBe('CLOSED');
+    expect(String(CircuitState.HALF_OPEN)).toBe('HALF_OPEN');
+    expect(String(CircuitState.OPEN)).toBe('OPEN');
+
+    expect(String(SuppressionReason.HARD_BOUNCE)).toBe('HARD_BOUNCE');
+    expect(String(SuppressionReason.SPAM_COMPLAINT)).toBe('SPAM_COMPLAINT');
+
+    expect(String(DlqFailureCategory.PROVIDER_5XX)).toBe('PROVIDER_5XX');
+    expect(String(DlqFailureCategory.RATE_LIMIT_429)).toBe('RATE_LIMIT_429');
+
+    expect(String(UserRole.ORG_ADMIN)).toBe('ORG_ADMIN');
+    expect(String(BatchState.PROCESSING)).toBe('PROCESSING');
+  });
 });

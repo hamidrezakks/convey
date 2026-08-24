@@ -46,8 +46,6 @@ export type {
   CampaignsReportResponse,
   CategoriesReportResponse,
   CategoryReportDto,
-  Channel,
-  CircuitState,
   ClearSandboxMessagesResponse,
   ConveyClientOptions,
   ConveyWebhookEvent,
@@ -55,7 +53,6 @@ export type {
   CreateBatchResponse,
   CreateWebhookSubscriptionRequest,
   CreateWebhookSubscriptionResponse,
-  DlqFailureCategory,
   DlqMutatedReplayRequest,
   DlqMutatedReplayResult,
   DlqReplayRequest,
@@ -74,8 +71,6 @@ export type {
   MessageAttemptDto,
   MessageContent,
   MessageDetailDto,
-  MessagePriority,
-  MessageStatus,
   MessageTimelineResponse,
   MessageTraceResponse,
   ProviderHealthDto,
@@ -86,7 +81,6 @@ export type {
   RequestOptions,
   SendMessageRequest,
   SuppressionDto,
-  SuppressionReason,
   TeamReportDto,
   TeamsReportResponse,
   TemplatePreviewRequest,
@@ -94,8 +88,18 @@ export type {
   TestProviderConnectionRequest,
   TestProviderConnectionResult,
   TraceSpan,
-  UserRole,
   WebhookSubscriptionDto,
+} from './types';
+// Enums
+export {
+  BatchState,
+  Channel,
+  CircuitState,
+  DlqFailureCategory,
+  MessagePriority,
+  MessageStatus,
+  SuppressionReason,
+  UserRole,
 } from './types';
 // Cryptographic & Trace Utilities
 export {
