@@ -124,6 +124,27 @@ export interface RequestOptions {
    * Additional HTTP headers for this request.
    */
   headers?: Record<string, string>;
+
+  /**
+   * HTTP Method (GET, POST, PUT, DELETE, PATCH).
+   */
+  method?: string;
+
+  /**
+   * Request payload body.
+   */
+  body?: unknown;
+
+  /**
+   * URL Query parameters.
+   */
+  params?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+
+  /**
+   * Expected response serialization type.
+   */
+  responseType?: 'json' | 'text' | 'blob';
 }
 
 // ==========================================

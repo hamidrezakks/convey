@@ -50,6 +50,9 @@ export class AutoPaginator<T> implements AsyncIterable<T> {
    */
   async autoPagingToArray(max?: number): Promise<T[]> {
     const results: T[] = [];
+    if (typeof max === 'number' && max <= 0) {
+      return results;
+    }
     const limit = typeof max === 'number' && max > 0 ? max : Number.POSITIVE_INFINITY;
 
     for await (const item of this) {

@@ -1,11 +1,12 @@
 /**
- * @convey/sdk - High-Performance Zero-Dependency HTTP Client
- * Implements deterministic resiliency with full-jitter exponential backoff,
- * 429 Retry-After parsing, W3C traceparent stitching, and typed error deserialization.
+ * @convey/sdk - Zero-Dependency Resilient HTTP Client
+ * Web standard fetch engine with exponential backoff full-jitter retries,
+ * socket keep-alive, AbortSignal timeout management, and typed error deserialization.
  */
 
 import {
   ConveyApiError,
+  type ConveyApiErrorOptions,
   ConveyAuthenticationError,
   ConveyConflictError,
   ConveyError,
@@ -20,93 +21,74 @@ import type { ConveyClientOptions, RequestOptions } from './types';
 import { createChildTraceparent, generateTraceparent } from './utils/trace';
 import { generateUlid } from './utils/ulid';
 
-export interface HttpRequestOptions extends RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  body?: unknown;
-  query?: Record<string, string | number | boolean | undefined | null>;
-  responseType?: 'json' | 'text' | 'blob';
-}
-
 const DEFAULT_BASE_URL = 'http://localhost:3000';
-const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_MAX_RETRIES = 3;
-const INITIAL_BACKOFF_MS = 250;
-const MAX_BACKOFF_MS = 10_000;
+const INITIAL_BACKOFF_MS = 100;
+const MAX_BACKOFF_MS = 10000;
 
 export class HttpClient {
-  readonly apiKey: string;
   readonly baseUrl: string;
+  readonly apiKey: string;
+  readonly isSandbox: boolean;
   readonly timeoutMs: number;
   readonly maxRetries: number;
-  readonly isSandbox: boolean;
   readonly teamId?: string;
-  readonly fetchFn: typeof fetch;
-  readonly defaultHeaders: Record<string, string>;
+  private readonly fetchFn: typeof fetch;
 
   constructor(options: ConveyClientOptions) {
-    if (!options.apiKey) {
-      throw new Error('[Convey SDK] API Key is required. Pass { apiKey: "sk_..." }');
+    if (!options.apiKey || typeof options.apiKey !== 'string' || options.apiKey.trim().length === 0) {
+      throw new ConveyError('ConveyClient requires a valid apiKey. API Key is required.');
     }
 
-    this.apiKey = options.apiKey;
-    this.baseUrl = (
-      options.baseUrl ||
-      (typeof process !== 'undefined' && process.env?.CONVEY_BASE_URL) ||
-      DEFAULT_BASE_URL
-    ).replace(/\/+$/, '');
+    this.baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.apiKey = options.apiKey.trim();
+    this.isSandbox = options.isSandbox ?? this.apiKey.startsWith('sk_test_');
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
-    this.isSandbox = Boolean(options.isSandbox || options.apiKey.startsWith('sk_test_'));
     this.teamId = options.teamId;
-    this.fetchFn = options.fetch || globalThis.fetch.bind(globalThis);
-    this.defaultHeaders = options.defaultHeaders || {};
+    this.fetchFn = options.fetch || globalThis.fetch;
   }
 
   /**
-   * Execute an HTTP request with automatic full-jitter retries and W3C trace propagation.
+   * Execute an authenticated HTTP request with full-jitter exponential backoff.
    */
-  async request<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
-    const method = options.method || 'GET';
-    const maxRetries = options.maxRetries ?? this.maxRetries;
-    const timeoutMs = options.timeoutMs ?? this.timeoutMs;
-    const isSandbox = options.isSandbox ?? this.isSandbox;
-
-    // URL & Query Params
-    const url = new URL(`${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`);
-    if (options.query) {
-      for (const [key, value] of Object.entries(options.query)) {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
+  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const url = new URL(path.startsWith('/') ? path : `/${path}`, this.baseUrl);
+    const queryParams = { ...options.params, ...options.query };
+    for (const [key, value] of Object.entries(queryParams)) {
+      if (value !== undefined && value !== null) {
+        url.searchParams.set(key, String(value));
       }
     }
 
-    // Idempotency Key (Generated for state-mutating requests if not provided)
-    const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
-    const idempotencyKey = options.idempotencyKey || (isMutating ? `sdk_${generateUlid()}` : undefined);
+    const method = options.method || 'GET';
+    const timeoutMs = options.timeoutMs ?? this.timeoutMs;
+    const maxRetries = options.maxRetries ?? this.maxRetries;
 
-    // Distributed Trace Context
-    const traceparent = options.traceparent ? createChildTraceparent(options.traceparent) : generateTraceparent();
+    // Distributed tracing: generate or stitch child traceparent
+    const traceparentHeader = options.traceparent ? createChildTraceparent(options.traceparent) : generateTraceparent();
 
-    // Headers Assembly
+    // Idempotency key generation: automatic monotonic ULID for mutating operations
+    const idempotencyKey = options.idempotencyKey || (method !== 'GET' ? `sdk_${generateUlid()}` : undefined);
+
     const headers: Record<string, string> = {
       Accept: 'application/json',
       Authorization: `Bearer ${this.apiKey}`,
       'x-api-key': this.apiKey,
-      traceparent,
-      ...this.defaultHeaders,
-      ...options.headers,
+      traceparent: traceparentHeader,
+      ...(options.headers as Record<string, string>),
     };
 
     if (idempotencyKey) {
       headers['Idempotency-Key'] = idempotencyKey;
     }
 
-    if (isSandbox) {
+    if (this.isSandbox || options.isSandbox) {
       headers['x-convey-sandbox'] = 'true';
     }
 
-    if (this.teamId && !headers['x-convey-team']) {
+    if (this.teamId) {
       headers['x-convey-team'] = this.teamId;
     }
 
@@ -120,7 +102,7 @@ export class HttpClient {
     while (true) {
       attempt++;
 
-      // AbortController setup
+      // AbortController setup per attempt
       const controller = new AbortController();
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -130,7 +112,11 @@ export class HttpClient {
 
       // Chain external signal if passed
       if (options.signal) {
-        options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        if (options.signal.aborted) {
+          controller.abort();
+        } else {
+          options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
       }
 
       try {
@@ -144,6 +130,7 @@ export class HttpClient {
 
         if (timeoutId) {
           clearTimeout(timeoutId);
+          timeoutId = undefined;
         }
 
         // Handle successful response (2xx)
@@ -168,12 +155,12 @@ export class HttpClient {
 
         if (canRetry) {
           const retryAfterHeader = response.headers.get('retry-after') || response.headers.get('Retry-After');
-          let delayMs = 0;
+          let delayMs = -1;
 
           if (retryAfterHeader) {
             const parsedSeconds = Number.parseInt(retryAfterHeader, 10);
             if (!Number.isNaN(parsedSeconds)) {
-              delayMs = parsedSeconds * 1000;
+              delayMs = Math.max(0, parsedSeconds * 1000);
             } else {
               const parsedDate = Date.parse(retryAfterHeader);
               if (!Number.isNaN(parsedDate)) {
@@ -182,22 +169,22 @@ export class HttpClient {
             }
           }
 
-          if (delayMs === 0) {
-            // Full-Jitter Exponential Backoff: sleep = min(maxBackoff, rand(0, base * 2^attempt))
-            const maxBackoffForAttempt = Math.min(MAX_BACKOFF_MS, INITIAL_BACKOFF_MS * 2 ** (attempt - 1));
-            delayMs = Math.floor(Math.random() * maxBackoffForAttempt);
+          if (delayMs < 0) {
+            delayMs = Math.floor(Math.random() * Math.min(MAX_BACKOFF_MS, INITIAL_BACKOFF_MS * 2 ** (attempt - 1)));
           }
 
-          await this.sleep(delayMs);
-          continue; // Retry next attempt
+          if (delayMs > 0) {
+            await this.sleep(delayMs);
+          }
+          continue;
         }
 
-        // Non-retryable error: parse response and throw typed error
         const rawBody = await response.text();
-        throw this.deserializeError(response, rawBody, traceparent);
-      } catch (err: unknown) {
+        throw this.deserializeError(response, rawBody, traceparentHeader);
+      } catch (err) {
         if (timeoutId) {
           clearTimeout(timeoutId);
+          timeoutId = undefined;
         }
 
         if (err instanceof ConveyApiError) {
@@ -205,7 +192,7 @@ export class HttpClient {
         }
 
         // Handle timeout / abort
-        if (controller.signal.aborted) {
+        if (controller.signal.aborted || options.signal?.aborted || (err as Error).name === 'AbortError') {
           if (options.signal?.aborted) {
             throw new ConveyError('Request aborted by caller AbortSignal.');
           }
@@ -240,28 +227,36 @@ export class HttpClient {
     });
 
     try {
-      if (rawBody) {
-        const json = JSON.parse(rawBody);
-        if (json.error) {
-          errorCode = json.error.code || errorCode;
-          message = json.error.message || message;
-          details = json.error.details;
-        } else if (json.message) {
-          message = json.message;
+      const parsed = JSON.parse(rawBody);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.error) {
+          if (typeof parsed.error === 'string') {
+            message = parsed.error;
+          } else if (typeof parsed.error === 'object') {
+            errorCode = parsed.error.code || errorCode;
+            message = parsed.error.message || message;
+            details = parsed.error.details;
+          }
+        } else if (parsed.message) {
+          message = parsed.message;
+          errorCode = parsed.code || errorCode;
+          details = parsed.details;
         }
       }
     } catch {
-      if (rawBody) {
-        message = rawBody;
+      // Body is not JSON (e.g. HTML 502/504 gateway error)
+      if (rawBody && rawBody.trim().length > 0) {
+        message = rawBody.slice(0, 500);
       }
     }
 
-    const errorOptions = {
+    const errorOptions: ConveyApiErrorOptions = {
       message,
       statusCode,
       errorCode,
       details,
-      traceparent,
+      requestId: responseHeaders['x-request-id'] || responseHeaders['request-id'],
+      traceparent: traceparent || responseHeaders.traceparent,
       headers: responseHeaders,
       rawBody,
     };
@@ -278,9 +273,12 @@ export class HttpClient {
       case 409:
         return new ConveyConflictError(errorOptions);
       case 429: {
-        const retryAfter = response.headers.get('retry-after') || response.headers.get('Retry-After');
-        const retryAfterSeconds = retryAfter ? Number.parseInt(retryAfter, 10) : undefined;
-        return new ConveyRateLimitError({ ...errorOptions, retryAfterSeconds });
+        const retryAfterStr = responseHeaders['retry-after'] || responseHeaders['Retry-After'];
+        const retryAfterSeconds = retryAfterStr ? Number.parseInt(retryAfterStr, 10) : undefined;
+        return new ConveyRateLimitError({
+          ...errorOptions,
+          retryAfterSeconds: Number.isNaN(retryAfterSeconds) ? undefined : retryAfterSeconds,
+        });
       }
       default:
         return new ConveyApiError(errorOptions);
