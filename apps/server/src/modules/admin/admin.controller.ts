@@ -3,11 +3,13 @@ import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
 import { jsonResponse } from '../messaging/messaging.controller';
 import { fxEngine } from '../policies/fx-engine';
+import { ReportingService } from '../reports/reporting.service';
 import { adminService } from './admin.service';
 
 export function adminController(app: Elysia) {
   return app.group('/v1/admin', (app) =>
     app
+
       // Overview metrics
       .get(
         '/overview',
@@ -307,6 +309,195 @@ export function adminController(app: Elysia) {
       .get('/currencies', () => {
         const rates = fxEngine.getAllRates();
         return jsonResponse({ base: 'USD', timestamp: new Date().toISOString(), currencies: rates }, 200);
-      }),
+      })
+
+      // --- Multi-Dimension Reporting & Analytics Endpoints ---
+      .get(
+        '/reports/overview',
+        { detail: AdminDocs.reportsOverview },
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const report = await ReportingService.getReportingOverview({
+            startDate: query?.startDate,
+            endDate: query?.endDate,
+            teamId: query?.teamId,
+            category: query?.category,
+            campaignId: query?.campaignId,
+            isSandbox,
+          });
+          return jsonResponse(report, 200);
+        },
+      )
+
+      .get(
+        '/reports/teams',
+        { detail: AdminDocs.reportsTeams },
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const report = await ReportingService.getTeamReports({
+            startDate: query?.startDate,
+            endDate: query?.endDate,
+            teamId: query?.teamId,
+            isSandbox,
+          });
+          return jsonResponse(report, 200);
+        },
+      )
+
+      .get(
+        '/reports/categories',
+        { detail: AdminDocs.reportsCategories },
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const report = await ReportingService.getCategoryReports({
+            startDate: query?.startDate,
+            endDate: query?.endDate,
+            teamId: query?.teamId,
+            category: query?.category,
+            isSandbox,
+          });
+          return jsonResponse(report, 200);
+        },
+      )
+
+      .get(
+        '/reports/campaigns',
+        { detail: AdminDocs.reportsCampaigns },
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const report = await ReportingService.getCampaignReports({
+            search: query?.search,
+            teamId: query?.teamId,
+            category: query?.category,
+            campaignId: query?.campaignId,
+            startDate: query?.startDate,
+            endDate: query?.endDate,
+            page: query?.page ? Number(query.page) : 1,
+            limit: query?.limit ? Number(query.limit) : 20,
+            isSandbox,
+          });
+          return jsonResponse(report, 200);
+        },
+      )
+
+      .get(
+        '/reports/campaigns/:campaignId',
+        { detail: AdminDocs.reportsCampaignDetails },
+        async ({
+          params,
+          query,
+          headers,
+        }: {
+          params: { campaignId: string };
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+          const details = await ReportingService.getCampaignDetails(params.campaignId, { isSandbox });
+          if (!details) {
+            return jsonResponse({ error: 'Campaign not found' }, 404);
+          }
+          return jsonResponse(details, 200);
+        },
+      )
+
+      .get(
+        '/reports/export',
+        { detail: AdminDocs.reportsExport },
+        async ({
+          query,
+          headers,
+        }: {
+          query?: Record<string, string | undefined>;
+          headers?: Record<string, string | undefined>;
+        }) => {
+          const type = (query?.type || 'campaigns') as 'teams' | 'categories' | 'campaigns' | 'overview';
+          const format = (query?.format || 'csv') as 'csv' | 'json';
+          const isSandbox =
+            query?.isSandbox === 'true' ||
+            headers?.['x-convey-sandbox'] === 'true' ||
+            headers?.['x-convey-environment'] === 'sandbox'
+              ? true
+              : query?.isSandbox === 'false' || headers?.['x-convey-environment'] === 'production'
+                ? false
+                : undefined;
+
+          const exported = await ReportingService.exportReport(type, format, {
+            startDate: query?.startDate,
+            endDate: query?.endDate,
+            teamId: query?.teamId,
+            category: query?.category,
+            campaignId: query?.campaignId,
+            isSandbox,
+          });
+
+          return new Response(exported.content, {
+            status: 200,
+            headers: {
+              'Content-Type': exported.contentType,
+              'Content-Disposition': `attachment; filename="${exported.filename}"`,
+            },
+          });
+        },
+      ),
   );
 }
