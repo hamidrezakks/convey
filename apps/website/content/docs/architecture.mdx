@@ -95,9 +95,7 @@ To prevent bulk marketing blasts from starving critical one-time passwords (OTP)
 - **Pro Tier**: Quantum = 50 tasks / round
 - **Free Tier**: Quantum = 10 tasks / round
 
-Convey guarantees a **Jain's Fairness Index** $JFI \ge 0.95$ under 100x traffic skew:
-
-$$J(x_1, x_2, \dots, x_n) = \frac{\left( \sum_{i=1}^n x_i \right)^2}{n \sum_{i=1}^n x_i^2}$$
+Convey guarantees a **Jain's Fairness Index** `JFI >= 0.95` under 100x traffic skew across tenants.
 
 ---
 
@@ -107,8 +105,11 @@ When downstream providers (e.g., Twilio, AWS SES) degrade:
 
 - **Sliding-Window Failure Detection**: 100-request sliding ring buffer trips to `OPEN` if error rate exceeds 50% or p95 latency exceeds 2,000ms.
 - **Stepped Probe Admission**: When transitioning from `HALF_OPEN` to `CLOSED`, probe traffic is admitted in calibrated steps:
-  $$\text{Admission Rate: } 5\% \longrightarrow 20\% \longrightarrow 50\% \longrightarrow 100\%$$
-- **Speculative Hedged Requests**: For critical SLA messages, if a primary provider request does not acknowledge within the p95 latency window ($T_{hedge} = 250\text{ms}$), Convey speculatively fires a concurrent hedged request to a secondary fallback provider. The first response cancels the pending sibling.
+  - Phase 1: 5% probe traffic
+  - Phase 2: 20% probe traffic
+  - Phase 3: 50% probe traffic
+  - Phase 4: 100% full recovery
+- **Speculative Hedged Requests**: For critical SLA messages, if a primary provider request does not acknowledge within the p95 latency window (250ms), Convey speculatively fires a concurrent hedged request to a secondary fallback provider. The first response cancels the pending sibling.
 
 ---
 

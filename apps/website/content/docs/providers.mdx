@@ -51,7 +51,7 @@ Convey provides **88+ built-in provider adapters** across 5 primary communicatio
 When dispatching messages, you can select one of four autonomous routing strategies:
 
 1. **`SMART_SCORECARD`** (Default):
-   Calculates a real-time weight score based on $70\% \text{ Delivery Rate} + 20\% \text{ Latency SLA} + 10\% \text{ Unit Cost}$. Traffic automatically routes away from degraded providers.
+   Calculates a real-time weight score based on **70% Delivery Rate + 20% Latency SLA + 10% Unit Cost**. Traffic automatically routes away from degraded providers.
 2. **`PRIMARY_FALLBACK`**:
    Attempts delivery through the primary provider. If the request encounters a 5xx error or rate limit (429), it immediately falls back through the ordered `fallbackChain`.
 3. **`LEAST_COST`**:

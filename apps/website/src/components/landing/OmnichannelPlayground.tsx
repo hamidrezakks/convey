@@ -1,3 +1,5 @@
+'use client';
+
 import { Bell, Check, Copy, Mail, MessageSquare, Radio, Send, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import { copyToClipboard } from '../../lib/utils';

@@ -1,15 +1,12 @@
+'use client';
+
 import { ArrowRight, Check, ChevronRight, Copy, Rocket, ShieldCheck, Sparkles, Terminal, Zap } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { copyToClipboard } from '../../lib/utils';
 import { Button } from '../ui/Button';
 
-export interface HeroSectionProps {
-  onExploreDocs: () => void;
-  onOpenPlayground: () => void;
-  onOpenArchitecture: () => void;
-}
-
-export function HeroSection({ onExploreDocs, onOpenPlayground, onOpenArchitecture }: HeroSectionProps) {
+export function HeroSection() {
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [activeInstallTab, setActiveInstallTab] = useState<'docker' | 'bun' | 'curl'>('docker');
 
@@ -59,31 +56,26 @@ export function HeroSection({ onExploreDocs, onOpenPlayground, onOpenArchitectur
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-          <Button
-            size="lg"
-            variant="primary"
-            leftIcon={<Rocket className="w-4 h-4" />}
-            rightIcon={<ArrowRight className="w-4 h-4" />}
-            onClick={onExploreDocs}
-          >
-            Explore Documentation
-          </Button>
-          <Button
-            size="lg"
-            variant="secondary"
-            leftIcon={<Terminal className="w-4 h-4 text-purple-400" />}
-            onClick={onOpenPlayground}
-          >
-            Interactive API Playground
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            leftIcon={<Zap className="w-4 h-4 text-cyan-400" />}
-            onClick={onOpenArchitecture}
-          >
-            View System Architecture
-          </Button>
+          <Link href="/docs">
+            <Button
+              size="lg"
+              variant="primary"
+              leftIcon={<Rocket className="w-4 h-4" />}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+            >
+              Explore Documentation
+            </Button>
+          </Link>
+          <a href="#playground">
+            <Button size="lg" variant="secondary" leftIcon={<Terminal className="w-4 h-4 text-purple-400" />}>
+              Interactive API Playground
+            </Button>
+          </a>
+          <a href="#architecture">
+            <Button size="lg" variant="outline" leftIcon={<Zap className="w-4 h-4 text-cyan-400" />}>
+              View System Architecture
+            </Button>
+          </a>
         </div>
 
         {/* 1-Line Quick Installation Bar */}

@@ -35,7 +35,7 @@ All benchmarks are measured using HDR nanosecond-precision histograms running on
 | Benchmark Scenario | Concurrency Level | Ops/sec | p50 Latency | p99 Latency | Result |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Thundering Herd Hot-Key Contention** | 100 Contenders / Key | 9.7 /s | 102.7ms | 106.3ms | **PASSED (0 Lock Leaks)** |
-| **DRR Multi-Tenant Saturation** | 3,000 Tasks across 300 Tenants | 2,765 /s | 0.35ms | 0.794ms | **PASSED ($JFI \ge 0.95$)** |
+| **DRR Multi-Tenant Saturation** | 3,000 Tasks across 300 Tenants | 2,765 /s | 0.35ms | 0.794ms | **PASSED (JFI &ge; 0.95)** |
 | **Circuit Breaker Avalanche Trip** | 100% Downstream Outage | 113,803 /s | 0.007ms | 0.046ms | **PASSED (Instant Failover)** |
 | **Redis Token Bucket Contention** | 100 Worker Threads | 397.8 /s | 2.34ms | 10.29ms | **PASSED (0 Overshoot)** |
 | **Webhook Micro-Batch Burst** | 1,000 Events / Burst | 253.8 /s | 3.93ms | 4.22ms | **PASSED (0 Dropped Events)** |

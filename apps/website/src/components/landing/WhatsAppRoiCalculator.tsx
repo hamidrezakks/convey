@@ -1,3 +1,5 @@
+'use client';
+
 import { Sparkles, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { formatCurrency, formatNumber } from '../../lib/utils';

@@ -1,7 +1,7 @@
-import { source } from '@/lib/source';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import { Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { source } from '@/lib/source';
 
 export default function RootDocsLayout({ children }: { children: ReactNode }) {
   return (
