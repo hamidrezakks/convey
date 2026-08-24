@@ -6,11 +6,13 @@ import type React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../src/components/ui/table';
 import type { SupportedLocale } from '../src/i18n';
 import { I18nProvider } from '../src/i18n/context';
+import { AuditPage } from '../src/pages/AuditPage';
 import { DeliverabilityPage } from '../src/pages/DeliverabilityPage';
 import { DlqPage } from '../src/pages/DlqPage';
 import { MessagesPage } from '../src/pages/MessagesPage';
 import { ProviderConfigPage } from '../src/pages/ProviderConfigPage';
 import { ProvidersPage } from '../src/pages/ProvidersPage';
+import { WebhooksPage } from '../src/pages/WebhooksPage';
 
 function renderWithClient(ui: React.ReactElement, initialLocale: SupportedLocale = 'fa') {
   const queryClient = new QueryClient({
@@ -112,5 +114,26 @@ describe('RTL Tables Structural Alignment & Integrity Test Suite', () => {
 
     const headers = container.querySelectorAll('th');
     expect(headers.length).toBe(8);
+  });
+
+  it('renders AuditPage in RTL mode with all 7 columns', () => {
+    const { container } = renderWithClient(<AuditPage />, 'fa');
+    const table = container.querySelector('table');
+    expect(table).not.toBeNull();
+
+    const headers = container.querySelectorAll('th');
+    expect(headers.length).toBe(7);
+  });
+
+  it('renders WebhooksPage in RTL mode with configured subscriptions and deliveries tables', () => {
+    const { container } = renderWithClient(<WebhooksPage />, 'ar');
+    const tables = container.querySelectorAll('table');
+    expect(tables.length).toBe(2);
+
+    const subscriptionHeaders = tables[0].querySelectorAll('th');
+    expect(subscriptionHeaders.length).toBe(7);
+
+    const deliveryHeaders = tables[1].querySelectorAll('th');
+    expect(deliveryHeaders.length).toBe(6);
   });
 });
