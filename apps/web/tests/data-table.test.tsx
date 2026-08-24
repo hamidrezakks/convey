@@ -1,7 +1,14 @@
 import './setup';
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { type ColumnDef, DataTable, DataTableCopyCell } from '../src/components/ui/data-table';
+import { Sparkles, Trash2 } from 'lucide-react';
+import {
+  type ColumnDef,
+  DataTable,
+  DataTableAction,
+  DataTableActionGroup,
+  DataTableCopyCell,
+} from '../src/components/ui/data-table';
 
 interface TestItem {
   id: string;
@@ -188,5 +195,44 @@ describe('Enterprise Reusable DataTable System Suite', () => {
       fireEvent.click(copyButton);
       expect(writeTextMock).toHaveBeenCalledWith('msg_01JTEST9900');
     }
+  });
+
+  it('renders standardized DataTableAction and DataTableActionGroup with unified dimensions and click handling', () => {
+    const handleClick = mock(() => {});
+    const handleDelete = mock(() => {});
+
+    const { container } = render(
+      <DataTableActionGroup>
+        <DataTableAction
+          variant="default"
+          icon={<Sparkles className="w-3.5 h-3.5" />}
+          label="Test Action"
+          onClick={handleClick}
+        />
+        <DataTableAction
+          variant="danger"
+          icon={<Trash2 className="w-3.5 h-3.5" />}
+          title="Delete Item"
+          onClick={handleDelete}
+        />
+      </DataTableActionGroup>,
+    );
+
+    const buttons = container.querySelectorAll('button');
+    expect(buttons.length).toBe(2);
+
+    expect(buttons[0].className).toContain('h-7');
+    expect(buttons[0].className).toContain('rounded-lg');
+    expect(buttons[0].textContent).toContain('Test Action');
+
+    expect(buttons[1].className).toContain('h-7');
+    expect(buttons[1].className).toContain('rounded-lg');
+    expect(buttons[1].getAttribute('title')).toBe('Delete Item');
+
+    fireEvent.click(buttons[0]);
+    expect(handleClick).toHaveBeenCalled();
+
+    fireEvent.click(buttons[1]);
+    expect(handleDelete).toHaveBeenCalled();
   });
 });

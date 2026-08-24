@@ -45,7 +45,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Combobox, type ComboboxGroup, type ComboboxItem } from '../components/ui/combobox';
-import { type ColumnDef, DataTable } from '../components/ui/data-table';
+import { type ColumnDef, DataTable, DataTableAction, DataTableActionGroup } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -699,32 +699,26 @@ export function ProviderConfigPage() {
         header: t('common.actions'),
         align: 'end',
         cell: ({ row }) => (
-          <div className="inline-flex items-center justify-end space-x-2 rtl:space-x-reverse">
-            <Button
-              variant="secondary"
-              size="sm"
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<Sliders className="text-sky-500 dark:text-sky-400 shrink-0" />}
+              label={t('providerConfig.configButton')}
+              title="Edit Credentials & Feature Configs"
               onClick={() => {
                 const catalogItem = effectiveCatalog.find((c) => c.id === row.providerId);
                 handleOpenRegister(catalogItem, row);
               }}
-              className="h-7 text-xs gap-1 hover:border-sky-500/40"
-              title="Edit Credentials & Feature Configs"
-            >
-              <Sliders className="w-3 h-3 text-sky-500 dark:text-sky-400" />
-              <span>{t('providerConfig.configButton')}</span>
-            </Button>
+            />
 
-            <Button
-              variant="ghost"
-              size="sm"
+            <DataTableAction
+              variant="danger"
+              icon={<Trash2 className="shrink-0" />}
+              title="Deactivate Provider"
               isLoading={deleteMutation.isPending && deleteMutation.variables === row.id}
               onClick={() => deleteMutation.mutate(row.id)}
-              className="h-7 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-500/10"
-              title="Deactivate Provider"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+            />
+          </DataTableActionGroup>
         ),
       },
     ],

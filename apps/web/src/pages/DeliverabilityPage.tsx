@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { type ColumnDef, DataTable } from '../components/ui/data-table';
+import { type ColumnDef, DataTable, DataTableAction, DataTableActionGroup } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -165,19 +165,16 @@ export function DeliverabilityPage() {
         header: t('common.actions'),
         align: 'end',
         cell: ({ row }) => (
-          <div className="inline-flex items-center justify-end">
-            <Button
-              variant="ghost"
-              size="sm"
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="success"
+              icon={<ShieldAlert className="shrink-0" />}
+              label={isOps ? 'Unblock Contact' : t('deliverability.removeSuppression')}
+              title={t('deliverability.unblockConfirm')}
               isLoading={removeMutation.isPending && removeMutation.variables?.id === row.id}
               onClick={() => removeMutation.mutate({ id: row.id, recipient: row.recipient })}
-              className="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 gap-1 font-semibold"
-              title={t('deliverability.unblockConfirm')}
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>{isOps ? 'Unblock Contact' : t('deliverability.removeSuppression')}</span>
-            </Button>
-          </div>
+            />
+          </DataTableActionGroup>
         ),
       },
     ],

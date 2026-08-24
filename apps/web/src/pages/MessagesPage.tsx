@@ -10,7 +10,13 @@ import { TraceWaterfall } from '../components/trace/TraceWaterfall';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { type ColumnDef, DataTable, DataTableCopyCell } from '../components/ui/data-table';
+import {
+  type ColumnDef,
+  DataTable,
+  DataTableAction,
+  DataTableActionGroup,
+  DataTableCopyCell,
+} from '../components/ui/data-table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
@@ -198,19 +204,17 @@ export function MessagesPage() {
         header: t('common.actions'),
         align: 'end',
         cell: ({ row }) => (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedMessageId(row.publicId);
-              setShowTechnicalDetailsInOps(false);
-            }}
-            className="h-7 text-xs gap-1.5 rounded-lg"
-          >
-            <Layers className="w-3 h-3 text-sky-500 dark:text-sky-400" />
-            <span>{isOps ? 'View Journey' : t('common.details')}</span>
-          </Button>
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<Layers className="text-sky-500 dark:text-sky-400" />}
+              label={isOps ? 'View Journey' : t('common.details')}
+              onClick={() => {
+                setSelectedMessageId(row.publicId);
+                setShowTechnicalDetailsInOps(false);
+              }}
+            />
+          </DataTableActionGroup>
         ),
       },
     ],

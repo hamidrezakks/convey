@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { type ColumnDef, DataTable } from '../components/ui/data-table';
+import { type ColumnDef, DataTable, DataTableAction, DataTableActionGroup } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -187,12 +187,14 @@ export function DlqPage() {
         hidden: !isOps,
         align: 'end',
         cell: () => (
-          <div className="inline-flex items-center justify-end">
-            <Button variant="outline" size="sm" onClick={handleStartDryRun} className="h-7 text-xs gap-1">
-              <RotateCcw className="w-3 h-3 text-sky-500" />
-              <span>Retry</span>
-            </Button>
-          </div>
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<RotateCcw className="text-sky-500 shrink-0" />}
+              label="Retry"
+              onClick={handleStartDryRun}
+            />
+          </DataTableActionGroup>
         ),
       },
     ],

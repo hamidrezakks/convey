@@ -7,7 +7,7 @@ import { OpsProviderStatus } from '../components/providers/OpsProviderStatus';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { type ColumnDef, DataTable } from '../components/ui/data-table';
+import { type ColumnDef, DataTable, DataTableAction, DataTableActionGroup } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -166,18 +166,15 @@ export function ProvidersPage() {
         header: 'Quick Test',
         align: 'end',
         cell: ({ row }) => (
-          <div className="inline-flex items-center justify-end">
-            <Button
-              variant="outline"
-              size="sm"
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<Sparkles className="text-sky-500 shrink-0" />}
+              label="Test"
               isLoading={canaryMutation.isPending && canaryMutation.variables === row.providerId}
               onClick={() => canaryMutation.mutate(row.providerId)}
-              className="h-7 px-2.5 text-xs font-medium rounded-lg border-slate-200 dark:border-slate-800 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-400 dark:hover:border-sky-700/60 transition-all gap-1 shadow-2xs"
-            >
-              <Sparkles className="w-3 h-3 text-sky-500 shrink-0" />
-              <span>Test</span>
-            </Button>
-          </div>
+            />
+          </DataTableActionGroup>
         ),
       },
     ],
@@ -311,29 +308,22 @@ export function ProvidersPage() {
         header: t('providers.colActions'),
         align: 'end',
         cell: ({ row }) => (
-          <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
-            <Button
-              variant="outline"
-              size="sm"
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<Sparkles className="text-sky-500 dark:text-sky-400 shrink-0" />}
+              label="Canary"
+              title={t('providers.canaryTrigger')}
               isLoading={canaryMutation.isPending && canaryMutation.variables === row.providerId}
               onClick={() => canaryMutation.mutate(row.providerId)}
-              className="h-7 px-2.5 text-xs font-medium rounded-lg border-slate-200 dark:border-slate-800 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-300 dark:hover:bg-sky-950/40 dark:hover:text-sky-400 dark:hover:border-sky-700/60 transition-all gap-1 shadow-2xs"
-              title={t('providers.canaryTrigger')}
-            >
-              <Sparkles className="w-3 h-3 text-sky-500 dark:text-sky-400 shrink-0" />
-              <span>Canary</span>
-            </Button>
-
-            <Button
+            />
+            <DataTableAction
               variant="outline"
-              size="sm"
+              icon={<Sliders className="text-slate-500 dark:text-slate-400 shrink-0" />}
+              label={t('common.edit')}
               onClick={() => handleOpenOverrideModal(row)}
-              className="h-7 px-2.5 text-xs font-medium rounded-lg border-slate-200 dark:border-slate-800 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white transition-all gap-1 shadow-2xs"
-            >
-              <Sliders className="w-3 h-3 text-slate-500 dark:text-slate-400 shrink-0" />
-              <span>{t('common.edit')}</span>
-            </Button>
-          </div>
+            />
+          </DataTableActionGroup>
         ),
       },
     ],
