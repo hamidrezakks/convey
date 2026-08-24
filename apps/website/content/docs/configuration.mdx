@@ -1,0 +1,89 @@
+---
+title: Environment Configuration Reference
+description: Complete .env variable dictionary, PostgreSQL 18 connection tuning, DragonflyDB concurrency limits, and zero-downtime AES key rotation runbooks.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Configuration Reference
+
+Convey uses environment variables for all operational tuning. You can specify variables in `.env` or inject them directly via Kubernetes ConfigMaps and Secrets.
+
+---
+
+## Core Server & Network Configuration
+
+| Variable | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `PORT` | `number` | `3000` | HTTP port for Elysia.js server |
+| `HOST` | `string` | `0.0.0.0` | Bind IP interface |
+| `NODE_ENV` | `string` | `development` | Runtime environment (`development`, `production`, `test`) |
+| `LOG_LEVEL` | `string` | `info` | Structured logging verbosity (`debug`, `info`, `warn`, `error`) |
+| `CORS_ORIGIN` | `string` | `*` | Allowed CORS origins for browser web apps |
+
+---
+
+## Database Configuration (PostgreSQL 18)
+
+| Variable | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `DATABASE_URL` | `string` | `postgresql://convey:convey@localhost:5432/convey` | PostgreSQL 18 connection string |
+| `DB_POOL_MIN` | `number` | `5` | Minimum connection pool size |
+| `DB_POOL_MAX` | `number` | `25` | Maximum connection pool size |
+| `DB_IDLE_TIMEOUT_MS` | `number` | `30000` | Idle connection timeout in milliseconds |
+| `DB_STATEMENT_TIMEOUT_MS`| `number`| `5000` | Maximum SQL statement execution timeout |
+
+### Database Migrations
+
+Convey uses Drizzle ORM for schema definitions and zero-downtime migrations:
+
+```bash
+# Generate new migration from schema changes
+bun run db:generate
+
+# Execute pending migrations against DATABASE_URL
+bun run db:migrate
+```
+
+---
+
+## In-Memory Cache & Queue Configuration (DragonflyDB & BullMQ)
+
+| Variable | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `REDIS_URL` | `string` | `redis://localhost:6379` | DragonflyDB / Redis-compatible connection string |
+| `REDIS_MAX_CONNECTIONS`| `number` | `50` | Maximum connection pool size |
+| `BULLMQ_CONCURRENCY` | `number` | `25` | Worker thread concurrency per process |
+| `OUTBOX_POLL_INTERVAL_MS`| `number`| `100` | Milliseconds between Outbox shard scans |
+| `OUTBOX_BATCH_SIZE` | `number` | `100` | Batch limit for FOR UPDATE SKIP LOCKED |
+
+---
+
+## Cryptography & Zero-Trust Security
+
+| Variable | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `ENCRYPTION_MASTER_KEY` | `string` | **Yes** | 64-character hex string (256-bit AES Master Key) |
+| `ENCRYPTION_KEY_VERSION`| `string` | `v1` | Current active key version identifier |
+| `JWT_SECRET` | `string` | **Yes** | Secret for internal microservice tokens |
+
+### Generating a High-Entropy AES-256 Key
+
+```bash
+# Generate a 256-bit cryptographically secure hexadecimal key
+openssl rand -hex 32
+```
+
+### Zero-Downtime Key Rotation Runbook
+
+1. Append new key with identifier `v2` to your secrets manager:
+   ```bash
+   ENCRYPTION_MASTER_KEY_V2="7f8b9c..."
+   ENCRYPTION_KEY_VERSION="v2"
+   ```
+2. Convey's `PayloadEncryptionManager` automatically retains previous keys (`v1`) in its keyring for decrypting existing records, while using `v2` for all new writes.
+3. Run the background re-encryption worker to upgrade legacy records:
+   ```bash
+   bun run re-encrypt --from=v1 --to=v2
+   ```

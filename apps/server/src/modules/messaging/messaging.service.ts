@@ -608,7 +608,7 @@ export const MessagingService = {
       const attemptDuration = attempt.deliveredAt
         ? Math.max(10, attempt.deliveredAt.getTime() - attempt.createdAt.getTime())
         : 85.0;
-      const providerUnitCost = RateCardRegistry[attempt.providerId.toLowerCase()] ?? 0.001;
+      const providerUnitCost = RateCardRegistry[attempt.providerId.toLowerCase()]?.cost ?? 0.001;
       totalCostUsd += providerUnitCost;
 
       const isAttemptSuccess =

@@ -1,0 +1,147 @@
+---
+title: Production Deployment & DevOps
+description: Self-hosting runbooks for Docker, Kubernetes, Helm, horizontal pod autoscaling (HPA), zero-data-loss graceful shutdown, and Prometheus observability.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Production Deployment
+
+Convey is engineered for cloud-native deployment with zero external runtime dependencies.
+
+---
+
+## 1. Docker Compose Deployment
+
+The fastest way to deploy Convey in production is using Docker Compose with PostgreSQL 18 and DragonflyDB:
+
+```yaml
+version: '3.8'
+
+services:
+  convey-api:
+    image: convey/server:latest
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL=postgresql://convey:password@postgres:5432/convey
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_MASTER_KEY=f8a3c1e2b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1
+      - NODE_ENV=production
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+
+  convey-worker:
+    image: convey/server:latest
+    command: ["bun", "run", "worker"]
+    environment:
+      - DATABASE_URL=postgresql://convey:password@postgres:5432/convey
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_MASTER_KEY=f8a3c1e2b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1
+      - BULLMQ_CONCURRENCY=50
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+
+  postgres:
+    image: postgres:18-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=convey
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=convey
+
+  redis:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    command: ["dragonfly", "--cache_mode=true"]
+    volumes:
+      - dragonflydata:/data
+
+volumes:
+  pgdata:
+  dragonflydata:
+```
+
+---
+
+## 2. Kubernetes Manifests with HPA
+
+Deploy Convey on Kubernetes with automated horizontal scaling:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convey-api
+  labels:
+    app: convey-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: convey-api
+  template:
+    metadata:
+      labels:
+        app: convey-api
+    spec:
+      containers:
+        - name: convey
+          image: convey/server:1.0.0
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2048Mi"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: convey-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: convey-api
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+```
+
+---
+
+## 3. Zero-Data-Loss Graceful Shutdown
+
+When receiving `SIGTERM` (e.g., during Kubernetes rolling upgrades), Convey's `GracefulShutdownOrchestrator` executes the following sequence:
+
+1. **Stops Ingestion Admission**: Closes HTTP server port 3000 to new connections.
+2. **Drains BullMQ Workers**: Allows active provider requests up to 15 seconds to acknowledge.
+3. **Flushes Micro-Batches**: Commits all pending in-memory telemetry receipts to PostgreSQL 18.
+4. **Closes Connection Pools**: Closes PostgreSQL 18 connection pool and DragonflyDB connections cleanly.

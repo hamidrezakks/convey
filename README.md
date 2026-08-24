@@ -7,8 +7,11 @@
 [![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.4-f472b6?style=for-the-badge&logo=bun)](https://bun.sh)
 [![Framework: Elysia.js](https://img.shields.io/badge/Framework-Elysia.js-8b5cf6?style=for-the-badge&logo=fastapi)](https://elysiajs.com)
 [![Web Console: React 19 + Base UI](https://img.shields.io/badge/Web_UI-React%2019%20%2B%20Base%20UI-38bdf8?style=for-the-badge&logo=react)](./docs/web-ui-mission-control.md)
-[![Database: PostgreSQL 16](https://img.shields.io/badge/Database-PostgreSQL%2016%20(Partitioned)-336791?style=for-the-badge&logo=postgresql)](https://www.postgresql.org)
-[![Queues: BullMQ + Redis](https://img.shields.io/badge/Queues-BullMQ%20%2B%20Redis%207-dc2626?style=for-the-badge&logo=redis)](https://redis.io)
+[![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.4-f472b6?style=for-the-badge&logo=bun)](https://bun.sh)
+[![Framework: Elysia.js](https://img.shields.io/badge/Framework-Elysia.js-8b5cf6?style=for-the-badge&logo=fastapi)](https://elysiajs.com)
+[![Web Console: React 19 + Base UI](https://img.shields.io/badge/Web_UI-React%2019%20%2B%20Base%20UI-38bdf8?style=for-the-badge&logo=react)](./docs/web-ui-mission-control.md)
+[![Database: PostgreSQL 18](https://img.shields.io/badge/Database-PostgreSQL%2018%20(Partitioned)-336791?style=for-the-badge&logo=postgresql)](https://www.postgresql.org)
+[![In-Memory: DragonflyDB](https://img.shields.io/badge/In--Memory-DragonflyDB%20%2B%20BullMQ-dc2626?style=for-the-badge&logo=redis)](https://dragonflydb.io)
 [![Security: AES-256-GCM](https://img.shields.io/badge/Security-AES--256--GCM%20Zero--Trust-059669?style=for-the-badge&logo=shield)](./docs/security.md)
 [![Adapters: 88 Providers](https://img.shields.io/badge/Ecosystem-88%20Providers%20%2F%205%20Channels-2563eb?style=for-the-badge)](./docs/provider-capabilities.md)
 [![Code Quality: Biome](https://img.shields.io/badge/Code_Style-Biome%20Strict-6366f1?style=for-the-badge&logo=biome)](https://biomejs.dev)
@@ -42,7 +45,7 @@ Modern notification infrastructure frequently breaks down under production stres
 
 | Capability / SLA | Traditional Monoliths | Cloud Gateways / Novu | **Convey Engine** |
 | :--- | :--- | :--- | :--- |
-| **Hot-Path Send Latency** | 150ms – 600ms (blocking provider HTTP) | 50ms – 120ms | **`p50 < 4ms` / `p99 < 18ms`** (1 Redis `SET NX` + 1 Postgres Tx) |
+| **Hot-Path Send Latency** | 150ms – 600ms (blocking provider HTTP) | 50ms – 120ms | **`p50 < 4ms` / `p99 < 15ms`** (1 DragonflyDB `SET NX` + 1 Postgres 18 Tx) |
 | **Admin & Telemetry Console** | Basic static tables | Commercial Cloud SaaS only | **React 19 + Base UI Mission Control (`@convey/web`)** |
 | **Data Privacy at Rest** | Plaintext PII stored in SQL | Database-level disk encryption only | **Zero-Trust Field-Level AES-256-GCM Envelope** (`_encryptedEnvelope`) |
 | **Provider ID Privacy** | Leaks upstream vendor IDs (`SM_...`, `sg_...`) | Mixed ID surfaces | **Strict Zero-Leak Boundary** (`msg_<ULID>`) |
@@ -50,7 +53,7 @@ Modern notification infrastructure frequently breaks down under production stres
 | **Scheduling Precision** | Cron jobs / Full DB table scans | In-memory timers / BullMQ only | **Dual-Layer Hybrid** (BullMQ `≤ 30m` + Partitioned Postgres `> 30m`) |
 | **Multi-Tenant Fairness** | Global FIFO queue starvation | Coarse token bucket rate limits | **Deficit Round Robin (DRR) Multi-Tenant Quantum Scheduler** |
 | **Tail-Latency Elimination** | Linear timeouts & retries | Basic exponential backoff | **Dynamic Hedged Concurrent Requests + Full-Jitter Backoff** |
-| **Database Scalability** | Monolithic tables with B-Tree bloat | Unpartitioned event logs | **Monthly PostgreSQL Range Partitioning + Auto Pruning Windows** |
+| **Database Scalability** | Monolithic tables with B-Tree bloat | Unpartitioned event logs | **Monthly PostgreSQL 18 Range Partitioning + Auto Pruning Windows** |
 
 ---
 
@@ -84,13 +87,13 @@ Convey includes a **Staff-level React 19 + Base UI Mission Control Console** (`a
 │                                 ELYSIA.JS HIGH-THROUGHPUT GATEWAY                                │
 │   POST /v1/messages    POST /v1/messages/bulk    POST /v1/admin/...     GET /health/readiness    │
 │   • Schema Validation (TypeBox / Zod)             • Sensitive Data Redaction (DLP Regex)         │
-│   • 1-RTT Redis Idempotency Lock (SET NX)         • Zero-Trust AES-256-GCM Envelope Encryption   │
+│   • 1-RTT DragonflyDB Idempotency Lock (SET NX)   • Zero-Trust AES-256-GCM Envelope Encryption   │
 │   • L1 In-Memory Policy Cache (5,000ms TTL)       • Adaptive Event-Loop Traffic Governor         │
 └────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
                                                  │ Single ACID Transaction (< 15ms Hot Path)
                                                  ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                            POSTGRESQL 16 MONTHLY RANGE-PARTITIONED LEDGER                        │
+│                            POSTGRESQL 18 MONTHLY RANGE-PARTITIONED LEDGER                        │
 │   INSERT INTO messages (AES-256-GCM) ───────────────────────► INSERT INTO outbox (Status: Pending)│
 └────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
                                                  │
@@ -137,8 +140,8 @@ Convey includes a **Staff-level React 19 + Base UI Mission Control Console** (`a
 
 ### Prerequisites
 - **Bun** `>= 1.1.0` (Recommended: `Bun 1.4+`)
-- **PostgreSQL** `>= 15.0`
-- **Redis** `>= 7.0`
+- **PostgreSQL** `>= 18.0`
+- **DragonflyDB** `latest` (or Redis `>= 7.0`)
 
 ### 1. Installation & Environment Configuration
 ```bash
@@ -155,7 +158,7 @@ cp .env.example .env
 
 ### 2. Database Migration & Range Partitioning
 ```bash
-# Run Drizzle migrations & auto-generate monthly PostgreSQL partitions
+# Run Drizzle migrations & auto-generate monthly PostgreSQL 18 partitions
 bun run db:migrate
 ```
 
@@ -174,7 +177,7 @@ bun run dev
 
 #### Option A: Modular Dual Compose (Resources & Services Separate)
 ```bash
-# 1. Start stateful resources (PostgreSQL 16 + Redis 7)
+# 1. Start stateful resources (PostgreSQL 18 + DragonflyDB)
 docker compose -f docker-compose.resources.yml up -d
 
 # 2. Start Convey API server and Mission Control UI (auto-runs migrations)

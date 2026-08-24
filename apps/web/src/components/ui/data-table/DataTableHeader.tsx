@@ -65,7 +65,7 @@ export function DataTableHeader<TData>({
         {visibleColumns.map((col, index) => {
           const columnKey = (col.id || col.accessorKey || `col-${index}`) as string;
           const isSorted = sortState?.key === (col.sortKey || col.id || col.accessorKey);
-          const sortDirection = isSorted ? sortState.direction : null;
+          const sortDirection = isSorted ? (sortState?.direction ?? null) : null;
           const isSortable = !!col.enableSorting && !!onSortChange;
 
           const alignClass = getAlignmentClass(col.align);

@@ -840,7 +840,11 @@ export function ProviderConfigPage() {
       </div>
 
       {/* Main Tabs Container */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) => setActiveTab(val as 'configured' | 'catalog' | 'env')}
+        className="space-y-4"
+      >
         <TabsList className="grid grid-cols-3 max-w-lg bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
           <TabsTrigger value="configured" className="text-xs font-semibold gap-1.5">
             <Server className="w-3.5 h-3.5" />

@@ -1,0 +1,119 @@
+---
+title: Inbound Webhooks & Delivery Receipts
+description: Architecture, security validation, and micro-batch ingestion pipeline for inbound provider delivery receipts, open/click tracking, and WhatsApp handshakes.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Inbound Webhooks & Telemetry
+
+Convey ingests, verifies, and deduplicates real-time delivery receipts (DLR), open tracking pixels, link clicks, and WhatsApp user replies across all integrated providers.
+
+---
+
+## 1. Delivery Status State Machine
+
+Every outbound message traverses a deterministic lifecycle:
+
+```
+[ ACCEPTED ] ───▶ [ QUEUED ] ───▶ [ SENT (Provider Wire) ]
+                                          │
+                  ┌───────────────────────┼───────────────────────┐
+                  ▼                       ▼                       ▼
+            [ DELIVERED ]            [ BOUNCED ]             [ FAILED ]
+                  │
+        ┌─────────┴─────────┐
+        ▼                   ▼
+    [ OPENED ]         [ CLICKED ]
+```
+
+---
+
+## 2. Inbound Provider Endpoints
+
+Convey exposes dedicated, rate-limited webhook receivers on port `3000`:
+
+| Provider Channel | Ingestion Path | Verification Method |
+| :--- | :--- | :--- |
+| **SendGrid Email** | `POST /v1/webhooks/sendgrid` | ECDSA Public Key Signature (`X-Twilio-Email-Event-Webhook-Signature`) |
+| **Twilio SMS / WhatsApp** | `POST /v1/webhooks/twilio` | HMAC-SHA1 AuthToken (`X-Twilio-Signature`) |
+| **Resend Email** | `POST /v1/webhooks/resend` | Svix Webhook Signature (`svix-signature`) |
+| **WhatsApp Cloud API** | `POST /v1/webhooks/whatsapp` | SHA256 App Secret Proof (`X-Hub-Signature-256`) |
+| **Vonage (Nexmo) SMS** | `POST /v1/webhooks/vonage` | MD5 / SHA256 Signature Hash |
+| **AWS SES EventBridge** | `POST /v1/webhooks/ses` | SNS Message Signing Verification |
+| **Generic Convey Webhook** | `POST /v1/webhooks/generic` | Convey HMAC-SHA256 Secret (`x-convey-signature`) |
+
+---
+
+## 3. HMAC-SHA256 Signature Verification Code
+
+When Convey dispatches outbound webhooks to your internal application endpoints, it signs the raw request payload using HMAC-SHA256.
+
+<Tabs items={['TypeScript / Node.js', 'Python (AsyncIO / FastAPI)', 'Go']}>
+  <Tab value="TypeScript / Node.js">
+```typescript
+import crypto from 'node:crypto';
+
+export function verifyConveyWebhook(
+  rawPayload: string,
+  signatureHeader: string,
+  secretKey: string
+): boolean {
+  const hmac = crypto.createHmac('sha256', secretKey);
+  const digest = `sha256=${hmac.update(rawPayload).digest('hex')}`;
+  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signatureHeader));
+}
+```
+  </Tab>
+
+  <Tab value="Python (AsyncIO / FastAPI)">
+```python
+import hmac
+import hashlib
+
+def verify_convey_webhook(raw_payload: bytes, signature_header: str, secret_key: str) -> bool:
+    expected_digest = "sha256=" + hmac.new(
+        secret_key.encode('utf-8'),
+        raw_payload,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected_digest, signature_header)
+```
+  </Tab>
+
+  <Tab value="Go">
+```go
+package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
+)
+
+func VerifyConveyWebhook(rawPayload []byte, signatureHeader string, secretKey string) bool {
+	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac.Write(rawPayload)
+	expectedSignature := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expectedSignature), []byte(signatureHeader))
+}
+```
+  </Tab>
+</Tabs>
+
+---
+
+## 4. Micro-Batch Ingestion Pipeline
+
+To prevent downstream database write bottlenecks during massive 100,000+ DLR receipt bursts:
+
+1. **In-Memory Ring Buffer**: Inbound receipts are immediately acknowledged with `200 OK` in `< 0.2ms` and pushed to an in-memory ring buffer.
+2. **Dynamic Flusher**: The `MicroBatchIngestionPipeline` flushes buffer batches of 500 events every 20ms into PostgreSQL 18:
+   ```sql
+   INSERT INTO message_events (id, message_id, event_type, created_at, metadata)
+   VALUES ($1, $2, $3, $4, $5) ...
+   ON CONFLICT (id) DO NOTHING;
+   ```
+3. **50,000+ Events / Sec Throughput**: Sustains massive carrier receipt bursts with zero dropped events or connection pool exhaustion.

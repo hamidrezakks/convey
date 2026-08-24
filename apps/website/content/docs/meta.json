@@ -1,0 +1,20 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "quickstart",
+    "architecture",
+    "configuration",
+    "---Architecture & Recipes---",
+    "examples",
+    "---API & Integrations---",
+    "api-reference",
+    "webhooks",
+    "providers",
+    "sdks",
+    "---Operations & Scale---",
+    "deployment",
+    "benchmarks"
+  ]
+}

@@ -17,5 +17,5 @@ This repository (`convey/`) contains the complete source code, tests, documentat
 ## Architectural Rules
 1. **Zero Provider Message ID Exposure**: Public APIs expose opaque ULID IDs (`msg_<ULID>`) and hide internal provider message IDs.
 2. **Idempotency Guarantee**: Scoped by team boundary; same key + same payload returns original `202 Accepted` response.
-3. **Database Performance**: Keep synchronous send acceptance to 1 Redis `SET NX` + 1 Postgres transaction (`INSERT messages` + `INSERT outbox`).
-4. **BullMQ-First**: Near-term execution (`<= 30 minutes`) uses BullMQ; long-term scheduling (`> 30 minutes`) uses PostgreSQL.
+3. **Database Performance**: Keep synchronous send acceptance to 1 DragonflyDB `SET NX` + 1 PostgreSQL 18 transaction (`INSERT messages` + `INSERT outbox`).
+4. **BullMQ-First**: Near-term execution (`<= 30 minutes`) uses BullMQ (on DragonflyDB); long-term scheduling (`> 30 minutes`) uses PostgreSQL 18.

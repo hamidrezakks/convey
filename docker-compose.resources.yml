@@ -1,11 +1,11 @@
 # ==============================================================================
 # 🗄️ CONVEY INFRASTRUCTURE RESOURCES DOCKER COMPOSE
-# PostgreSQL 16 (Partitioned Ledger) + Redis 7 (BullMQ & Idempotency)
+# PostgreSQL 18 (Partitioned Ledger) + DragonflyDB (BullMQ & Idempotency)
 # ==============================================================================
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: convey-postgres
     restart: unless-stopped
     environment:
@@ -26,14 +26,14 @@ services:
       - convey-network
 
   redis:
-    image: redis:7-alpine
-    container_name: convey-redis
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: convey-dragonfly
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    command: ["dragonfly", "--cache_mode=true", "--keys_output_limit=10000"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - convey_redis_data:/data
+      - convey_dragonfly_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -41,7 +41,10 @@ services:
       retries: 5
       start_period: 3s
     networks:
-      - convey-network
+      convey-network:
+        aliases:
+          - dragonfly
+          - redis
 
 networks:
   convey-network:
@@ -51,5 +54,5 @@ networks:
 volumes:
   convey_postgres_data:
     name: convey_postgres_data
-  convey_redis_data:
-    name: convey_redis_data
+  convey_dragonfly_data:
+    name: convey_dragonfly_data

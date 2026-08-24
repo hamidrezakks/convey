@@ -86,8 +86,11 @@ export interface TranslationSchema {
     groupOpsTools: string;
     overview: string;
     overviewBadge: string;
+    reports: string;
+    reportsBadge: string;
     messages: string;
     architecture: string;
+
     providers: string;
     providersBadge: string;
     providerConfig: string;

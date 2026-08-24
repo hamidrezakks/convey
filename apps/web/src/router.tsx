@@ -67,6 +67,12 @@ const webhooksRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/WebhooksPage'), 'WebhooksPage'),
 });
 
+const reportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reports',
+  component: lazyRouteComponent(() => import('./pages/ReportsPage'), 'ReportsPage'),
+});
+
 const architectureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/architecture',
@@ -83,6 +89,7 @@ const auditRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   overviewRoute,
+  reportsRoute,
   messagesRoute,
   providersRoute,
   providerConfigRoute,

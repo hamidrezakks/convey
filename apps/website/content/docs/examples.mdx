@@ -1,0 +1,421 @@
+---
+title: Production Architectural Examples & Recipes
+description: 10 copy-pasteable, battle-tested recipes for mission-critical notification patterns in production environments using Convey.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Production Architectural Recipes
+
+These recipes illustrate battle-tested implementation patterns for mission-critical workloads using **Convey**, **PostgreSQL 18**, and **DragonflyDB**.
+
+---
+
+## 1. High-Security 2FA / OTP with Dynamic Omnichannel Fallback
+
+This recipe dispatches an authentication code via SMS, and automatically falls back to WhatsApp and Voice if the SMS provider encounters delivery degradation or carrier timeouts.
+
+<Tabs items={['TypeScript SDK', 'cURL']}>
+  <Tab value="TypeScript SDK">
+```typescript
+import { ConveyClient, MessagePriority, RoutingStrategy } from '@convey/client';
+
+const convey = new ConveyClient({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'https://api.convey.internal',
+});
+
+async function sendTwoFactorOtp(userId: string, phoneNumber: string, otpCode: string) {
+  const response = await convey.messages.send({
+    channel: 'sms',
+    recipient: phoneNumber,
+    priority: MessagePriority.HIGH,
+    content: {
+      body: `Your security code is ${otpCode}. Valid for 10 minutes. Never share this code.`,
+    },
+    routing: {
+      strategy: RoutingStrategy.PRIMARY_FALLBACK,
+      fallbackChain: ['twilio', 'vonage', 'infobip'],
+      retry: {
+        maxAttempts: 3,
+        backoff: 'FULL_JITTER',
+        initialIntervalMs: 500,
+        maxIntervalMs: 3000,
+      },
+    },
+    metadata: {
+      userId,
+      purpose: 'security_2fa_login',
+      ipAddress: '198.51.100.42',
+    },
+    idempotencyKey: `otp_${userId}_${Math.floor(Date.now() / 60000)}`,
+  });
+
+  console.log(`Accepted OTP dispatch: ${response.publicId} (Latency: ${response.latencyMs}ms)`);
+  return response;
+}
+```
+  </Tab>
+
+  <Tab value="cURL">
+```bash
+curl -X POST https://api.convey.internal/v1/messages/send \
+  -H "Authorization: Bearer cv_live_sec_key_99218" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: otp_usr_9921_178759" \
+  -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" \
+  -d '{
+    "channel": "sms",
+    "recipient": "+14155552671",
+    "priority": "HIGH",
+    "content": {
+      "body": "Your security code is 849201. Valid for 10 minutes. Never share this code."
+    },
+    "routing": {
+      "strategy": "PRIMARY_FALLBACK",
+      "fallbackChain": ["twilio", "vonage", "infobip"],
+      "retry": {
+        "maxAttempts": 3,
+        "backoff": "FULL_JITTER",
+        "initialIntervalMs": 500,
+        "maxIntervalMs": 3000
+      }
+    },
+    "metadata": {
+      "userId": "usr_9921",
+      "purpose": "security_2fa_login"
+    }
+  }'
+```
+  </Tab>
+</Tabs>
+
+<Callout type="info" title="Zero Lock Contention Guarantee">
+  The 1-minute bucketed `Idempotency-Key` prevents rapid double-taps by users while allowing a new code dispatch after 60 seconds without database row-level locking.
+</Callout>
+
+---
+
+## 2. Transactional Invoices with Dynamic PDF Attachments
+
+This recipe dispatches branded transactional invoice emails with secure encrypted PDF attachments and strict delivery tracking.
+
+<Tabs items={['TypeScript SDK', 'cURL']}>
+  <Tab value="TypeScript SDK">
+```typescript
+import { ConveyClient, MessagePriority } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+
+async function sendInvoiceEmail(invoice: {
+  id: string;
+  customerEmail: string;
+  amount: string;
+  pdfBase64: string;
+}) {
+  return await convey.messages.send({
+    channel: 'email',
+    recipient: invoice.customerEmail,
+    priority: MessagePriority.NORMAL,
+    content: {
+      subject: `Receipt for Invoice #${invoice.id}`,
+      body: `Hello, thank you for your business. Your payment of ${invoice.amount} has been processed successfully.`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Payment Confirmation</h2>
+          <p>We received your payment of <strong>${invoice.amount}</strong> for Invoice #${invoice.id}.</p>
+          <p>Your itemized PDF receipt is attached below.</p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: `invoice_${invoice.id}.pdf`,
+          contentType: 'application/pdf',
+          content: invoice.pdfBase64,
+        },
+      ],
+    },
+    routing: {
+      strategy: 'SMART_SCORECARD',
+      fallbackChain: ['resend', 'ses', 'postmark'],
+    },
+    idempotencyKey: `inv_${invoice.id}_dispatch`,
+  });
+}
+```
+  </Tab>
+
+  <Tab value="cURL">
+```bash
+curl -X POST https://api.convey.internal/v1/messages/send \
+  -H "Authorization: Bearer cv_live_sec_key_99218" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: inv_INV-2026-9918_dispatch" \
+  -d '{
+    "channel": "email",
+    "recipient": "billing@acmecorp.com",
+    "priority": "NORMAL",
+    "content": {
+      "subject": "Receipt for Invoice #INV-2026-9918",
+      "body": "Thank you for your payment of $1,450.00.",
+      "html": "<h2>Payment Confirmation</h2><p>Amount: $1,450.00</p>"
+    },
+    "routing": {
+      "strategy": "SMART_SCORECARD",
+      "fallbackChain": ["resend", "ses", "postmark"]
+    }
+  }'
+```
+  </Tab>
+</Tabs>
+
+---
+
+## 3. WhatsApp 24h Interactive Window with Cost Autopilot
+
+Convey automatically checks if the recipient has an active 24-hour reply session in DragonflyDB. If active, it seamlessly transforms expensive Meta template HSM messages into free `$0.00` plain-text session messages.
+
+```typescript
+import { ConveyClient } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+
+async function sendOrderShippingUpdate(phone: string, orderId: string, trackingUrl: string) {
+  // Convey's cost autopilot evaluates whatsapp:session:<team>:<phone> in DragonflyDB
+  return await convey.messages.send({
+    channel: 'whatsapp',
+    recipient: phone,
+    content: {
+      body: `Your order #${orderId} has shipped! Tap below to view live tracking:`,
+      template: {
+        name: 'shipping_notification_v2',
+        language: 'en_US',
+        components: [
+          { type: 'body', parameters: [{ type: 'text', text: orderId }] },
+          { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: trackingUrl }] },
+        ],
+      },
+    },
+    metadata: { orderId, costOptimization: 'AUTOPILOT_ENABLED' },
+  });
+}
+```
+
+---
+
+## 4. Mass Marketing Campaign with Deficit Round Robin (DRR) Pacing
+
+When dispatching 100,000+ promotional messages, Convey's DRR scheduler ensures your high-priority transactional OTPs are never blocked or delayed.
+
+```typescript
+import { ConveyClient, MessagePriority } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+
+async function broadcastMarketingNewsletter(subscribers: string[], campaignId: string) {
+  const messages = subscribers.map((email, idx) => ({
+    recipient: email,
+    content: {
+      subject: 'Special Product Announcement — Convey v1.0',
+      body: 'Check out our new planetary-scale communication features.',
+    },
+    idempotencyKey: `camp_${campaignId}_sub_${idx}`,
+  }));
+
+  // Chunk into 500-message micro-batches for efficient PostgreSQL 18 ingestion
+  for (let i = 0; i < messages.length; i += 500) {
+    const chunk = messages.slice(i, i + 500);
+    const result = await convey.messages.sendBulk({
+      channel: 'email',
+      priority: MessagePriority.LOW, // Low quantum in DRR queue
+      messages: chunk,
+      metadata: { campaignId },
+    });
+
+    console.log(`Accepted chunk ${i / 500 + 1}: ${result.totalAccepted} messages`);
+  }
+}
+```
+
+---
+
+## 5. Critical Ops Incident Escalation with Speculative Hedging
+
+When a PagerDuty or Cloud incident occurs, Convey speculatively fires concurrent hedged requests if the primary provider does not acknowledge within 200ms.
+
+```typescript
+import { ConveyClient, MessagePriority } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+
+async function triggerCriticalPagerDutyAlert(incidentId: string, title: string, service: string) {
+  return await convey.messages.send({
+    channel: 'chat',
+    recipient: 'pagerduty:service_key_prd_991',
+    priority: MessagePriority.HIGH,
+    content: {
+      body: `🚨 CRITICAL INCIDENT #${incidentId}: ${title} on [${service}]`,
+    },
+    routing: {
+      strategy: 'HEDGED_SPECULATIVE',
+      hedgedDelayMs: 200, // Speculatively race fallback if primary takes > 200ms
+      fallbackChain: ['pagerduty', 'slack_ops', 'twilio_voice'],
+    },
+    metadata: { incidentId, severity: 'P1_CRITICAL' },
+  });
+}
+```
+
+---
+
+## 6. Zero-Trust AES-256-GCM Envelope Encryption for HIPAA / GDPR
+
+All recipient identifiers, PII, and medical/financial variables are encrypted in worker memory before writing to PostgreSQL 18.
+
+```typescript
+import { ConveyClient } from '@convey/client';
+
+const convey = new ConveyClient({
+  apiKey: process.env.CONVEY_API_KEY!,
+  encryptionKey: process.env.CONVEY_MASTER_ENCRYPTION_KEY!, // AES-256-GCM Envelope
+});
+
+async function sendMedicalPrescriptionNotification(patientPhone: string, rxNumber: string) {
+  return await convey.messages.send({
+    channel: 'sms',
+    recipient: patientPhone, // Encrypted on wire & at rest
+    content: {
+      body: `Your prescription #${rxNumber} is ready for pickup at HealthCare Pharmacy.`,
+    },
+    metadata: {
+      hipaaCompliance: true,
+      encryptionVersion: 'v2',
+      auditLedger: 'RESTRICTED_ACCESS',
+    },
+  });
+}
+```
+
+---
+
+## 7. Rich Block-Kit Slack & Discord ChatOps Alerts
+
+```typescript
+import { ConveyClient } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+
+async function sendSlackDeploymentNotification(deployId: string, gitSha: string, environment: string) {
+  return await convey.messages.send({
+    channel: 'chat',
+    recipient: '#eng-deployments',
+    content: {
+      body: `Deployment ${deployId} successfully rolled out to ${environment}.`,
+      blocks: [
+        {
+          type: 'header',
+          text: { type: 'plain_text', text: `🚀 Deployment ${deployId} Complete` },
+        },
+        {
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*Environment:*\n\`${environment}\`` },
+            { type: 'mrkdwn', text: `*Commit SHA:*\n\`${gitSha.slice(0, 7)}\`` },
+          ],
+        },
+      ],
+    },
+  });
+}
+```
+
+---
+
+## 8. Dead-Letter Queue (DLQ) Automated Blast-Radius Replay
+
+```typescript
+import { ConveyClient } from '@convey/client';
+
+const convey = new ConveyClient({ apiKey: process.env.CONVEY_API_KEY! });
+
+async function replayFailedProviderOutageMessages(sinceDate: string) {
+  // 1. Dry run to inspect blast radius and impacted message count
+  const dryRun = await convey.dlq.simulateReplay({
+    since: sinceDate,
+    failureReason: 'PROVIDER_RATE_LIMIT_429',
+  });
+
+  console.log(`Found ${dryRun.affectedMessages} messages. Estimated cost: $${dryRun.estimatedCost}`);
+
+  // 2. Execute mutated replay with rate-limiting backoff
+  const replayResult = await convey.dlq.replay({
+    since: sinceDate,
+    failureReason: 'PROVIDER_RATE_LIMIT_429',
+    overrideRouting: {
+      strategy: 'SMART_SCORECARD',
+      rateLimitRps: 50, // Throttle replay to 50 requests/sec
+    },
+  });
+
+  console.log(`Replay queued for ${replayResult.replayedCount} messages.`);
+}
+```
+
+---
+
+## 9. Inbound Webhook Delivery Receipt Ingestion
+
+```typescript
+import { ConveyWebhookVerifier } from '@convey/client';
+
+const verifier = new ConveyWebhookVerifier(process.env.CONVEY_WEBHOOK_SECRET!);
+
+export async function handleProviderDeliveryWebhook(req: Request) {
+  const signature = req.headers.get('x-convey-signature')!;
+  const rawBody = await req.text();
+
+  // 1. Verify HMAC-SHA256 signature
+  const isValid = verifier.verify(rawBody, signature);
+  if (!isValid) {
+    return new Response('Unauthorized Signature', { status: 401 });
+  }
+
+  const payload = JSON.parse(rawBody);
+  console.log(`Received delivery event for ${payload.publicId}: status = ${payload.status}`);
+
+  return new Response(JSON.stringify({ received: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+```
+
+---
+
+## 10. Custom Provider Adapter Implementation
+
+You can register custom internal SMS gateways, proprietary email servers, or carrier SMPP connections into Convey's provider registry:
+
+```typescript
+import { BaseProviderAdapter, type DispatchPayload, type DispatchResult } from '@convey/server';
+
+export class CustomSmppCarrierAdapter extends BaseProviderAdapter {
+  readonly id = 'custom_smpp_carrier';
+  readonly channel = 'sms';
+
+  async send(payload: DispatchPayload): Promise<DispatchResult> {
+    const smppResponse = await this.smppClient.submitSm({
+      sourceAddr: 'CONVEY',
+      destAddr: payload.recipient,
+      shortMessage: payload.content.body,
+    });
+
+    return {
+      success: true,
+      providerMessageId: smppResponse.messageId, // Protected from public exposure
+      latencyMs: smppResponse.rtt,
+    };
+  }
+}
+```

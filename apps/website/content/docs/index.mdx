@@ -1,0 +1,62 @@
+---
+title: Introduction to Convey
+description: Planetary-scale, fault-tolerant communication engine and notification gateway engineered for extreme reliability and sub-15ms throughput.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Card, Cards } from 'fumadocs-ui/components/card';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Welcome to Convey
+
+**Convey** is a standalone, ultra-high-throughput communication gateway and notification infrastructure built natively on **Bun 1.4**, **Elysia.js**, **PostgreSQL 18**, and **DragonflyDB**.
+
+It provides synchronous sub-15ms message ingestion acceptance, zero-trust AES-256-GCM envelope encryption at rest, a Deficit Round Robin multi-tenant scheduler, an autonomous WhatsApp 24h session cost autopilot, and 88+ turnkey provider adapters.
+
+<Callout type="info" title="Zero External Vendor Lock-in">
+  Convey is completely self-contained with no external cloud SaaS dependencies. It compiles into a single binary deployment or Docker container with full observability.
+</Callout>
+
+---
+
+## Core Technical Pillars
+
+<Cards>
+  <Card title="⚡ Fast-Path Ingestion" href="/docs/architecture#fast-path-ingestion">
+    1-RTT DragonflyDB `SET NX` idempotency lease and synchronous PostgreSQL 18 insert in under 15ms (p99).
+  </Card>
+  <Card title="🔒 Zero-Trust Encryption" href="/docs/architecture#zero-trust-encryption">
+    AES-256-GCM envelope encryption at rest with field-level initialization vectors (IV).
+  </Card>
+  <Card title="⚖️ Deficit Round Robin" href="/docs/architecture#fairness-scheduler">
+    Multi-tenant bandwidth arbitration with Jain's Fairness Index `JFI >= 0.95`.
+  </Card>
+  <Card title="💬 WhatsApp Cost Autopilot" href="/docs/architecture#whatsapp-cost-optimization">
+    Automatic $0.00 plain text window conversion during active 24h user reply sessions.
+  </Card>
+</Cards>
+
+---
+
+## Explore the Documentation
+
+<Cards>
+  <Card title="🚀 Quickstart Guide" href="/docs/quickstart">
+    Get Convey running locally in under 2 minutes with Docker Compose or Bun.
+  </Card>
+  <Card title="🏛️ System Architecture" href="/docs/architecture">
+    Deep-dive into Transactional Outbox, Monthly Partitioning, and Circuit Breakers.
+  </Card>
+  <Card title="📡 REST API Reference" href="/docs/api-reference">
+    Comprehensive OpenAPI 3.1 endpoint specification for message dispatch and queries.
+  </Card>
+  <Card title="🔌 88+ Turnkey Providers" href="/docs/providers">
+    Turnkey setup guides for Email, SMS, WhatsApp, Push, and Chat integrations.
+  </Card>
+  <Card title="💻 Client SDKs" href="/docs/sdks">
+    Official production libraries for TypeScript/Bun, Python AsyncIO, and Go.
+  </Card>
+  <Card title="📊 Verified Benchmarks" href="/docs/benchmarks">
+    HDR latency percentiles and micro-engine throughput measurements (5.2M ops/s).
+  </Card>
+</Cards>

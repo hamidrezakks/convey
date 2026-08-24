@@ -74,8 +74,11 @@ export const zh: TranslationSchema = {
     groupOpsTools: '通信工具',
     overview: '总览看板',
     overviewBadge: '实时',
+    reports: '分析与报告',
+    reportsBadge: '洞察',
     messages: '消息记录',
     architecture: '系统架构',
+
     providers: '渠道提供商',
     providersBadge: '88家即用',
     providerConfig: '提供商配置',

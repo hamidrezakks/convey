@@ -1,14 +1,14 @@
 # ==============================================================================
 # ⚡ CONVEY UNIFIED DOCKER COMPOSE
-# Complete stack: PostgreSQL 16 + Redis 7 + Convey Server + Mission Control Web
+# Complete stack: PostgreSQL 18 + DragonflyDB + Convey Server + Mission Control Web
 # ==============================================================================
 
 services:
   # ----------------------------------------------------------------------------
-  # 1. PostgreSQL 16 (Monthly Range-Partitioned Ledger)
+  # 1. PostgreSQL 18 (Monthly Range-Partitioned Ledger)
   # ----------------------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: convey-postgres
     restart: unless-stopped
     environment:
@@ -29,17 +29,17 @@ services:
       - convey-network
 
   # ----------------------------------------------------------------------------
-  # 2. Redis 7 (BullMQ Queue Topology & 1-RTT Idempotency Locks)
+  # 2. DragonflyDB (Multi-Threaded In-Memory Engine, BullMQ & 1-RTT Locks)
   # ----------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
-    container_name: convey-redis
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: convey-dragonfly
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    command: ["dragonfly", "--cache_mode=true", "--keys_output_limit=10000"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - convey_redis_data:/data
+      - convey_dragonfly_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -47,7 +47,10 @@ services:
       retries: 5
       start_period: 3s
     networks:
-      - convey-network
+      convey-network:
+        aliases:
+          - dragonfly
+          - redis
 
   # ----------------------------------------------------------------------------
   # 3. Convey Server (Elysia HTTP Gateway & Autonomous Worker Engine)
@@ -100,7 +103,7 @@ services:
       - convey-network
 
   # ----------------------------------------------------------------------------
-  # 4. Convey Mission Control Console (React 19 + Base UI)
+  # 4. Mission Control Web Console (React 19 + Base UI)
   # ----------------------------------------------------------------------------
   convey-web:
     build:
@@ -111,7 +114,8 @@ services:
     container_name: convey-web
     restart: unless-stopped
     depends_on:
-      - convey-server
+      convey-server:
+        condition: service_healthy
     ports:
       - "${WEB_PORT:-5173}:5173"
     environment:
@@ -127,5 +131,5 @@ networks:
 volumes:
   convey_postgres_data:
     name: convey_postgres_data
-  convey_redis_data:
-    name: convey_redis_data
+  convey_dragonfly_data:
+    name: convey_dragonfly_data

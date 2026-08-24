@@ -1,0 +1,126 @@
+---
+title: Quickstart & Installation
+description: Get Convey running in under 2 minutes with Docker Compose or Bun 1.4. Includes service port maps, verification scripts, and first message dispatch.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+## Prerequisites
+
+Before running Convey, ensure your local or staging environment has the following installed:
+
+- **Bun**: `v1.4.0` or higher (`curl -fsSL https://bun.sh/install | bash`)
+- **Docker & Docker Compose**: `v24.0+` (optional for containerized setup)
+- **PostgreSQL**: `18.0+` (with `pgcrypto` extension enabled)
+- **DragonflyDB**: `latest` / `v1.20+` or Redis-compatible multi-threaded cache (with persistence enabled)
+
+---
+
+## 2-Minute Rapid Setup
+
+<Tabs items={['Docker Compose (Fastest)', 'Bun Monorepo Native', 'Kubernetes']}>
+  <Tab value="Docker Compose (Fastest)">
+```bash
+# 1. Clone the repository
+git clone https://github.com/convey/convey.git
+cd convey
+
+# 2. Launch PostgreSQL 18, DragonflyDB, Convey API Server, and Mission Control UI
+docker compose up -d
+
+# 3. Verify all containers are healthy
+docker compose ps
+```
+  </Tab>
+
+  <Tab value="Bun Monorepo Native">
+```bash
+# 1. Install all dependencies across workspaces
+bun install
+
+# 2. Configure environment variables
+cp .env.example .env
+
+# 3. Execute database schema migrations
+bun run db:migrate
+
+# 4. Start the API server, Web UI, and Developer Docs
+bun run dev
+```
+  </Tab>
+
+  <Tab value="Kubernetes">
+```bash
+# 1. Apply Kubernetes ConfigMaps & Secrets
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/secrets.yaml
+
+# 2. Deploy PostgreSQL 18 and DragonflyDB StatefulSets
+kubectl apply -f deploy/k8s/postgres-statefulset.yaml
+kubectl apply -f deploy/k8s/dragonfly-statefulset.yaml
+
+# 3. Deploy Convey API & Background Workers with HPA
+kubectl apply -f deploy/k8s/convey-deployment.yaml
+kubectl apply -f deploy/k8s/convey-hpa.yaml
+```
+  </Tab>
+</Tabs>
+
+---
+
+## Service Port Allocation Map
+
+| Service Name | Port | Description | Health Endpoint |
+| :--- | :--- | :--- | :--- |
+| **Convey API Server** | `3000` | Elysia.js REST API & Ingestion Gateway | `http://localhost:3000/health` |
+| **OpenAPI Docs (Swagger)** | `3000` | Interactive OpenAPI 3.1 Swagger UI | `http://localhost:3000/swagger` |
+| **Mission Control UI** | `5173` | React 19 Admin Operations Console | `http://localhost:5173` |
+| **Developer Documentation** | `5174` | Fumadocs Portal & API Playground | `http://localhost:5174` |
+| **PostgreSQL 18** | `5432` | Relational Storage & Range Partitions | `pg_isready -p 5432` |
+| **DragonflyDB** | `6379` | Multi-Threaded 1-RTT Idempotency & Rate Limiting | `redis-cli ping` |
+
+---
+
+## Sending Your First Message
+
+Once the server is running, dispatch a high-priority SMS or Email via `cURL`:
+
+```bash
+curl -X POST http://localhost:3000/v1/messages/send \
+  -H "Authorization: Bearer cv_live_dev_api_key_001" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: test_dispatch_001" \
+  -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" \
+  -d '{
+    "channel": "sms",
+    "recipient": "+14155552671",
+    "priority": "HIGH",
+    "content": {
+      "body": "Welcome to Convey! Your high-throughput notification gateway is active."
+    },
+    "routing": {
+      "strategy": "SMART_SCORECARD",
+      "fallbackChain": ["vonage", "infobip"]
+    }
+  }'
+```
+
+### Expected Synchronous Response (`202 Accepted`)
+
+```json
+{
+  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",
+  "status": "ACCEPTED",
+  "channel": "sms",
+  "recipient": "+14155552671",
+  "priority": "HIGH",
+  "idempotencyKey": "test_dispatch_001",
+  "latencyMs": 1.42,
+  "createdAt": "2026-08-24T19:50:00.000Z"
+}
+```
+
+<Callout type="warn" title="Zero Provider Message ID Exposure">
+  Public API responses strictly expose opaque ULID IDs (`msg_<ULID>`). Internal provider message IDs (such as `SMxxxxxxxx` or `SES-xxxx`) are never leaked to external clients.
+</Callout>

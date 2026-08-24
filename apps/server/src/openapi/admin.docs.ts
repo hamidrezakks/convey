@@ -430,4 +430,87 @@ export const AdminDocs = {
       '200': { description: 'Exported environment variables' },
     },
   },
+
+  reportsOverview: {
+    tags: ['Reports & Analytics'],
+    summary: 'Get Multi-Dimension Reporting Overview',
+    description:
+      'Aggregates global delivery rate, open rate, fail rate, total cost, channel distribution, and time-series.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'Overview metrics and time-series data' },
+    },
+  },
+
+  reportsTeams: {
+    tags: ['Reports & Analytics'],
+    summary: 'Get Team Reporting and Budget Utilization',
+    description:
+      'Retrieves delivery rate, open rate, fail rate, message volume, and financial budget consumption per team.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'List of team performance and budget metrics' },
+    },
+  },
+
+  reportsCategories: {
+    tags: ['Reports & Analytics'],
+    summary: 'Get Category Performance & Cost Attribution',
+    description:
+      'Breaks down delivery rate, open rate, fail rate, and spend across marketing, transactional, auth, and billing categories.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'List of category performance metrics' },
+    },
+  },
+
+  reportsCampaigns: {
+    tags: ['Reports & Analytics'],
+    summary: 'Query Campaign Analytics by External campaignId',
+    description:
+      'Aggregates delivery rates, open rates, fail rates, and total cost attributed to external campaign identifiers.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'List of campaigns with metrics' },
+    },
+  },
+
+  reportsCampaignDetails: {
+    tags: ['Reports & Analytics'],
+    summary: 'Get Single Campaign Drilldown Analytics',
+    description:
+      'Fetches 5-step delivery funnel, channel distribution, and hourly progression for a specific campaignId.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'Detailed campaign drilldown metrics' },
+    },
+  },
+
+  reportsExport: {
+    tags: ['Reports & Analytics'],
+    summary: 'Export Reports in CSV or JSON Format',
+    description: 'Generates downloadable CSV or JSON reports for financial systems and executive BI dashboards.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'Report file content' },
+    },
+  },
+
+  reportsReconcile: {
+    tags: ['Reports & Analytics'],
+    summary: 'Run Reporting Doctor & Reconcile Rollup Buckets',
+    description:
+      'Scans raw message and event partitions, detects any drift, and idempotently recalculates and heals pre-aggregated database buckets.',
+    security: StandardSecurityRequirement,
+    headers: CommonHeaders,
+    responses: {
+      '200': { description: 'Doctor diagnostic and reconciliation report' },
+    },
+  },
 };

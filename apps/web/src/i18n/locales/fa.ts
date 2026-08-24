@@ -74,8 +74,11 @@ export const fa: TranslationSchema = {
     groupOpsTools: 'ابزارهای ارتباطی',
     overview: 'نمای کلی',
     overviewBadge: 'زنده',
+    reports: 'گزارش‌ها و تحلیل‌ها',
+    reportsBadge: 'آمار',
     messages: 'پیام‌ها',
     architecture: 'معماری سیستم',
+
     providers: 'ارائه‌دهندگان',
     providersBadge: '۸۸ آماده',
     providerConfig: 'پیکربندی ارائه‌دهنده',

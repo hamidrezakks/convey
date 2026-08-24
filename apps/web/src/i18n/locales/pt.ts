@@ -74,8 +74,11 @@ export const pt: TranslationSchema = {
     groupOpsTools: 'Ferramentas de Comunicação',
     overview: 'Visão Geral',
     overviewBadge: 'Ao vivo',
+    reports: 'Relatórios e Análises',
+    reportsBadge: 'Estatísticas',
     messages: 'Mensagens',
     architecture: 'Arquitetura',
+
     providers: 'Provedores',
     providersBadge: '88 Prontos',
     providerConfig: 'Config. de Provedores',
