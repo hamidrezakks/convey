@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { BookOpen, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { useMemo } from 'react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { type ColumnDef, DataTable, DataTableCopyCell } from '../components/ui/data-table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { formatTimeAgo } from '../lib/utils';
@@ -22,6 +22,73 @@ export function AuditPage() {
 
   const auditLogs = auditData?.logs ?? [];
   const total = auditData?.total ?? 0;
+
+  // Declarative Column Definitions for Audit Log Table
+  const columns: ColumnDef<(typeof auditLogs)[number]>[] = useMemo(
+    () => [
+      {
+        id: 'id',
+        accessorKey: 'id',
+        header: t('audit.colId'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold">{row.id}</span>
+        ),
+      },
+      {
+        id: 'actor',
+        accessorKey: 'actor',
+        header: t('audit.colActor'),
+        cell: ({ row }) => <span className="text-xs font-medium text-slate-900 dark:text-white">{row.actor}</span>,
+      },
+      {
+        id: 'action',
+        accessorKey: 'action',
+        header: t('audit.colAction'),
+        cell: ({ row }) => <Badge variant="cyan">{row.action}</Badge>,
+      },
+      {
+        id: 'target',
+        accessorKey: 'target',
+        header: t('audit.colTarget'),
+        cell: ({ row }) => (
+          <span className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate max-w-xs block">
+            {row.target}
+          </span>
+        ),
+      },
+      {
+        id: 'ipAddress',
+        accessorKey: 'ipAddress',
+        header: t('audit.colIp'),
+        cell: ({ row }) => (
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{row.ipAddress || '127.0.0.1'}</span>
+        ),
+      },
+      {
+        id: 'timestamp',
+        accessorKey: 'timestamp',
+        header: t('audit.colTime'),
+        cell: ({ row }) => (
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{formatTimeAgo(row.timestamp)}</span>
+        ),
+      },
+      {
+        id: 'sha256Hash',
+        header: t('audit.colHash'),
+        cell: ({ row }) =>
+          row.sha256Hash ? (
+            <DataTableCopyCell
+              value={row.sha256Hash}
+              tooltip="Copy SHA-256 Hash"
+              className="text-[11px] text-slate-500 dark:text-slate-400 font-mono"
+            />
+          ) : (
+            <span className="text-[10px] font-mono text-slate-400">N/A</span>
+          ),
+      },
+    ],
+    [t],
+  );
 
   return (
     <div className="space-y-6">
@@ -49,70 +116,26 @@ export function AuditPage() {
       </div>
 
       {/* Audit Log Table */}
-      <Card className="glass-panel overflow-hidden">
-        <CardHeader className="py-3 px-4 sm:px-6 flex flex-row items-center justify-between">
-          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {t('audit.ledger')} ({total} events)
-          </CardTitle>
+          </h3>
           <span className="text-xs text-slate-500 font-mono">SHA-256 Tamper-Evident Ledger</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('audit.colId')}</TableHead>
-                <TableHead>{t('audit.colActor')}</TableHead>
-                <TableHead>{t('audit.colAction')}</TableHead>
-                <TableHead>{t('audit.colTarget')}</TableHead>
-                <TableHead>{t('audit.colIp')}</TableHead>
-                <TableHead>{t('audit.colTime')}</TableHead>
-                <TableHead>{t('audit.colHash')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
-                    Loading audit trail...
-                  </TableCell>
-                </TableRow>
-              ) : auditLogs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2 opacity-80" />
-                    No audit records recorded yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                auditLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-400 font-semibold">
-                      {log.id}
-                    </TableCell>
-                    <TableCell className="text-xs font-medium text-slate-900 dark:text-white">{log.actor}</TableCell>
-                    <TableCell>
-                      <Badge variant="cyan">{log.action}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate max-w-xs">
-                      {log.target}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                      {log.ipAddress || '127.0.0.1'}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                      {formatTimeAgo(log.timestamp)}
-                    </TableCell>
-                    <TableCell className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
-                      {log.sha256Hash ? `${log.sha256Hash.slice(0, 16)}...` : 'N/A'}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={auditLogs}
+          isLoading={isLoading}
+          getRowKey={(log) => log.id}
+          emptyState={{
+            icon: <CheckCircle2 className="w-8 h-8 text-emerald-500" />,
+            title: 'No audit records recorded yet',
+            description: 'Administrative actions and ledger alterations will be recorded here.',
+          }}
+        />
+      </div>
     </div>
   );
 }

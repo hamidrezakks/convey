@@ -1,12 +1,13 @@
 import { Channel, SuppressionReason } from '@convey/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Briefcase, Plus, RefreshCw, Search, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Briefcase, Plus, Search, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { type ColumnDef, DataTable } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,6 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { deliverabilityKeys } from '../lib/queryKeys';
@@ -98,37 +98,111 @@ export function DeliverabilityPage() {
   const getReasonHumanLabel = (reason: SuppressionReason) => {
     switch (reason) {
       case SuppressionReason.SPAM_COMPLAINT:
-        return 'Customer Marked as Spam';
+        return 'Spam Complaint (Auto-Blocked)';
       case SuppressionReason.HARD_BOUNCE:
-        return 'Email Address Does Not Exist';
+        return 'Invalid Address / Bounce';
+      case SuppressionReason.MANUAL_BLOCK:
+        return 'Staff Blocked';
       case SuppressionReason.UNSUBSCRIBE:
         return 'Customer Unsubscribed';
-      case SuppressionReason.MANUAL_BLOCK:
-        return 'Manually Blocked by Team';
       default:
-        return String(reason);
+        return 'Suppressed';
     }
   };
+
+  // Declarative Column Definitions for Suppressions Table
+  const columns: ColumnDef<(typeof suppressions)[number]>[] = useMemo(
+    () => [
+      {
+        id: 'id',
+        accessorKey: 'id',
+        header: t('dlq.colId'),
+        hidden: !isEngineer,
+        cell: ({ row }) => <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{row.id}</span>,
+      },
+      {
+        id: 'recipient',
+        accessorKey: 'recipient',
+        header: t('deliverability.colRecipient'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-900 dark:text-white font-medium">{row.recipient}</span>
+        ),
+      },
+      {
+        id: 'channel',
+        accessorKey: 'channel',
+        header: t('deliverability.colChannel'),
+        cell: ({ row }) => <Badge variant="cyan">{row.channel}</Badge>,
+      },
+      {
+        id: 'reason',
+        header: isOps ? 'Block Reason' : t('deliverability.colReason'),
+        cell: ({ row }) =>
+          isOps ? (
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              {getReasonHumanLabel(row.reason)}
+            </span>
+          ) : (
+            <Badge variant={getReasonBadgeVariant(row.reason)}>{row.reason}</Badge>
+          ),
+      },
+      {
+        id: 'teamId',
+        accessorKey: 'teamId',
+        header: t('deliverability.colTeam'),
+        cell: ({ row }) => <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{row.teamId}</span>,
+      },
+      {
+        id: 'createdAt',
+        accessorKey: 'createdAt',
+        header: t('deliverability.colDate'),
+        cell: ({ row }) => (
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{formatTimeAgo(row.createdAt)}</span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: t('common.actions'),
+        align: 'end',
+        cell: ({ row }) => (
+          <div className="inline-flex items-center justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              isLoading={removeMutation.isPending && removeMutation.variables?.id === row.id}
+              onClick={() => removeMutation.mutate({ id: row.id, recipient: row.recipient })}
+              className="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 gap-1 font-semibold"
+              title={t('deliverability.unblockConfirm')}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>{isOps ? 'Unblock Contact' : t('deliverability.removeSuppression')}</span>
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [isEngineer, isOps, removeMutation, t],
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             {isOps ? (
               <>
-                <Briefcase className="w-5 h-5 text-emerald-500" />
+                <Briefcase className="w-5 h-5 text-emerald-500 shrink-0" />
                 {t('mode.opsDeliverabilityTitle')}
               </>
             ) : (
               <>
-                <ShieldCheck className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                <ShieldCheck className="w-5 h-5 text-sky-500 dark:text-sky-400 shrink-0" />
                 {t('deliverability.title')}
               </>
             )}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isOps ? t('mode.opsDeliverabilitySubtitle') : t('deliverability.subtitle')}
           </p>
         </div>
@@ -146,19 +220,19 @@ export function DeliverabilityPage() {
         </div>
       </div>
 
-      {/* Domain Deliverability Scorecards */}
+      {/* KPI Overview Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
-              {isOps ? 'Email Authentication (SPF)' : 'SPF Authentication'}
+              {isOps ? 'Email Sender Protection (SPF)' : 'SPF Authentication'}
             </CardTitle>
             <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">100% PASS</div>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">PASS 100%</div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {isOps ? 'Verified domain sending permission' : 'v=spf1 include:convey.io ~all'}
+              {isOps ? 'Verified domain ownership' : 'v=spf1 include:_spf.convey.internal ~all'}
             </p>
           </CardContent>
         </Card>
@@ -212,94 +286,35 @@ export function DeliverabilityPage() {
       </div>
 
       {/* Suppression List Table */}
-      <Card className="glass-panel overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between py-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {isOps ? 'Blocked Contacts List' : t('deliverability.suppressions')} ({suppressions.length})
-          </CardTitle>
+          </h3>
           <div className="w-72">
             <Input
               placeholder={isOps ? 'Search blocked email or phone...' : t('deliverability.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               icon={<Search className="w-3.5 h-3.5 text-slate-400" />}
+              className="h-9 text-xs"
             />
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {isEngineer && <TableHead>{t('dlq.colId')}</TableHead>}
-                <TableHead>{t('deliverability.colRecipient')}</TableHead>
-                <TableHead>{t('deliverability.colChannel')}</TableHead>
-                <TableHead>{isOps ? 'Block Reason' : t('deliverability.colReason')}</TableHead>
-                <TableHead>{t('deliverability.colTeam')}</TableHead>
-                <TableHead>{t('deliverability.colDate')}</TableHead>
-                <TableHead className="text-end rtl:text-left">{t('common.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={isEngineer ? 7 : 6} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
-                    {t('common.loading')}
-                  </TableCell>
-                </TableRow>
-              ) : suppressions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isEngineer ? 7 : 6} className="text-center py-12 text-slate-500">
-                    {isOps
-                      ? 'No blocked contacts. All recipients are currently eligible for delivery.'
-                      : t('common.noResults')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                suppressions.map((sup) => (
-                  <TableRow key={sup.id}>
-                    {isEngineer && (
-                      <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{sup.id}</TableCell>
-                    )}
-                    <TableCell className="font-mono text-xs text-slate-900 dark:text-white font-medium">
-                      {sup.recipient}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="cyan">{sup.channel}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {isOps ? (
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                          {getReasonHumanLabel(sup.reason)}
-                        </span>
-                      ) : (
-                        <Badge variant={getReasonBadgeVariant(sup.reason)}>{sup.reason}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">{sup.teamId}</TableCell>
-                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                      {formatTimeAgo(sup.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-end rtl:text-left">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        isLoading={removeMutation.isPending && removeMutation.variables?.id === sup.id}
-                        onClick={() => removeMutation.mutate({ id: sup.id, recipient: sup.recipient })}
-                        className="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 gap-1 font-semibold"
-                        title={t('deliverability.unblockConfirm')}
-                      >
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                        <span>{isOps ? 'Unblock Contact' : t('deliverability.removeSuppression')}</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={suppressions}
+          isLoading={isLoading}
+          getRowKey={(sup) => sup.id}
+          emptyState={{
+            title: isOps ? 'No blocked contacts' : t('common.noResults'),
+            description: isOps
+              ? 'No blocked contacts. All recipients are currently eligible for delivery.'
+              : 'No suppression records matching current criteria.',
+          }}
+        />
+      </div>
 
       {/* Add Suppression Modal */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
