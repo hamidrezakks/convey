@@ -1,5 +1,5 @@
 import { type CampaignReportDto, formatCurrencyAmount } from '@convey/shared';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   CheckCircle2,
@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { reportKeys } from '../lib/queryKeys';
+import { cn } from '../lib/utils';
 import { useUiMode } from '../mode';
 
 export function ReportsPage() {
@@ -44,9 +45,10 @@ export function ReportsPage() {
   // Selected Campaign Drilldown Modal State
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
-  // Compute ISO Dates based on timeRange
+  // Compute ISO Dates based on timeRange (rounded to minute boundary for seamless caching)
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
+    now.setSeconds(0, 0);
     let days = 30;
     if (timeRange === '24h') days = 1;
     else if (timeRange === '7d') days = 7;
@@ -72,37 +74,51 @@ export function ReportsPage() {
   // 1. Overview Query
   const {
     data: overviewData,
-    isLoading: isLoadingOverview,
+    isFetching: isFetchingOverview,
     refetch: refetchOverview,
   } = useQuery({
     queryKey: reportKeys.overview(filterParams),
     queryFn: () => api.getReportingOverview(filterParams),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
   // 2. Teams Query
   const {
     data: teamsData,
     isLoading: isLoadingTeams,
+    isFetching: isFetchingTeams,
     refetch: refetchTeams,
   } = useQuery({
     queryKey: reportKeys.teams(filterParams),
     queryFn: () => api.getTeamReports(filterParams),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
   // 3. Categories Query
-  const { data: categoriesData, refetch: refetchCategories } = useQuery({
+  const {
+    data: categoriesData,
+    isFetching: isFetchingCategories,
+    refetch: refetchCategories,
+  } = useQuery({
     queryKey: reportKeys.categories(filterParams),
     queryFn: () => api.getCategoryReports(filterParams),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
   // 4. Campaigns Query
   const {
     data: campaignsData,
     isLoading: isLoadingCampaigns,
+    isFetching: isFetchingCampaigns,
     refetch: refetchCampaigns,
   } = useQuery({
     queryKey: reportKeys.campaigns({ ...filterParams, search: campaignSearch || undefined }),
     queryFn: () => api.getCampaignReports({ ...filterParams, search: campaignSearch || undefined }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
   // 5. Campaign Drilldown Query
@@ -110,7 +126,10 @@ export function ReportsPage() {
     queryKey: reportKeys.campaignDetail(selectedCampaignId || '', filterParams),
     queryFn: () => (selectedCampaignId ? api.getCampaignDetails(selectedCampaignId) : Promise.resolve(null)),
     enabled: !!selectedCampaignId,
+    placeholderData: keepPreviousData,
   });
+
+  const isRefreshing = isFetchingOverview || isFetchingTeams || isFetchingCategories || isFetchingCampaigns;
 
   const handleRefreshAll = () => {
     refetchOverview();
@@ -442,10 +461,10 @@ export function ReportsPage() {
             variant="outline"
             size="sm"
             onClick={handleRefreshAll}
-            isLoading={isLoadingOverview || isLoadingTeams}
-            className="text-xs gap-1.5 rounded-xl"
+            isLoading={false}
+            className="text-xs gap-1.5 rounded-xl cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className={cn('w-3.5 h-3.5', isRefreshing && 'animate-spin text-sky-500')} />
             <span>{t('common.refresh')}</span>
           </Button>
 
@@ -548,10 +567,10 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
-              {summary?.deliveryRatePercent.toFixed(2) ?? '98.50'}%
+              {summary ? `${summary.deliveryRatePercent.toFixed(2)}%` : '—'}
             </div>
             <div className="flex items-center justify-between mt-1 text-xs text-slate-500 dark:text-slate-400">
-              <span>{summary?.totalDelivered.toLocaleString() ?? '0'} delivered</span>
+              <span>{summary ? `${summary.totalDelivered.toLocaleString()} delivered` : '0 delivered'}</span>
               <Badge variant="success" className="text-[10px] py-0">
                 SLA Met
               </Badge>
@@ -569,11 +588,13 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono text-sky-600 dark:text-sky-400">
-              {summary?.openRatePercent.toFixed(2) ?? '51.20'}%
+              {summary ? `${summary.openRatePercent.toFixed(2)}%` : '—'}
             </div>
             <div className="flex items-center justify-between mt-1 text-xs text-slate-500 dark:text-slate-400">
-              <span>{summary?.totalOpened.toLocaleString() ?? '0'} opens</span>
-              <span className="text-[11px] font-mono">{(summary?.totalRead || 0).toLocaleString()} read</span>
+              <span>{summary ? `${summary.totalOpened.toLocaleString()} opens` : '0 opens'}</span>
+              <span className="text-[11px] font-mono">
+                {summary ? `${(summary.totalRead || 0).toLocaleString()} read` : '0 read'}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -588,10 +609,10 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono text-rose-600 dark:text-rose-400">
-              {summary?.failRatePercent.toFixed(2) ?? '1.50'}%
+              {summary ? `${summary.failRatePercent.toFixed(2)}%` : '—'}
             </div>
             <div className="flex items-center justify-between mt-1 text-xs text-slate-500 dark:text-slate-400">
-              <span>{summary?.totalFailed.toLocaleString() ?? '0'} failed</span>
+              <span>{summary ? `${summary.totalFailed.toLocaleString()} failed` : '0 failed'}</span>
               <span className="text-[11px] font-mono text-slate-400">&lt; 3.0% threshold</span>
             </div>
           </CardContent>
@@ -607,7 +628,7 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
-              ${summary?.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '0.00'}
+              {summary ? `$${summary.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '$0.00'}
             </div>
             <div className="flex items-center justify-between mt-1 text-xs text-slate-500 dark:text-slate-400">
               <span>Across all channels</span>
@@ -626,10 +647,10 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono text-purple-600 dark:text-purple-400">
-              {summary?.activeCampaignsCount ?? campaignList.length}
+              {summary ? (summary.activeCampaignsCount ?? campaignList.length) : campaignList.length}
             </div>
             <div className="flex items-center justify-between mt-1 text-xs text-slate-500 dark:text-slate-400">
-              <span>{summary?.activeTeamsCount ?? teams.length} active teams</span>
+              <span>{summary ? (summary.activeTeamsCount ?? teams.length) : teams.length} active teams</span>
               <Badge variant="purple" className="text-[10px] py-0">
                 Tracked
               </Badge>
