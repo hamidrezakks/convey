@@ -338,10 +338,19 @@ try {
 
 ---
 
-## Documentation Links
+## Documentation & Guides
 
 - 📖 [Complete API Reference](./docs/API_REFERENCE.md)
+- 🍳 [Enterprise Production Cookbook (Next.js, Elysia, Express, Edge)](./docs/COOKBOOK.md)
 - 🌐 [Language-Agnostic Porting Specification](./docs/PORTING_SPECIFICATION.md) (Python, Go, Rust, Java, PHP, Ruby)
+- 💡 [Runnable TypeScript Examples](./examples/):
+  - [01-quickstart-omnichannel.ts](./examples/01-quickstart-omnichannel.ts)
+  - [02-bulk-and-batches.ts](./examples/02-bulk-and-batches.ts)
+  - [03-webhook-verification-servers.ts](./examples/03-webhook-verification-servers.ts)
+  - [04-auto-pagination-streaming.ts](./examples/04-auto-pagination-streaming.ts)
+  - [05-dlq-inspection-and-mutated-replay.ts](./examples/05-dlq-inspection-and-mutated-replay.ts)
+  - [06-observability-apm-tracing.ts](./examples/06-observability-apm-tracing.ts)
+  - [07-analytics-and-admin-studio.ts](./examples/07-analytics-and-admin-studio.ts)
 
 ---
 

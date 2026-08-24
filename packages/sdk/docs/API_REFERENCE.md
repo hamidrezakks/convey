@@ -1,6 +1,6 @@
 # Convey SDK API Reference
 
-Complete method-by-method, parameter-by-parameter API reference for `@convey/sdk`.
+Complete method-by-method, parameter-by-parameter API reference for `@convey/sdk` with production TypeScript samples.
 
 ---
 
@@ -25,9 +25,15 @@ Complete method-by-method, parameter-by-parameter API reference for `@convey/sdk
 Primary entry point for interacting with Convey.
 
 ```typescript
-import { Convey } from '@convey/sdk';
+import { Convey, ConveyClient } from '@convey/sdk';
 
-const convey = new Convey(options: ConveyClientOptions);
+const convey = new Convey({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'http://localhost:3000',    // Defaults to http://localhost:3000
+  timeoutMs: 10000,                    // 10s request timeout
+  maxRetries: 3,                       // Max exponential backoff retry attempts
+  teamId: 'growth-team',               // Optional default team ID
+});
 ```
 
 ### `ConveyClientOptions`
@@ -41,7 +47,6 @@ const convey = new Convey(options: ConveyClientOptions);
 | `isSandbox` | `boolean` | `false` | Enables test sandbox mode (automatically true if `apiKey` starts with `sk_test_`). |
 | `teamId` | `string` | `undefined` | Default team ID attached to requests. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Custom `fetch` function override. |
-| `defaultHeaders` | `Record<string, string>` | `{}` | Additional headers attached to every outgoing HTTP request. |
 
 ### `RequestOptions` (Per-Request Override)
 
@@ -51,8 +56,8 @@ All resource methods accept an optional `options?: RequestOptions` object as the
 | :--- | :--- | :--- |
 | `timeoutMs` | `number` | Overrides client timeout for this specific call. |
 | `maxRetries` | `number` | Overrides client max retries for this call. |
-| `idempotencyKey` | `string` | Explicit idempotency token. |
-| `traceparent` | `string` | Explicit parent W3C traceparent. |
+| `idempotencyKey` | `string` | Explicit idempotency token (defaults to auto-generated monotonic ULID). |
+| `traceparent` | `string` | Explicit parent W3C traceparent (`00-<trace_id>-<span_id>-<flags>`). |
 | `isSandbox` | `boolean` | Overrides sandbox mode for this call. |
 | `signal` | `AbortSignal` | External cancellation signal. |
 | `headers` | `Record<string, string>` | Additional headers for this specific call. |
@@ -64,57 +69,101 @@ All resource methods accept an optional `options?: RequestOptions` object as the
 Accessible via `convey.messages`.
 
 ### `send(request, options?)`
-Dispatches a single message into the transactional outbox pipeline.
-
-- **Parameters**: `request: SendMessageRequest<TVariables, TMetadata>`, `options?: RequestOptions`
-- **Returns**: `Promise<MessageAcceptedResponse>`
+Dispatches a single omnichannel message into the transactional outbox pipeline.
 
 ```typescript
-const res = await convey.messages.send({
+// Sample 1: Transactional Email
+const emailRes = await convey.messages.send({
   channel: 'EMAIL',
   recipient: 'user@example.com',
-  priority: 'HIGH', // 'CRITICAL' | 'HIGH' | 'DEFAULT' | 'LOW'
+  priority: 'HIGH',
   content: {
-    subject: 'Welcome',
-    body: '<p>Hello world!</p>',
-    templateId: 'tpl_welcome',
-    variables: { name: 'Alex' },
+    subject: 'Order Confirmation #9901',
+    body: '<p>Thank you for your order!</p>',
   },
-  category: 'MARKETING',
-  campaignId: 'cmp_onboarding',
-  idempotencyKey: 'custom_idemp_key_123',
+  category: 'TRANSACTIONAL',
+  idempotencyKey: 'order_9901_confirmation',
+});
+
+// Sample 2: Urgent SMS OTP
+const smsRes = await convey.messages.send({
+  channel: 'SMS',
+  recipient: '+14155552671',
+  priority: 'CRITICAL',
+  content: {
+    body: 'Your verification code is 884-129.',
+  },
+});
+
+// Sample 3: WhatsApp with Template Variables
+const waRes = await convey.messages.send({
+  channel: 'WHATSAPP',
+  recipient: '+447911123456',
+  content: {
+    templateId: 'shipping_update_v1',
+    variables: { tracking_number: 'TRK-98765' },
+  },
 });
 ```
 
 ### `sendBulk(messages, options?)`
-High-throughput bulk message dispatch.
+High-throughput bulk message dispatch into the transactional outbox pipeline in a single network round-trip.
 
-- **Parameters**: `messages: SendMessageRequest[] | { messages: SendMessageRequest[] }`, `options?: RequestOptions`
-- **Returns**: `Promise<BulkMessageResponse>` (`{ total: number; items: MessageAcceptedResponse[] }`)
+```typescript
+const bulk = await convey.messages.sendBulk([
+  {
+    channel: 'EMAIL',
+    recipient: 'alice@corp.com',
+    content: { subject: 'Monthly Summary', body: '<p>Hi Alice</p>' },
+  },
+  {
+    channel: 'EMAIL',
+    recipient: 'bob@corp.com',
+    content: { subject: 'Monthly Summary', body: '<p>Hi Bob</p>' },
+  },
+]);
+
+console.log(`Accepted ${bulk.total} messages.`);
+```
 
 ### `get(messageId, options?)`
 Retrieve the current lifecycle status and attempt records for a message.
 
-- **Parameters**: `messageId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<MessageDetailDto>`
+```typescript
+const message = await convey.messages.get('msg_01J9X8K72M9NPQR4567890ABCD');
+console.log(`Status: ${message.status}, CreatedAt: ${message.createdAt}`);
+```
 
 ### `getTimeline(messageId, options?)`
 Query chronological provider delivery attempts and status transitions.
 
-- **Parameters**: `messageId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<MessageTimelineResponse>`
+```typescript
+const timeline = await convey.messages.getTimeline('msg_01J9X8K72M9NPQR4567890ABCD');
+for (const step of timeline.timeline) {
+  console.log(`[${step.timestamp}] ${step.status} via ${step.provider} (${step.latencyMs}ms)`);
+}
+```
 
 ### `getTrace(messageId, options?)`
-Query the W3C distributed trace waterfall for a message.
+Query the W3C distributed trace APM waterfall for a message.
 
-- **Parameters**: `messageId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<MessageTraceResponse>`
+```typescript
+const trace = await convey.messages.getTrace('msg_01J9X8K72M9NPQR4567890ABCD');
+console.log(`Traceparent: ${trace.traceparent}, Total Duration: ${trace.totalDurationMs}ms`);
+```
 
 ### `previewTemplate(request, options?)`
-Preview variable substitutions against a raw template string.
+Preview dynamic parameter substitutions against a template before dispatch.
 
-- **Parameters**: `request: TemplatePreviewRequest`, `options?: RequestOptions`
-- **Returns**: `Promise<TemplatePreviewResponse>`
+```typescript
+const preview = await convey.messages.previewTemplate({
+  template: 'Hello {{name}}, your balance is {{amount | currency: "USD"}}.',
+  variables: { name: 'Sarah', amount: 149.5 },
+  recipient: 'sarah@example.com',
+});
+
+console.log(`Rendered: ${preview.rendered}`); // "Hello Sarah, your balance is $149.50."
+```
 
 ---
 
@@ -125,37 +174,36 @@ Accessible via `convey.batches`.
 ### `create(request, options?)`
 Initialize a large-scale campaign batch container.
 
-- **Parameters**: `request: CreateBatchRequest` (`{ totalCount: number; metadata?: Record<string, unknown> }`), `options?: RequestOptions`
-- **Returns**: `Promise<CreateBatchResponse>`
+```typescript
+const batch = await convey.batches.create({
+  totalCount: 25000,
+  metadata: { campaignName: 'Black Friday 2026' },
+});
+console.log(`Batch created: ${batch.batch.id}`);
+```
 
 ### `list(options?)`
 List all campaign batches for the team.
 
-- **Returns**: `Promise<ListBatchesResponse>`
+```typescript
+const batches = await convey.batches.list({ limit: 10 });
+```
 
 ### `get(batchId, options?)`
 Get progress counters and status of a batch.
 
-- **Parameters**: `batchId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean; batch: BatchDto }>`
+```typescript
+const details = await convey.batches.get('batch_01J9X8K...');
+console.log(`Progress: ${details.processedCount} / ${details.totalCount}`);
+```
 
-### `pause(batchId, options?)`
-Pause execution of an in-flight batch.
+### `pause(batchId, options?)` / `resume(batchId, options?)` / `cancel(batchId, options?)`
 
-- **Parameters**: `batchId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<BatchActionResponse>`
-
-### `resume(batchId, options?)`
-Resume a paused batch.
-
-- **Parameters**: `batchId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<BatchActionResponse>`
-
-### `cancel(batchId, options?)`
-Cancel a batch.
-
-- **Parameters**: `batchId: string`, `options?: RequestOptions`
-- **Returns**: `Promise<BatchActionResponse>`
+```typescript
+await convey.batches.pause('batch_01J9X8K...');
+await convey.batches.resume('batch_01J9X8K...');
+await convey.batches.cancel('batch_01J9X8K...');
+```
 
 ---
 
@@ -166,31 +214,43 @@ Accessible via `convey.suppressions`.
 ### `add(request, options?)`
 Add a single recipient suppression rule.
 
-- **Parameters**: `request: AddSuppressionRequest`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean; suppression: SuppressionDto }>`
+```typescript
+await convey.suppressions.add({
+  recipient: 'bounced.user@example.com',
+  channel: 'EMAIL',
+  reason: 'HARD_BOUNCE',
+  comment: 'Mailbox does not exist (SMTP 550)',
+});
+```
 
 ### `addBulk(items, options?)`
 Bulk register suppression records.
 
-- **Parameters**: `items: AddSuppressionRequest[] | { items: AddSuppressionRequest[] }`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean; count: number; suppressions: SuppressionDto[] }>`
+```typescript
+await convey.suppressions.addBulk([
+  { recipient: 'spam1@domain.com', channel: 'EMAIL', reason: 'SPAM_COMPLAINT' },
+  { recipient: 'spam2@domain.com', channel: 'EMAIL', reason: 'UNSUBSCRIBE' },
+]);
+```
 
-### `list(query?, options?)`
-List suppressions with filtering.
+### `list(query?, options?)` & `listAutoPaging(query?, options?)`
 
-- **Parameters**: `query?: ListSuppressionsQuery`, `options?: RequestOptions`
-- **Returns**: `Promise<ListSuppressionsResponse>`
+```typescript
+// Sample 1: Paginated Query
+const list = await convey.suppressions.list({ channel: 'EMAIL', limit: 50 });
 
-### `listAutoPaging(query?, options?)`
-Auto-paginating async iterator for streaming suppressions.
-
-- **Returns**: `AutoPaginator<SuppressionDto>`
+// Sample 2: Asynchronous Iterator (Stream 50,000 items)
+for await (const item of convey.suppressions.listAutoPaging({ limit: 100 })) {
+  console.log(`Suppressed: ${item.recipient} (Reason: ${item.reason})`);
+}
+```
 
 ### `delete(id, options?)`
 Remove a suppression record.
 
-- **Parameters**: `id: string`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean }>`
+```typescript
+await convey.suppressions.delete('supp_01J9X8K...');
+```
 
 ---
 
@@ -199,39 +259,41 @@ Remove a suppression record.
 Accessible via `convey.webhooks`.
 
 ### `subscriptions.create(request, options?)`
-Register a callback endpoint.
 
-- **Parameters**: `request: CreateWebhookSubscriptionRequest`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean; subscription: WebhookSubscriptionDto }>`
+```typescript
+const sub = await convey.webhooks.subscriptions.create({
+  url: 'https://api.mycorp.com/webhooks/convey',
+  events: ['message.delivered', 'message.failed', 'message.opened'],
+  secret: 'whsec_custom_secret_key_12345',
+});
+```
 
-### `subscriptions.list(options?)`
-List active webhook subscriptions.
+### `subscriptions.list(options?)` / `subscriptions.delete(id, options?)` / `subscriptions.test(id, options?)`
 
-- **Returns**: `Promise<ListWebhookSubscriptionsResponse>`
-
-### `subscriptions.delete(id, options?)`
-Delete a webhook subscription.
-
-- **Parameters**: `id: string`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean }>`
-
-### `subscriptions.test(id, options?)`
-Trigger a test ping event.
-
-- **Parameters**: `id: string`, `options?: RequestOptions`
-- **Returns**: `Promise<{ success: boolean; message: string }>`
+```typescript
+const subs = await convey.webhooks.subscriptions.list();
+await convey.webhooks.subscriptions.test(sub.subscription.id);
+await convey.webhooks.subscriptions.delete(sub.subscription.id);
+```
 
 ### `verifySignature(payload, signature, secret, toleranceSeconds?)`
 Verify HMAC-SHA256 signature on an incoming webhook payload.
 
-- **Parameters**: `payload: string | Uint8Array`, `signature: string`, `secret: string`, `toleranceSeconds = 300`
-- **Returns**: `Promise<boolean>`
+```typescript
+const isValid = await Convey.webhooks.verifySignature(rawBody, signatureHeader, secret, 300);
+```
 
 ### `constructEvent(payload, signature, secret, toleranceSeconds?)`
 Verify signature and deserialize typed webhook payload.
 
-- **Parameters**: `payload: string | Uint8Array`, `signature: string`, `secret: string`, `toleranceSeconds = 300`
-- **Returns**: `Promise<ConveyWebhookEvent>`
+```typescript
+const event = await Convey.webhooks.constructEvent<{
+  messageId: string;
+  provider: string;
+}>(rawBody, signatureHeader, secret);
+
+console.log(`Event: ${event.type}, Message: ${event.data.messageId}`);
+```
 
 ---
 
@@ -239,28 +301,34 @@ Verify signature and deserialize typed webhook payload.
 
 Accessible via `convey.dlq`.
 
-### `list(query?, options?)`
-Query failed messages in DLQ.
+### `list(query?, options?)` & `listAutoPaging(query?, options?)`
 
-- **Parameters**: `query?: ListDlqQuery`, `options?: RequestOptions`
-- **Returns**: `Promise<ListDlqResponse>`
-
-### `listAutoPaging(query?, options?)`
-Auto-paginating iterator for failed messages.
-
-- **Returns**: `AutoPaginator<MessageDetailDto>`
+```typescript
+const dlq = await convey.dlq.list({ limit: 20 });
+```
 
 ### `replay(request, options?)`
 Replay failed messages.
 
-- **Parameters**: `request: DlqReplayRequest | string[]`, `options?: RequestOptions`
-- **Returns**: `Promise<DlqReplayResult>`
+```typescript
+const replayResult = await convey.dlq.replay({
+  messageIds: ['msg_failed_01', 'msg_failed_02'],
+});
+```
 
 ### `replayMutated(request, options?)`
-Run dry-run simulation or mutated replay with adjusted backoff/concurrency.
+Run dry-run simulation or mutated replay with adjusted recipient or channels.
 
-- **Parameters**: `request: DlqMutatedReplayRequest`, `options?: RequestOptions`
-- **Returns**: `Promise<DlqMutatedReplayResult>`
+```typescript
+const mutatedReplay = await convey.dlq.replayMutated({
+  messageIds: ['msg_failed_01'],
+  dryRun: false,
+  mutations: {
+    recipients: { email: 'corrected.email@domain.com' },
+    metadata: { reason: 'User updated email address in portal' },
+  },
+});
+```
 
 ---
 
@@ -268,23 +336,19 @@ Run dry-run simulation or mutated replay with adjusted backoff/concurrency.
 
 Accessible via `convey.reports`.
 
-### `getOverview(params?, options?)`
-Retrieve multi-channel aggregate metrics and hourly time-series.
+```typescript
+// 1. Overview metrics
+const overview = await convey.reports.getOverview({ range: '7d' });
 
-### `getTeams(params?, options?)`
-Retrieve budget utilization across tenant teams.
+// 2. Team budget utilization
+const teams = await convey.reports.getTeams({ range: '30d' });
 
-### `getCategories(params?, options?)`
-Retrieve delivery metrics by category.
+// 3. Category delivery statistics
+const categories = await convey.reports.getCategories({ range: '7d' });
 
-### `getCampaigns(params?, options?)`
-Retrieve campaign list with funnel summary.
-
-### `getCampaignDetails(campaignId, params?, options?)`
-Retrieve campaign funnel, channel breakdown, and hourly timeline.
-
-### `export(type, format, params?, options?)`
-Export report in CSV or JSON format.
+// 4. Campaign funnels
+const campaigns = await convey.reports.getCampaigns({ range: '14d' });
+```
 
 ---
 
@@ -292,26 +356,23 @@ Export report in CSV or JSON format.
 
 Accessible via `convey.admin`.
 
-### `getOverview(options?)`
-Operational overview snapshot.
+```typescript
+// 1. Live Telemetry Snapshot
+const telemetry = await convey.admin.getLiveTelemetry();
+console.log(`Throughput: ${telemetry.throughputRps} rps, Heap: ${telemetry.runtimeGuard.heapUsedMb}MB`);
 
-### `getLiveTelemetry(options?)`
-Real-time live telemetry snapshot (V8 heap saturation, queue depths, p95 latency, circuit states).
+// 2. Provider Health & Circuit Breakers
+const providers = await convey.admin.listProviders();
+await convey.admin.setCircuitState('resend', 'OPEN'); // Force trip circuit
 
-### `listProviders(options?)`
-Provider scorecard, latency EMA, and circuit status.
+// 3. Canary Probe
+const canary = await convey.admin.triggerCanary();
 
-### `setCircuitState(providerId, action, rampPercentage?, options?)`
-Manually override circuit breaker state (`'CLOSE' | 'FORCE_OPEN' | 'FORCE_HALF_OPEN'`).
-
-### `triggerCanary(providerId, options?)`
-Execute synthetic canary probe on a provider adapter.
-
-### `registerProvider(request, options?)`
-Dynamically register new provider credentials and proxy config.
-
-### `listAuditLogs(query?, options?)`
-Query SHA-256 tamper-evident audit ledger.
+// 4. Audit Log Ledger
+for await (const log of convey.admin.listAuditLogsAutoPaging({ limit: 50 })) {
+  console.log(`Audit: [${log.timestamp}] ${log.action} by ${log.actor}`);
+}
+```
 
 ---
 
