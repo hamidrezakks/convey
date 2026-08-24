@@ -1,0 +1,181 @@
+---
+title: REST API Specification (OpenAPI 3.1)
+description: Complete REST API documentation for Convey message dispatch, bulk ingestion, cursor pagination, DLQ replay, suppressions, and telemetry.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# REST API Reference
+
+Convey exposes an **OpenAPI 3.1-compliant REST API** served via Elysia.js on port `3000`.
+
+---
+
+## Authentication & Base URL
+
+All requests must include an API Key header:
+
+```http
+Authorization: Bearer cv_live_your_api_key_here
+```
+
+Base URL: `http://localhost:3000/v1` (Production: `https://api.convey.internal/v1`)
+
+---
+
+## 1. Send Single Message
+
+`POST /v1/messages/send`
+
+Ingests a single message into the fast-path pipeline.
+
+### Headers
+
+| Header | Required | Description |
+| :--- | :--- | :--- |
+| `Authorization` | **Yes** | Bearer token |
+| `Content-Type` | **Yes** | `application/json` |
+| `Idempotency-Key` | Recommended | Unique key to guarantee single-execution semantics |
+| `traceparent` | Optional | W3C Distributed Tracing header |
+
+### Request Body
+
+```json
+{
+  "channel": "sms",
+  "recipient": "+14155552671",
+  "priority": "HIGH",
+  "content": {
+    "body": "Your verification code is 849201. Valid for 10 minutes."
+  },
+  "routing": {
+    "strategy": "SMART_SCORECARD",
+    "fallbackChain": ["vonage", "infobip"]
+  },
+  "metadata": {
+    "userId": "usr_9921",
+    "campaign": "security_auth"
+  }
+}
+```
+
+### Response (`202 Accepted`)
+
+```json
+{
+  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",
+  "status": "ACCEPTED",
+  "channel": "sms",
+  "recipient": "+14155552671",
+  "priority": "HIGH",
+  "idempotencyKey": "ord_99218_dispatch",
+  "latencyMs": 1.42,
+  "createdAt": "2026-08-24T19:50:00.000Z"
+}
+```
+
+---
+
+## 2. Bulk Message Ingestion
+
+`POST /v1/messages/bulk`
+
+Ingests up to 1,000 messages in a single atomic transaction.
+
+### Request Body
+
+```json
+{
+  "messages": [
+    {
+      "channel": "email",
+      "recipient": "user1@enterprise.io",
+      "content": { "subject": "Daily Digest", "body": "Hello user 1" }
+    },
+    {
+      "channel": "email",
+      "recipient": "user2@enterprise.io",
+      "content": { "subject": "Daily Digest", "body": "Hello user 2" }
+    }
+  ]
+}
+```
+
+### Response (`202 Accepted`)
+
+```json
+{
+  "batchId": "bat_01JB61Z89F8A3C1E2B4D5E6F88",
+  "total": 2,
+  "accepted": 2,
+  "failed": 0,
+  "messages": [
+    { "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F89", "status": "ACCEPTED" },
+    { "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F90", "status": "ACCEPTED" }
+  ]
+}
+```
+
+---
+
+## 3. Query Message Telemetry
+
+`GET /v1/messages/:publicId`
+
+Retrieves real-time status and delivery timeline for a given message ULID.
+
+### Response (`200 OK`)
+
+```json
+{
+  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",
+  "status": "DELIVERED",
+  "channel": "sms",
+  "recipient": "+14155552671",
+  "attempts": 1,
+  "routedProvider": "twilio",
+  "timeline": [
+    { "status": "ACCEPTED", "timestamp": "2026-08-24T19:50:00.012Z" },
+    { "status": "QUEUED", "timestamp": "2026-08-24T19:50:00.018Z" },
+    { "status": "SENT", "timestamp": "2026-08-24T19:50:00.145Z" },
+    { "status": "DELIVERED", "timestamp": "2026-08-24T19:50:01.320Z" }
+  ]
+}
+```
+
+---
+
+## 4. Blast-Radius Controlled DLQ Replay
+
+`POST /v1/dlq/replay`
+
+Replays failed dead-lettered messages with dry-run simulations and mutated provider fallbacks.
+
+### Request Body
+
+```json
+{
+  "dryRun": false,
+  "filter": {
+    "channel": "whatsapp",
+    "failureReason": "PROVIDER_5XX",
+    "timeRange": { "from": "2026-08-24T00:00:00Z", "to": "2026-08-24T12:00:00Z" }
+  },
+  "mutation": {
+    "overrideProvider": "infobip",
+    "maxConcurrency": 50
+  }
+}
+```
+
+### Response (`200 OK`)
+
+```json
+{
+  "replayedCount": 1420,
+  "successCount": 1420,
+  "failedCount": 0,
+  "status": "COMPLETED"
+}
+```

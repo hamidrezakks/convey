@@ -1,0 +1,17 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "quickstart",
+    "architecture",
+    "configuration",
+    "---API & Providers---",
+    "api-reference",
+    "providers",
+    "sdks",
+    "---Operations & Scale---",
+    "deployment",
+    "benchmarks"
+  ]
+}

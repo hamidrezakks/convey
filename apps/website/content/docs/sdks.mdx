@@ -1,0 +1,164 @@
+---
+title: Client SDKs & Integration Libraries
+description: Official production client libraries for TypeScript/Node/Bun, Python AsyncIO, Go, and webhook cryptographic verification.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Client SDKs
+
+Convey provides idiomatic client libraries for TypeScript, Python, and Go with built-in retries, connection pooling, and W3C distributed tracing.
+
+---
+
+## 1. TypeScript / Node / Bun Client SDK
+
+Installation:
+
+```bash
+bun add @convey/client
+# or: npm install @convey/client
+```
+
+Usage:
+
+```typescript
+import { ConveyClient, MessagePriority } from '@convey/client';
+
+const convey = new ConveyClient({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'https://api.convey.internal',
+});
+
+// Dispatch High-Priority SMS with Smart Scorecard Fallback
+const response = await convey.messages.send({
+  channel: 'sms',
+  recipient: '+14155552671',
+  priority: MessagePriority.HIGH,
+  idempotencyKey: 'order_dispatched_99281',
+  content: {
+    body: 'Your Convey order #99281 has shipped with tracking code TRK-8821.',
+  },
+  routing: {
+    strategy: 'SMART_SCORECARD',
+    fallbackChain: ['vonage', 'infobip'],
+  },
+});
+
+console.log(`Accepted message with ULID: ${response.publicId} in ${response.latencyMs}ms`);
+```
+
+---
+
+## 2. Python AsyncIO Client SDK
+
+Installation:
+
+```bash
+pip install convey-py
+```
+
+Usage:
+
+```python
+import asyncio
+import os
+from convey import AsyncConveyClient, MessagePriority
+
+async def main():
+    async with AsyncConveyClient(
+        api_key=os.environ["CONVEY_API_KEY"],
+        base_url="https://api.convey.internal"
+    ) as client:
+        res = await client.messages.send(
+            channel="email",
+            recipient="devops-alerts@enterprise.io",
+            priority=MessagePriority.CRITICAL,
+            idempotency_key="alert_db_replica_lag",
+            content={
+                "subject": "CRITICAL: Database Replica Lag Exceeds 500ms",
+                "body": "Postgres replica us-east-1b lag is 840ms. Auto-failover initiated."
+            }
+        )
+        print(f"Accepted: {res.public_id} (latency={res.latency_ms}ms)")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## 3. Go Client SDK
+
+Installation:
+
+```bash
+go get github.com/convey/convey-go
+```
+
+Usage:
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/convey/convey-go/convey"
+)
+
+func main() {
+	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
+	ctx := context.Background()
+
+	msg, err := client.Messages.Send(ctx, &convey.SendMessageRequest{
+		Channel:        convey.ChannelWhatsApp,
+		Recipient:      "+14155552671",
+		Priority:       convey.PriorityHigh,
+		IdempotencyKey: "wa_invoice_8819",
+		Content: convey.MessageContent{
+			Body: "Your invoice #INV-8819 for $4,200 is available for review.",
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Message Accepted: %s (Latency: %dms)\n", msg.PublicID, msg.LatencyMs)
+}
+```
+
+---
+
+## 4. Webhook HMAC-SHA256 Signature Verification
+
+When receiving status webhooks from Convey, verify the cryptographic signature:
+
+```typescript
+import { verifyConveyWebhookSignature } from '@convey/client';
+
+export async function handleWebhook(req: Request) {
+  const signature = req.headers.get('x-convey-signature')!;
+  const timestamp = req.headers.get('x-convey-timestamp')!;
+  const rawBody = await req.text();
+
+  const isValid = verifyConveyWebhookSignature({
+    payload: rawBody,
+    signature,
+    timestamp,
+    signingSecret: process.env.CONVEY_WEBHOOK_SECRET!,
+    toleranceSeconds: 300, // 5 minutes anti-replay tolerance
+  });
+
+  if (!isValid) {
+    return new Response('Invalid webhook signature', { status: 401 });
+  }
+
+  const event = JSON.parse(rawBody);
+  console.log(`Verified webhook event: ${event.type} for ${event.publicId}`);
+  return new Response('OK', { status: 200 });
+}
+```

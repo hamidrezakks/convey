@@ -1,0 +1,77 @@
+---
+title: Provider Ecosystem & Turnkey Adapters
+description: Setup guides for 88+ turnkey provider integrations across Email, SMS, WhatsApp, Push, Chat, and Webhooks with dynamic fallback and smart scorecard routing.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+# Provider Ecosystem
+
+Convey provides **88+ built-in provider adapters** across 5 primary communication channels. All adapters include automatic circuit breakers, retry backoffs, and scorecards.
+
+---
+
+## Supported Channels & Turnkey Providers
+
+### 1. Email (20 Adapters)
+- **AWS SES v2**: IAM SigV4 authentication, dedicated IP pools, SNS event destinations.
+- **Resend**: Modern React Email support, broadcast batching, domain auto-verification.
+- **Twilio SendGrid**: Sub-user management, dynamic templates, click tracking.
+- **Postmark**: Transactional fast-path delivery, dedicated outbound streams.
+- **Mailgun**: MIME multi-part rendering, EU region data residency.
+
+### 2. SMS (39 Adapters)
+- **Twilio SMS**: Global shortcodes, alphanumeric sender IDs, GSM-7 packing.
+- **Vonage (Nexmo)**: Adaptive carrier routing, 2-way virtual numbers.
+- **Plivo**: Powerpack sender pools, automatic MMS fallback.
+- **Infobip**: High-concurrency enterprise SMPP & HTTP endpoints, HLR lookup.
+- **MessageBird (Bird)**: Omnichannel conversations API, carrier failover.
+
+### 3. WhatsApp Business (6 Adapters)
+- **Meta WhatsApp Cloud API**: Direct Graph API integration, $0.00 24-hour customer reply session window optimization, HSM template catalog auto-sync.
+- **Twilio WhatsApp**: Sandbox verification, interactive call-to-action buttons.
+- **Infobip WhatsApp**: Multi-region media attachments, location payloads.
+
+### 4. Push Notifications (8 Adapters)
+- **Firebase Cloud Messaging (FCM v1)**: HTTP/2 token multicast, high-priority background wakes.
+- **Apple Push Notification service (APNs)**: Direct HTTP/2 with JWT token authentication (`.p8`), Live Activities, VoIP push.
+- **OneSignal**: Cross-platform player tagging and rich push media.
+
+### 5. Chat & Collaboration (17 Adapters)
+- **Slack**: Webhook URLs, OAuth2 Bot tokens, Interactive Block Kit messages.
+- **Discord**: Webhook execution, rich embeds with attachments.
+- **Telegram Bot API**: Inline keyboards, MarkdownV2 formatting.
+- **Microsoft Teams**: Adaptive Cards 1.5, Office 365 Connector webhooks.
+
+---
+
+## Dynamic Routing Strategies
+
+When dispatching messages, you can select one of four autonomous routing strategies:
+
+1. **`SMART_SCORECARD`** (Default):
+   Calculates a real-time weight score based on $70\% \text{ Delivery Rate} + 20\% \text{ Latency SLA} + 10\% \text{ Unit Cost}$. Traffic automatically routes away from degraded providers.
+2. **`PRIMARY_FALLBACK`**:
+   Attempts delivery through the primary provider. If the request encounters a 5xx error or rate limit (429), it immediately falls back through the ordered `fallbackChain`.
+3. **`LEAST_COST`**:
+   Selects the lowest rate-card provider for the recipient's country code and currency.
+4. **`ROUND_ROBIN`**:
+   Distributes traffic uniformly across all healthy configured providers.
+
+---
+
+## Zero-Cost Mock Sandbox Mode
+
+For testing without incurring carrier charges or configuring API credentials, enable the Mock Sandbox provider:
+
+```json
+{
+  "routing": {
+    "strategy": "PRIMARY_FALLBACK",
+    "fallbackChain": ["mock-sandbox"]
+  }
+}
+```
+
+The mock provider immediately simulates realistic carrier delivery receipts (DLR) with 99.8% success rates.
