@@ -190,22 +190,45 @@ export const ReportingService = {
       const totalFailed = Number(msgStats?.failed || 0);
 
       // 2. Open and Read events from message_events
-      const eventConditions = [
-        gte(messageEvents.createdAt, effectiveStartDate),
-        lte(messageEvents.createdAt, effectiveEndDate),
-      ];
-      if (options.teamId) eventConditions.push(eq(messageEvents.team, options.teamId));
+      let totalOpened = 0;
+      let totalRead = 0;
 
-      const [eventStats] = await db
-        .select({
-          opened: count(sql`CASE WHEN ${messageEvents.type} IN ('DELIVERY_OPENED', 'delivery_opened') THEN 1 END`),
-          read: count(sql`CASE WHEN ${messageEvents.type} IN ('DELIVERY_READ', 'delivery_read') THEN 1 END`),
-        })
-        .from(messageEvents)
-        .where(and(...eventConditions));
-
-      const totalOpened = Number(eventStats?.opened || 0);
-      const totalRead = Number(eventStats?.read || 0);
+      if (options.teamId) {
+        const [eventStats] = await db
+          .select({
+            opened: count(
+              sql`CASE WHEN ${messageEvents.type} IN ('DELIVERY_OPENED', 'delivery_opened', 'delivery.opened') THEN 1 END`,
+            ),
+            read: count(
+              sql`CASE WHEN ${messageEvents.type} IN ('DELIVERY_READ', 'delivery_read', 'delivery.read') THEN 1 END`,
+            ),
+          })
+          .from(messageEvents)
+          .innerJoin(messages, eq(messageEvents.messageId, messages.publicId))
+          .where(
+            and(
+              gte(messageEvents.createdAt, effectiveStartDate),
+              lte(messageEvents.createdAt, effectiveEndDate),
+              eq(messages.team, options.teamId),
+            ),
+          );
+        totalOpened = Number(eventStats?.opened || 0);
+        totalRead = Number(eventStats?.read || 0);
+      } else {
+        const [eventStats] = await db
+          .select({
+            opened: count(
+              sql`CASE WHEN ${messageEvents.type} IN ('DELIVERY_OPENED', 'delivery_opened', 'delivery.opened') THEN 1 END`,
+            ),
+            read: count(
+              sql`CASE WHEN ${messageEvents.type} IN ('DELIVERY_READ', 'delivery_read', 'delivery.read') THEN 1 END`,
+            ),
+          })
+          .from(messageEvents)
+          .where(and(gte(messageEvents.createdAt, effectiveStartDate), lte(messageEvents.createdAt, effectiveEndDate)));
+        totalOpened = Number(eventStats?.opened || 0);
+        totalRead = Number(eventStats?.read || 0);
+      }
 
       // 3. Financial cost aggregation from budget_ledger
       const ledgerConditions = [
