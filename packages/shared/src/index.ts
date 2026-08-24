@@ -473,5 +473,154 @@ export interface WebhookSubscriptionDto {
   updatedAt: string;
 }
 
+// --- Multi-Dimension Reporting & Analytics DTOs ---
+
+export interface ReportingMetrics {
+  sent: number;
+  delivered: number;
+  opened: number;
+  read: number;
+  failed: number;
+  deliveryRatePercent: number;
+  openRatePercent: number;
+  failRatePercent: number;
+  totalCostUsd: number;
+  avgLatencyMs?: number;
+}
+
+export interface TeamReportDto {
+  teamId: string;
+  teamName: string;
+  currency: string;
+  monthlyBudget: number;
+  usedBudgetUsd: number;
+  remainingBudgetUsd: number;
+  budgetUtilizationPercent: number;
+  isHardStop: boolean;
+  metrics: ReportingMetrics;
+  activeCampaignsCount: number;
+}
+
+export interface CategoryReportDto {
+  category: string;
+  totalSent: number;
+  delivered: number;
+  opened: number;
+  read: number;
+  failed: number;
+  deliveryRatePercent: number;
+  openRatePercent: number;
+  failRatePercent: number;
+  totalCostUsd: number;
+  topChannel: Channel | string;
+  channelBreakdown?: Array<{
+    channel: Channel;
+    sent: number;
+    delivered: number;
+    opened: number;
+    failed: number;
+    costUsd: number;
+  }>;
+}
+
+export interface CampaignReportDto {
+  campaignId: string;
+  name: string;
+  team: string;
+  category: string;
+  state: string;
+  metrics: ReportingMetrics;
+  costPerDeliveredUsd: number;
+  firstDispatchedAt?: string;
+  lastDispatchedAt?: string;
+}
+
+export interface CampaignFunnel {
+  accepted: number;
+  dispatched: number;
+  delivered: number;
+  opened: number;
+  read: number;
+  failed: number;
+}
+
+export interface CampaignDetailDto extends CampaignReportDto {
+  funnel: CampaignFunnel;
+  channelBreakdown: Array<{
+    channel: Channel;
+    sent: number;
+    delivered: number;
+    opened: number;
+    read: number;
+    failed: number;
+    costUsd: number;
+  }>;
+  hourlyTimeline: Array<{
+    hour: string;
+    sent: number;
+    delivered: number;
+    opened: number;
+    failed: number;
+    costUsd: number;
+  }>;
+}
+
+export interface ReportingSummaryDto {
+  totalSent: number;
+  totalDelivered: number;
+  totalOpened: number;
+  totalRead: number;
+  totalFailed: number;
+  deliveryRatePercent: number;
+  openRatePercent: number;
+  failRatePercent: number;
+  totalCostUsd: number;
+  activeTeamsCount: number;
+  activeCampaignsCount: number;
+}
+
+export interface ChannelReportingMetric {
+  channel: Channel;
+  sent: number;
+  delivered: number;
+  opened: number;
+  failed: number;
+  costUsd: number;
+  deliveryRate: number;
+}
+
+export interface ReportingTimeSeriesDataPoint {
+  timestamp: string;
+  sent: number;
+  delivered: number;
+  opened: number;
+  failed: number;
+  costUsd: number;
+}
+
+export interface ReportingOverviewResponse {
+  summary: ReportingSummaryDto;
+  channelBreakdown: ChannelReportingMetric[];
+  timeSeries: ReportingTimeSeriesDataPoint[];
+}
+
+export interface TeamsReportResponse {
+  teams: TeamReportDto[];
+  total: number;
+}
+
+export interface CategoriesReportResponse {
+  categories: CategoryReportDto[];
+  total: number;
+}
+
+export interface CampaignsReportResponse {
+  campaigns: CampaignReportDto[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // Complete 88 Turnkey Provider Catalog
 export * from './provider-catalog';
+
