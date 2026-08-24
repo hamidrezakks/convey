@@ -1,17 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
-import { Check, CheckCircle2, Key, Plus, RefreshCw, Webhook } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, Plus, Webhook } from 'lucide-react';
+import { useMemo } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { type ColumnDef, DataTable, DataTableCopyCell } from '../components/ui/data-table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 
+interface DeliveryAttemptRow {
+  eventId: string;
+  event: string;
+  endpoint: string;
+  status: string;
+  latencyMs: number;
+  timestamp: string;
+}
+
 export function WebhooksPage() {
   const { t } = useI18n();
-  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
 
   const { data: webhooksData, isLoading } = useQuery({
     queryKey: ['admin', 'webhook-subscriptions'],
@@ -20,12 +27,136 @@ export function WebhooksPage() {
 
   const subscriptions = webhooksData?.subscriptions ?? [];
 
-  const handleCopySecret = (id: string, secret: string) => {
-    navigator.clipboard.writeText(secret);
-    setCopiedSecretId(id);
-    toast.success(t('webhooks.copySecretSuccess'));
-    setTimeout(() => setCopiedSecretId(null), 2000);
-  };
+  // Declarative Column Definitions for Subscriptions Table
+  const subscriptionColumns: ColumnDef<(typeof subscriptions)[number]>[] = useMemo(
+    () => [
+      {
+        id: 'id',
+        accessorKey: 'id',
+        header: 'Subscription ID',
+        cell: ({ row }) => (
+          <DataTableCopyCell
+            value={row.id}
+            tooltip={t('common.copy')}
+            className="text-sky-600 dark:text-sky-300 font-semibold"
+          />
+        ),
+      },
+      {
+        id: 'url',
+        accessorKey: 'url',
+        header: t('webhooks.colEndpoint'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs block">{row.url}</span>
+        ),
+      },
+      {
+        id: 'events',
+        header: t('webhooks.colEvents'),
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.events.map((ev) => (
+              <span
+                key={ev}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
+              >
+                {ev}
+              </span>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: 'secret',
+        header: t('webhooks.colSecret'),
+        cell: ({ row }) => (
+          <DataTableCopyCell
+            value={row.secret}
+            displayValue={`${row.secret.slice(0, 14)}...`}
+            tooltip={t('common.copy')}
+            className="text-amber-600 dark:text-amber-400 font-mono"
+          />
+        ),
+      },
+      {
+        id: 'successRate',
+        header: t('webhooks.colSuccessRate'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
+            {row.successRate || '100.0%'}
+          </span>
+        ),
+      },
+      {
+        id: 'avgLatencyMs',
+        header: t('webhooks.colLatency'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">{row.avgLatencyMs || 35}ms</span>
+        ),
+      },
+      {
+        id: 'active',
+        header: t('webhooks.colStatus'),
+        cell: ({ row }) => (
+          <Badge variant={row.active ? 'success' : 'default'} dot>
+            {row.active ? 'ACTIVE' : 'INACTIVE'}
+          </Badge>
+        ),
+      },
+    ],
+    [t],
+  );
+
+  // Declarative Column Definitions for Recent Deliveries Table
+  const deliveryColumns: ColumnDef<DeliveryAttemptRow>[] = useMemo(
+    () => [
+      {
+        id: 'eventId',
+        accessorKey: 'eventId',
+        header: 'Event ID',
+        cell: ({ row }) => <span className="font-mono text-xs text-sky-600 dark:text-sky-400">{row.eventId}</span>,
+      },
+      {
+        id: 'event',
+        accessorKey: 'event',
+        header: t('webhooks.colEvents'),
+        cell: ({ row }) => <Badge variant="cyan">{row.event}</Badge>,
+      },
+      {
+        id: 'endpoint',
+        accessorKey: 'endpoint',
+        header: t('webhooks.colEndpoint'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate max-w-xs block">
+            {row.endpoint}
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: t('webhooks.colStatus'),
+        cell: ({ row }) => <Badge variant="success">{row.status}</Badge>,
+      },
+      {
+        id: 'latencyMs',
+        accessorKey: 'latencyMs',
+        header: t('webhooks.colLatency'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">{row.latencyMs}ms</span>
+        ),
+      },
+      {
+        id: 'timestamp',
+        accessorKey: 'timestamp',
+        header: t('common.timestamp'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{row.timestamp}</span>
+        ),
+      },
+    ],
+    [t],
+  );
 
   return (
     <div className="space-y-6">
@@ -51,125 +182,39 @@ export function WebhooksPage() {
       </div>
 
       {/* Webhook Endpoints Table */}
-      <Card className="glass-panel overflow-hidden">
-        <CardHeader className="py-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            {t('webhooks.configuredSubscriptions')} ({subscriptions.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subscription ID</TableHead>
-                <TableHead>{t('webhooks.colEndpoint')}</TableHead>
-                <TableHead>{t('webhooks.colEvents')}</TableHead>
-                <TableHead>{t('webhooks.colSecret')}</TableHead>
-                <TableHead>{t('webhooks.colSuccessRate')}</TableHead>
-                <TableHead>{t('webhooks.colLatency')}</TableHead>
-                <TableHead>{t('webhooks.colStatus')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
-                    Loading webhook subscriptions...
-                  </TableCell>
-                </TableRow>
-              ) : subscriptions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2 opacity-80" />
-                    No webhook subscriptions registered yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                subscriptions.map((sub) => (
-                  <TableRow key={sub.id}>
-                    <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-300 font-semibold">
-                      {sub.id}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
-                      {sub.url}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {sub.events.map((ev) => (
-                          <span
-                            key={ev}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
-                          >
-                            {ev}
-                          </span>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => handleCopySecret(sub.id, sub.secret)}
-                        className="flex items-center gap-1 font-mono text-xs text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 transition-colors cursor-pointer"
-                        title={t('common.copy')}
-                      >
-                        {copiedSecretId === sub.id ? (
-                          <Check className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-                        ) : (
-                          <Key className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-                        )}
-                        <span>{sub.secret.slice(0, 14)}...</span>
-                      </button>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                      {sub.successRate || '100.0%'}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                      {sub.avgLatencyMs || 35}ms
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={sub.active ? 'success' : 'default'} dot>
-                        {sub.active ? 'ACTIVE' : 'INACTIVE'}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          {t('webhooks.configuredSubscriptions')} ({subscriptions.length})
+        </h3>
+        <DataTable
+          columns={subscriptionColumns}
+          data={subscriptions}
+          isLoading={isLoading}
+          getRowKey={(sub) => sub.id}
+          emptyState={{
+            icon: <CheckCircle2 className="w-8 h-8 text-emerald-500" />,
+            title: 'No webhook subscriptions registered yet',
+            description: 'Register an HTTPS webhook endpoint to receive real-time message delivery receipts.',
+          }}
+        />
+      </div>
 
       {/* Recent Delivery Attempts Log */}
-      <Card className="glass-panel overflow-hidden">
-        <CardHeader className="py-3 px-4 sm:px-6">
-          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            {t('webhooks.recentDeliveries')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Event ID</TableHead>
-                <TableHead>{t('webhooks.colEvents')}</TableHead>
-                <TableHead>{t('webhooks.colEndpoint')}</TableHead>
-                <TableHead>{t('webhooks.colStatus')}</TableHead>
-                <TableHead>{t('webhooks.colLatency')}</TableHead>
-                <TableHead>{t('common.timestamp')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-slate-500 text-xs">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto mb-1.5 opacity-80" />
-                  Live delivery receipts are streamed via WebSocket / SSE connection.
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          {t('webhooks.recentDeliveries')}
+        </h3>
+        <DataTable
+          columns={deliveryColumns}
+          data={[] as DeliveryAttemptRow[]}
+          density="compact"
+          emptyState={{
+            icon: <CheckCircle2 className="w-8 h-8 text-emerald-500" />,
+            title: 'Live delivery streaming ready',
+            description: 'Live delivery receipts are streamed via WebSocket / SSE connection.',
+          }}
+        />
+      </div>
     </div>
   );
 }

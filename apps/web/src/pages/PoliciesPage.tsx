@@ -1,4 +1,4 @@
-import { CURRENCY_REGISTRY, formatCurrencyAmount, type SupportedCurrency } from '@convey/shared';
+import { CURRENCY_REGISTRY, formatCurrencyAmount } from '@convey/shared';
 import { useQuery } from '@tanstack/react-query';
 import {
   Briefcase,
@@ -60,8 +60,27 @@ export function PoliciesPage() {
   };
 
   // FX Conversion calculations for preview
-  const currMeta = CURRENCY_REGISTRY[budgetCurrency as SupportedCurrency] || CURRENCY_REGISTRY.USD;
-  const rateToUsd = currMeta.rateToUsd || 1.0;
+  const STATIC_RATES_TO_USD: Record<string, number> = {
+    USD: 1.0,
+    EUR: 1.08,
+    GBP: 1.28,
+    AED: 0.27,
+    SAR: 0.27,
+    JPY: 0.0067,
+    CAD: 0.74,
+    AUD: 0.66,
+    CHF: 1.13,
+    CNY: 0.14,
+    INR: 0.012,
+    BRL: 0.18,
+    SGD: 0.75,
+    MXN: 0.059,
+    KRW: 0.00075,
+    SEK: 0.096,
+    NOK: 0.094,
+    ZAR: 0.055,
+  };
+  const rateToUsd = STATIC_RATES_TO_USD[budgetCurrency] || 1.0;
   const budgetUsd = monthlyBudget * rateToUsd;
   const usedUsd = usedAmount * rateToUsd;
   const utilizationPercent = Math.min(100, Math.round((usedAmount / (monthlyBudget || 1)) * 100));
@@ -113,7 +132,7 @@ export function PoliciesPage() {
       </div>
 
       {/* CORE FINANCIAL GUARDRAIL: Team Financial Budget Cap & Multi-Currency Policy */}
-      <Card className="glass-panel overflow-hidden border-sky-500/20 dark:border-sky-500/20 shadow-md">
+      <Card className="glass-panel border-sky-500/20 dark:border-sky-500/20 shadow-md relative z-30">
         <CardHeader className="pb-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -146,7 +165,7 @@ export function PoliciesPage() {
           {/* Top Controls: Currency & Budget Limit */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Currency Picker */}
-            <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
+            <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 relative z-30">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-sky-500" />
                 <span>{t('policies.currencyLabel')}</span>
@@ -154,9 +173,10 @@ export function PoliciesPage() {
               <Combobox
                 items={Object.entries(CURRENCY_REGISTRY).map(([code, meta]) => ({
                   value: code,
-                  label: `${meta.flag} ${code} - ${meta.name} (${meta.symbol})`,
+                  label: `${meta.flagEmoji} ${meta.name}`,
                   sublabel: meta.symbol,
                   badge: code,
+                  keywords: [code, meta.name, meta.symbol],
                 }))}
                 value={budgetCurrency}
                 onChange={(val) => setBudgetCurrency(val || 'USD')}
@@ -164,6 +184,7 @@ export function PoliciesPage() {
                 searchPlaceholder="Search currency (USD, EUR, AED, GBP)..."
                 showCategoryTabs={false}
               />
+
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
                 All provider charges converted to {budgetCurrency} via FxEngine.
               </p>

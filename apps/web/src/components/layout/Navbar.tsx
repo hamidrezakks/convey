@@ -22,7 +22,7 @@ export function Navbar({ onOpenCommandPalette, onToggleSidebar }: NavbarProps) {
   };
 
   return (
-    <header className="h-16 px-3 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-[#0d131f]/90 backdrop-blur-md flex items-center justify-between shrink-0 z-20 transition-colors duration-150 gap-2 sm:gap-4">
+    <header className="h-16 px-3 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-[#0d1322]/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20 transition-colors duration-150 gap-2 sm:gap-4">
       {/* Left: Quick Search & Mobile Drawer Menu */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 max-w-md">
         {onToggleSidebar && (

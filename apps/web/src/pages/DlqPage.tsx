@@ -11,11 +11,12 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { type ColumnDef, DataTable, DataTableAction, DataTableActionGroup } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,6 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import { Select } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { formatTimeAgo } from '../lib/utils';
@@ -108,6 +108,99 @@ export function DlqPage() {
     }
   };
 
+  const filteredItems = useMemo(() => {
+    if (selectedCategory === 'ALL') return dlqItems;
+    return dlqItems.filter((item) => item.errorCategory === selectedCategory);
+  }, [dlqItems, selectedCategory]);
+
+  // Declarative Column Definitions for DLQ Table
+  const columns: ColumnDef<(typeof dlqItems)[number]>[] = useMemo(
+    () => [
+      {
+        id: 'id',
+        accessorKey: 'id',
+        header: t('dlq.colId'),
+        hidden: !isEngineer,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
+            {row.messageId || row.id}
+          </span>
+        ),
+      },
+      {
+        id: 'recipient',
+        accessorKey: 'recipient',
+        header: t('dlq.colRecipient'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs block">
+            {row.recipient || 'N/A'}
+          </span>
+        ),
+      },
+      {
+        id: 'channel',
+        accessorKey: 'channel',
+        header: t('dlq.colChannel'),
+        cell: ({ row }) => <Badge variant="cyan">{row.channel}</Badge>,
+      },
+      {
+        id: 'team',
+        accessorKey: 'team',
+        header: t('dlq.colTeam'),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{row.team || 'default'}</span>
+        ),
+      },
+      {
+        id: 'errorCategory',
+        accessorKey: 'errorCategory',
+        header: t('dlq.colCategory'),
+        hidden: !isEngineer,
+        cell: ({ row }) => <Badge variant={getCategoryBadgeVariant(row.errorCategory)}>{row.errorCategory}</Badge>,
+      },
+      {
+        id: 'reason',
+        header: isOps ? 'Why It Failed' : t('dlq.colReason'),
+        cell: ({ row }) => (
+          <span className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-md block">
+            {row.errorMessage || row.errorCode || 'Provider send failure'}
+          </span>
+        ),
+      },
+      {
+        id: 'attempts',
+        header: t('dlq.colAttempts'),
+        hidden: !isEngineer,
+        cell: () => <span className="font-mono text-xs text-slate-500 dark:text-slate-400">3 / 3</span>,
+      },
+      {
+        id: 'createdAt',
+        accessorKey: 'createdAt',
+        header: t('dlq.colFailedAt'),
+        cell: ({ row }) => (
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{formatTimeAgo(row.createdAt)}</span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: 'Action',
+        hidden: !isOps,
+        align: 'end',
+        cell: () => (
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<RotateCcw className="text-sky-500 shrink-0" />}
+              label="Retry"
+              onClick={handleStartDryRun}
+            />
+          </DataTableActionGroup>
+        ),
+      },
+    ],
+    [isEngineer, isOps, t],
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
@@ -187,13 +280,17 @@ export function DlqPage() {
       )}
 
       {/* DLQ Filter & Table */}
-      <Card className="glass-panel overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between py-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            {t('dlq.failedMessages')} (84)
-          </CardTitle>
-          <div className="w-48">
-            <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            {t('dlq.failedMessages')} ({filteredItems.length})
+          </h3>
+          <div className="w-56">
+            <Select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="h-9 text-xs"
+            >
               <option value="ALL">{t('common.all')}</option>
               <option value="PROVIDER_5XX">Provider 5xx Outages</option>
               <option value="RATE_LIMIT_429">Rate Limits (429)</option>
@@ -202,83 +299,20 @@ export function DlqPage() {
               <option value="INVALID_RECIPIENT_400">Invalid Recipients</option>
             </Select>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {isEngineer && <TableHead>{t('dlq.colId')}</TableHead>}
-                <TableHead>{t('dlq.colRecipient')}</TableHead>
-                <TableHead>{t('dlq.colChannel')}</TableHead>
-                <TableHead>{t('dlq.colTeam')}</TableHead>
-                {isEngineer && <TableHead>{t('dlq.colCategory')}</TableHead>}
-                <TableHead>{isOps ? 'Why It Failed' : t('dlq.colReason')}</TableHead>
-                {isEngineer && <TableHead>{t('dlq.colAttempts')}</TableHead>}
-                <TableHead>{t('dlq.colFailedAt')}</TableHead>
-                {isOps && <TableHead className="text-end rtl:text-left">Action</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={isEngineer ? 8 : 6} className="text-center py-12 text-slate-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
-                    Loading failed queue messages...
-                  </TableCell>
-                </TableRow>
-              ) : dlqItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isEngineer ? 8 : 6} className="text-center py-12 text-slate-500">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2 opacity-80" />
-                    No failed messages in Dead-Letter Queue. System is healthy!
-                  </TableCell>
-                </TableRow>
-              ) : (
-                dlqItems.map((item) => (
-                  <TableRow key={item.id} className="group">
-                    {isEngineer && (
-                      <TableCell className="font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
-                        {item.messageId || item.id}
-                      </TableCell>
-                    )}
-                    <TableCell className="font-mono text-xs text-slate-900 dark:text-white truncate max-w-xs">
-                      {item.recipient || 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="cyan">{item.channel}</Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                      {item.team || 'default'}
-                    </TableCell>
-                    {isEngineer && (
-                      <TableCell>
-                        <Badge variant={getCategoryBadgeVariant(item.errorCategory)}>{item.errorCategory}</Badge>
-                      </TableCell>
-                    )}
-                    <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-md">
-                      {item.errorMessage || item.errorCode || 'Provider send failure'}
-                    </TableCell>
-                    {isEngineer && (
-                      <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">3 / 3</TableCell>
-                    )}
-                    <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                      {formatTimeAgo(item.createdAt)}
-                    </TableCell>
-                    {isOps && (
-                      <TableCell className="text-end rtl:text-left">
-                        <Button variant="outline" size="sm" onClick={handleStartDryRun} className="h-7 text-xs gap-1">
-                          <RotateCcw className="w-3 h-3 text-sky-500" />
-                          <span>Retry</span>
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={filteredItems}
+          isLoading={isLoading}
+          getRowKey={(item) => item.id}
+          emptyState={{
+            icon: <CheckCircle2 className="w-8 h-8 text-emerald-500" />,
+            title: 'No failed messages in Dead-Letter Queue',
+            description: 'System is running smoothly with zero queued failures.',
+          }}
+        />
+      </div>
 
       {/* Dry-Run Blast-Radius Simulator Modal */}
       <Dialog open={isSimulatorOpen} onOpenChange={setIsSimulatorOpen}>

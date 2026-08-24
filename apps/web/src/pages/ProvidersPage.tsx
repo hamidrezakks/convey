@@ -1,12 +1,13 @@
 import { Channel, CircuitState, type ProviderHealthDto } from '@convey/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Briefcase, Radio, RefreshCw, Sliders, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { OpsProviderStatus } from '../components/providers/OpsProviderStatus';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { type ColumnDef, DataTable, DataTableAction, DataTableActionGroup } from '../components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,6 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import { Slider } from '../components/ui/slider';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
 import { providerKeys } from '../lib/queryKeys';
@@ -96,6 +96,240 @@ export function ProvidersPage() {
   const halfOpenCount = providers.filter((p) => p.state === CircuitState.HALF_OPEN).length;
   const openCount = providers.filter((p) => p.state === CircuitState.OPEN).length;
 
+  // Ops Mode Table Columns
+  const opsColumns: ColumnDef<ProviderHealthDto>[] = useMemo(
+    () => [
+      {
+        id: 'displayName',
+        accessorKey: 'displayName',
+        header: 'Provider',
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-semibold text-xs text-slate-900 dark:text-white">{row.displayName}</span>
+        ),
+      },
+      {
+        id: 'channel',
+        accessorKey: 'channel',
+        header: 'Channel',
+        enableSorting: true,
+        cell: ({ row }) => <Badge variant="cyan">{row.channel}</Badge>,
+      },
+      {
+        id: 'state',
+        accessorKey: 'state',
+        header: 'Status',
+        enableSorting: true,
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.state === CircuitState.CLOSED
+                ? 'success'
+                : row.state === CircuitState.HALF_OPEN
+                  ? 'warning'
+                  : 'destructive'
+            }
+            dot
+          >
+            {row.state === CircuitState.CLOSED
+              ? 'Operational'
+              : row.state === CircuitState.HALF_OPEN
+                ? 'Testing'
+                : 'Failover'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'emaLatencyMs',
+        accessorKey: 'emaLatencyMs',
+        header: 'Speed',
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
+            {formatDurationMs(row.emaLatencyMs ?? 22)}
+          </span>
+        ),
+      },
+      {
+        id: 'rollingSuccessRatePercent',
+        accessorKey: 'rollingSuccessRatePercent',
+        header: 'Success Rate',
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+            {(row.rollingSuccessRatePercent ?? 100).toFixed(1)}%
+          </span>
+        ),
+      },
+      {
+        id: 'quickTest',
+        header: 'Quick Test',
+        align: 'end',
+        cell: ({ row }) => (
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<Sparkles className="text-sky-500 shrink-0" />}
+              label="Test"
+              isLoading={canaryMutation.isPending && canaryMutation.variables === row.providerId}
+              onClick={() => canaryMutation.mutate(row.providerId)}
+            />
+          </DataTableActionGroup>
+        ),
+      },
+    ],
+    [canaryMutation],
+  );
+
+  // Engineer Mode Matrix Columns
+  const engineerColumns: ColumnDef<ProviderHealthDto>[] = useMemo(
+    () => [
+      {
+        id: 'provider',
+        accessorKey: 'displayName',
+        header: t('providers.colProvider'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <div>
+            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <span>{row.displayName}</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{row.providerId}</span>
+          </div>
+        ),
+      },
+      {
+        id: 'channel',
+        accessorKey: 'channel',
+        header: t('providers.colChannel'),
+        enableSorting: true,
+        cell: ({ row }) => <Badge variant="cyan">{row.channel}</Badge>,
+      },
+      {
+        id: 'state',
+        accessorKey: 'state',
+        header: t('providers.colState'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.state === CircuitState.CLOSED
+                ? 'success'
+                : row.state === CircuitState.HALF_OPEN
+                  ? 'warning'
+                  : 'destructive'
+            }
+            dot
+          >
+            {row.state}
+          </Badge>
+        ),
+      },
+      {
+        id: 'rampPercentage',
+        accessorKey: 'rampPercentage',
+        header: t('providers.colRamp'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2 font-mono text-xs text-slate-700 dark:text-slate-300">
+            <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  row.state === CircuitState.CLOSED
+                    ? 'bg-emerald-500'
+                    : row.state === CircuitState.HALF_OPEN
+                      ? 'bg-amber-400'
+                      : 'bg-rose-500'
+                }`}
+                style={{ width: `${row.rampPercentage ?? 0}%` }}
+              />
+            </div>
+            <span>{row.rampPercentage ?? 0}%</span>
+          </div>
+        ),
+      },
+      {
+        id: 'emaLatencyMs',
+        accessorKey: 'emaLatencyMs',
+        header: t('providers.colLatency'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-sky-600 dark:text-sky-300">
+            {formatDurationMs(row.emaLatencyMs ?? 0)}
+          </span>
+        ),
+      },
+      {
+        id: 'rollingSuccessRatePercent',
+        accessorKey: 'rollingSuccessRatePercent',
+        header: t('providers.colSuccess24h'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
+            {(row.rollingSuccessRatePercent ?? 100).toFixed(1)}%
+          </span>
+        ),
+      },
+      {
+        id: 'anomalyZScore',
+        accessorKey: 'anomalyZScore',
+        header: t('providers.colZScore'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span
+            className={`font-mono text-xs px-1.5 py-0.5 rounded text-[10px] ${
+              (row.anomalyZScore ?? 0) > 3.0
+                ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            Z: {(row.anomalyZScore ?? 0).toFixed(2)}
+          </span>
+        ),
+      },
+      {
+        id: 'unitCostUsd',
+        accessorKey: 'unitCostUsd',
+        header: t('providers.colUnitCost'),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1.5 font-mono text-xs text-slate-700 dark:text-slate-300">
+            <span>{row.formattedUnitCost || `$${(row.unitCostUsd ?? 0).toFixed(4)}`}</span>
+            {row.baseCurrency && (
+              <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono text-slate-500">
+                {row.baseCurrency}
+              </Badge>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'actions',
+        header: t('providers.colActions'),
+        align: 'end',
+        cell: ({ row }) => (
+          <DataTableActionGroup>
+            <DataTableAction
+              variant="default"
+              icon={<Sparkles className="text-sky-500 dark:text-sky-400 shrink-0" />}
+              label="Canary"
+              title={t('providers.canaryTrigger')}
+              isLoading={canaryMutation.isPending && canaryMutation.variables === row.providerId}
+              onClick={() => canaryMutation.mutate(row.providerId)}
+            />
+            <DataTableAction
+              variant="outline"
+              icon={<Sliders className="text-slate-500 dark:text-slate-400 shrink-0" />}
+              label={t('common.edit')}
+              onClick={() => handleOpenOverrideModal(row)}
+            />
+          </DataTableActionGroup>
+        ),
+      },
+    ],
+    [canaryMutation, t],
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
@@ -118,6 +352,19 @@ export function ProvidersPage() {
             {isOps ? t('mode.opsProvidersSubtitle') : t('providers.subtitle')}
           </p>
         </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => queryClient.invalidateQueries({ queryKey: providerKeys.all })}
+            isLoading={isLoading}
+            className="text-xs gap-1.5 rounded-xl"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>{t('common.refresh')}</span>
+          </Button>
+        </div>
       </div>
 
       {/* =========================================================================
@@ -128,84 +375,21 @@ export function ProvidersPage() {
           <OpsProviderStatus providers={providers} />
 
           {/* Simple Provider List */}
-          <Card className="glass-panel overflow-hidden">
-            <CardHeader className="py-4">
-              <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
-                Active Provider Connections
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Speed</TableHead>
-                    <TableHead>Success Rate</TableHead>
-                    <TableHead className="text-end rtl:text-left">Quick Test</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
-                        Loading channels...
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    providers.slice(0, 10).map((p) => (
-                      <TableRow key={p.providerId}>
-                        <TableCell>
-                          <span className="font-semibold text-xs text-slate-900 dark:text-white">{p.displayName}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="cyan">{p.channel}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              p.state === CircuitState.CLOSED
-                                ? 'success'
-                                : p.state === CircuitState.HALF_OPEN
-                                  ? 'warning'
-                                  : 'destructive'
-                            }
-                            dot
-                          >
-                            {p.state === CircuitState.CLOSED
-                              ? 'Operational'
-                              : p.state === CircuitState.HALF_OPEN
-                                ? 'Testing'
-                                : 'Failover'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                          {formatDurationMs(p.emaLatencyMs ?? 22)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                          {(p.rollingSuccessRatePercent ?? 100).toFixed(1)}%
-                        </TableCell>
-                        <TableCell className="text-end rtl:text-left">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
-                            onClick={() => canaryMutation.mutate(p.providerId)}
-                            className="h-7 text-xs gap-1"
-                          >
-                            <Sparkles className="w-3 h-3 text-sky-500" />
-                            <span>Test</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Active Provider Connections</h3>
+            </div>
+            <DataTable
+              columns={opsColumns}
+              data={providers.slice(0, 10)}
+              isLoading={isLoading}
+              getRowKey={(p) => p.providerId}
+              emptyState={{
+                title: 'No active provider connections',
+                description: 'Configure and connect communication providers in settings.',
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -290,142 +474,16 @@ export function ProvidersPage() {
           </div>
 
           {/* Providers Matrix Table */}
-          <Card className="glass-panel overflow-hidden">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('providers.colProvider')}</TableHead>
-                    <TableHead>{t('providers.colChannel')}</TableHead>
-                    <TableHead>{t('providers.colState')}</TableHead>
-                    <TableHead>{t('providers.colRamp')}</TableHead>
-                    <TableHead>{t('providers.colLatency')}</TableHead>
-                    <TableHead>{t('providers.colSuccess24h')}</TableHead>
-                    <TableHead>{t('providers.colZScore')}</TableHead>
-                    <TableHead>{t('providers.colUnitCost')}</TableHead>
-                    <TableHead className="text-end rtl:text-left">{t('providers.colActions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-12 text-slate-500">
-                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500 dark:text-sky-400" />
-                        {t('providers.loadingScorecards')}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredProviders.map((p) => (
-                      <TableRow key={p.providerId} className="group">
-                        <TableCell>
-                          <div>
-                            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                              <span>{p.displayName}</span>
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                              {p.providerId}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <Badge variant="cyan">{p.channel}</Badge>
-                        </TableCell>
-
-                        <TableCell>
-                          <Badge
-                            variant={
-                              p.state === CircuitState.CLOSED
-                                ? 'success'
-                                : p.state === CircuitState.HALF_OPEN
-                                  ? 'warning'
-                                  : 'destructive'
-                            }
-                            dot
-                          >
-                            {p.state}
-                          </Badge>
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${
-                                  p.state === CircuitState.CLOSED
-                                    ? 'bg-emerald-500'
-                                    : p.state === CircuitState.HALF_OPEN
-                                      ? 'bg-amber-400'
-                                      : 'bg-rose-500'
-                                }`}
-                                style={{ width: `${p.rampPercentage ?? 0}%` }}
-                              />
-                            </div>
-                            <span>{p.rampPercentage ?? 0}%</span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs text-sky-600 dark:text-sky-300">
-                          {formatDurationMs(p.emaLatencyMs ?? 0)}
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                          {(p.rollingSuccessRatePercent ?? 100).toFixed(1)}%
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] ${
-                              (p.anomalyZScore ?? 0) > 3.0
-                                ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
-                            Z: {(p.anomalyZScore ?? 0).toFixed(2)}
-                          </span>
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                          <div className="flex items-center gap-1.5">
-                            <span>{p.formattedUnitCost || `$${(p.unitCostUsd ?? 0).toFixed(4)}`}</span>
-                            {p.baseCurrency && (
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono text-slate-500">
-                                {p.baseCurrency}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="text-end rtl:text-left space-x-2 rtl:space-x-reverse">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            isLoading={canaryMutation.isPending && canaryMutation.variables === p.providerId}
-                            onClick={() => canaryMutation.mutate(p.providerId)}
-                            className="h-7 text-xs gap-1 hover:border-sky-500/40"
-                            title={t('providers.canaryTrigger')}
-                          >
-                            <Sparkles className="w-3 h-3 text-sky-500 dark:text-sky-400" />
-                            <span>Canary</span>
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenOverrideModal(p)}
-                            className="h-7 text-xs gap-1 hover:border-amber-500/40"
-                          >
-                            <Sliders className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-                            <span>{t('common.edit')}</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <DataTable
+            columns={engineerColumns}
+            data={filteredProviders}
+            isLoading={isLoading}
+            getRowKey={(p) => p.providerId}
+            emptyState={{
+              title: t('providers.loadingScorecards'),
+              description: 'No providers match the selected channel filter.',
+            }}
+          />
         </div>
       )}
 
