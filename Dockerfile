@@ -17,8 +17,10 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/sdk/package.json ./packages/sdk/
 COPY apps/server/package.json ./apps/server/
 COPY apps/web/package.json ./apps/web/
+COPY apps/website/package.json ./apps/website/
 COPY scripts ./scripts
 
 RUN bun install --frozen-lockfile
