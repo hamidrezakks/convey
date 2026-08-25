@@ -174,25 +174,25 @@ func main() {
   };
 
   return (
-    <section id="playground" className="py-20 bg-[#070b12] scroll-mt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+    <section id="playground" className="py-16 sm:py-20 bg-[#070b12] scroll-mt-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12">
         {/* Section Title */}
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Terminal className="w-3.5 h-3.5" />
             <span>Interactive Omnichannel Playground</span>
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
             Try Sending Any Message in Seconds
           </h2>
-          <p className="text-sm sm:text-base text-slate-400">
+          <p className="text-xs sm:text-base text-slate-400">
             Configure parameters across SMS, Email, WhatsApp, Slack, and Push. Copy production SDK code in TypeScript,
             Python, Go, or cURL.
           </p>
         </div>
 
         {/* Channel Selector Bar */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           {[
             { id: 'sms', label: 'SMS', icon: MessageSquare, badge: 'Twilio / Vonage' },
             { id: 'email', label: 'Email', icon: Mail, badge: 'SES / Resend' },
@@ -207,17 +207,17 @@ func main() {
                 key={c.id}
                 type="button"
                 onClick={() => handleChannelChange(c.id as ChannelType)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer min-h-[40px] ${
                   isActive
-                    ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-lg shadow-sky-500/20 scale-105'
+                    ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-lg shadow-sky-500/20 scale-[1.02]'
                     : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span>{c.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-md ${
-                    isActive ? 'bg-slate-950/20 text-slate-900' : 'bg-slate-800 text-slate-400'
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md hidden xs:inline-block ${
+                    isActive ? 'bg-slate-950/20 text-slate-900 font-bold' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
                   {c.badge}
@@ -228,12 +228,12 @@ func main() {
         </div>
 
         {/* 2-Column Playground Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 rounded-2xl border border-slate-800 bg-[#090d16] p-6 sm:p-8 shadow-2xl glass-panel">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 rounded-2xl border border-slate-800 bg-[#090d16] p-4 sm:p-8 shadow-2xl glass-panel">
           {/* Left: Interactive Form Controls */}
           <div className="lg:col-span-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">
-                Message Ingestion Parameters
+                Message Parameters
               </span>
               <Badge variant="success" size="sm">
                 Live Ingestion
@@ -257,7 +257,7 @@ func main() {
                 type="text"
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors min-h-[40px]"
               />
             </div>
 
@@ -269,7 +269,7 @@ func main() {
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors min-h-[40px]"
                 />
               </div>
             )}
@@ -286,13 +286,13 @@ func main() {
             </div>
 
             {/* Priority & Strategy Grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-300">Priority Tier</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors min-h-[40px] cursor-pointer"
                 >
                   <option value="CRITICAL">CRITICAL (OTP)</option>
                   <option value="HIGH">HIGH</option>
@@ -306,7 +306,7 @@ func main() {
                 <select
                   value={strategy}
                   onChange={(e) => setStrategy(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500 transition-colors min-h-[40px] cursor-pointer"
                 >
                   <option value="SMART_SCORECARD">SMART_SCORECARD</option>
                   <option value="PRIMARY_FALLBACK">PRIMARY_FALLBACK</option>
@@ -321,7 +321,7 @@ func main() {
               variant="primary"
               size="md"
               leftIcon={<Send className="w-4 h-4" />}
-              className="w-full mt-2"
+              className="w-full mt-2 min-h-[44px]"
               onClick={handleSendTest}
               disabled={isSending}
             >
@@ -332,11 +332,11 @@ func main() {
           {/* Right: Code Generator & Response Inspector */}
           <div className="lg:col-span-7 flex flex-col space-y-4">
             {/* Language Selector Bar */}
-            <div className="flex items-center justify-between pb-2">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+              <div className="flex items-center gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800 overflow-x-auto touch-scroll max-w-full">
                 {(
                   [
-                    { id: 'typescript', label: 'TypeScript / Bun' },
+                    { id: 'typescript', label: 'TypeScript' },
                     { id: 'curl', label: 'cURL' },
                     { id: 'python', label: 'Python' },
                     { id: 'go', label: 'Go' },
@@ -346,7 +346,7 @@ func main() {
                     key={l.id}
                     type="button"
                     onClick={() => setLang(l.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-mono font-medium transition-colors cursor-pointer ${
+                    className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap ${
                       lang === l.id
                         ? 'bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30'
                         : 'text-slate-400 hover:text-slate-200'
@@ -360,7 +360,7 @@ func main() {
               <button
                 type="button"
                 onClick={handleCopyCode}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs font-medium cursor-pointer border border-slate-700/60"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs font-medium cursor-pointer border border-slate-700/60 active:scale-95 shrink-0"
               >
                 {copied ? (
                   <>
@@ -370,14 +370,14 @@ func main() {
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Copy Snippet</span>
+                    <span>Copy</span>
                   </>
                 )}
               </button>
             </div>
 
             {/* Generated Code Window */}
-            <div className="rounded-xl border border-slate-800 bg-[#070b12] p-4 flex-1 overflow-x-auto font-mono text-xs text-slate-200 shadow-inner leading-relaxed">
+            <div className="rounded-xl border border-slate-800 bg-[#070b12] p-3 sm:p-4 flex-1 overflow-x-auto touch-scroll font-mono text-[11px] sm:text-xs text-slate-200 shadow-inner leading-relaxed max-h-[380px] lg:max-h-none">
               <pre className="m-0">
                 <code>{getGeneratedCode()}</code>
               </pre>
@@ -385,22 +385,22 @@ func main() {
 
             {/* Live Response Inspector */}
             {simulatedResponse && (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/10 p-4 space-y-2 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center justify-between text-xs">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/10 p-3.5 sm:p-4 space-y-2 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold font-mono">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     HTTP 202 ACCEPTED
                   </div>
-                  <span className="font-mono text-slate-400">
+                  <span className="font-mono text-slate-400 text-[11px]">
                     Ingestion Latency: <strong className="text-sky-400">{simulatedResponse.latencyMs}ms</strong>
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-300 pt-1">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2 text-[11px] font-mono text-slate-300 pt-1">
+                  <div className="truncate">
                     <span className="text-slate-500">Public ULID:</span>{' '}
                     <span className="text-sky-300 font-semibold">{simulatedResponse.publicId}</span>
                   </div>
-                  <div>
+                  <div className="truncate">
                     <span className="text-slate-500">Trace ID:</span>{' '}
                     <span className="text-slate-400">{simulatedResponse.traceparent.slice(3, 19)}...</span>
                   </div>

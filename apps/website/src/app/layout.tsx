@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="bg-[#070b12] text-slate-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-300">
+      <body className="bg-fd-background text-fd-foreground antialiased selection:bg-cyan-500/20 selection:text-cyan-300 min-h-screen">
         <RootProvider theme={{ enabled: true, defaultTheme: 'dark' }}>{children}</RootProvider>
       </body>
     </html>

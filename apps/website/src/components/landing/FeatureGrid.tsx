@@ -54,42 +54,42 @@ export function FeatureGrid() {
   ];
 
   return (
-    <section className="py-20 bg-[#070b12]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+    <section className="py-16 sm:py-20 bg-[#070b12]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12">
         {/* Section Header */}
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Staff-Level Distributed Systems Engineering</span>
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
             Engineered for Extreme Reliability & Scale
           </h2>
-          <p className="text-sm sm:text-base text-slate-400">
+          <p className="text-xs sm:text-base text-slate-400">
             Convey solves distributed systems bottlenecks from first principles with zero external vendor dependencies.
           </p>
         </div>
 
         {/* 6-Grid Feature Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {features.map((f) => {
             const Icon = f.icon;
             return (
               <div
                 key={f.title}
-                className="p-6 rounded-2xl border border-slate-800 bg-[#090d16]/70 hover:bg-[#0e1626]/90 hover:border-slate-700 transition-all space-y-4 shadow-lg group glass-panel-hover"
+                className="p-4 sm:p-6 rounded-2xl border border-slate-800 bg-[#090d16]/70 hover:bg-[#0e1626]/90 hover:border-slate-700 transition-all space-y-3 sm:space-y-4 shadow-lg group glass-panel-hover"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
-                    <Icon className="w-5 h-5" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
+                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <Badge variant="outline" size="sm" className="text-[10px] font-mono">
                     {f.tag}
                   </Badge>
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="text-base font-bold text-slate-100 group-hover:text-sky-300 transition-colors">
+                <div className="space-y-1.5 sm:space-y-2">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-100 group-hover:text-sky-300 transition-colors">
                     {f.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">{f.description}</p>

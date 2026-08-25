@@ -11,7 +11,7 @@ import { Navbar } from '@/components/layout/Navbar';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col font-sans selection:bg-sky-500/20 selection:text-sky-300">
+    <div className="dark min-h-screen bg-[#070b12] text-slate-100 flex flex-col font-sans selection:bg-sky-500/20 selection:text-sky-300">
       {/* Top Navbar */}
       <Navbar />
 

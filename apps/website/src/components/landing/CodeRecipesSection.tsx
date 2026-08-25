@@ -399,25 +399,25 @@ export function CodeRecipesSection() {
   };
 
   return (
-    <section id="recipes" className="py-20 bg-[#060911] border-t border-slate-800/80 scroll-mt-16 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+    <section id="recipes" className="py-16 sm:py-20 bg-[#060911] border-t border-slate-800/80 scroll-mt-16 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
         {/* Header */}
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Sparkles className="w-3.5 h-3.5 text-sky-400" />
             <span>Staff-Level Architecture Recipes</span>
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
             Production-Grade Architectural Recipes
           </h2>
-          <p className="text-sm sm:text-base text-slate-400">
+          <p className="text-xs sm:text-base text-slate-400">
             Copy-pasteable, battle-tested implementation patterns for high-security 2FA OTP, zero-trust HIPAA
             encryption, WhatsApp cost downgrades, and hedged ops alerts.
           </p>
         </div>
 
         {/* Recipe Selection Tabs */}
-        <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-md max-w-5xl mx-auto">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-md max-w-5xl mx-auto">
           {recipes.map((r) => {
             const Icon = r.icon;
             const isSelected = activeRecipeId === r.id;
@@ -426,40 +426,42 @@ export function CodeRecipesSection() {
                 key={r.id}
                 type="button"
                 onClick={() => setActiveRecipeId(r.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-medium transition-all cursor-pointer min-h-[36px] ${
                   isSelected
-                    ? 'bg-sky-500/20 text-white border border-sky-500/40 shadow-lg shadow-sky-500/10'
+                    ? 'bg-sky-500/20 text-white border border-sky-500/40 shadow-lg shadow-sky-500/10 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-sky-400' : 'text-slate-500'}`} />
-                <span>{r.shortTitle}</span>
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-sky-400' : 'text-slate-500'}`} />
+                <span className="truncate">{r.shortTitle}</span>
               </button>
             );
           })}
         </div>
 
         {/* Recipe Content Showcase */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
           {/* Left Column: Architectural Description & Response Details */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="p-6 rounded-2xl border border-slate-800 bg-[#090d16] space-y-4 shadow-xl">
+          <div className="lg:col-span-5 space-y-4 sm:space-y-6">
+            <div className="p-4 sm:p-6 rounded-2xl border border-slate-800 bg-[#090d16] space-y-3.5 sm:space-y-4 shadow-xl">
               <div className="flex items-center justify-between">
                 <Badge variant="outline" size="sm">
                   {activeRecipe.category}
                 </Badge>
-                <span className="text-[11px] font-mono text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                <span className="text-[10px] sm:text-[11px] font-mono text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                   {activeRecipe.badge}
                 </span>
               </div>
 
-              <h3 className="text-xl font-bold text-white font-display leading-snug">{activeRecipe.title}</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-white font-display leading-snug">
+                {activeRecipe.title}
+              </h3>
 
               <p className="text-xs text-slate-300 leading-relaxed font-normal">{activeRecipe.description}</p>
 
-              <div className="p-3 rounded-xl bg-sky-500/5 border border-sky-500/20 flex items-start gap-2.5">
+              <div className="p-2.5 sm:p-3 rounded-xl bg-sky-500/5 border border-sky-500/20 flex items-start gap-2.5">
                 <Zap className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-sky-300 font-mono">
+                <div className="text-[11px] sm:text-xs text-sky-300 font-mono leading-tight">
                   <span className="font-bold text-white">SLA Guarantee:</span> {activeRecipe.slaBenefit}
                 </div>
               </div>
@@ -471,22 +473,29 @@ export function CodeRecipesSection() {
                   <span className="text-emerald-400 font-bold">{activeRecipe.expectedResponse.status}</span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 font-mono text-[11px] space-y-2">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-slate-950 border border-slate-800/80 font-mono text-[11px] space-y-2">
                   <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800/60 pb-1.5">
                     <span>
                       Latency: <strong className="text-sky-400">{activeRecipe.expectedResponse.latency}</strong>
                     </span>
-                    <span className="text-slate-400">Trace: {activeRecipe.expectedResponse.trace.slice(0, 18)}...</span>
+                    <span className="text-slate-400 truncate ml-2">
+                      Trace: {activeRecipe.expectedResponse.trace.slice(0, 14)}...
+                    </span>
                   </div>
-                  <pre className="text-slate-300 overflow-x-auto text-[11px] leading-relaxed">
+                  <pre className="text-slate-300 overflow-x-auto touch-scroll text-[11px] leading-relaxed m-0 max-h-[140px]">
                     {activeRecipe.expectedResponse.body}
                   </pre>
                 </div>
               </div>
 
-              <div className="pt-2">
-                <Link href={`/docs/examples#${activeRecipe.id}`}>
-                  <Button variant="outline" size="sm" rightIcon={<ChevronRight className="w-3.5 h-3.5" />}>
+              <div className="pt-1 sm:pt-2">
+                <Link href={`/docs/examples#${activeRecipe.id}`} className="block w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+                  >
                     View Complete Chapter in Docs
                   </Button>
                 </Link>
@@ -497,14 +506,14 @@ export function CodeRecipesSection() {
           {/* Right Column: Code Viewer with Language Tabs */}
           <div className="lg:col-span-7 rounded-2xl border border-slate-800 bg-[#090d16] overflow-hidden shadow-2xl flex flex-col">
             {/* Header Bar with Language Switcher & Copy */}
-            <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
+            <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto touch-scroll">
                 {(['ts', 'curl', 'py'] as const).map((lang) => (
                   <button
                     key={lang}
                     type="button"
                     onClick={() => setActiveLang(lang)}
-                    className={`px-3 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+                    className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer whitespace-nowrap ${
                       activeLang === lang
                         ? 'bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/40'
                         : 'text-slate-400 hover:text-slate-200 border border-transparent'
@@ -518,7 +527,7 @@ export function CodeRecipesSection() {
               <button
                 type="button"
                 onClick={handleCopyCode}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs font-medium cursor-pointer border border-slate-700/60 active:scale-95"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs font-medium cursor-pointer border border-slate-700/60 active:scale-95 shrink-0"
               >
                 {copied ? (
                   <>
@@ -528,15 +537,15 @@ export function CodeRecipesSection() {
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Copy Code</span>
+                    <span>Copy</span>
                   </>
                 )}
               </button>
             </div>
 
             {/* Code Body */}
-            <div className="p-4 sm:p-6 overflow-x-auto bg-[#070a12] font-mono text-xs text-slate-200 leading-relaxed max-h-[520px]">
-              <pre>
+            <div className="p-3 sm:p-6 overflow-x-auto touch-scroll bg-[#070a12] font-mono text-[11px] sm:text-xs text-slate-200 leading-relaxed max-h-[380px] sm:max-h-[520px]">
+              <pre className="m-0">
                 <code>{activeRecipe.languages[activeLang]}</code>
               </pre>
             </div>
