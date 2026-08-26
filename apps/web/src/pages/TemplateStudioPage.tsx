@@ -432,17 +432,17 @@ export function TemplateStudioPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Multi-Channel Template Studio
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 whitespace-nowrap">
               Enterprise AST &amp; MJML v2.5
             </span>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Enterprise content registry with draft/publish versioning, rich Email with attachments &amp; preheaders,
             WhatsApp components, and APNs/FCM interactive push notifications.
           </p>
@@ -451,10 +451,10 @@ export function TemplateStudioPage() {
         <button
           type="button"
           onClick={() => setIsCreatingNew(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-sm font-semibold rounded-lg shadow-sm transition-all shrink-0 whitespace-nowrap cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          Create New Template
+          <span>Create New Template</span>
         </button>
       </div>
 

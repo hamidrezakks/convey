@@ -130,14 +130,14 @@ export function PreferencesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Sliders className="w-7 h-7 text-emerald-500" />
-            Recipient Preferences &amp; Consent Governance
+            <Sliders className="w-7 h-7 text-emerald-500 shrink-0" />
+            <span>Recipient Preferences &amp; Consent Governance</span>
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Manage granular subscription topics, channel opt-ins, quiet hours, and RFC-8058 unsubscribe compliance.
           </p>
         </div>
@@ -145,10 +145,10 @@ export function PreferencesPage() {
         <button
           type="button"
           onClick={() => setIsCreatingTopic(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white text-sm font-semibold rounded-lg shadow-sm transition-all shrink-0 whitespace-nowrap cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          Add Subscription Topic
+          <span>Add Subscription Topic</span>
         </button>
       </div>
 
