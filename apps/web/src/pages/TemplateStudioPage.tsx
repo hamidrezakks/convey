@@ -49,6 +49,62 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
 
+/**
+ * Transforms raw compiled HTML to simulate email client dark mode rendering.
+ */
+function getThemedEmailHtml(rawHtml: string | undefined, theme: 'light' | 'dark'): string {
+  if (!rawHtml) {
+    return `<div style="padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: ${
+      theme === 'dark' ? '#94a3b8' : '#64748b'
+    }; background: ${theme === 'dark' ? '#0b0f19' : '#f8fafc'}; min-height: 100vh;">Rendering email output...</div>`;
+  }
+
+  if (theme === 'light') {
+    return rawHtml;
+  }
+
+  const darkModeCss = `
+<style id="convey-email-dark-mode-override">
+  :root {
+    color-scheme: dark !important;
+    supported-color-schemes: dark !important;
+  }
+  html, body {
+    background-color: #0b0f19 !important;
+    color: #e2e8f0 !important;
+  }
+  /* Invert outer background containers */
+  body, .body, [style*="background-color: #f8fafc"], [style*="background-color:#f8fafc"], [style*="background-color: #f1f5f9"], [style*="background-color:#f1f5f9"], [style*="background-color: rgb(248, 250, 252)"] {
+    background-color: #0b0f19 !important;
+  }
+  /* Convert white card surfaces to dark surface cards */
+  [style*="background-color: #ffffff"], [style*="background-color:#ffffff"], [style*="background-color: #fff"], [style*="background-color:#fff"], [style*="background-color: white"], [style*="background-color: rgb(255, 255, 255)"], table[bgcolor="#ffffff"], td[bgcolor="#ffffff"] {
+    background-color: #1a2234 !important;
+  }
+  /* Lighten dark text headings & paragraphs */
+  [style*="color: #0f172a"], [style*="color:#0f172a"], [style*="color: #1e293b"], [style*="color:#1e293b"], [style*="color: #000000"], [style*="color:#000000"], [style*="color: #334155"], [style*="color:#334155"], [style*="color: #475569"], [style*="color:#475569"] {
+    color: #f8fafc !important;
+  }
+  /* Subdued text */
+  [style*="color: #64748b"], [style*="color:#64748b"], [style*="color: #94a3b8"] {
+    color: #94a3b8 !important;
+  }
+  /* Borders and dividers */
+  [style*="border-color: #e2e8f0"], [style*="border-color:#e2e8f0"], [style*="border-color: #f1f5f9"], hr {
+    border-color: #334155 !important;
+  }
+</style>
+`;
+
+  if (rawHtml.includes('</head>')) {
+    return rawHtml.replace('</head>', `${darkModeCss}</head>`);
+  }
+  if (rawHtml.includes('<body>')) {
+    return rawHtml.replace('<body>', `<body>${darkModeCss}`);
+  }
+  return `${darkModeCss}${rawHtml}`;
+}
+
 export function TemplateStudioPage() {
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateDto | null>(null);
@@ -1118,10 +1174,22 @@ export function TemplateStudioPage() {
                 <button
                   type="button"
                   onClick={() => setEmailPreviewTheme(emailPreviewTheme === 'light' ? 'dark' : 'light')}
-                  className="p-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
-                  title="Toggle Email Client Theme"
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 transition-all ${
+                    emailPreviewTheme === 'dark'
+                      ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-700/50 shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                  }`}
+                  title="Toggle Email Client Theme Simulation"
                 >
-                  {emailPreviewTheme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                  {emailPreviewTheme === 'light' ? (
+                    <>
+                      <Sun className="w-3 h-3 text-amber-500" /> Light
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-3 h-3 text-indigo-400" /> Dark
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -1229,15 +1297,13 @@ export function TemplateStudioPage() {
               {/* Rendered HTML Email Body */}
               <div
                 className={`w-full h-[400px] overflow-hidden transition-colors ${
-                  emailPreviewTheme === 'dark' ? 'bg-[#0f172a]' : 'bg-[#f8fafc]'
+                  emailPreviewTheme === 'dark' ? 'bg-[#0b0f19]' : 'bg-[#f8fafc]'
                 }`}
               >
                 <iframe
+                  key={`desktop-${emailPreviewTheme}-${renderedOutput?.html?.length || 0}`}
                   title="Rendered Email Output"
-                  srcDoc={
-                    renderedOutput?.html ||
-                    '<p style="padding: 20px; font-family: sans-serif; color: #64748b;">Rendering email output...</p>'
-                  }
+                  srcDoc={getThemedEmailHtml(renderedOutput?.html, emailPreviewTheme)}
                   className="w-full h-full border-none"
                 />
               </div>
@@ -1284,10 +1350,15 @@ export function TemplateStudioPage() {
               </div>
 
               {/* Mobile HTML Render */}
-              <div className="w-full h-[360px] bg-white rounded-xl overflow-hidden mt-2">
+              <div
+                className={`w-full h-[360px] rounded-xl overflow-hidden mt-2 transition-colors ${
+                  emailPreviewTheme === 'dark' ? 'bg-[#0b0f19]' : 'bg-white'
+                }`}
+              >
                 <iframe
+                  key={`mobile-${emailPreviewTheme}-${renderedOutput?.html?.length || 0}`}
                   title="Mobile Email Output"
-                  srcDoc={renderedOutput?.html || '<p style="padding: 10px;">Rendering...</p>'}
+                  srcDoc={getThemedEmailHtml(renderedOutput?.html, emailPreviewTheme)}
                   className="w-full h-full border-none"
                 />
               </div>
