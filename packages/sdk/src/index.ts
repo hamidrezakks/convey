@@ -26,11 +26,13 @@ export { AutoPaginator, type PageFetcher, type PageResult } from './pagination';
 export { type AdminListMessagesQuery, type AdminListMessagesResponse, AdminResource } from './resources/admin';
 export { BatchesResource } from './resources/batches';
 export { DlqResource } from './resources/dlq';
-// Resource Clients
+export { InboxResource } from './resources/inbox';
 export { MessagesResource } from './resources/messages';
+export { PreferencesResource } from './resources/preferences';
 export { ReportsResource } from './resources/reports';
 export { SandboxResource } from './resources/sandbox';
 export { SuppressionsResource } from './resources/suppressions';
+export { TemplatesResource } from './resources/templates';
 export { WebhookSubscriptionsResource, WebhooksResource } from './resources/webhooks';
 // Types & DTOs
 export type {

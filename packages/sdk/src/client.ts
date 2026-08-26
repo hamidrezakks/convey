@@ -7,10 +7,13 @@ import { HttpClient } from './http';
 import { AdminResource } from './resources/admin';
 import { BatchesResource } from './resources/batches';
 import { DlqResource } from './resources/dlq';
+import { InboxResource } from './resources/inbox';
 import { MessagesResource } from './resources/messages';
+import { PreferencesResource } from './resources/preferences';
 import { ReportsResource } from './resources/reports';
 import { SandboxResource } from './resources/sandbox';
 import { SuppressionsResource } from './resources/suppressions';
+import { TemplatesResource } from './resources/templates';
 import { WebhooksResource } from './resources/webhooks';
 import type { ConveyClientOptions, ConveyWebhookEvent } from './types';
 import { constructWebhookEvent, verifyWebhookSignature } from './utils/crypto';
@@ -25,6 +28,9 @@ export class Convey {
   readonly sandbox: SandboxResource;
   readonly reports: ReportsResource;
   readonly admin: AdminResource;
+  readonly templates: TemplatesResource;
+  readonly preferences: PreferencesResource;
+  readonly inbox: InboxResource;
 
   constructor(options: ConveyClientOptions) {
     this.http = new HttpClient(options);
@@ -36,6 +42,9 @@ export class Convey {
     this.sandbox = new SandboxResource(this.http);
     this.reports = new ReportsResource(this.http);
     this.admin = new AdminResource(this.http);
+    this.templates = new TemplatesResource(this.http);
+    this.preferences = new PreferencesResource(this.http);
+    this.inbox = new InboxResource(this.http);
   }
 
   /**

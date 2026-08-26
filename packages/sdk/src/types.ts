@@ -839,3 +839,179 @@ export interface ListAuditLogsResponse {
   page: number;
   limit: number;
 }
+
+// ==========================================
+// 10. Content & Template Lifecycle Types
+// ==========================================
+
+export type TemplateCategory = 'transactional' | 'marketing' | 'alert' | 'system';
+
+export interface TemplateChannelConfig {
+  email?: {
+    subject?: string;
+    html?: string;
+    text?: string;
+    mjml?: string;
+  };
+  sms?: {
+    body?: string;
+  };
+  push?: {
+    title?: string;
+    body?: string;
+    icon?: string;
+    badge?: number;
+    data?: Record<string, unknown>;
+  };
+  chat?: {
+    body?: string;
+  };
+  whatsapp?: {
+    templateName?: string;
+    parameters?: string[];
+    body?: string;
+  };
+}
+
+export interface TemplateVersionDto {
+  id: string;
+  templateId: string;
+  version: string;
+  status: 'draft' | 'published' | 'archived';
+  schema: Record<string, unknown>;
+  channels: TemplateChannelConfig;
+  translations: Record<string, Partial<TemplateChannelConfig>>;
+  author?: string;
+  changeSummary?: string;
+  createdAt: string;
+}
+
+export interface TemplateDto {
+  id: string;
+  publicId: string;
+  tenantId: string;
+  team: string;
+  environment: string;
+  slug: string;
+  name: string;
+  category: TemplateCategory;
+  defaultLocale: string;
+  publishedVersionId?: string;
+  publishedVersion?: TemplateVersionDto;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateRequest {
+  slug: string;
+  name: string;
+  category?: TemplateCategory;
+  defaultLocale?: string;
+  initialVersion?: {
+    version: string;
+    channels: TemplateChannelConfig;
+    translations?: Record<string, Partial<TemplateChannelConfig>>;
+    changeSummary?: string;
+  };
+}
+
+export interface CreateTemplateVersionRequest {
+  version: string;
+  channels: TemplateChannelConfig;
+  translations?: Record<string, Partial<TemplateChannelConfig>>;
+  changeSummary?: string;
+}
+
+export interface RenderTemplateRequest {
+  templateSlug?: string;
+  templateSpec?: TemplateChannelConfig;
+  channel: Channel | string;
+  variables?: Record<string, unknown>;
+  recipient?: Record<string, unknown>;
+  locale?: string;
+}
+
+export interface RenderTemplateResponse {
+  channel: string;
+  subject?: string;
+  body?: string;
+  html?: string;
+  text?: string;
+  localeUsed: string;
+  resolvedPartials: string[];
+}
+
+export interface TemplatePartialDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==========================================
+// 11. Preferences & Consent Governance Types
+// ==========================================
+
+export interface SubscriptionTopicDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  key: string;
+  name: string;
+  description?: string;
+  isMandatory: boolean;
+  defaultChannels: Channel[] | string[];
+  createdAt: string;
+}
+
+export interface RecipientPreferencesDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  email?: string;
+  phone?: string;
+  timezone: string;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+  channelPreferences: Record<string, boolean>;
+  topicPreferences: Record<string, boolean>;
+  unsubscribeToken: string;
+  updatedAt: string;
+}
+
+export interface PreferenceCheckResult {
+  allowed: boolean;
+  reason?: 'DISABLED_CHANNEL' | 'OPTED_OUT_TOPIC' | 'IN_QUIET_HOURS';
+}
+
+// ==========================================
+// 12. In-App Inbox Notification Types
+// ==========================================
+
+export interface InAppNotificationDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  title: string;
+  body: string;
+  ctaUrl?: string;
+  iconUrl?: string;
+  category: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  readAt?: string;
+  isArchived: boolean;
+  archivedAt?: string;
+  createdAt: string;
+}
+
+export interface InAppFeedResponse {
+  unreadCount: number;
+  totalCount: number;
+  items: InAppNotificationDto[];
+}
