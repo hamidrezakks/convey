@@ -1,4 +1,4 @@
-import type { Channel, MessageStatus, SuppressionReason } from '@convey/shared';
+import { Channel, type MessageStatus, type SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
 import { jsonResponse } from '../messaging/messaging.controller';
@@ -545,7 +545,7 @@ export function adminController(app: Elysia) {
       .get('/carrier-rates', async ({ query }: { query?: Record<string, string | undefined> }) => {
         const rateCards = CarrierCostMatrix.getRateCards();
         const recipient = query?.recipient;
-        const channel = (query?.channel || 'sms') as Channel;
+        const channel = (query?.channel as Channel) || Channel.SMS;
 
         let evaluation = null;
         if (recipient) {
@@ -578,7 +578,7 @@ export function adminController(app: Elysia) {
             );
 
             // Send initial messages batch
-            for (const msg of initialMessages.items) {
+            for (const msg of initialMessages.messages) {
               controller.enqueue(encoder.encode(`event: message\ndata: ${JSON.stringify(msg)}\n\n`));
             }
 

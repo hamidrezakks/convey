@@ -1,4 +1,4 @@
-import type { CarrierCostEvaluationResult, CarrierRateCardDto, Channel } from '@convey/shared';
+import { type CarrierCostEvaluationResult, type CarrierRateCardDto, Channel } from '@convey/shared';
 import { providerCircuitBreaker } from '../providers/core/circuit-breaker';
 
 /**
@@ -10,7 +10,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+1',
     countryName: 'United States',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'telnyx',
     unitCostUsd: 0.004,
     qualityScore: 0.99,
@@ -18,7 +18,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+1',
     countryName: 'United States',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'plivo',
     unitCostUsd: 0.005,
     qualityScore: 0.98,
@@ -26,7 +26,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+1',
     countryName: 'United States',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'twilio',
     unitCostUsd: 0.0079,
     qualityScore: 0.99,
@@ -34,7 +34,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+1',
     countryName: 'United States',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'sinch',
     unitCostUsd: 0.0065,
     qualityScore: 0.97,
@@ -44,7 +44,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+44',
     countryName: 'United Kingdom',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'telnyx',
     unitCostUsd: 0.032,
     qualityScore: 0.98,
@@ -52,7 +52,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+44',
     countryName: 'United Kingdom',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'sinch',
     unitCostUsd: 0.038,
     qualityScore: 0.98,
@@ -60,7 +60,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+44',
     countryName: 'United Kingdom',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'twilio',
     unitCostUsd: 0.045,
     qualityScore: 0.99,
@@ -68,7 +68,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+44',
     countryName: 'United Kingdom',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'infobip',
     unitCostUsd: 0.035,
     qualityScore: 0.97,
@@ -78,7 +78,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+49',
     countryName: 'Germany',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'infobip',
     unitCostUsd: 0.062,
     qualityScore: 0.99,
@@ -86,7 +86,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+49',
     countryName: 'Germany',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'sinch',
     unitCostUsd: 0.068,
     qualityScore: 0.98,
@@ -94,7 +94,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+49',
     countryName: 'Germany',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'twilio',
     unitCostUsd: 0.078,
     qualityScore: 0.99,
@@ -104,7 +104,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+971',
     countryName: 'United Arab Emirates',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'infobip',
     unitCostUsd: 0.042,
     qualityScore: 0.99,
@@ -112,7 +112,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+971',
     countryName: 'United Arab Emirates',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'unifonic',
     unitCostUsd: 0.045,
     qualityScore: 0.98,
@@ -120,7 +120,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+971',
     countryName: 'United Arab Emirates',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'twilio',
     unitCostUsd: 0.061,
     qualityScore: 0.99,
@@ -130,7 +130,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+55',
     countryName: 'Brazil',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'zenvia',
     unitCostUsd: 0.018,
     qualityScore: 0.99,
@@ -138,7 +138,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+55',
     countryName: 'Brazil',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'sinch',
     unitCostUsd: 0.022,
     qualityScore: 0.98,
@@ -146,7 +146,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+55',
     countryName: 'Brazil',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'twilio',
     unitCostUsd: 0.031,
     qualityScore: 0.98,
@@ -156,7 +156,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+91',
     countryName: 'India',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'gupshup',
     unitCostUsd: 0.0022,
     qualityScore: 0.98,
@@ -164,7 +164,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+91',
     countryName: 'India',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'msg91',
     unitCostUsd: 0.0024,
     qualityScore: 0.98,
@@ -172,7 +172,7 @@ const DEFAULT_CARRIER_RATES: CarrierRateCardDto[] = [
   {
     countryCode: '+91',
     countryName: 'India',
-    channel: 'sms',
+    channel: Channel.SMS,
     providerId: 'twilio',
     unitCostUsd: 0.0068,
     qualityScore: 0.99,
@@ -210,12 +210,14 @@ export const CarrierCostMatrix = {
     recipient: string,
     configuredProviderIds: string[] = [],
   ): CarrierCostEvaluationResult | null {
-    if (channel !== 'sms') {
+    if (channel !== Channel.SMS && String(channel).toUpperCase() !== 'SMS') {
       return null;
     }
 
     const countryCode = this.extractCountryCode(recipient);
-    const candidateRates = DEFAULT_CARRIER_RATES.filter((r) => r.channel === channel && r.countryCode === countryCode);
+    const candidateRates = DEFAULT_CARRIER_RATES.filter(
+      (r) => (r.channel === channel || r.channel === Channel.SMS) && r.countryCode === countryCode,
+    );
 
     if (candidateRates.length === 0) {
       return null;

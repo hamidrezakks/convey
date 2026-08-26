@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { Channel } from '@convey/shared';
 import { CarrierCostMatrix } from '../src/modules/policies/carrier-cost-matrix';
 
 describe('FinOps Least-Cost Carrier & Geo-Routing Matrix', () => {
@@ -12,7 +13,7 @@ describe('FinOps Least-Cost Carrier & Geo-Routing Matrix', () => {
   });
 
   it('selects lowest-cost provider for US destinations (+1)', () => {
-    const evaluation = CarrierCostMatrix.evaluateLeastCostRouting('sms', '+14155552671', [
+    const evaluation = CarrierCostMatrix.evaluateLeastCostRouting(Channel.SMS, '+14155552671', [
       'twilio',
       'telnyx',
       'plivo',
@@ -30,7 +31,7 @@ describe('FinOps Least-Cost Carrier & Geo-Routing Matrix', () => {
   });
 
   it('selects lowest-cost provider for UK destinations (+44)', () => {
-    const evaluation = CarrierCostMatrix.evaluateLeastCostRouting('sms', '+447911123456', [
+    const evaluation = CarrierCostMatrix.evaluateLeastCostRouting(Channel.SMS, '+447911123456', [
       'twilio',
       'telnyx',
       'sinch',

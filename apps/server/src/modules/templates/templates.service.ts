@@ -1,5 +1,4 @@
 import type {
-  Channel,
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
   RenderTemplateRequest,
@@ -289,12 +288,7 @@ export class TemplatesService {
   /**
    * Publishes a specific version of a template.
    */
-  static async publishVersion(
-    tenantId: string,
-    team: string,
-    slug: string,
-    version: string,
-  ): Promise<TemplateDto> {
+  static async publishVersion(tenantId: string, team: string, slug: string, version: string): Promise<TemplateDto> {
     const details = await TemplatesService.getTemplateBySlug(tenantId, team, slug);
     if (!details) {
       throw new Error(`Template "${slug}" not found`);
@@ -408,11 +402,11 @@ export class TemplatesService {
       defaultLocale,
     );
 
-    const channel = request.channel as Channel;
-    const channelSpec = resolvedConfig[channel as keyof TemplateChannelConfig];
+    const channelKey = String(request.channel).toLowerCase() as keyof TemplateChannelConfig;
+    const channelSpec = resolvedConfig[channelKey];
 
     if (!channelSpec) {
-      throw new Error(`Template has no configuration for channel "${channel}"`);
+      throw new Error(`Template has no configuration for channel "${request.channel}"`);
     }
 
     const context: Record<string, unknown> = {
@@ -427,7 +421,7 @@ export class TemplatesService {
     const allResolvedPartials: string[] = [];
 
     // 3. Render according to channel
-    if (channel === 'email' && 'subject' in channelSpec) {
+    if (channelKey === 'email' && 'subject' in channelSpec) {
       const emailSpec = channelSpec as { subject: string; html?: string; text?: string; mjml?: string };
       const rawSubject = emailSpec.subject || '';
       subject = TemplateEngine.compile(rawSubject, context);
@@ -452,23 +446,23 @@ export class TemplatesService {
         const textPartialResult = await TemplatesService.injectPartials(tenantId, team, emailSpec.text);
         text = TemplateEngine.compile(textPartialResult.content, context);
       }
-    } else if (channel === 'sms' && 'body' in channelSpec) {
+    } else if (channelKey === 'sms' && 'body' in channelSpec) {
       const smsSpec = channelSpec as { body: string };
       const partialResult = await TemplatesService.injectPartials(tenantId, team, smsSpec.body);
       allResolvedPartials.push(...partialResult.resolvedPartials);
       body = TemplateEngine.compile(partialResult.content, context);
-    } else if (channel === 'push' && 'title' in channelSpec) {
+    } else if (channelKey === 'push' && 'title' in channelSpec) {
       const pushSpec = channelSpec as { title: string; body: string };
       subject = TemplateEngine.compile(pushSpec.title, context);
       const partialResult = await TemplatesService.injectPartials(tenantId, team, pushSpec.body);
       allResolvedPartials.push(...partialResult.resolvedPartials);
       body = TemplateEngine.compile(partialResult.content, context);
-    } else if (channel === 'chat' && 'body' in channelSpec) {
+    } else if (channelKey === 'chat' && 'body' in channelSpec) {
       const chatSpec = channelSpec as { body: string };
       const partialResult = await TemplatesService.injectPartials(tenantId, team, chatSpec.body);
       allResolvedPartials.push(...partialResult.resolvedPartials);
       body = TemplateEngine.compile(partialResult.content, context);
-    } else if (channel === 'whatsapp') {
+    } else if (channelKey === 'whatsapp') {
       const waSpec = channelSpec as { body?: string; templateName?: string; parameters?: string[] };
       if (waSpec.body) {
         const partialResult = await TemplatesService.injectPartials(tenantId, team, waSpec.body);
@@ -480,7 +474,7 @@ export class TemplatesService {
     }
 
     return {
-      channel,
+      channel: request.channel,
       subject,
       body,
       html,

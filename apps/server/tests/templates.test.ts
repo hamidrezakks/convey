@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { Channel } from '@convey/shared';
 import { I18nResolver } from '../src/modules/templates/i18n-resolver';
 import { MjmlCompiler } from '../src/modules/templates/mjml-compiler';
 import { TemplatesService } from '../src/modules/templates/templates.service';
@@ -160,7 +161,7 @@ describe('Content & Template Management Lifecycle Engine', () => {
         team: testTeam,
         request: {
           templateSlug: slug,
-          channel: 'email',
+          channel: Channel.EMAIL,
           locale: 'en-US',
           variables: {
             orderId: 'ORD-9876',
@@ -181,7 +182,7 @@ describe('Content & Template Management Lifecycle Engine', () => {
         team: testTeam,
         request: {
           templateSlug: slug,
-          channel: 'email',
+          channel: Channel.EMAIL,
           locale: 'es-ES',
           variables: {
             orderId: 'ORD-9876',
