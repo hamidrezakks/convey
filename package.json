@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --filter '*' dev",
     "dev:server": "bun --filter @convey/server dev",
+    "dev:plugins": "bun --filter @convey/plugins dev",
     "dev:web": "bun --filter @convey/web dev",
     "dev:website": "bun --filter @convey/website dev",
     "start": "bun --filter @convey/server start",
@@ -18,6 +19,7 @@
     "build:website": "bun --filter @convey/website build",
     "release:bump": "bun scripts/release-bump.ts",
     "test": "bun --filter @convey/server test",
+    "test:plugins": "bun --filter @convey/plugins test",
     "test:web": "bun --filter @convey/web test",
     "test:sdk": "bun --filter @convey/sdk test",
     "test:all": "bun test",
