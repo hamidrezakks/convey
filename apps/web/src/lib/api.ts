@@ -2,25 +2,40 @@ import type {
   AuditLogDto,
   CampaignDetailDto,
   CampaignsReportResponse,
+  CarrierCostEvaluationResult,
+  CarrierRateCardDto,
   CategoriesReportResponse,
   Channel,
   ConfiguredProviderDto,
+  CreateTemplateRequest,
+  CreateTemplateVersionRequest,
   DlqReplayRequest,
   DlqReplayResult,
+  InAppFeedResponse,
+  InAppNotificationDto,
   LiveTelemetrySnapshot,
   MessageDetailDto,
   MessageStatus,
   MessageSummaryDto,
   PolicyDto,
+  PreferenceCheckResult,
   ProviderCatalogItem,
   ProviderHealthDto,
   ProviderProxyConfig,
   ProxyDiagnosticResult,
+  RecipientPreferencesDto,
   RegisterProviderRequest,
+  RenderTemplateRequest,
+  RenderTemplateResponse,
   ReportingOverviewResponse,
+  SubscriptionTopicDto,
   SuppressionDto,
   SuppressionReason,
   TeamsReportResponse,
+  TemplateDto,
+  TemplatePartialDto,
+  TemplateVersionDto,
+  TenantQuotaDto,
   TestConnectionResult,
   WebhookSubscriptionDto,
 } from '@convey/shared';
@@ -470,7 +485,7 @@ export const api = {
     durationMs: number;
     repairedAt: string;
   }> {
-    return httpClient.post('reports/reconcile', { json: params || {} }).json<{
+    const result = await httpClient.post('reports/reconcile', { json: params || {} }).json<{
       status: string;
       bucketsReconciled: number;
       campaignBucketsReconciled: number;
@@ -478,5 +493,153 @@ export const api = {
       durationMs: number;
       repairedAt: string;
     }>();
+    return result;
+  },
+
+  // --- Templates API ---
+  async listTemplates(environment = 'production'): Promise<{ success: boolean; templates: TemplateDto[] }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw
+      .get('templates', { searchParams: { environment } })
+      .json<{ success: boolean; templates: TemplateDto[] }>();
+  },
+
+  async getTemplate(
+    slug: string,
+  ): Promise<{ success: boolean; template: TemplateDto; versions: TemplateVersionDto[] }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw
+      .get(`templates/${slug}`)
+      .json<{ success: boolean; template: TemplateDto; versions: TemplateVersionDto[] }>();
+  },
+
+  async createTemplate(request: CreateTemplateRequest): Promise<{ success: boolean; template: TemplateDto }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw.post('templates', { json: request }).json<{ success: boolean; template: TemplateDto }>();
+  },
+
+  async createTemplateVersion(
+    slug: string,
+    request: CreateTemplateVersionRequest,
+  ): Promise<{ success: boolean; version: TemplateVersionDto }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw
+      .post(`templates/${slug}/versions`, { json: request })
+      .json<{ success: boolean; version: TemplateVersionDto }>();
+  },
+
+  async publishTemplateVersion(slug: string, version: string): Promise<{ success: boolean; template: TemplateDto }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw
+      .post(`templates/${slug}/publish`, { json: { version } })
+      .json<{ success: boolean; template: TemplateDto }>();
+  },
+
+  async renderTemplate(
+    request: RenderTemplateRequest,
+  ): Promise<{ success: boolean; rendered: RenderTemplateResponse }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw
+      .post('templates/render', { json: request })
+      .json<{ success: boolean; rendered: RenderTemplateResponse }>();
+  },
+
+  async listTemplatePartials(): Promise<{ success: boolean; partials: TemplatePartialDto[] }> {
+    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    return raw.get('templates/partials').json<{ success: boolean; partials: TemplatePartialDto[] }>();
+  },
+
+  // --- FinOps Carrier Rates & Quota ---
+  async getCarrierRates(
+    recipient?: string,
+    channel?: Channel,
+  ): Promise<{ rateCards: CarrierRateCardDto[]; evaluation: CarrierCostEvaluationResult | null }> {
+    const searchParams: Record<string, string> = {};
+    if (recipient) searchParams.recipient = recipient;
+    if (channel) searchParams.channel = channel;
+    return httpClient
+      .get('carrier-rates', { searchParams })
+      .json<{ rateCards: CarrierRateCardDto[]; evaluation: CarrierCostEvaluationResult | null }>();
+  },
+
+  async getQuotaStatus(plan = 'pro'): Promise<TenantQuotaDto> {
+    return httpClient.get('quota', { searchParams: { plan } }).json<TenantQuotaDto>();
+  },
+
+  // --- Plugins Preferences ---
+  async listTopics(tenantId: string, team: string): Promise<{ success: boolean; topics: SubscriptionTopicDto[] }> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    return pluginClient
+      .get('preferences/topics', { searchParams: { tenantId, team } })
+      .json<{ success: boolean; topics: SubscriptionTopicDto[] }>();
+  },
+
+  async createTopic(data: {
+    tenantId: string;
+    team: string;
+    key: string;
+    name: string;
+    description?: string;
+    isMandatory?: boolean;
+  }): Promise<{ success: boolean; topic: SubscriptionTopicDto }> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    return pluginClient
+      .post('preferences/topics', { json: data })
+      .json<{ success: boolean; topic: SubscriptionTopicDto }>();
+  },
+
+  async getRecipientPreferences(
+    tenantId: string,
+    recipientId: string,
+  ): Promise<{ success: boolean; preferences: RecipientPreferencesDto }> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    return pluginClient
+      .get(`preferences/${recipientId}`, { searchParams: { tenantId } })
+      .json<{ success: boolean; preferences: RecipientPreferencesDto }>();
+  },
+
+  async checkPreference(data: {
+    tenantId: string;
+    recipientId: string;
+    channel: string;
+    topicKey?: string;
+  }): Promise<{ success: boolean } & PreferenceCheckResult> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    return pluginClient.post('preferences/check', { json: data }).json<{ success: boolean } & PreferenceCheckResult>();
+  },
+
+  // --- Plugins Inbox ---
+  async getInboxFeed(
+    tenantId: string,
+    recipientId: string,
+    options?: { unreadOnly?: boolean; page?: number; limit?: number },
+  ): Promise<{ success: boolean } & InAppFeedResponse> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    const searchParams: Record<string, string | number | boolean> = { tenantId, ...(options || {}) };
+    return pluginClient.get(`inbox/${recipientId}`, { searchParams }).json<{ success: boolean } & InAppFeedResponse>();
+  },
+
+  async createInAppNotification(data: {
+    tenantId: string;
+    team: string;
+    recipientId: string;
+    title: string;
+    body: string;
+    ctaUrl?: string;
+    category?: string;
+  }): Promise<{ success: boolean; notification: InAppNotificationDto }> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    return pluginClient.post('inbox', { json: data }).json<{ success: boolean; notification: InAppNotificationDto }>();
+  },
+
+  async markInAppRead(
+    tenantId: string,
+    recipientId: string,
+    notificationIds: string[],
+  ): Promise<{ success: boolean; updatedCount: number }> {
+    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
+    return pluginClient
+      .patch(`inbox/${recipientId}/read`, { json: { tenantId, notificationIds } })
+      .json<{ success: boolean; updatedCount: number }>();
   },
 };
