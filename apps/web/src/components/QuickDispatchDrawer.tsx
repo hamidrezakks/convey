@@ -148,9 +148,25 @@ export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerP
             </div>
           )}
 
+          {/* Push Title (Push Only) */}
+          {channel === 'push' && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Push Title</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Alert headline..."
+                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              />
+            </div>
+          )}
+
           {/* Message Content */}
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Message Body</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              {channel === 'whatsapp' ? 'WhatsApp Message Body (*bold*, _italic_)' : 'Message Body'}
+            </label>
             <textarea
               rows={5}
               value={body}

@@ -2,7 +2,7 @@ import { SQL } from 'bun';
 import { drizzle } from 'drizzle-orm/bun-sql/postgres';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/convey_test';
+const connectionString = process.env.DATABASE_URL || 'postgres://user:password@localhost:5432/db-convey';
 
 export const queryClient = new SQL(connectionString, {
   max: 10,

@@ -1,6 +1,7 @@
 import type {
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
+  PushChannelConfig,
   RenderTemplateRequest,
   RenderTemplateResponse,
   TemplateCategory,
@@ -8,6 +9,7 @@ import type {
   TemplateDto,
   TemplatePartialDto,
   TemplateVersionDto,
+  WhatsAppChannelConfig,
 } from '@convey/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
@@ -411,7 +413,7 @@ export class TemplatesService {
 
     const context: Record<string, unknown> = {
       ...(request.variables || {}),
-      recipient: request.recipient || {},
+      ...(request.recipient ? { recipient: request.recipient } : {}),
     };
 
     let subject: string | undefined;
@@ -421,25 +423,22 @@ export class TemplatesService {
     const allResolvedPartials: string[] = [];
 
     // 3. Render according to channel
+    let renderedWhatsApp: WhatsAppChannelConfig | undefined;
+    let renderedPush: PushChannelConfig | undefined;
+
     if (channelKey === 'email' && 'subject' in channelSpec) {
       const emailSpec = channelSpec as { subject: string; html?: string; text?: string; mjml?: string };
-      const rawSubject = emailSpec.subject || '';
-      subject = TemplateEngine.compile(rawSubject, context);
+      subject = TemplateEngine.compile(emailSpec.subject, context);
 
-      let rawHtml = emailSpec.html || '';
       if (emailSpec.mjml) {
-        // Compile MJML first, then template interpolation
-        const compiledMjml = MjmlCompiler.compile(emailSpec.mjml, { title: subject });
-        rawHtml = compiledMjml;
-      }
-
-      // Inject partials
-      const partialResult = await TemplatesService.injectPartials(tenantId, team, rawHtml);
-      allResolvedPartials.push(...partialResult.resolvedPartials);
-
-      html = TemplateEngine.compile(partialResult.content, context);
-      if (!html.includes('<!DOCTYPE html>')) {
-        html = TemplateEngine.wrapHtmlEmail(html, subject);
+        const partialResult = await TemplatesService.injectPartials(tenantId, team, emailSpec.mjml);
+        allResolvedPartials.push(...partialResult.resolvedPartials);
+        const compiledMjml = TemplateEngine.compile(partialResult.content, context);
+        html = MjmlCompiler.compile(compiledMjml, { title: subject });
+      } else if (emailSpec.html) {
+        const partialResult = await TemplatesService.injectPartials(tenantId, team, emailSpec.html);
+        allResolvedPartials.push(...partialResult.resolvedPartials);
+        html = TemplateEngine.compile(partialResult.content, context);
       }
 
       if (emailSpec.text) {
@@ -452,18 +451,32 @@ export class TemplatesService {
       allResolvedPartials.push(...partialResult.resolvedPartials);
       body = TemplateEngine.compile(partialResult.content, context);
     } else if (channelKey === 'push' && 'title' in channelSpec) {
-      const pushSpec = channelSpec as { title: string; body: string };
+      const pushSpec = channelSpec as PushChannelConfig;
       subject = TemplateEngine.compile(pushSpec.title, context);
       const partialResult = await TemplatesService.injectPartials(tenantId, team, pushSpec.body);
       allResolvedPartials.push(...partialResult.resolvedPartials);
       body = TemplateEngine.compile(partialResult.content, context);
+
+      renderedPush = {
+        ...pushSpec,
+        title: subject,
+        body,
+        subtitle: pushSpec.subtitle ? TemplateEngine.compile(pushSpec.subtitle, context) : undefined,
+        imageUrl: pushSpec.imageUrl ? TemplateEngine.compile(pushSpec.imageUrl, context) : undefined,
+        clickActionUrl: pushSpec.clickActionUrl ? TemplateEngine.compile(pushSpec.clickActionUrl, context) : undefined,
+        actionButtons: pushSpec.actionButtons?.map((btn) => ({
+          ...btn,
+          title: TemplateEngine.compile(btn.title, context),
+          placeholder: btn.placeholder ? TemplateEngine.compile(btn.placeholder, context) : undefined,
+        })),
+      };
     } else if (channelKey === 'chat' && 'body' in channelSpec) {
       const chatSpec = channelSpec as { body: string };
       const partialResult = await TemplatesService.injectPartials(tenantId, team, chatSpec.body);
       allResolvedPartials.push(...partialResult.resolvedPartials);
       body = TemplateEngine.compile(partialResult.content, context);
     } else if (channelKey === 'whatsapp') {
-      const waSpec = channelSpec as { body?: string; templateName?: string; parameters?: string[] };
+      const waSpec = channelSpec as WhatsAppChannelConfig;
       if (waSpec.body) {
         const partialResult = await TemplatesService.injectPartials(tenantId, team, waSpec.body);
         allResolvedPartials.push(...partialResult.resolvedPartials);
@@ -471,6 +484,41 @@ export class TemplatesService {
       } else {
         body = waSpec.templateName;
       }
+
+      renderedWhatsApp = {
+        ...waSpec,
+        body,
+        header: waSpec.header
+          ? {
+              ...waSpec.header,
+              text: waSpec.header.text ? TemplateEngine.compile(waSpec.header.text, context) : undefined,
+              mediaUrl: waSpec.header.mediaUrl ? TemplateEngine.compile(waSpec.header.mediaUrl, context) : undefined,
+            }
+          : undefined,
+        footer: waSpec.footer ? TemplateEngine.compile(waSpec.footer, context) : undefined,
+        buttons: waSpec.buttons?.map((btn) => ({
+          ...btn,
+          text: TemplateEngine.compile(btn.text, context),
+          url: btn.url ? TemplateEngine.compile(btn.url, context) : undefined,
+          code: btn.code ? TemplateEngine.compile(btn.code, context) : undefined,
+        })),
+        interactiveList: waSpec.interactiveList
+          ? {
+              buttonText: TemplateEngine.compile(waSpec.interactiveList.buttonText, context),
+              title: waSpec.interactiveList.title
+                ? TemplateEngine.compile(waSpec.interactiveList.title, context)
+                : undefined,
+              sections: waSpec.interactiveList.sections.map((sec) => ({
+                title: TemplateEngine.compile(sec.title, context),
+                rows: sec.rows.map((r) => ({
+                  ...r,
+                  title: TemplateEngine.compile(r.title, context),
+                  description: r.description ? TemplateEngine.compile(r.description, context) : undefined,
+                })),
+              })),
+            }
+          : undefined,
+      };
     }
 
     return {
@@ -479,6 +527,8 @@ export class TemplatesService {
       body,
       html,
       text,
+      renderedWhatsApp,
+      renderedPush,
       localeUsed: matchedLocale,
       resolvedPartials: Array.from(new Set(allResolvedPartials)),
     };

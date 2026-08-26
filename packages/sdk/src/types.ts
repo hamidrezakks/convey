@@ -846,6 +846,112 @@ export interface ListAuditLogsResponse {
 
 export type TemplateCategory = 'transactional' | 'marketing' | 'alert' | 'system';
 
+export type WhatsAppHeaderType = 'text' | 'image' | 'video' | 'document' | 'location';
+
+export interface WhatsAppHeader {
+  type: WhatsAppHeaderType;
+  text?: string;
+  mediaUrl?: string;
+  filename?: string;
+}
+
+export type WhatsAppButtonType = 'quick_reply' | 'url' | 'phone_number' | 'copy_code';
+
+export interface WhatsAppButton {
+  type: WhatsAppButtonType;
+  text: string;
+  id?: string;
+  url?: string;
+  phoneNumber?: string;
+  code?: string;
+}
+
+export interface WhatsAppListRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface WhatsAppListSection {
+  title: string;
+  rows: WhatsAppListRow[];
+}
+
+export interface WhatsAppInteractiveList {
+  buttonText: string;
+  title?: string;
+  sections: WhatsAppListSection[];
+}
+
+export interface WhatsAppLocation {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+export interface WhatsAppChannelConfig {
+  templateName?: string;
+  languageCode?: string;
+  parameters?: string[];
+  header?: WhatsAppHeader;
+  body?: string;
+  footer?: string;
+  buttons?: WhatsAppButton[];
+  interactiveList?: WhatsAppInteractiveList;
+  location?: WhatsAppLocation;
+}
+
+export type PushInterruptionLevel = 'passive' | 'active' | 'time-sensitive' | 'critical';
+
+export interface PushActionButton {
+  id: string;
+  title: string;
+  icon?: string;
+  isDestructive?: boolean;
+  isAuthenticationRequired?: boolean;
+  type?: 'button' | 'text_input';
+  placeholder?: string;
+}
+
+export interface PushAndroidConfig {
+  channelId?: string;
+  color?: string;
+  priority?: 'high' | 'normal' | 'min';
+  visibility?: 'public' | 'private' | 'secret';
+  sticky?: boolean;
+  tag?: string;
+  icon?: string;
+}
+
+export interface PushWebPushConfig {
+  requireInteraction?: boolean;
+  vibrate?: number[];
+  tag?: string;
+  dir?: 'auto' | 'ltr' | 'rtl';
+  lang?: string;
+  renotify?: boolean;
+  silent?: boolean;
+}
+
+export interface PushChannelConfig {
+  title: string;
+  body: string;
+  subtitle?: string;
+  imageUrl?: string;
+  iconUrl?: string;
+  badge?: number;
+  sound?: string;
+  actionButtons?: PushActionButton[];
+  interruptionLevel?: PushInterruptionLevel;
+  threadId?: string;
+  mutableContent?: boolean;
+  clickActionUrl?: string;
+  android?: PushAndroidConfig;
+  webpush?: PushWebPushConfig;
+  data?: Record<string, unknown>;
+}
+
 export interface TemplateChannelConfig {
   email?: {
     subject?: string;
@@ -856,21 +962,11 @@ export interface TemplateChannelConfig {
   sms?: {
     body?: string;
   };
-  push?: {
-    title?: string;
-    body?: string;
-    icon?: string;
-    badge?: number;
-    data?: Record<string, unknown>;
-  };
+  push?: PushChannelConfig;
   chat?: {
     body?: string;
   };
-  whatsapp?: {
-    templateName?: string;
-    parameters?: string[];
-    body?: string;
-  };
+  whatsapp?: WhatsAppChannelConfig;
 }
 
 export interface TemplateVersionDto {
@@ -937,6 +1033,8 @@ export interface RenderTemplateResponse {
   body?: string;
   html?: string;
   text?: string;
+  renderedWhatsApp?: WhatsAppChannelConfig;
+  renderedPush?: PushChannelConfig;
   localeUsed: string;
   resolvedPartials: string[];
 }
