@@ -17,8 +17,10 @@ import {
   Archive,
   ArrowLeft,
   Bell,
+  Check,
   CheckCheck,
   ChevronDown,
+  Code2,
   Copy,
   Download,
   ExternalLink,
@@ -116,6 +118,103 @@ export function TemplateStudioPage() {
   const [emailPreviewDevice, setEmailPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [emailPreviewTheme, setEmailPreviewTheme] = useState<'light' | 'dark'>('light');
   const [isWhatsAppListOpen, setIsWhatsAppListOpen] = useState(false);
+  const [isApiModalOpen, setIsApiModalOpen] = useState(false);
+  const [snippetLang, setSnippetLang] = useState<'curl' | 'typescript' | 'python' | 'go'>('typescript');
+  const [hasCopiedSnippet, setHasCopiedSnippet] = useState(false);
+
+  // Helper: Generates production code sample for using the active template in the API
+  const getApiSnippet = (lang: 'curl' | 'typescript' | 'python' | 'go') => {
+    const slug = selectedTemplate?.slug || 'order_dispatch_alert';
+    const channelKey = activeChannel.toUpperCase();
+    let varsObj: Record<string, unknown> = {};
+    try {
+      varsObj = JSON.parse(variablesJson);
+    } catch {
+      varsObj = { orderId: 'ORD-9942', itemsCount: 3 };
+    }
+    const formattedVars = JSON.stringify(varsObj, null, 2);
+    const targetRecipient =
+      activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155552671' : 'alex@example.com';
+
+    switch (lang) {
+      case 'curl':
+        return `curl -X POST https://api.convey.dev/v1/messages \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer cnv_live_948f2198024982" \\
+  -d '{
+    "channel": "${channelKey}",
+    "recipient": "${targetRecipient}",
+    "templateId": "${slug}",
+    "variables": ${formattedVars.replace(/\n/g, '\n    ')},
+    "priority": "HIGH"
+  }'`;
+
+      case 'typescript':
+        return `import { ConveyClient } from '@convey/sdk';
+
+const convey = new ConveyClient({
+  apiKey: process.env.CONVEY_API_KEY!,
+});
+
+// Dispatch message using template "${slug}"
+const response = await convey.messages.send({
+  channel: '${channelKey}',
+  recipient: '${targetRecipient}',
+  templateId: '${slug}',
+  variables: ${formattedVars.replace(/\n/g, '\n  ')},
+  priority: 'HIGH',
+});
+
+console.log('✅ Dispatched message ID:', response.messageId);`;
+
+      case 'python':
+        return `from convey import ConveyClient
+import os
+
+client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+
+# Dispatch message using template "${slug}"
+response = client.messages.send(
+    channel="${channelKey}",
+    recipient="${targetRecipient}",
+    template_id="${slug}",
+    variables=${JSON.stringify(varsObj, null, 4).replace(/\n/g, '\n    ')},
+    priority="HIGH"
+)
+
+print(f"✅ Dispatched message ID: {response.message_id}")`;
+
+      case 'go':
+        return `package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/convey/convey-go"
+)
+
+func main() {
+	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
+
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageParams{
+		Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+		Recipient:  "${targetRecipient}",
+		TemplateID: "${slug}",
+		Variables: map[string]any{
+			"orderId": "ORD-9942",
+		},
+		Priority: "HIGH",
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("✅ Dispatched message ID:", res.MessageID)
+}`;
+    }
+  };
 
   // 1. EMAIL CHANNEL STATES (Advanced Enterprise Configuration)
   const [emailSubject, setEmailSubject] = useState('Order #{{orderId}} Confirmation & Tracking');
@@ -504,14 +603,25 @@ export function TemplateStudioPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreatingNew(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-sm font-semibold rounded-lg shadow-sm transition-all shrink-0 whitespace-nowrap cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Create New Template</span>
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsApiModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.98] text-slate-800 dark:text-slate-200 text-sm font-semibold rounded-lg shadow-xs transition-all shrink-0 whitespace-nowrap cursor-pointer border border-slate-200 dark:border-slate-700"
+          >
+            <Code2 className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span>Use in API</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCreatingNew(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-sm font-semibold rounded-lg shadow-sm transition-all shrink-0 whitespace-nowrap cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create New Template</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Grid */}
@@ -1683,6 +1793,134 @@ export function TemplateStudioPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: API Integration Code Snippet */}
+      {isApiModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 flex items-center justify-center font-bold">
+                  <Code2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <span>API &amp; SDK Sample Code</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Dispatch notifications in real-time using template{' '}
+                    <span className="font-mono text-indigo-500 font-semibold">
+                      {selectedTemplate?.slug || 'order_dispatch_alert'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsApiModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Language Selector Bar & Copy Action */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg text-xs font-semibold">
+                {(['typescript', 'curl', 'python', 'go'] as const).map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setSnippetLang(lang)}
+                    className={`px-3 py-1.5 rounded-md capitalize transition-all cursor-pointer ${
+                      snippetLang === lang
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {lang === 'typescript'
+                      ? 'Node / TypeScript'
+                      : lang === 'curl'
+                        ? 'cURL (REST)'
+                        : lang === 'python'
+                          ? 'Python'
+                          : 'Go'}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(getApiSnippet(snippetLang));
+                  setHasCopiedSnippet(true);
+                  toast.success('Snippet copied to clipboard');
+                  setTimeout(() => setHasCopiedSnippet(false), 2000);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg shadow-2xs transition-all cursor-pointer"
+              >
+                {hasCopiedSnippet ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Code</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Code Display Area */}
+            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-[#0b0f19] text-slate-200 shadow-inner font-mono text-xs">
+              <div className="bg-[#121826] px-4 py-2 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  {snippetLang === 'typescript'
+                    ? 'index.ts'
+                    : snippetLang === 'curl'
+                      ? 'terminal.sh'
+                      : snippetLang === 'python'
+                        ? 'main.py'
+                        : 'main.go'}
+                </span>
+                <span className="text-[10px] text-slate-500">API Endpoint: /v1/messages</span>
+              </div>
+              <pre className="p-4 overflow-x-auto custom-scrollbar leading-relaxed text-indigo-200 max-h-[320px]">
+                <code>{getApiSnippet(snippetLang)}</code>
+              </pre>
+            </div>
+
+            {/* SDK Installation Helper */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">Install SDK:</span>
+                <code className="font-mono text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                  {snippetLang === 'typescript'
+                    ? 'bun add @convey/sdk'
+                    : snippetLang === 'python'
+                      ? 'pip install convey-sdk'
+                      : snippetLang === 'go'
+                        ? 'go get github.com/convey/convey-go'
+                        : 'curl --version'}
+                </code>
+              </div>
+              <a
+                href="https://docs.convey.dev"
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
+              >
+                <span>Documentation</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
           </div>
         </div>
       )}
