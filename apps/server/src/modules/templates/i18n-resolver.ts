@@ -78,4 +78,16 @@ export const I18nResolver = {
 
     return { resolvedConfig: baseConfig, matchedLocale: defaultLocale };
   },
+
+  /**
+   * Alias helper to resolve and return resolvedConfig directly.
+   */
+  resolve(
+    baseConfig: TemplateChannelConfig,
+    translations: Record<string, Partial<TemplateChannelConfig>> = {},
+    targetLocale?: string,
+    defaultLocale = 'en-US',
+  ): TemplateChannelConfig {
+    return this.resolveLocalizedChannelConfig(baseConfig, translations, targetLocale, defaultLocale).resolvedConfig;
+  },
 };

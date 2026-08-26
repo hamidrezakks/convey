@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
+import { Channel } from '@convey/shared';
 import { initializePluginTables } from '../src/db';
 import { PreferencesService } from '../src/modules/preferences/preferences.service';
 import { Rfc8058 } from '../src/modules/preferences/rfc8058';
@@ -36,7 +37,7 @@ describe('Plugins App: Recipient Preferences & Consent Governance', () => {
         name: 'Marketing Newsletter',
         description: 'Weekly product and discount updates',
         isMandatory: false,
-        defaultChannels: ['email'],
+        defaultChannels: [Channel.EMAIL],
       });
 
       expect(topic.key).toBe('marketing_newsletter');
@@ -47,12 +48,12 @@ describe('Plugins App: Recipient Preferences & Consent Governance', () => {
         team: testTeam,
         recipientId: userRecipientId,
         email: 'alice@example.com',
-        channelPreferences: { sms: false, email: true },
+        channelPreferences: { [Channel.SMS]: false, [Channel.EMAIL]: true },
         topicPreferences: { marketing_newsletter: false },
       });
 
       expect(pref.recipientId).toBe(userRecipientId);
-      expect(pref.channelPreferences.sms).toBe(false);
+      expect(pref.channelPreferences[Channel.SMS]).toBe(false);
       expect(pref.topicPreferences.marketing_newsletter).toBe(false);
       expect(pref.unsubscribeToken).toBeDefined();
 
@@ -60,7 +61,7 @@ describe('Plugins App: Recipient Preferences & Consent Governance', () => {
       const checkMarketing = await PreferencesService.checkDispatchAllowed({
         tenantId: testTenant,
         recipientId: userRecipientId,
-        channel: 'email',
+        channel: Channel.EMAIL,
         topicKey: 'marketing_newsletter',
       });
 
@@ -71,7 +72,7 @@ describe('Plugins App: Recipient Preferences & Consent Governance', () => {
       const checkSms = await PreferencesService.checkDispatchAllowed({
         tenantId: testTenant,
         recipientId: userRecipientId,
-        channel: 'sms',
+        channel: Channel.SMS,
       });
 
       expect(checkSms.allowed).toBe(false);
@@ -81,7 +82,7 @@ describe('Plugins App: Recipient Preferences & Consent Governance', () => {
       const checkBilling = await PreferencesService.checkDispatchAllowed({
         tenantId: testTenant,
         recipientId: userRecipientId,
-        channel: 'email',
+        channel: Channel.EMAIL,
         topicKey: 'billing_alerts',
       });
 
@@ -101,8 +102,7 @@ describe('Plugins App: Recipient Preferences & Consent Governance', () => {
       expect(unsubResult.success).toBe(true);
 
       const updatedPref = await PreferencesService.getPreferences(testTenant, userUnsub);
-      expect(updatedPref?.channelPreferences.email).toBe(false);
-      expect(updatedPref?.channelPreferences.sms).toBe(false);
+      expect(updatedPref?.channelPreferences[Channel.EMAIL]).toBe(false);
     });
   });
 });

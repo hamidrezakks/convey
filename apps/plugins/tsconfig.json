@@ -3,13 +3,15 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["bun-types"],
+    "moduleDetection": "force",
+    "lib": ["ESNext"],
     "strict": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "baseUrl": ".",
+    "forceConsistentCasingInFileNames": true,
+    "types": ["bun"],
     "paths": {
-      "@/*": ["src/*"]
+      "@convey/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": ["src/**/*", "tests/**/*"]

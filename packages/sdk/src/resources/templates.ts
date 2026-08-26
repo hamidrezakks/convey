@@ -101,29 +101,21 @@ export class TemplatesResource {
     request: RenderTemplateRequest,
     options?: RequestOptions,
   ): Promise<{ success: boolean; rendered: RenderTemplateResponse }> {
-    return this.http.request<{ success: boolean; rendered: RenderTemplateResponse }>(
-      '/v1/templates/render',
-      {
-        method: 'POST',
-        body: request,
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean; rendered: RenderTemplateResponse }>('/v1/templates/render', {
+      method: 'POST',
+      body: request,
+      ...options,
+    });
   }
 
   /**
    * List reusable template partials.
    */
-  async listPartials(
-    options?: RequestOptions,
-  ): Promise<{ success: boolean; partials: TemplatePartialDto[] }> {
-    return this.http.request<{ success: boolean; partials: TemplatePartialDto[] }>(
-      '/v1/templates/partials',
-      {
-        method: 'GET',
-        ...options,
-      },
-    );
+  async listPartials(options?: RequestOptions): Promise<{ success: boolean; partials: TemplatePartialDto[] }> {
+    return this.http.request<{ success: boolean; partials: TemplatePartialDto[] }>('/v1/templates/partials', {
+      method: 'GET',
+      ...options,
+    });
   }
 
   /**
@@ -134,13 +126,10 @@ export class TemplatesResource {
     content: string,
     options?: RequestOptions,
   ): Promise<{ success: boolean; partial: TemplatePartialDto }> {
-    return this.http.request<{ success: boolean; partial: TemplatePartialDto }>(
-      '/v1/templates/partials',
-      {
-        method: 'POST',
-        body: { name, content },
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean; partial: TemplatePartialDto }>('/v1/templates/partials', {
+      method: 'POST',
+      body: { name, content },
+      ...options,
+    });
   }
 }

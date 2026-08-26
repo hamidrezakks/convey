@@ -1,9 +1,5 @@
 import type { HttpClient } from '../http';
-import type {
-  InAppFeedResponse,
-  InAppNotificationDto,
-  RequestOptions,
-} from '../types';
+import type { InAppFeedResponse, InAppNotificationDto, RequestOptions } from '../types';
 
 export class InboxResource {
   constructor(private readonly http: HttpClient) {}
@@ -25,14 +21,11 @@ export class InboxResource {
     },
     options?: RequestOptions,
   ): Promise<{ success: boolean; notification: InAppNotificationDto }> {
-    return this.http.request<{ success: boolean; notification: InAppNotificationDto }>(
-      '/api/v1/plugins/inbox',
-      {
-        method: 'POST',
-        body: data,
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean; notification: InAppNotificationDto }>('/api/v1/plugins/inbox', {
+      method: 'POST',
+      body: data,
+      ...options,
+    });
   }
 
   /**
@@ -80,11 +73,7 @@ export class InboxResource {
   /**
    * Mark all notifications as read.
    */
-  async markAllRead(
-    tenantId: string,
-    recipientId: string,
-    options?: RequestOptions,
-  ): Promise<{ success: boolean }> {
+  async markAllRead(tenantId: string, recipientId: string, options?: RequestOptions): Promise<{ success: boolean }> {
     return this.http.request<{ success: boolean }>(
       `/api/v1/plugins/inbox/${encodeURIComponent(recipientId)}/read-all`,
       {

@@ -1,4 +1,9 @@
-import type { Channel, PreferenceCheckResult, RecipientPreferencesDto, SubscriptionTopicDto } from '@convey/shared';
+import {
+  Channel,
+  type PreferenceCheckResult,
+  type RecipientPreferencesDto,
+  type SubscriptionTopicDto,
+} from '@convey/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { recipientPreferences, subscriptionTopics } from '../../db/schema/preferences';
@@ -137,14 +142,30 @@ export class PreferencesService {
       .where(and(eq(recipientPreferences.tenantId, tenantId), eq(recipientPreferences.recipientId, recipientId)))
       .limit(1);
 
-    const mergedChannels = {
+    const rawChannels = (existing ? (existing.channelPreferences as Record<string, boolean>) : {}) || {};
+    const mergedChannels: Record<string, boolean> = {
       email: true,
       sms: true,
       push: true,
       chat: true,
-      ...(existing ? (existing.channelPreferences as Record<string, boolean>) : {}),
-      ...channelPreferences,
+      whatsapp: true,
+      [Channel.EMAIL]: true,
+      [Channel.SMS]: true,
+      [Channel.PUSH]: true,
+      [Channel.CHAT]: true,
+      [Channel.WHATSAPP]: true,
+      ...rawChannels,
     };
+
+    if (channelPreferences) {
+      for (const [k, v] of Object.entries(channelPreferences)) {
+        if (v !== undefined) {
+          mergedChannels[k] = v;
+          mergedChannels[k.toLowerCase()] = v;
+          mergedChannels[k.toUpperCase()] = v;
+        }
+      }
+    }
 
     const mergedTopics = {
       ...(existing ? (existing.topicPreferences as Record<string, boolean>) : {}),
@@ -230,6 +251,21 @@ export class PreferencesService {
 
     if (!record) return null;
 
+    const rawChannels = (record.channelPreferences || {}) as Record<string, boolean>;
+    const normalizedChannels: Record<string, boolean> = {
+      ...rawChannels,
+      [Channel.EMAIL]: rawChannels.email ?? rawChannels[Channel.EMAIL] ?? true,
+      [Channel.SMS]: rawChannels.sms ?? rawChannels[Channel.SMS] ?? true,
+      [Channel.PUSH]: rawChannels.push ?? rawChannels[Channel.PUSH] ?? true,
+      [Channel.CHAT]: rawChannels.chat ?? rawChannels[Channel.CHAT] ?? true,
+      [Channel.WHATSAPP]: rawChannels.whatsapp ?? rawChannels[Channel.WHATSAPP] ?? true,
+      email: rawChannels.email ?? rawChannels[Channel.EMAIL] ?? true,
+      sms: rawChannels.sms ?? rawChannels[Channel.SMS] ?? true,
+      push: rawChannels.push ?? rawChannels[Channel.PUSH] ?? true,
+      chat: rawChannels.chat ?? rawChannels[Channel.CHAT] ?? true,
+      whatsapp: rawChannels.whatsapp ?? rawChannels[Channel.WHATSAPP] ?? true,
+    };
+
     return {
       id: record.id,
       tenantId: record.tenantId,
@@ -240,7 +276,7 @@ export class PreferencesService {
       timezone: record.timezone,
       quietHoursStart: record.quietHoursStart || undefined,
       quietHoursEnd: record.quietHoursEnd || undefined,
-      channelPreferences: record.channelPreferences as Record<Channel, boolean>,
+      channelPreferences: normalizedChannels as Record<Channel, boolean>,
       topicPreferences: record.topicPreferences as Record<string, boolean>,
       unsubscribeToken: record.unsubscribeToken,
       updatedAt: record.updatedAt.toISOString(),
@@ -308,7 +344,14 @@ export class PreferencesService {
     }
 
     // 1. Check channel level
-    if (pref.channelPreferences[channel] === false) {
+    const chLower = String(channel).toLowerCase();
+    const chUpper = String(channel).toUpperCase();
+    const isChannelDisabled =
+      pref.channelPreferences[channel] === false ||
+      pref.channelPreferences[chLower as Channel] === false ||
+      pref.channelPreferences[chUpper as Channel] === false;
+
+    if (isChannelDisabled) {
       return { allowed: false, reason: 'DISABLED_CHANNEL' };
     }
 

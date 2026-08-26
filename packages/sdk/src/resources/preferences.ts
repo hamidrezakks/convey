@@ -1,10 +1,5 @@
 import type { HttpClient } from '../http';
-import type {
-  PreferenceCheckResult,
-  RecipientPreferencesDto,
-  RequestOptions,
-  SubscriptionTopicDto,
-} from '../types';
+import type { PreferenceCheckResult, RecipientPreferencesDto, RequestOptions, SubscriptionTopicDto } from '../types';
 
 export class PreferencesResource {
   constructor(private readonly http: HttpClient) {}
@@ -41,14 +36,11 @@ export class PreferencesResource {
     },
     options?: RequestOptions,
   ): Promise<{ success: boolean; topic: SubscriptionTopicDto }> {
-    return this.http.request<{ success: boolean; topic: SubscriptionTopicDto }>(
-      '/api/v1/plugins/preferences/topics',
-      {
-        method: 'POST',
-        body: data,
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean; topic: SubscriptionTopicDto }>('/api/v1/plugins/preferences/topics', {
+      method: 'POST',
+      body: data,
+      ...options,
+    });
   }
 
   /**
@@ -81,13 +73,10 @@ export class PreferencesResource {
     },
     options?: RequestOptions,
   ): Promise<{ success: boolean } & PreferenceCheckResult> {
-    return this.http.request<{ success: boolean } & PreferenceCheckResult>(
-      '/api/v1/plugins/preferences/check',
-      {
-        method: 'POST',
-        body: data,
-        ...options,
-      },
-    );
+    return this.http.request<{ success: boolean } & PreferenceCheckResult>('/api/v1/plugins/preferences/check', {
+      method: 'POST',
+      body: data,
+      ...options,
+    });
   }
 }
