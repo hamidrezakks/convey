@@ -653,3 +653,247 @@ export interface CampaignsReportResponse {
 
 // Complete 88 Turnkey Provider Catalog
 export * from './provider-catalog';
+
+// --- Template Lifecycle DTOs ---
+export type TemplateCategory = 'transactional' | 'marketing' | 'alert';
+export type TemplateVersionStatus = 'draft' | 'published' | 'archived';
+
+export interface TemplateChannelConfig {
+  email?: {
+    subject: string;
+    html?: string;
+    text?: string;
+    mjml?: string;
+  };
+  sms?: {
+    body: string;
+  };
+  push?: {
+    title: string;
+    body: string;
+  };
+  chat?: {
+    body: string;
+  };
+  whatsapp?: {
+    templateName?: string;
+    languageCode?: string;
+    parameters?: string[];
+    body?: string;
+  };
+}
+
+export interface TemplateVersionDto {
+  id: string;
+  templateId: string;
+  version: string;
+  status: TemplateVersionStatus;
+  schema: Record<string, unknown>;
+  channels: TemplateChannelConfig;
+  translations: Record<string, Partial<TemplateChannelConfig>>;
+  changeSummary?: string;
+  author: string;
+  createdAt: string;
+}
+
+export interface TemplateDto {
+  id: string;
+  publicId: string;
+  tenantId: string;
+  team: string;
+  environment: string;
+  slug: string;
+  name: string;
+  description?: string;
+  category: TemplateCategory;
+  defaultLocale: string;
+  publishedVersionId?: string;
+  publishedVersion?: TemplateVersionDto;
+  versionsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TemplatePartialDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateRequest {
+  slug: string;
+  name: string;
+  description?: string;
+  category?: TemplateCategory;
+  defaultLocale?: string;
+  initialVersion?: {
+    version: string;
+    channels: TemplateChannelConfig;
+    schema?: Record<string, unknown>;
+    translations?: Record<string, Partial<TemplateChannelConfig>>;
+    changeSummary?: string;
+  };
+}
+
+export interface CreateTemplateVersionRequest {
+  version: string;
+  channels: TemplateChannelConfig;
+  schema?: Record<string, unknown>;
+  translations?: Record<string, Partial<TemplateChannelConfig>>;
+  changeSummary?: string;
+  publishImmediately?: boolean;
+}
+
+export interface RenderTemplateRequest {
+  templateSlug?: string;
+  version?: string;
+  templateSpec?: TemplateChannelConfig;
+  channel: Channel;
+  variables?: Record<string, unknown>;
+  locale?: string;
+  recipient?: {
+    email?: string;
+    phone?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface RenderTemplateResponse {
+  channel: Channel;
+  subject?: string;
+  body?: string;
+  html?: string;
+  text?: string;
+  localeUsed: string;
+  missingVariables?: string[];
+  resolvedPartials?: string[];
+}
+
+// --- Enterprise Governance & RBAC DTOs ---
+export enum UserRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  DEVELOPER = 'developer',
+  CONTENT = 'content',
+  AUDITOR = 'auditor',
+}
+
+export interface OrganizationDto {
+  id: string;
+  name: string;
+  slug: string;
+  tier: TenantTier;
+  createdAt: string;
+}
+
+export interface ProjectDto {
+  id: string;
+  organizationId: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+}
+
+export interface EnvironmentDto {
+  id: string;
+  projectId: string;
+  name: string;
+  type: EnvironmentType;
+  apiKeyPrefix: string;
+  createdAt: string;
+}
+
+// --- FinOps Least-Cost Carrier & Geo-Routing DTOs ---
+export interface CarrierRateCardDto {
+  countryCode: string; // e.g. "+44", "+1", "+49"
+  countryName: string;
+  channel: Channel;
+  providerId: string;
+  unitCostUsd: number;
+  qualityScore: number; // 0.0 - 1.0 (based on SLA and delivery rates)
+}
+
+export interface CarrierCostEvaluationResult {
+  countryCode: string;
+  selectedProviderId: string;
+  estimatedCostUsd: number;
+  projectedSavingsUsd: number;
+  cheapestAlternativeProviderId?: string;
+  fallbackCascade: string[];
+}
+
+// --- Commercial Quota DTOs ---
+export interface TenantQuotaDto {
+  tenantId: string;
+  plan: 'community' | 'pro' | 'enterprise';
+  monthlyQuota: number;
+  usedThisMonth: number;
+  remainingThisMonth: number;
+  quotaPercentUsed: number;
+  isExceeded: boolean;
+  renewsAt: string;
+}
+
+// --- Recipient Preferences & Consent DTOs (Plugin Contract) ---
+export interface SubscriptionTopicDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  key: string;
+  name: string;
+  description?: string;
+  isMandatory: boolean;
+  defaultChannels: Channel[];
+  createdAt: string;
+}
+
+export interface RecipientPreferencesDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  email?: string;
+  phone?: string;
+  timezone: string;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+  channelPreferences: Record<Channel, boolean>;
+  topicPreferences: Record<string, boolean>;
+  unsubscribeToken: string;
+  updatedAt: string;
+}
+
+export interface PreferenceCheckResult {
+  allowed: boolean;
+  reason?: 'OPTED_OUT_TOPIC' | 'DISABLED_CHANNEL' | 'IN_QUIET_HOURS' | 'SUPPRESSED';
+  deferUntil?: string; // If in quiet hours, next allowed delivery window
+}
+
+// --- In-App Notification Feed DTOs (Plugin Contract) ---
+export interface InAppNotificationDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  title: string;
+  body: string;
+  ctaUrl?: string;
+  iconUrl?: string;
+  category: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  readAt?: string;
+  isArchived: boolean;
+  archivedAt?: string;
+  createdAt: string;
+}
+
+export interface InAppFeedResponse {
+  unreadCount: number;
+  totalCount: number;
+  items: InAppNotificationDto[];
+}
