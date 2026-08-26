@@ -85,12 +85,33 @@ const auditRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/AuditPage'), 'AuditPage'),
 });
 
+const templatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/templates',
+  component: lazyRouteComponent(() => import('./pages/TemplateStudioPage'), 'TemplateStudioPage'),
+});
+
+const preferencesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/preferences',
+  component: lazyRouteComponent(() => import('./pages/PreferencesPage'), 'PreferencesPage'),
+});
+
+const inboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/inbox',
+  component: lazyRouteComponent(() => import('./pages/InboxPage'), 'InboxPage'),
+});
+
 // 3. Route Tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
   overviewRoute,
   reportsRoute,
   messagesRoute,
+  templatesRoute,
+  preferencesRoute,
+  inboxRoute,
   providersRoute,
   providerConfigRoute,
   dlqRoute,

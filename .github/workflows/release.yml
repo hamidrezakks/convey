@@ -1,0 +1,249 @@
+name: Release & Deployment Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Semantic Version Bump Type'
+        required: true
+        type: choice
+        default: 'auto'
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+          - prerelease
+      custom_version:
+        description: 'Override Custom Version (e.g. 1.2.0 or 1.2.0-beta.1)'
+        required: false
+        type: string
+        default: ''
+      prerelease_tag:
+        description: 'Prerelease Tag Identifier (e.g. beta, rc, alpha)'
+        required: false
+        type: string
+        default: 'beta'
+      dry_run:
+        description: 'Dry Run Mode (Simulate without committing, tagging, or publishing)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. Version Analysis, Tagging & GitHub Release
+  # --------------------------------------------------------------------------
+  prepare-release:
+    name: Evaluate SemVer & Create Release Tag
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.bump.outputs.should_release }}
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      is_prerelease: ${{ steps.bump.outputs.is_prerelease }}
+      changelog: ${{ steps.bump.outputs.changelog }}
+      dry_run: ${{ steps.evaluate-dryrun.outputs.dry_run }}
+    steps:
+      - name: Checkout repository with full Git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Evaluate Dry Run Flag
+        id: evaluate-dryrun
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          echo "dry_run=$DRY_RUN" >> $GITHUB_OUTPUT
+
+      - name: Compute Next SemVer & Update Monorepo
+        id: bump
+        run: |
+          ARGS="--github-output"
+          if [ "${{ github.event.inputs.bump_type }}" != "" ] && [ "${{ github.event.inputs.bump_type }}" != "auto" ]; then
+            ARGS="$ARGS --bump=${{ github.event.inputs.bump_type }}"
+          fi
+          if [ "${{ github.event.inputs.custom_version }}" != "" ]; then
+            ARGS="$ARGS --version=${{ github.event.inputs.custom_version }}"
+          fi
+          if [ "${{ github.event.inputs.prerelease_tag }}" != "" ]; then
+            ARGS="$ARGS --prerelease-tag=${{ github.event.inputs.prerelease_tag }}"
+          fi
+          if [ "${{ steps.evaluate-dryrun.outputs.dry_run }}" == "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          
+          bun run scripts/release-bump.ts $ARGS
+
+      - name: Commit Version Bump & Create Git Tag
+        if: steps.bump.outputs.should_release == 'true' && steps.evaluate-dryrun.outputs.dry_run == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add package.json packages/*/package.json apps/*/package.json CHANGELOG.md
+          git commit -m "chore(release): bump version to ${{ steps.bump.outputs.tag }} [skip ci]" || echo "No changes to commit"
+          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
+          
+          git push origin main --follow-tags
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+      - name: Publish Official GitHub Release
+        if: steps.bump.outputs.should_release == 'true' && steps.evaluate-dryrun.outputs.dry_run == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: Release ${{ steps.bump.outputs.tag }}
+          body: ${{ steps.bump.outputs.changelog }}
+          prerelease: ${{ steps.bump.outputs.is_prerelease == 'true' }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 2. NPM Package Release (@convey/sdk)
+  # --------------------------------------------------------------------------
+  publish-npm:
+    name: Publish @convey/sdk to NPM
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true' && needs.prepare-release.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js & NPM Registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build @convey/sdk Distribution
+        run: bun --filter @convey/sdk build
+
+      - name: Publish @convey/sdk with Provenance
+        run: |
+          cd packages/sdk
+          DIST_TAG="latest"
+          if [ "${{ needs.prepare-release.outputs.is_prerelease }}" == "true" ]; then
+            DIST_TAG="beta"
+          fi
+          echo "Publishing @convey/sdk@${{ needs.prepare-release.outputs.version }} with tag '$DIST_TAG'..."
+          npm publish --provenance --access public --tag "$DIST_TAG"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 3. Docker Container Release (GHCR Multi-Arch)
+  # --------------------------------------------------------------------------
+  publish-docker:
+    name: Build & Push Docker Image (${{ matrix.image }})
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true' && needs.prepare-release.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: convey-server
+            target: server
+            description: "Convey Core Planetary Communication Service Engine & Workers"
+          - image: convey-web
+            target: web
+            description: "Convey Admin Mission Control & Real-time Telemetry Dashboard"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - name: Set up QEMU (Multi-Architecture)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker Metadata & SemVer Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          flavor: |
+            latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.prepare-release.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare-release.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ needs.prepare-release.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.prepare-release.outputs.is_prerelease == 'false' }}
+            type=raw,value=beta,enable=${{ needs.prepare-release.outputs.is_prerelease == 'true' }}
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.version=${{ needs.prepare-release.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and Push Multi-Arch Docker Image
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}-release
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-release
+
+      - name: Generate Build Attestation (Provenance & SLSA)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          subject-digest: ${{ steps.docker_build.outputs.digest }}
+          push-to-registry: true

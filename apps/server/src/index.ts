@@ -12,6 +12,7 @@ import { messagingController } from './modules/messaging/messaging.controller';
 import { sandboxController } from './modules/messaging/sandbox.controller';
 import { providerCircuitBreaker } from './modules/providers/core/circuit-breaker';
 import { suppressionsController } from './modules/suppressions/suppressions.controller';
+import { templatesController } from './modules/templates/templates.controller';
 import { webhookSubscriptionsController } from './modules/webhooks/webhook-subscriptions.controller';
 import { webhooksController } from './modules/webhooks/webhooks.controller';
 import {
@@ -222,6 +223,7 @@ const app = new Elysia()
   .use(dlqController)
   .use(sandboxController)
   .use(suppressionsController)
+  .use(templatesController)
   .use(webhookSubscriptionsController)
   .use(batchesController)
   .use(

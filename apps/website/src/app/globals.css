@@ -3,6 +3,17 @@
 
 @layer base {
   :root {
+    --bg-main: #f8fafc;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --border-subtle: rgba(0, 0, 0, 0.08);
+    --border-focus: rgba(14, 165, 233, 0.4);
+    --accent-blue: #0284c7;
+    --accent-cyan: #0891b2;
+    --accent-violet: #7c3aed;
+    --accent-emerald: #059669;
+  }
+
+  .dark {
     --bg-main: #070b12;
     --bg-card: rgba(13, 20, 36, 0.7);
     --border-subtle: rgba(255, 255, 255, 0.08);
@@ -13,9 +24,13 @@
     --accent-emerald: #10b981;
   }
 
+  html {
+    scroll-behavior: smooth;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    background-color: #070b12;
-    color: #f1f5f9;
     font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
@@ -40,17 +55,17 @@
 
 /* Custom Glass & Glow Utilities */
 .glass-panel {
-  background: rgba(13, 22, 38, 0.65);
+  background: rgba(13, 22, 38, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-panel-hover {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .glass-panel-hover:hover {
-  background: rgba(18, 30, 52, 0.85);
+  background: rgba(18, 30, 52, 0.9);
   border-color: rgba(56, 189, 248, 0.3);
   box-shadow:
     0 12px 32px -8px rgba(0, 0, 0, 0.5),
@@ -67,6 +82,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: 600px;
+  max-width: 90vw;
   height: 350px;
   background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(168, 85, 247, 0.08) 50%, transparent 70%);
   filter: blur(60px);
@@ -74,20 +90,33 @@
   z-index: 0;
 }
 
-/* Custom Scrollbar */
+/* Custom Adaptive Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: rgba(148, 163, 184, 0.25);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.6);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.9);
+}
+
+/* Responsive Touch Scrolling Utility */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 /* Grid Pattern Background */
@@ -100,4 +129,22 @@
 
 .bg-radial-gradient {
   background: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0) 65%);
+}
+
+/* Docs Specific Contrast Polish */
+.prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  padding: 0.15em 0.35em;
+  border-radius: 0.375rem;
+  font-size: 0.875em;
+}
+
+/* Custom Range Slider Styling for Touch */
+input[type="range"]::-webkit-slider-thumb {
+  height: 22px;
+  width: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-appearance: none;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  border: 2px solid white;
 }

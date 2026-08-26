@@ -839,3 +839,316 @@ export interface ListAuditLogsResponse {
   page: number;
   limit: number;
 }
+
+// ==========================================
+// 10. Content & Template Lifecycle Types
+// ==========================================
+
+export type TemplateCategory = 'transactional' | 'marketing' | 'alert' | 'system';
+
+export type WhatsAppHeaderType = 'text' | 'image' | 'video' | 'document' | 'location';
+
+export interface WhatsAppHeader {
+  type: WhatsAppHeaderType;
+  text?: string;
+  mediaUrl?: string;
+  filename?: string;
+}
+
+export type WhatsAppButtonType = 'quick_reply' | 'url' | 'phone_number' | 'copy_code';
+
+export interface WhatsAppButton {
+  type: WhatsAppButtonType;
+  text: string;
+  id?: string;
+  url?: string;
+  phoneNumber?: string;
+  code?: string;
+}
+
+export interface WhatsAppListRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface WhatsAppListSection {
+  title: string;
+  rows: WhatsAppListRow[];
+}
+
+export interface WhatsAppInteractiveList {
+  buttonText: string;
+  title?: string;
+  sections: WhatsAppListSection[];
+}
+
+export interface WhatsAppLocation {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+export interface WhatsAppChannelConfig {
+  templateName?: string;
+  languageCode?: string;
+  parameters?: string[];
+  header?: WhatsAppHeader;
+  body?: string;
+  footer?: string;
+  buttons?: WhatsAppButton[];
+  interactiveList?: WhatsAppInteractiveList;
+  location?: WhatsAppLocation;
+}
+
+export type PushInterruptionLevel = 'passive' | 'active' | 'time-sensitive' | 'critical';
+
+export interface PushActionButton {
+  id: string;
+  title: string;
+  icon?: string;
+  isDestructive?: boolean;
+  isAuthenticationRequired?: boolean;
+  type?: 'button' | 'text_input';
+  placeholder?: string;
+}
+
+export interface PushAndroidConfig {
+  channelId?: string;
+  color?: string;
+  priority?: 'high' | 'normal' | 'min';
+  visibility?: 'public' | 'private' | 'secret';
+  sticky?: boolean;
+  tag?: string;
+  icon?: string;
+}
+
+export interface PushWebPushConfig {
+  requireInteraction?: boolean;
+  vibrate?: number[];
+  tag?: string;
+  dir?: 'auto' | 'ltr' | 'rtl';
+  lang?: string;
+  renotify?: boolean;
+  silent?: boolean;
+}
+
+export interface PushChannelConfig {
+  title: string;
+  body: string;
+  subtitle?: string;
+  imageUrl?: string;
+  iconUrl?: string;
+  badge?: number;
+  sound?: string;
+  actionButtons?: PushActionButton[];
+  interruptionLevel?: PushInterruptionLevel;
+  threadId?: string;
+  mutableContent?: boolean;
+  clickActionUrl?: string;
+  android?: PushAndroidConfig;
+  webpush?: PushWebPushConfig;
+  data?: Record<string, unknown>;
+}
+
+export interface EmailAttachment {
+  filename: string;
+  content?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  disposition?: 'attachment' | 'inline';
+  contentId?: string;
+}
+
+export interface EmailTrackingConfig {
+  openTracking?: boolean;
+  clickTracking?: boolean;
+  unsubscribeTracking?: boolean;
+}
+
+export interface EmailBrandTheme {
+  primaryColor?: string;
+  backgroundColor?: string;
+  cardBackgroundColor?: string;
+  fontFamily?: string;
+  logoUrl?: string;
+  logoHeightPx?: number;
+}
+
+export interface EmailChannelConfig {
+  subject: string;
+  html?: string;
+  text?: string;
+  mjml?: string;
+  previewText?: string;
+  fromName?: string;
+  fromEmail?: string;
+  replyTo?: string;
+  cc?: string[];
+  bcc?: string[];
+  headers?: Record<string, string>;
+  attachments?: EmailAttachment[];
+  tags?: string[];
+  tracking?: EmailTrackingConfig;
+  brandTheme?: EmailBrandTheme;
+  ampHtml?: string;
+}
+
+export interface TemplateChannelConfig {
+  email?: EmailChannelConfig;
+  sms?: {
+    body?: string;
+  };
+  push?: PushChannelConfig;
+  chat?: {
+    body?: string;
+  };
+  whatsapp?: WhatsAppChannelConfig;
+}
+
+export interface TemplateVersionDto {
+  id: string;
+  templateId: string;
+  version: string;
+  status: 'draft' | 'published' | 'archived';
+  schema: Record<string, unknown>;
+  channels: TemplateChannelConfig;
+  translations: Record<string, Partial<TemplateChannelConfig>>;
+  author?: string;
+  changeSummary?: string;
+  createdAt: string;
+}
+
+export interface TemplateDto {
+  id: string;
+  publicId: string;
+  tenantId: string;
+  team: string;
+  environment: string;
+  slug: string;
+  name: string;
+  category: TemplateCategory;
+  defaultLocale: string;
+  publishedVersionId?: string;
+  publishedVersion?: TemplateVersionDto;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateRequest {
+  slug: string;
+  name: string;
+  category?: TemplateCategory;
+  defaultLocale?: string;
+  initialVersion?: {
+    version: string;
+    channels: TemplateChannelConfig;
+    translations?: Record<string, Partial<TemplateChannelConfig>>;
+    changeSummary?: string;
+  };
+}
+
+export interface CreateTemplateVersionRequest {
+  version: string;
+  channels: TemplateChannelConfig;
+  translations?: Record<string, Partial<TemplateChannelConfig>>;
+  changeSummary?: string;
+}
+
+export interface RenderTemplateRequest {
+  templateSlug?: string;
+  templateSpec?: TemplateChannelConfig;
+  channel: Channel | string;
+  variables?: Record<string, unknown>;
+  recipient?: Record<string, unknown>;
+  locale?: string;
+}
+
+export interface RenderTemplateResponse {
+  channel: string;
+  subject?: string;
+  body?: string;
+  html?: string;
+  text?: string;
+  renderedEmail?: EmailChannelConfig;
+  renderedWhatsApp?: WhatsAppChannelConfig;
+  renderedPush?: PushChannelConfig;
+  localeUsed: string;
+  resolvedPartials: string[];
+}
+
+export interface TemplatePartialDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==========================================
+// 11. Preferences & Consent Governance Types
+// ==========================================
+
+export interface SubscriptionTopicDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  key: string;
+  name: string;
+  description?: string;
+  isMandatory: boolean;
+  defaultChannels: Channel[] | string[];
+  createdAt: string;
+}
+
+export interface RecipientPreferencesDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  email?: string;
+  phone?: string;
+  timezone: string;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+  channelPreferences: Record<string, boolean>;
+  topicPreferences: Record<string, boolean>;
+  unsubscribeToken: string;
+  updatedAt: string;
+}
+
+export interface PreferenceCheckResult {
+  allowed: boolean;
+  reason?: 'DISABLED_CHANNEL' | 'OPTED_OUT_TOPIC' | 'IN_QUIET_HOURS';
+}
+
+// ==========================================
+// 12. In-App Inbox Notification Types
+// ==========================================
+
+export interface InAppNotificationDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  title: string;
+  body: string;
+  ctaUrl?: string;
+  iconUrl?: string;
+  category: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  readAt?: string;
+  isArchived: boolean;
+  archivedAt?: string;
+  createdAt: string;
+}
+
+export interface InAppFeedResponse {
+  unreadCount: number;
+  totalCount: number;
+  items: InAppNotificationDto[];
+}

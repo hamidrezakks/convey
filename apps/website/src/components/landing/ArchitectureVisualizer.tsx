@@ -181,18 +181,21 @@ export function ArchitectureVisualizer() {
   const current = stages.find((s) => s.id === activeStage) || stages[0];
 
   return (
-    <section id="architecture" className="py-20 bg-[#080c14] border-t border-b border-slate-800/80 scroll-mt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+    <section
+      id="architecture"
+      className="py-16 sm:py-20 bg-[#080c14] border-t border-b border-slate-800/80 scroll-mt-16"
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12">
         {/* Section Header */}
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Cpu className="w-3.5 h-3.5" />
             <span>Interactive Dataflow Simulator</span>
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
             How Convey Guarantees Sub-15ms Ingestion & Zero Message Loss
           </h2>
-          <p className="text-sm sm:text-base text-slate-400">
+          <p className="text-xs sm:text-base text-slate-400">
             Step through Convey’s 6-stage distributed pipeline from synchronous client ingestion to hedged provider wire
             delivery.
           </p>
@@ -213,7 +216,7 @@ export function ArchitectureVisualizer() {
                   setActiveStage(stage.id);
                   setIsPlaying(false);
                 }}
-                className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                className={`flex flex-col items-start p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden min-h-[90px] justify-between ${
                   isActive
                     ? 'bg-sky-500/10 border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.2)]'
                     : isCompleted
@@ -221,9 +224,9 @@ export function ArchitectureVisualizer() {
                       : 'bg-slate-950/40 border-slate-800/60 text-slate-500 hover:border-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between w-full mb-2">
+                <div className="flex items-center justify-between w-full mb-1 sm:mb-2">
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                    className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center ${
                       isActive
                         ? 'bg-sky-500 text-slate-950 font-bold'
                         : isCompleted
@@ -231,13 +234,19 @@ export function ArchitectureVisualizer() {
                           : 'bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                    {isCompleted ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    )}
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400">{stage.latency}</span>
+                  <span className="text-[10px] font-mono text-slate-400 font-medium">{stage.latency}</span>
                 </div>
 
-                <div className="text-xs font-semibold text-slate-200 truncate w-full">{stage.shortName}</div>
-                <div className="text-[10px] text-slate-500 font-mono mt-0.5">{stage.badge}</div>
+                <div className="w-full">
+                  <div className="text-xs font-semibold text-slate-200 truncate w-full">{stage.shortName}</div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate">{stage.badge}</div>
+                </div>
 
                 {isActive && (
                   <span className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-cyan-400" />
@@ -248,12 +257,12 @@ export function ArchitectureVisualizer() {
         </div>
 
         {/* Active Stage Deep-Dive Card */}
-        <div className="rounded-2xl border border-slate-800 bg-[#0a0f1c] p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 shadow-2xl glass-panel">
+        <div className="rounded-2xl border border-slate-800 bg-[#0a0f1c] p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 shadow-2xl glass-panel">
           {/* Left Description & Metrics */}
-          <div className="lg:col-span-6 space-y-6 flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Badge variant="primary" size="md">
+          <div className="lg:col-span-6 space-y-4 sm:space-y-6 flex flex-col justify-between">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <Badge variant="primary" size="sm">
                   Stage {current.id} of 6
                 </Badge>
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
@@ -264,27 +273,30 @@ export function ArchitectureVisualizer() {
                 </div>
               </div>
 
-              <h3 className="text-2xl font-bold text-white font-display">{current.name}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-white font-display leading-snug">{current.name}</h3>
 
-              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">{current.description}</p>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{current.description}</p>
             </div>
 
             {/* Metrics Chips */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-1 sm:pt-2">
               {current.metrics.map((m) => (
-                <div key={m.label} className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
-                  <div className="text-[11px] text-slate-400 font-mono">{m.label}</div>
-                  <div className="text-sm font-bold text-sky-400 font-mono">{m.value}</div>
+                <div
+                  key={m.label}
+                  className="p-2.5 sm:p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1"
+                >
+                  <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono">{m.label}</div>
+                  <div className="text-xs sm:text-sm font-bold text-sky-400 font-mono">{m.value}</div>
                 </div>
               ))}
             </div>
 
             {/* Playback Controls */}
-            <div className="flex items-center gap-3 pt-4 border-t border-slate-800/80">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-slate-800/80">
               <button
                 type="button"
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700/80 transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700/80 transition-colors cursor-pointer min-h-[38px]"
               >
                 {isPlaying ? (
                   <>
@@ -299,29 +311,33 @@ export function ArchitectureVisualizer() {
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveStage((prev) => (prev > 1 ? prev - 1 : 6));
-                  setIsPlaying(false);
-                }}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 transition-colors cursor-pointer"
-                title="Previous stage"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveStage((prev) => (prev > 1 ? prev - 1 : 6));
+                    setIsPlaying(false);
+                  }}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 transition-colors cursor-pointer min-w-[38px] min-h-[38px] flex items-center justify-center"
+                  title="Previous stage"
+                  aria-label="Previous stage"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveStage((prev) => (prev < 6 ? prev + 1 : 1));
-                  setIsPlaying(false);
-                }}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 transition-colors cursor-pointer"
-                title="Next stage"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveStage((prev) => (prev < 6 ? prev + 1 : 1));
+                    setIsPlaying(false);
+                  }}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 transition-colors cursor-pointer min-w-[38px] min-h-[38px] flex items-center justify-center"
+                  title="Next stage"
+                  aria-label="Next stage"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -329,8 +345,9 @@ export function ArchitectureVisualizer() {
                   setActiveStage(1);
                   setIsPlaying(true);
                 }}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/80 transition-colors ml-auto cursor-pointer"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/80 transition-colors ml-auto cursor-pointer min-w-[38px] min-h-[38px] flex items-center justify-center"
                 title="Reset to stage 1"
+                aria-label="Reset to stage 1"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -339,13 +356,13 @@ export function ArchitectureVisualizer() {
 
           {/* Right Code / Execution Block */}
           <div className="lg:col-span-6 rounded-xl border border-slate-800 bg-[#070b12] overflow-hidden flex flex-col shadow-inner">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
-              <span className="text-slate-300 font-medium">Stage Implementation</span>
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+              <span className="text-slate-300 font-medium text-xs">Stage Implementation</span>
               <Badge variant="outline" size="sm" className="text-[10px]">
                 Bun 1.4 Native
               </Badge>
             </div>
-            <pre className="p-4 text-xs font-mono text-slate-200 overflow-x-auto leading-relaxed m-0 flex-1">
+            <pre className="p-3 sm:p-4 text-[11px] sm:text-xs font-mono text-slate-200 overflow-x-auto touch-scroll leading-relaxed m-0 flex-1">
               <code>{current.codeSnippet}</code>
             </pre>
           </div>

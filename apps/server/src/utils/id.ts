@@ -15,13 +15,37 @@ export function generateMessageId(): string {
   return `msg_${generateUuidV7()}`;
 }
 
+export function generateTemplateId(): string {
+  return `tpl_${generateUuidV7()}`;
+}
+
+export function generateWorkflowId(): string {
+  return `wf_${generateUuidV7()}`;
+}
+
+export function generateWorkflowExecutionId(): string {
+  return `wfx_${generateUuidV7()}`;
+}
+
+export function generateNotificationId(): string {
+  return `notif_${generateUuidV7()}`;
+}
+
+export function generateSubscriptionTopicId(): string {
+  return `topic_${generateUuidV7()}`;
+}
+
+export function generatePreferenceId(): string {
+  return `pref_${generateUuidV7()}`;
+}
+
 /**
  * Parses the embedded creation timestamp from a UUID v7 or msg_<UUIDv7> string.
  * Returns a JS Date object.
  */
 export function parseMessageIdTimestamp(messageId: string): Date {
   if (!messageId || typeof messageId !== 'string') return new Date();
-  const cleanId = messageId.replace(/^msg_/, '').replace(/-/g, '');
+  const cleanId = messageId.replace(/^[a-z]+_/, '').replace(/-/g, '');
   const timestampHex = cleanId.slice(0, 12);
 
   if (!/^[0-9a-f]{12}$/i.test(timestampHex)) {

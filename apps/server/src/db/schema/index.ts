@@ -10,6 +10,7 @@ export * from './policies';
 export * from './providers';
 export * from './reports';
 export * from './suppressions';
+export * from './templates';
 export * from './tenants';
 export * from './webhook-deliveries';
 export * from './webhook-subscriptions';

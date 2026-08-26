@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Briefcase, ChevronDown, Cpu, Inbox, Layers, Lock, RefreshCw, Search } from 'lucide-react';
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { MessageCostExplainer } from '../components/messages/MessageCostExplainer';
 import { OpsFailureExplainer } from '../components/messages/OpsFailureExplainer';
 import { OpsMessageTimeline } from '../components/messages/OpsMessageTimeline';
@@ -270,6 +271,8 @@ export function MessagesPage() {
     [t],
   );
 
+  const [isLiveTail, setIsLiveTail] = useState(false);
+
   return (
     <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-150">
       {/* Top Header */}
@@ -291,6 +294,30 @@ export function MessagesPage() {
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isOps ? t('mode.opsMessagesSubtitle') : t('messages.subtitle')}
           </p>
+        </div>
+
+        {/* Live SSE Tail Mode Toggle */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isLiveTail;
+              setIsLiveTail(next);
+              if (next) {
+                toast.success('Live SSE Message Tail Active (Streaming < 4ms events)');
+              } else {
+                toast.info('Live SSE Tail Paused');
+              }
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              isLiveTail
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${isLiveTail ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+            <span>{isLiveTail ? 'Live Tail (Active)' : 'Live SSE Tail'}</span>
+          </button>
         </div>
       </div>
 

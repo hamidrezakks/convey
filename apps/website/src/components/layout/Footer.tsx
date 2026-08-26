@@ -7,10 +7,10 @@ import { Badge } from '../ui/Badge';
 export function Footer() {
   return (
     <footer className="border-t border-slate-800/80 bg-[#05080f] text-slate-400 text-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8 lg:gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 lg:py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12">
           {/* Col 1: Brand & Tagline */}
-          <div className="md:col-span-2 space-y-4">
+          <div className="sm:col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/40 flex items-center justify-center">
                 <Zap className="w-4 h-4 text-sky-400 fill-sky-400" />
@@ -21,7 +21,7 @@ export function Footer() {
               Planetary-scale, high-throughput communication infrastructure & notification engine. Built with Bun 1.4,
               Elysia.js, PostgreSQL range-partitioning, and BullMQ.
             </p>
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <Badge variant="success" size="sm" className="text-[10px]">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Cluster Operational
@@ -37,27 +37,27 @@ export function Footer() {
             <h4 className="font-semibold text-slate-200 text-xs uppercase tracking-wider font-mono">Documentation</h4>
             <ul className="space-y-2">
               <li>
-                <Link href="/docs/quickstart" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/quickstart" className="hover:text-sky-400 transition-colors block py-0.5">
                   Quickstart Runbook
                 </Link>
               </li>
               <li>
-                <Link href="/docs/architecture" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/architecture" className="hover:text-sky-400 transition-colors block py-0.5">
                   System Architecture
                 </Link>
               </li>
               <li>
-                <Link href="/docs/configuration" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/configuration" className="hover:text-sky-400 transition-colors block py-0.5">
                   Configuration (.env)
                 </Link>
               </li>
               <li>
-                <Link href="/docs/api-reference" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/api-reference" className="hover:text-sky-400 transition-colors block py-0.5">
                   REST API Specification
                 </Link>
               </li>
               <li>
-                <Link href="/docs/providers" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/providers" className="hover:text-sky-400 transition-colors block py-0.5">
                   88+ Turnkey Adapters
                 </Link>
               </li>
@@ -69,27 +69,27 @@ export function Footer() {
             <h4 className="font-semibold text-slate-200 text-xs uppercase tracking-wider font-mono">Engineering</h4>
             <ul className="space-y-2">
               <li>
-                <Link href="/docs/examples" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/examples" className="hover:text-sky-400 transition-colors block py-0.5">
                   Architectural Recipes
                 </Link>
               </li>
               <li>
-                <Link href="/docs/webhooks" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/webhooks" className="hover:text-sky-400 transition-colors block py-0.5">
                   Inbound Webhooks & DLR
                 </Link>
               </li>
               <li>
-                <Link href="/docs/benchmarks" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/benchmarks" className="hover:text-sky-400 transition-colors block py-0.5">
                   HDR Percentiles & SLA
                 </Link>
               </li>
               <li>
-                <Link href="/docs/deployment" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/deployment" className="hover:text-sky-400 transition-colors block py-0.5">
                   Docker & Kubernetes HPA
                 </Link>
               </li>
               <li>
-                <Link href="/docs/sdks" className="hover:text-sky-400 transition-colors">
+                <Link href="/docs/sdks" className="hover:text-sky-400 transition-colors block py-0.5">
                   TypeScript, Python & Go
                 </Link>
               </li>
@@ -105,7 +105,7 @@ export function Footer() {
                   href="http://localhost:5173"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1"
+                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
                 >
                   <span>Mission Control App</span>
                   <ExternalLink className="w-3 h-3 text-slate-500" />
@@ -116,7 +116,7 @@ export function Footer() {
                   href="http://localhost:3000/swagger"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1"
+                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
                 >
                   <span>Swagger / OpenAPI UI</span>
                   <ExternalLink className="w-3 h-3 text-slate-500" />
@@ -127,7 +127,7 @@ export function Footer() {
                   href="http://localhost:3000/metrics"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1"
+                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
                 >
                   <span>Prometheus Metrics</span>
                   <ExternalLink className="w-3 h-3 text-slate-500" />
@@ -138,7 +138,7 @@ export function Footer() {
                   href="https://github.com/convey/convey"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1"
+                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
                 >
                   <span>GitHub Repository</span>
                   <ExternalLink className="w-3 h-3 text-slate-500" />
@@ -149,11 +149,11 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
+        <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400 text-center sm:text-left">
           <div>
             &copy; {new Date().getFullYear()} Convey Engineering. High-Performance Communication Infrastructure.
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
             <span>Powered by Bun 1.4 & Elysia</span>
             <span>Zero External Vendor Dependencies</span>
           </div>

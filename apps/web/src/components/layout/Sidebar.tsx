@@ -3,9 +3,11 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Bell,
   Check,
   ChevronDown,
   Cpu,
+  FileCode,
   Globe,
   Inbox,
   Key,
@@ -29,7 +31,8 @@ import { type Environment, UiModeSwitcher, useEnvironment, useUiMode } from '../
 
 export interface NavItemConfig {
   path: string;
-  labelKey: TranslationKey;
+  labelKey?: TranslationKey;
+  rawLabel?: string;
   icon: React.ElementType;
   badgeKey?: TranslationKey;
   rawBadge?: string;
@@ -69,6 +72,13 @@ export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         badgeVariant: 'cyan',
       },
       {
+        path: '/templates',
+        rawLabel: 'Templates Studio',
+        icon: FileCode,
+        rawBadge: 'MJML v2',
+        badgeVariant: 'cyan',
+      },
+      {
         path: '/providers',
         labelKey: 'nav.providers',
         icon: Cpu,
@@ -98,6 +108,20 @@ export const ENGINEER_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         icon: AlertTriangle,
         badgeKey: 'nav.dlqBadge',
         badgeVariant: 'amber',
+      },
+      {
+        path: '/preferences',
+        rawLabel: 'Consent & Topics',
+        icon: Sliders,
+        rawBadge: 'RFC-8058',
+        badgeVariant: 'emerald',
+      },
+      {
+        path: '/inbox',
+        rawLabel: 'In-App Inbox',
+        icon: Bell,
+        rawBadge: 'SSE Feed',
+        badgeVariant: 'cyan',
       },
     ],
   },
@@ -138,6 +162,13 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
         rawBadge: 'Timeline',
         badgeVariant: 'cyan',
       },
+      {
+        path: '/templates',
+        rawLabel: 'Templates Studio',
+        icon: FileCode,
+        rawBadge: 'MJML',
+        badgeVariant: 'cyan',
+      },
     ],
   },
 
@@ -162,6 +193,16 @@ export const OPS_NAV_GROUP_CONFIGS: NavGroupConfig[] = [
     groupKey: 'nav.groupOpsTools',
     items: [
       { path: '/composer', labelKey: 'nav.composer', icon: Send },
+      {
+        path: '/preferences',
+        rawLabel: 'Consent Governance',
+        icon: Sliders,
+      },
+      {
+        path: '/inbox',
+        rawLabel: 'In-App Center',
+        icon: Bell,
+      },
       {
         path: '/dlq',
         labelKey: 'nav.dlq',
@@ -256,7 +297,7 @@ export function Sidebar({ isCollapsed = false, isMobileOpen = false, onCloseMobi
         group: t(g.groupKey),
         items: g.items.map((item) => ({
           path: item.path,
-          label: t(item.labelKey),
+          label: item.labelKey ? t(item.labelKey) : item.rawLabel || item.path,
           icon: item.icon,
           badge: item.badgeKey ? t(item.badgeKey) : item.rawBadge,
           badgeVariant: item.badgeVariant,

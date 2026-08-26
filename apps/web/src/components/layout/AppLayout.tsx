@@ -3,6 +3,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { useTheme } from '../../theme';
+import { QuickDispatchDrawer } from '../QuickDispatchDrawer';
 import { CommandPalette } from './CommandPalette';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
@@ -13,6 +14,7 @@ export interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const { resolvedTheme } = useTheme();
@@ -79,6 +81,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* ⌘K Command Palette Modal */}
       <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+
+      {/* ⌘T Quick Dispatch Test Drawer */}
+      <QuickDispatchDrawer open={quickDispatchOpen} onOpenChange={setQuickDispatchOpen} />
 
       {/* Toast Notification Container with dynamic theme matching */}
       <Toaster position="bottom-right" theme={resolvedTheme} richColors />

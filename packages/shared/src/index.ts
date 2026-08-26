@@ -653,3 +653,398 @@ export interface CampaignsReportResponse {
 
 // Complete 88 Turnkey Provider Catalog
 export * from './provider-catalog';
+
+// --- Template Lifecycle DTOs ---
+export type TemplateCategory = 'transactional' | 'marketing' | 'alert';
+export type TemplateVersionStatus = 'draft' | 'published' | 'archived';
+
+// ==========================================
+// Rich WhatsApp Component Contracts
+// ==========================================
+
+export type WhatsAppHeaderType = 'text' | 'image' | 'video' | 'document' | 'location';
+
+export interface WhatsAppHeader {
+  type: WhatsAppHeaderType;
+  text?: string;
+  mediaUrl?: string;
+  filename?: string;
+}
+
+export type WhatsAppButtonType = 'quick_reply' | 'url' | 'phone_number' | 'copy_code';
+
+export interface WhatsAppButton {
+  type: WhatsAppButtonType;
+  text: string;
+  id?: string;
+  url?: string;
+  phoneNumber?: string;
+  code?: string;
+}
+
+export interface WhatsAppListRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface WhatsAppListSection {
+  title: string;
+  rows: WhatsAppListRow[];
+}
+
+export interface WhatsAppInteractiveList {
+  buttonText: string;
+  title?: string;
+  sections: WhatsAppListSection[];
+}
+
+export interface WhatsAppLocation {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+export interface WhatsAppChannelConfig {
+  templateName?: string;
+  languageCode?: string;
+  parameters?: string[];
+  header?: WhatsAppHeader;
+  body?: string;
+  footer?: string;
+  buttons?: WhatsAppButton[];
+  interactiveList?: WhatsAppInteractiveList;
+  location?: WhatsAppLocation;
+}
+
+// ==========================================
+// Rich Push Notification Component Contracts (APNs, FCM, WebPush)
+// ==========================================
+
+export type PushInterruptionLevel = 'passive' | 'active' | 'time-sensitive' | 'critical';
+
+export interface PushActionButton {
+  id: string;
+  title: string;
+  icon?: string;
+  isDestructive?: boolean;
+  isAuthenticationRequired?: boolean;
+  type?: 'button' | 'text_input';
+  placeholder?: string;
+}
+
+export interface PushAndroidConfig {
+  channelId?: string;
+  color?: string;
+  priority?: 'high' | 'normal' | 'min';
+  visibility?: 'public' | 'private' | 'secret';
+  sticky?: boolean;
+  tag?: string;
+  icon?: string;
+}
+
+export interface PushWebPushConfig {
+  requireInteraction?: boolean;
+  vibrate?: number[];
+  tag?: string;
+  dir?: 'auto' | 'ltr' | 'rtl';
+  lang?: string;
+  renotify?: boolean;
+  silent?: boolean;
+}
+
+export interface PushChannelConfig {
+  title: string;
+  body: string;
+  subtitle?: string;
+  imageUrl?: string;
+  iconUrl?: string;
+  badge?: number;
+  sound?: string;
+  actionButtons?: PushActionButton[];
+  interruptionLevel?: PushInterruptionLevel;
+  threadId?: string;
+  mutableContent?: boolean;
+  clickActionUrl?: string;
+  android?: PushAndroidConfig;
+  webpush?: PushWebPushConfig;
+  data?: Record<string, unknown>;
+}
+
+// ==========================================
+// Rich Email Component Contracts
+// ==========================================
+
+export interface EmailAttachment {
+  filename: string;
+  content?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  disposition?: 'attachment' | 'inline';
+  contentId?: string;
+}
+
+export interface EmailTrackingConfig {
+  openTracking?: boolean;
+  clickTracking?: boolean;
+  unsubscribeTracking?: boolean;
+}
+
+export interface EmailBrandTheme {
+  primaryColor?: string;
+  backgroundColor?: string;
+  cardBackgroundColor?: string;
+  fontFamily?: string;
+  logoUrl?: string;
+  logoHeightPx?: number;
+}
+
+export interface EmailChannelConfig {
+  subject: string;
+  html?: string;
+  text?: string;
+  mjml?: string;
+  previewText?: string;
+  fromName?: string;
+  fromEmail?: string;
+  replyTo?: string;
+  cc?: string[];
+  bcc?: string[];
+  headers?: Record<string, string>;
+  attachments?: EmailAttachment[];
+  tags?: string[];
+  tracking?: EmailTrackingConfig;
+  brandTheme?: EmailBrandTheme;
+  ampHtml?: string;
+}
+
+export interface TemplateChannelConfig {
+  email?: EmailChannelConfig;
+  sms?: {
+    body: string;
+  };
+  push?: PushChannelConfig;
+  chat?: {
+    body: string;
+  };
+  whatsapp?: WhatsAppChannelConfig;
+}
+
+export interface TemplateVersionDto {
+  id: string;
+  templateId: string;
+  version: string;
+  status: TemplateVersionStatus;
+  schema: Record<string, unknown>;
+  channels: TemplateChannelConfig;
+  translations: Record<string, Partial<TemplateChannelConfig>>;
+  changeSummary?: string;
+  author: string;
+  createdAt: string;
+}
+
+export interface TemplateDto {
+  id: string;
+  publicId: string;
+  tenantId: string;
+  team: string;
+  environment: string;
+  slug: string;
+  name: string;
+  description?: string;
+  category: TemplateCategory;
+  defaultLocale: string;
+  publishedVersionId?: string;
+  publishedVersion?: TemplateVersionDto;
+  versionsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TemplatePartialDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  name: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateRequest {
+  slug: string;
+  name: string;
+  description?: string;
+  category?: TemplateCategory;
+  defaultLocale?: string;
+  initialVersion?: {
+    version: string;
+    channels: TemplateChannelConfig;
+    schema?: Record<string, unknown>;
+    translations?: Record<string, Partial<TemplateChannelConfig>>;
+    changeSummary?: string;
+  };
+}
+
+export interface CreateTemplateVersionRequest {
+  version: string;
+  channels: TemplateChannelConfig;
+  schema?: Record<string, unknown>;
+  translations?: Record<string, Partial<TemplateChannelConfig>>;
+  changeSummary?: string;
+  publishImmediately?: boolean;
+}
+
+export interface RenderTemplateRequest {
+  templateSlug?: string;
+  version?: string;
+  templateSpec?: TemplateChannelConfig;
+  channel: Channel;
+  variables?: Record<string, unknown>;
+  locale?: string;
+  recipient?: {
+    email?: string;
+    phone?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface RenderTemplateResponse {
+  channel: Channel;
+  subject?: string;
+  body?: string;
+  html?: string;
+  text?: string;
+  renderedEmail?: EmailChannelConfig;
+  renderedWhatsApp?: WhatsAppChannelConfig;
+  renderedPush?: PushChannelConfig;
+  localeUsed: string;
+  missingVariables?: string[];
+  resolvedPartials?: string[];
+}
+
+// --- Enterprise Governance & RBAC DTOs ---
+export enum UserRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  DEVELOPER = 'developer',
+  CONTENT = 'content',
+  AUDITOR = 'auditor',
+}
+
+export interface OrganizationDto {
+  id: string;
+  name: string;
+  slug: string;
+  tier: TenantTier;
+  createdAt: string;
+}
+
+export interface ProjectDto {
+  id: string;
+  organizationId: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+}
+
+export interface EnvironmentDto {
+  id: string;
+  projectId: string;
+  name: string;
+  type: EnvironmentType;
+  apiKeyPrefix: string;
+  createdAt: string;
+}
+
+// --- FinOps Least-Cost Carrier & Geo-Routing DTOs ---
+export interface CarrierRateCardDto {
+  countryCode: string; // e.g. "+44", "+1", "+49"
+  countryName: string;
+  channel: Channel;
+  providerId: string;
+  unitCostUsd: number;
+  qualityScore: number; // 0.0 - 1.0 (based on SLA and delivery rates)
+}
+
+export interface CarrierCostEvaluationResult {
+  countryCode: string;
+  selectedProviderId: string;
+  estimatedCostUsd: number;
+  projectedSavingsUsd: number;
+  cheapestAlternativeProviderId?: string;
+  fallbackCascade: string[];
+}
+
+// --- Commercial Quota DTOs ---
+export interface TenantQuotaDto {
+  tenantId: string;
+  plan: 'community' | 'pro' | 'enterprise';
+  monthlyQuota: number;
+  usedThisMonth: number;
+  remainingThisMonth: number;
+  quotaPercentUsed: number;
+  isExceeded: boolean;
+  renewsAt: string;
+}
+
+// --- Recipient Preferences & Consent DTOs (Plugin Contract) ---
+export interface SubscriptionTopicDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  key: string;
+  name: string;
+  description?: string;
+  isMandatory: boolean;
+  defaultChannels: Channel[];
+  createdAt: string;
+}
+
+export interface RecipientPreferencesDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  email?: string;
+  phone?: string;
+  timezone: string;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+  channelPreferences: Record<Channel, boolean>;
+  topicPreferences: Record<string, boolean>;
+  unsubscribeToken: string;
+  updatedAt: string;
+}
+
+export interface PreferenceCheckResult {
+  allowed: boolean;
+  reason?: 'OPTED_OUT_TOPIC' | 'DISABLED_CHANNEL' | 'IN_QUIET_HOURS' | 'SUPPRESSED';
+  deferUntil?: string; // If in quiet hours, next allowed delivery window
+}
+
+// --- In-App Notification Feed DTOs (Plugin Contract) ---
+export interface InAppNotificationDto {
+  id: string;
+  tenantId: string;
+  team: string;
+  recipientId: string;
+  title: string;
+  body: string;
+  ctaUrl?: string;
+  iconUrl?: string;
+  category: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  readAt?: string;
+  isArchived: boolean;
+  archivedAt?: string;
+  createdAt: string;
+}
+
+export interface InAppFeedResponse {
+  unreadCount: number;
+  totalCount: number;
+  items: InAppNotificationDto[];
+}

@@ -8,20 +8,29 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./src/index.ts",
-        "default": "./src/index.ts"
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
       },
       "require": {
-        "types": "./src/index.ts",
-        "default": "./src/index.ts"
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
       },
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "scripts": {
+    "build": "bun scripts/build.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
