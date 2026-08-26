@@ -1258,12 +1258,12 @@ func main() {
 
             {/* Device switcher for Email */}
             {activeChannel === 'email' && (
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-3 shrink-0">
                 <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] shrink-0">
                   <button
                     type="button"
                     onClick={() => setEmailPreviewDevice('desktop')}
-                    className={`px-2.5 py-1 rounded-md font-medium inline-flex items-center gap-1 shrink-0 whitespace-nowrap transition-all ${
+                    className={`px-2.5 py-1 rounded-md font-medium inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all cursor-pointer ${
                       emailPreviewDevice === 'desktop'
                         ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1275,7 +1275,7 @@ func main() {
                   <button
                     type="button"
                     onClick={() => setEmailPreviewDevice('mobile')}
-                    className={`px-2.5 py-1 rounded-md font-medium inline-flex items-center gap-1 shrink-0 whitespace-nowrap transition-all ${
+                    className={`px-2.5 py-1 rounded-md font-medium inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all cursor-pointer ${
                       emailPreviewDevice === 'mobile'
                         ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1285,10 +1285,13 @@ func main() {
                     <span>Mobile</span>
                   </button>
                 </div>
+
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 shrink-0" />
+
                 <button
                   type="button"
                   onClick={() => setEmailPreviewTheme(emailPreviewTheme === 'light' ? 'dark' : 'light')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1 shrink-0 whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all cursor-pointer ${
                     emailPreviewTheme === 'dark'
                       ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-700/50 shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-xs'
