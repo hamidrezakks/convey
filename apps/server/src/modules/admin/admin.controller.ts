@@ -2,7 +2,9 @@ import type { Channel, MessageStatus, SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
 import { jsonResponse } from '../messaging/messaging.controller';
+import { CarrierCostMatrix } from '../policies/carrier-cost-matrix';
 import { fxEngine } from '../policies/fx-engine';
+import { QuotaManager } from '../policies/quota-manager';
 import { ReportingService } from '../reports/reporting.service';
 import { ReportingDoctorService } from '../reports/reporting-doctor.service';
 
@@ -537,6 +539,67 @@ export function adminController(app: Elysia) {
           campaignId: b.campaignId,
         });
         return jsonResponse(result, 200);
+      })
+
+      // FinOps Carrier Rate Cards
+      .get('/carrier-rates', async ({ query }: { query?: Record<string, string | undefined> }) => {
+        const rateCards = CarrierCostMatrix.getRateCards();
+        const recipient = query?.recipient;
+        const channel = (query?.channel || 'sms') as Channel;
+
+        let evaluation = null;
+        if (recipient) {
+          evaluation = CarrierCostMatrix.evaluateLeastCostRouting(channel, recipient);
+        }
+
+        return jsonResponse({ rateCards, evaluation }, 200);
+      })
+
+      // Commercial Quota Status
+      .get('/quota', async ({ query }: { query?: Record<string, string | undefined> }) => {
+        const tenantId = query?.tenantId || '019ff136-0000-7000-8000-000000000001';
+        const plan = (query?.plan || 'pro') as 'community' | 'pro' | 'enterprise';
+        const status = await QuotaManager.getQuotaStatus(tenantId, plan);
+        return jsonResponse(status, 200);
+      })
+
+      // Live SSE Message Tail Stream
+      .get('/stream', async ({ query }: { query?: Record<string, string | undefined> }) => {
+        const isSandbox = query?.isSandbox === 'true';
+        const initialMessages = await adminService.listMessages({ limit: 15, isSandbox });
+
+        const stream = new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+
+            // Send initial connected event
+            controller.enqueue(
+              encoder.encode(`event: connected\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`),
+            );
+
+            // Send initial messages batch
+            for (const msg of initialMessages.items) {
+              controller.enqueue(encoder.encode(`event: message\ndata: ${JSON.stringify(msg)}\n\n`));
+            }
+
+            // Keepalive ping interval
+            const interval = setInterval(() => {
+              try {
+                controller.enqueue(encoder.encode(`event: ping\ndata: ${JSON.stringify({ time: Date.now() })}\n\n`));
+              } catch {
+                clearInterval(interval);
+              }
+            }, 5000);
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+          },
+        });
       }),
   );
 }
