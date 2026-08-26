@@ -12,6 +12,7 @@ import {
   type WhatsAppButtonType,
   type WhatsAppChannelConfig,
   type WhatsAppHeaderType,
+  type WhatsAppListRow,
 } from '@convey/shared';
 import {
   Archive,
@@ -31,6 +32,7 @@ import {
   Globe,
   ImageIcon,
   Laptop,
+  Layers,
   ListFilter,
   Loader2,
   Mail,
@@ -41,12 +43,15 @@ import {
   Phone,
   Plus,
   Reply,
+  Send,
   Smartphone,
   Sparkles,
   Sun,
   Trash2,
+  Workflow,
   X,
 } from 'lucide-react';
+import type React from 'react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
@@ -110,20 +115,51 @@ function getThemedEmailHtml(rawHtml: string | undefined, theme: 'light' | 'dark'
 export function TemplateStudioPage() {
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateDto | null>(null);
+  const [activeChannel, setActiveChannel] = useState<'email' | 'sms' | 'whatsapp' | 'push'>('email');
+  const [activeLocale, setActiveLocale] = useState<string>('en-US');
+  const [variablesJson, setVariablesJson] = useState<string>(
+    JSON.stringify(
+      {
+        orderId: 'ORD-9942',
+        customerName: 'Alex Mercer',
+        itemsCount: 3,
+        amount: 184.5,
+        currency: 'USD',
+        trackingUrl: 'https://convey.dev/track/ORD-9942',
+        discountCode: 'SUMMER2026',
+        discountPercent: '20%',
+        deliveryDate: 'August 28, 2026',
+        recipient: {
+          name: 'Alex Mercer',
+          email: 'alex@example.com',
+          phone: '+14155552671',
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const [renderedOutput, setRenderedOutput] = useState<RenderTemplateResponse | null>(null);
   const [isRendering, setIsRendering] = useState(false);
 
-  // Active channel tab & device preview states
-  const [activeChannel, setActiveChannel] = useState<'email' | 'whatsapp' | 'push' | 'sms'>('email');
+  // New Template Modal State
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [newSlug, setNewSlug] = useState('');
+  const [newName, setNewName] = useState('');
+
+  // Device & Theme Simulation States
   const [pushPreviewDevice, setPushPreviewDevice] = useState<'ios' | 'android'>('ios');
   const [emailPreviewDevice, setEmailPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [emailPreviewTheme, setEmailPreviewTheme] = useState<'light' | 'dark'>('light');
   const [isWhatsAppListOpen, setIsWhatsAppListOpen] = useState(false);
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
+  const [snippetMode, setSnippetMode] = useState<'single' | 'batch' | 'fallback'>('single');
   const [snippetLang, setSnippetLang] = useState<'curl' | 'typescript' | 'python' | 'go'>('typescript');
   const [hasCopiedSnippet, setHasCopiedSnippet] = useState(false);
 
-  // Helper: Generates production code sample for using the active template in the API
-  const getApiSnippet = (lang: 'curl' | 'typescript' | 'python' | 'go') => {
+  // Helper: Generates production code sample for using the active template in the API across Single, Batch, and Fallback modes
+  const getApiSnippet = (mode: 'single' | 'batch' | 'fallback', lang: 'curl' | 'typescript' | 'python' | 'go') => {
     const slug = selectedTemplate?.slug || 'order_dispatch_alert';
     const channelKey = activeChannel.toUpperCase();
     let varsObj: Record<string, unknown> = {};
@@ -135,10 +171,12 @@ export function TemplateStudioPage() {
     const formattedVars = JSON.stringify(varsObj, null, 2);
     const targetRecipient =
       activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155552671' : 'alex@example.com';
+    const fallbackChannel = activeChannel === 'whatsapp' ? 'SMS' : activeChannel === 'push' ? 'EMAIL' : 'SMS';
 
-    switch (lang) {
-      case 'curl':
-        return `curl -X POST https://api.convey.dev/v1/messages \\
+    if (mode === 'single') {
+      switch (lang) {
+        case 'curl':
+          return `curl -X POST https://api.convey.dev/v1/messages \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer cnv_live_948f2198024982" \\
   -d '{
@@ -149,14 +187,14 @@ export function TemplateStudioPage() {
     "priority": "HIGH"
   }'`;
 
-      case 'typescript':
-        return `import { ConveyClient } from '@convey/sdk';
+        case 'typescript':
+          return `import { ConveyClient } from '@convey/sdk';
 
 const convey = new ConveyClient({
   apiKey: process.env.CONVEY_API_KEY!,
 });
 
-// Dispatch message using template "${slug}"
+// Single transactional dispatch with template "${slug}"
 const response = await convey.messages.send({
   channel: '${channelKey}',
   recipient: '${targetRecipient}',
@@ -165,15 +203,15 @@ const response = await convey.messages.send({
   priority: 'HIGH',
 });
 
-console.log('✅ Dispatched message ID:', response.messageId);`;
+console.log('✅ Message accepted:', response.messageId);`;
 
-      case 'python':
-        return `from convey import ConveyClient
+        case 'python':
+          return `from convey import ConveyClient
 import os
 
 client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
 
-# Dispatch message using template "${slug}"
+# Single transactional dispatch with template "${slug}"
 response = client.messages.send(
     channel="${channelKey}",
     recipient="${targetRecipient}",
@@ -182,10 +220,10 @@ response = client.messages.send(
     priority="HIGH"
 )
 
-print(f"✅ Dispatched message ID: {response.message_id}")`;
+print(f"✅ Message accepted: {response.message_id}")`;
 
-      case 'go':
-        return `package main
+        case 'go':
+          return `package main
 
 import (
 	"context"
@@ -211,7 +249,281 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("✅ Dispatched message ID:", res.MessageID)
+	fmt.Println("✅ Message accepted:", res.MessageID)
+}`;
+      }
+    }
+
+    if (mode === 'batch') {
+      switch (lang) {
+        case 'curl':
+          return `curl -X POST https://api.convey.dev/v1/messages/bulk \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer cnv_live_948f2198024982" \\
+  -d '{
+    "messages": [
+      {
+        "channel": "${channelKey}",
+        "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}",
+        "templateId": "${slug}",
+        "variables": { "orderId": "ORD-9941", "customerName": "Alex Mercer" }
+      },
+      {
+        "channel": "${channelKey}",
+        "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}",
+        "templateId": "${slug}",
+        "variables": { "orderId": "ORD-9942", "customerName": "Sarah Connor" }
+      },
+      {
+        "channel": "${channelKey}",
+        "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550103' : 'elena@example.com'}",
+        "templateId": "${slug}",
+        "variables": { "orderId": "ORD-9943", "customerName": "Elena Rostova" }
+      }
+    ]
+  }'`;
+
+        case 'typescript':
+          return `import { ConveyClient } from '@convey/sdk';
+
+const convey = new ConveyClient({
+  apiKey: process.env.CONVEY_API_KEY!,
+});
+
+// High-throughput bulk broadcast with per-recipient template variables
+const batchResponse = await convey.messages.sendBulk([
+  {
+    channel: '${channelKey}',
+    recipient: '${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}',
+    templateId: '${slug}',
+    variables: { orderId: 'ORD-9941', customerName: 'Alex Mercer' },
+  },
+  {
+    channel: '${channelKey}',
+    recipient: '${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}',
+    templateId: '${slug}',
+    variables: { orderId: 'ORD-9942', customerName: 'Sarah Connor' },
+  },
+  {
+    channel: '${channelKey}',
+    recipient: '${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550103' : 'elena@example.com'}',
+    templateId: '${slug}',
+    variables: { orderId: 'ORD-9943', customerName: 'Elena Rostova' },
+  },
+]);
+
+console.log(\`✅ Accepted \${batchResponse.total} messages across virtual shards\`);`;
+
+        case 'python':
+          return `from convey import ConveyClient
+import os
+
+client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+
+# High-throughput batch broadcast into transactional outbox
+batch = client.messages.send_bulk([
+    {
+        "channel": "${channelKey}",
+        "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}",
+        "template_id": "${slug}",
+        "variables": {"orderId": "ORD-9941", "customerName": "Alex Mercer"}
+    },
+    {
+        "channel": "${channelKey}",
+        "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}",
+        "template_id": "${slug}",
+        "variables": {"orderId": "ORD-9942", "customerName": "Sarah Connor"}
+    }
+])
+
+print(f"✅ Dispatched {batch.total} messages into worker pool")`;
+
+        case 'go':
+          return `package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/convey/convey-go"
+)
+
+func main() {
+	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
+
+	batch, err := client.Messages.SendBulk(context.Background(), convey.BulkSendMessageParams{
+		Messages: []convey.SendMessageParams{
+			{
+				Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+				Recipient:  "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}",
+				TemplateID: "${slug}",
+				Variables:  map[string]any{"orderId": "ORD-9941", "customerName": "Alex"},
+			},
+			{
+				Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+				Recipient:  "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}",
+				TemplateID: "${slug}",
+				Variables:  map[string]any{"orderId": "ORD-9942", "customerName": "Sarah"},
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("✅ Accepted %d bulk messages\\n", batch.Total)
+}`;
+      }
+    }
+
+    // Fallback & Cascade Mode
+    switch (lang) {
+      case 'curl':
+        return `curl -X POST https://api.convey.dev/v1/messages \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer cnv_live_948f2198024982" \\
+  -d '{
+    "cascade": true,
+    "priority": "CRITICAL",
+    "recipients": {
+      "whatsapp": "+14155552671",
+      "phone": "+14155552671",
+      "email": "alex@example.com"
+    },
+    "channels": [
+      {
+        "channel": "${channelKey}",
+        "templateId": "${slug}",
+        "variables": ${formattedVars.replace(/\n/g, '\n        ')}
+      },
+      {
+        "channel": "${fallbackChannel}",
+        "templateId": "${slug}",
+        "variables": ${formattedVars.replace(/\n/g, '\n        ')},
+        "fallbackTrigger": {
+          "condition": "UNREAD_OR_FAILED",
+          "timeoutSeconds": 180
+        }
+      }
+    ]
+  }'`;
+
+      case 'typescript':
+        return `import { ConveyClient } from '@convey/sdk';
+
+const convey = new ConveyClient({
+  apiKey: process.env.CONVEY_API_KEY!,
+});
+
+// Omnichannel cascade with automatic multi-channel fallback
+const response = await convey.messages.send({
+  cascade: true,
+  priority: 'CRITICAL',
+  recipients: {
+    whatsapp: '+14155552671',
+    phone: '+14155552671',
+    email: 'alex@example.com',
+  },
+  channels: [
+    {
+      channel: '${channelKey}',
+      templateId: '${slug}',
+      variables: ${formattedVars.replace(/\n/g, '\n      ')},
+    },
+    {
+      channel: '${fallbackChannel}',
+      templateId: '${slug}',
+      variables: ${formattedVars.replace(/\n/g, '\n      ')},
+      fallbackTrigger: {
+        condition: 'UNREAD_OR_FAILED',
+        timeoutSeconds: 180, // 3 minutes failover window
+      },
+    },
+  ],
+});
+
+console.log('✅ Omnichannel cascade initiated:', response.messageId);`;
+
+      case 'python':
+        return `from convey import ConveyClient
+import os
+
+client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+
+# Omnichannel cascade with automatic multi-channel fallback
+response = client.messages.send(
+    cascade=True,
+    priority="CRITICAL",
+    recipients={
+        "whatsapp": "+14155552671",
+        "phone": "+14155552671",
+        "email": "alex@example.com"
+    },
+    channels=[
+        {
+            "channel": "${channelKey}",
+            "template_id": "${slug}",
+            "variables": ${JSON.stringify(varsObj, null, 4).replace(/\n/g, '\n            ')}
+        },
+        {
+            "channel": "${fallbackChannel}",
+            "template_id": "${slug}",
+            "variables": ${JSON.stringify(varsObj, null, 4).replace(/\n/g, '\n            ')},
+            "fallback_trigger": {
+                "condition": "UNREAD_OR_FAILED",
+                "timeout_seconds": 180
+            }
+        }
+    ]
+)
+
+print(f"✅ Omnichannel cascade initiated: {response.message_id}")`;
+
+      case 'go':
+        return `package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/convey/convey-go"
+)
+
+func main() {
+	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
+
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageParams{
+		Cascade:  true,
+		Priority: "CRITICAL",
+		Recipients: map[string]string{
+			"whatsapp": "+14155552671",
+			"phone":    "+14155552671",
+			"email":    "alex@example.com",
+		},
+		Channels: []convey.ChannelPayload{
+			{
+				Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+				TemplateID: "${slug}",
+				Variables:  map[string]any{"orderId": "ORD-9942"},
+			},
+			{
+				Channel:    convey.Channel${fallbackChannel === 'EMAIL' ? 'Email' : 'SMS'},
+				TemplateID: "${slug}",
+				Variables:  map[string]any{"orderId": "ORD-9942"},
+				FallbackTrigger: &convey.FallbackConfig{
+					Condition:      "UNREAD_OR_FAILED",
+					TimeoutSeconds: 180,
+				},
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("✅ Cascade initialized:", res.MessageID)
 }`;
     }
   };
@@ -338,29 +650,6 @@ func main() {
     { id: 'btn_call', title: 'Call Driver 📞', icon: 'phone', isDestructive: false },
   ]);
   const [pushClickUrl, setPushClickUrl] = useState('convey://orders/{{orderId}}');
-
-  // Mock Variables Context
-  const [variablesJson, setVariablesJson] = useState(
-    JSON.stringify(
-      {
-        orderId: 'ORD-9942',
-        itemsCount: 3,
-        amount: 184.5,
-        courierName: 'Marcus Vance',
-        deliveryPin: '8492',
-        trackingUrl: 'https://convey.dev/track/ORD-9942',
-        recipient: { name: 'Alex Mercer', phone: '+14155552671', email: 'alex@example.com' },
-      },
-      null,
-      2,
-    ),
-  );
-
-  const [renderedOutput, setRenderedOutput] = useState<RenderTemplateResponse | null>(null);
-  const [activeLocale, setActiveLocale] = useState('en-US');
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [newSlug, setNewSlug] = useState('');
-  const [newName, setNewName] = useState('');
 
   // Fetch templates on load
   const loadTemplates = async () => {
@@ -1544,7 +1833,7 @@ func main() {
                 {/* WhatsApp Action Buttons (Stacked below bubble) */}
                 {renderedOutput?.renderedWhatsApp?.buttons && renderedOutput.renderedWhatsApp.buttons.length > 0 && (
                   <div className="space-y-1.5 max-w-[92%]">
-                    {renderedOutput.renderedWhatsApp.buttons.map((btn, i) => (
+                    {renderedOutput.renderedWhatsApp.buttons.map((btn: WhatsAppButton, i: number) => (
                       <button
                         key={btn.id || i}
                         type="button"
@@ -1581,19 +1870,21 @@ func main() {
                     <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
                       Select an Option:
                     </div>
-                    {renderedOutput?.renderedWhatsApp?.interactiveList?.sections[0]?.rows.map((row) => (
-                      <div
-                        key={row.id}
-                        onClick={() => {
-                          toast.success(`Selected: ${row.title}`);
-                          setIsWhatsAppListOpen(false);
-                        }}
-                        className="p-2 bg-[#202c33] hover:bg-[#2a3942] rounded-lg cursor-pointer transition-all"
-                      >
-                        <div className="text-xs font-medium text-white">{row.title}</div>
-                        {row.description && <div className="text-[10px] text-slate-400">{row.description}</div>}
-                      </div>
-                    ))}
+                    {renderedOutput?.renderedWhatsApp?.interactiveList?.sections[0]?.rows.map(
+                      (row: WhatsAppListRow) => (
+                        <div
+                          key={row.id}
+                          onClick={() => {
+                            toast.success(`Selected: ${row.title}`);
+                            setIsWhatsAppListOpen(false);
+                          }}
+                          className="p-2 bg-[#202c33] hover:bg-[#2a3942] rounded-lg cursor-pointer transition-all"
+                        >
+                          <div className="text-xs font-medium text-white">{row.title}</div>
+                          {row.description && <div className="text-[10px] text-slate-400">{row.description}</div>}
+                        </div>
+                      ),
+                    )}
                   </div>
                 )}
               </div>
@@ -1652,7 +1943,7 @@ func main() {
                 {renderedOutput?.renderedPush?.actionButtons &&
                   renderedOutput.renderedPush.actionButtons.length > 0 && (
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
-                      {renderedOutput.renderedPush.actionButtons.map((btn) => (
+                      {renderedOutput.renderedPush.actionButtons.map((btn: PushActionButton) => (
                         <button
                           key={btn.id}
                           type="button"
@@ -1703,7 +1994,7 @@ func main() {
                 {/* Android Action Pills */}
                 {renderedOutput?.renderedPush?.actionButtons && (
                   <div className="flex gap-2 pt-2">
-                    {renderedOutput.renderedPush.actionButtons.map((btn) => (
+                    {renderedOutput.renderedPush.actionButtons.map((btn: PushActionButton) => (
                       <button
                         key={btn.id}
                         type="button"
@@ -1831,6 +2122,48 @@ func main() {
               </button>
             </div>
 
+            {/* Dispatch Mode Selector Tabs (Single vs Batch vs Fallback) */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+              <button
+                type="button"
+                onClick={() => setSnippetMode('single')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  snippetMode === 'single'
+                    ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/80 dark:border-slate-700/80'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Single Dispatch</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSnippetMode('batch')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  snippetMode === 'batch'
+                    ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/80 dark:border-slate-700/80'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Batch Broadcast</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSnippetMode('fallback')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  snippetMode === 'fallback'
+                    ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/80 dark:border-slate-700/80'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Workflow className="w-3.5 h-3.5" />
+                <span>Failover &amp; Fallback</span>
+              </button>
+            </div>
+
             {/* Language Selector Bar & Copy Action */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg text-xs font-semibold">
@@ -1841,7 +2174,7 @@ func main() {
                     onClick={() => setSnippetLang(lang)}
                     className={`px-3 py-1.5 rounded-md capitalize transition-all cursor-pointer ${
                       snippetLang === lang
-                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
@@ -1859,7 +2192,7 @@ func main() {
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(getApiSnippet(snippetLang));
+                  navigator.clipboard.writeText(getApiSnippet(snippetMode, snippetLang));
                   setHasCopiedSnippet(true);
                   toast.success('Snippet copied to clipboard');
                   setTimeout(() => setHasCopiedSnippet(false), 2000);
@@ -1893,10 +2226,16 @@ func main() {
                         ? 'main.py'
                         : 'main.go'}
                 </span>
-                <span className="text-[10px] text-slate-500">API Endpoint: /v1/messages</span>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {snippetMode === 'batch'
+                    ? 'POST /v1/messages/bulk'
+                    : snippetMode === 'fallback'
+                      ? 'POST /v1/messages (Cascade)'
+                      : 'POST /v1/messages'}
+                </span>
               </div>
               <pre className="p-4 overflow-x-auto custom-scrollbar leading-relaxed text-indigo-200 max-h-[320px]">
-                <code>{getApiSnippet(snippetLang)}</code>
+                <code>{getApiSnippet(snippetMode, snippetLang)}</code>
               </pre>
             </div>
 
