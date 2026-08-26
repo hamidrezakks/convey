@@ -1,6 +1,7 @@
 import type {
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
+  EmailChannelConfig,
   PushChannelConfig,
   RenderTemplateRequest,
   RenderTemplateResponse,
@@ -422,19 +423,26 @@ export class TemplatesService {
     let text: string | undefined;
     const allResolvedPartials: string[] = [];
 
-    // 3. Render according to channel
+    let renderedEmail: EmailChannelConfig | undefined;
     let renderedWhatsApp: WhatsAppChannelConfig | undefined;
     let renderedPush: PushChannelConfig | undefined;
 
     if (channelKey === 'email' && 'subject' in channelSpec) {
-      const emailSpec = channelSpec as { subject: string; html?: string; text?: string; mjml?: string };
+      const emailSpec = channelSpec as EmailChannelConfig;
       subject = TemplateEngine.compile(emailSpec.subject, context);
+
+      const previewText = emailSpec.previewText ? TemplateEngine.compile(emailSpec.previewText, context) : undefined;
 
       if (emailSpec.mjml) {
         const partialResult = await TemplatesService.injectPartials(tenantId, team, emailSpec.mjml);
         allResolvedPartials.push(...partialResult.resolvedPartials);
         const compiledMjml = TemplateEngine.compile(partialResult.content, context);
-        html = MjmlCompiler.compile(compiledMjml, { title: subject });
+        html = MjmlCompiler.compile(compiledMjml, {
+          title: subject,
+          previewText,
+          backgroundColor: emailSpec.brandTheme?.backgroundColor,
+          defaultFontFamily: emailSpec.brandTheme?.fontFamily,
+        });
       } else if (emailSpec.html) {
         const partialResult = await TemplatesService.injectPartials(tenantId, team, emailSpec.html);
         allResolvedPartials.push(...partialResult.resolvedPartials);
@@ -445,6 +453,18 @@ export class TemplatesService {
         const textPartialResult = await TemplatesService.injectPartials(tenantId, team, emailSpec.text);
         text = TemplateEngine.compile(textPartialResult.content, context);
       }
+
+      renderedEmail = {
+        ...emailSpec,
+        subject,
+        html,
+        text,
+        previewText,
+        fromName: emailSpec.fromName ? TemplateEngine.compile(emailSpec.fromName, context) : undefined,
+        fromEmail: emailSpec.fromEmail ? TemplateEngine.compile(emailSpec.fromEmail, context) : undefined,
+        replyTo: emailSpec.replyTo ? TemplateEngine.compile(emailSpec.replyTo, context) : undefined,
+        ampHtml: emailSpec.ampHtml ? TemplateEngine.compile(emailSpec.ampHtml, context) : undefined,
+      };
     } else if (channelKey === 'sms' && 'body' in channelSpec) {
       const smsSpec = channelSpec as { body: string };
       const partialResult = await TemplatesService.injectPartials(tenantId, team, smsSpec.body);
@@ -527,6 +547,7 @@ export class TemplatesService {
       body,
       html,
       text,
+      renderedEmail,
       renderedWhatsApp,
       renderedPush,
       localeUsed: matchedLocale,

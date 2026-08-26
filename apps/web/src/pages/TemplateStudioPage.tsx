@@ -1,5 +1,8 @@
 import {
   Channel,
+  type EmailAttachment,
+  type EmailBrandTheme,
+  type EmailChannelConfig,
   type PushActionButton,
   type PushChannelConfig,
   type PushInterruptionLevel,
@@ -11,20 +14,34 @@ import {
   type WhatsAppHeaderType,
 } from '@convey/shared';
 import {
+  Archive,
+  ArrowLeft,
   Bell,
   CheckCheck,
   ChevronDown,
   Copy,
+  Download,
   ExternalLink,
   Eye,
+  FileCode,
+  FileText,
+  Forward,
   Globe,
   ImageIcon,
+  Laptop,
   ListFilter,
   Loader2,
+  Mail,
   MessageSquare,
+  Moon,
+  Palette,
+  Paperclip,
   Phone,
   Plus,
+  Reply,
+  Smartphone,
   Sparkles,
+  Sun,
   Trash2,
   X,
 } from 'lucide-react';
@@ -37,34 +54,93 @@ export function TemplateStudioPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateDto | null>(null);
   const [isRendering, setIsRendering] = useState(false);
 
-  // Active channel tab
-  const [activeChannel, setActiveChannel] = useState<'email' | 'sms' | 'push' | 'whatsapp'>('whatsapp');
-  const [previewDevice, setPreviewDevice] = useState<'ios' | 'android'>('ios');
+  // Active channel tab & device preview states
+  const [activeChannel, setActiveChannel] = useState<'email' | 'whatsapp' | 'push' | 'sms'>('email');
+  const [pushPreviewDevice, setPushPreviewDevice] = useState<'ios' | 'android'>('ios');
+  const [emailPreviewDevice, setEmailPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [emailPreviewTheme, setEmailPreviewTheme] = useState<'light' | 'dark'>('light');
   const [isWhatsAppListOpen, setIsWhatsAppListOpen] = useState(false);
 
-  // 1. Email Channel States
-  const [emailSubject, setEmailSubject] = useState('Order #{{orderId}} Confirmation');
+  // 1. EMAIL CHANNEL STATES (Advanced Enterprise Configuration)
+  const [emailSubject, setEmailSubject] = useState('Order #{{orderId}} Confirmation & Tracking');
+  const [emailPreviewText, setEmailPreviewText] = useState(
+    'Your {{itemsCount}} items are packed and ready for delivery today.',
+  );
+  const [emailFromName, setEmailFromName] = useState('Convey Logistics');
+  const [emailFromAddress, setEmailFromAddress] = useState('orders@convey.dev');
+  const [emailReplyTo, setEmailReplyTo] = useState('support@convey.dev');
+  const [emailBrandTheme, setEmailBrandTheme] = useState<EmailBrandTheme>({
+    primaryColor: '#3b82f6',
+    backgroundColor: '#f8fafc',
+    cardBackgroundColor: '#ffffff',
+    fontFamily: 'Inter, -apple-system, sans-serif',
+    logoUrl: 'https://cdn.convey.dev/assets/brand-logo.png',
+    logoHeightPx: 36,
+  });
+  const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([
+    {
+      contentId: 'att_default_1',
+      filename: 'Invoice_ORD-{{orderId}}.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 134200,
+      disposition: 'attachment',
+    },
+  ]);
   const [emailMjml, setEmailMjml] = useState(
     `<mjml>
-  <mj-body>
-    <mj-section background-color="#f8fafc">
+  <mj-head>
+    <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
+    <mj-attributes>
+      <mj-all font-family="Inter, -apple-system, sans-serif" />
+      <mj-text font-size="14px" color="#334155" line-height="1.6" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f8fafc">
+    <mj-section background-color="#ffffff" border-radius="12px" padding="32px 24px">
       <mj-column width="100%">
-        <mj-text font-size="22px" font-weight="700" color="#0f172a">Your order is confirmed!</mj-text>
-        <mj-text font-size="15px" color="#334155">Hi {{recipient.name}}, thanks for your purchase of {{itemsCount}} items totaling {{amount | currency: 'USD'}}.</mj-text>
-        <mj-button href="{{trackingUrl}}" background-color="#3b82f6" border-radius="6px">Track Order</mj-button>
-        <mj-divider border-color="#e2e8f0" />
+        <mj-text font-size="22px" font-weight="700" color="#0f172a" padding-bottom="8px">
+          Your order #{{orderId}} is confirmed! 📦
+        </mj-text>
+        <mj-text font-size="15px" color="#475569">
+          Hi {{recipient.name}}, thanks for your purchase. We are preparing your {{itemsCount}} items for shipment.
+        </mj-text>
+        
+        <mj-divider border-color="#e2e8f0" border-width="1px" padding="16px 0" />
+        
+        <mj-table cellpadding="6px">
+          <tr style="border-bottom: 1px solid #f1f5f9; text-align: left; color: #64748b; font-size: 12px;">
+            <th>Summary</th>
+            <th style="text-align: right;">Value</th>
+          </tr>
+          <tr style="font-size: 14px; font-weight: 600; color: #0f172a;">
+            <td>Order Total</td>
+            <td style="text-align: right;">{{amount | currency: 'USD'}}</td>
+          </tr>
+          <tr style="font-size: 13px; color: #64748b;">
+            <td>Delivery PIN</td>
+            <td style="text-align: right; font-family: monospace;">{{deliveryPin}}</td>
+          </tr>
+        </mj-table>
+        
+        <mj-button href="{{trackingUrl}}" background-color="#3b82f6" border-radius="8px" font-weight="600" font-size="14px" padding-top="20px">
+          Track Live Delivery 🚚
+        </mj-button>
+        
+        <mj-text font-size="12px" color="#94a3b8" align="center" padding-top="24px">
+          Need assistance? Reply directly to this email or contact support@convey.dev.
+        </mj-text>
       </mj-column>
     </mj-section>
   </mj-body>
 </mjml>`,
   );
 
-  // 2. SMS Channel States
+  // 2. SMS CHANNEL STATES
   const [smsBody, setSmsBody] = useState(
     'Order #{{orderId}} confirmed! Total: ${{amount}}. Track delivery: {{trackingUrl}}',
   );
 
-  // 3. WhatsApp Channel States (Rich Interactive Components)
+  // 3. WHATSAPP CHANNEL STATES
   const [waHeaderType, setWaHeaderType] = useState<WhatsAppHeaderType>('image');
   const [waHeaderText, setWaHeaderText] = useState('📦 Order #{{orderId}} Dispatched!');
   const [waHeaderMediaUrl, setWaHeaderMediaUrl] = useState(
@@ -93,7 +169,7 @@ export function TemplateStudioPage() {
   ]);
   const [waListButtonText, setWaListButtonText] = useState('Delivery Instructions 📋');
 
-  // 4. Push Channel States (Rich APNs & FCM Components)
+  // 4. PUSH CHANNEL STATES
   const [pushTitle, setPushTitle] = useState('Out for Delivery: Order #{{orderId}}');
   const [pushSubtitle, setPushSubtitle] = useState('Courier arriving in ~25 mins');
   const [pushBody, setPushBody] = useState('Courier {{courierName}} is 2 stops away with your {{itemsCount}} items.');
@@ -162,7 +238,11 @@ export function TemplateStudioPage() {
             status: 'published',
             schema: {},
             channels: {
-              email: { subject: 'Order Confirmation', html: '<p>Thank you for your order!</p>' },
+              email: {
+                subject: 'Order #{{orderId}} Confirmation',
+                previewText: 'Your order is confirmed and shipping soon.',
+                mjml: emailMjml,
+              },
               sms: { body: 'Your order is confirmed.' },
               whatsapp: {
                 body: 'Hello Alex, your order is out for delivery!',
@@ -198,6 +278,10 @@ export function TemplateStudioPage() {
         const v = details.template.publishedVersion;
         if (v?.channels.email) {
           setEmailSubject(v.channels.email.subject || '');
+          if (v.channels.email.previewText) setEmailPreviewText(v.channels.email.previewText);
+          if (v.channels.email.fromName) setEmailFromName(v.channels.email.fromName);
+          if (v.channels.email.fromEmail) setEmailFromAddress(v.channels.email.fromEmail);
+          if (v.channels.email.replyTo) setEmailReplyTo(v.channels.email.replyTo);
           if (v.channels.email.mjml) setEmailMjml(v.channels.email.mjml);
         }
         if (v?.channels.sms) {
@@ -227,6 +311,17 @@ export function TemplateStudioPage() {
         setIsRendering(false);
         return;
       }
+
+      const emailSpec: EmailChannelConfig = {
+        subject: emailSubject,
+        previewText: emailPreviewText,
+        fromName: emailFromName,
+        fromEmail: emailFromAddress,
+        replyTo: emailReplyTo,
+        brandTheme: emailBrandTheme,
+        attachments: emailAttachments,
+        mjml: emailMjml,
+      };
 
       const waSpec: WhatsAppChannelConfig = {
         header:
@@ -270,7 +365,7 @@ export function TemplateStudioPage() {
       const res = await api.renderTemplate({
         channel: channelPayload,
         templateSpec: {
-          email: { subject: emailSubject, mjml: emailMjml },
+          email: emailSpec,
           sms: { body: smsBody },
           whatsapp: waSpec,
           push: pushSpec,
@@ -281,7 +376,7 @@ export function TemplateStudioPage() {
 
       if (res.success && res.rendered) {
         setRenderedOutput(res.rendered);
-        toast.success(`Template compiled for ${activeChannel.toUpperCase()} (${res.rendered.localeUsed})`);
+        toast.success(`Compiled ${activeChannel.toUpperCase()} (${res.rendered.localeUsed})`);
       }
     } catch (err: unknown) {
       toast.error(`Render error: ${(err as Error).message}`);
@@ -307,7 +402,14 @@ export function TemplateStudioPage() {
         initialVersion: {
           version: '1.0.0',
           channels: {
-            email: { subject: emailSubject, mjml: emailMjml },
+            email: {
+              subject: emailSubject,
+              previewText: emailPreviewText,
+              fromName: emailFromName,
+              fromEmail: emailFromAddress,
+              replyTo: emailReplyTo,
+              mjml: emailMjml,
+            },
             sms: { body: smsBody },
             whatsapp: { body: waBody },
             push: { title: pushTitle, body: pushBody },
@@ -337,12 +439,12 @@ export function TemplateStudioPage() {
               Multi-Channel Template Studio
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-              AST &amp; MJML v2.4
+              Enterprise AST &amp; MJML v2.5
             </span>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Enterprise content registry with draft/publish versioning, rich WhatsApp components, APNs/FCM interactive
-            push notifications, and MJML compilation.
+            Enterprise content registry with draft/publish versioning, rich Email with attachments &amp; preheaders,
+            WhatsApp components, and APNs/FCM interactive push notifications.
           </p>
         </div>
 
@@ -402,7 +504,7 @@ export function TemplateStudioPage() {
 
             {/* Channel Tabs */}
             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg gap-1">
-              {(['whatsapp', 'push', 'email', 'sms'] as const).map((ch) => (
+              {(['email', 'whatsapp', 'push', 'sms'] as const).map((ch) => (
                 <button
                   key={ch}
                   type="button"
@@ -419,7 +521,186 @@ export function TemplateStudioPage() {
             </div>
           </div>
 
-          {/* 1. WHATSAPP BUILDER */}
+          {/* 1. EMAIL BUILDER (Expanded Capabilities) */}
+          {activeChannel === 'email' && (
+            <div className="space-y-4">
+              {/* Subject & Preheader */}
+              <div className="space-y-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Email Subject
+                  </label>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                    <span>Preview / Preheader Snippet</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Hidden in email body</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={emailPreviewText}
+                    onChange={(e) => setEmailPreviewText(e.target.value)}
+                    placeholder="Short summary displayed in inbox previews..."
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Sender & Reply-To Headers */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    From Sender Name
+                  </label>
+                  <input
+                    type="text"
+                    value={emailFromName}
+                    onChange={(e) => setEmailFromName(e.target.value)}
+                    className="w-full px-2.5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    From Email Address
+                  </label>
+                  <input
+                    type="text"
+                    value={emailFromAddress}
+                    onChange={(e) => setEmailFromAddress(e.target.value)}
+                    className="w-full px-2.5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* MJML Editor */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <FileCode className="w-3.5 h-3.5 text-indigo-500" />
+                    Responsive MJML 4 Source
+                  </label>
+                  <span className="text-[11px] text-slate-400 font-mono">Auto-inlines CSS &amp; wraps HTML</span>
+                </div>
+                <textarea
+                  rows={8}
+                  value={emailMjml}
+                  onChange={(e) => setEmailMjml(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 custom-scrollbar leading-relaxed"
+                />
+              </div>
+
+              {/* Attachments Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-amber-500" />
+                    Dynamic Attachments ({emailAttachments.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEmailAttachments([
+                        ...emailAttachments,
+                        {
+                          contentId: `att_${Date.now()}`,
+                          filename: `Attachment_${Date.now()}.pdf`,
+                          contentType: 'application/pdf',
+                          sizeBytes: 84000,
+                          disposition: 'attachment',
+                        },
+                      ])
+                    }
+                    className="text-[11px] text-indigo-600 hover:text-indigo-500 font-medium flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Attachment
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  {emailAttachments.map((att, idx) => (
+                    <div
+                      key={att.contentId || att.filename}
+                      className="p-2 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                        <input
+                          type="text"
+                          value={att.filename}
+                          onChange={(e) => {
+                            const updated = [...emailAttachments];
+                            updated[idx].filename = e.target.value;
+                            setEmailAttachments(updated);
+                          }}
+                          className="bg-transparent border-none text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none truncate"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {((att.sizeBytes || 0) / 1024).toFixed(0)} KB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEmailAttachments(emailAttachments.filter((_, i) => i !== idx))}
+                          className="p-1 text-slate-400 hover:text-rose-500 rounded"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Brand Theme Configurator */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-indigo-500" />
+                    Brand Theme &amp; Styling
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">Injected into MJML/HTML</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">Primary Accent Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={emailBrandTheme.primaryColor || '#3b82f6'}
+                        onChange={(e) => setEmailBrandTheme({ ...emailBrandTheme, primaryColor: e.target.value })}
+                        className="w-7 h-7 rounded border border-slate-300 dark:border-slate-700 cursor-pointer bg-transparent"
+                      />
+                      <input
+                        type="text"
+                        value={emailBrandTheme.primaryColor || '#3b82f6'}
+                        onChange={(e) => setEmailBrandTheme({ ...emailBrandTheme, primaryColor: e.target.value })}
+                        className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">Canvas Background</label>
+                    <input
+                      type="text"
+                      value={emailBrandTheme.backgroundColor || '#f8fafc'}
+                      onChange={(e) => setEmailBrandTheme({ ...emailBrandTheme, backgroundColor: e.target.value })}
+                      placeholder="#f8fafc"
+                      className="w-full px-2.5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. WHATSAPP BUILDER */}
           {activeChannel === 'whatsapp' && (
             <div className="space-y-4">
               {/* Header Configuration */}
@@ -593,7 +874,7 @@ export function TemplateStudioPage() {
             </div>
           )}
 
-          {/* 2. PUSH NOTIFICATION BUILDER */}
+          {/* 3. PUSH NOTIFICATION BUILDER */}
           {activeChannel === 'push' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -743,32 +1024,6 @@ export function TemplateStudioPage() {
             </div>
           )}
 
-          {/* 3. EMAIL BUILDER */}
-          {activeChannel === 'email' && (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Subject</label>
-                <input
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  MJML Responsive Template
-                </label>
-                <textarea
-                  rows={8}
-                  value={emailMjml}
-                  onChange={(e) => setEmailMjml(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 custom-scrollbar"
-                />
-              </div>
-            </div>
-          )}
-
           {/* 4. SMS BUILDER */}
           {activeChannel === 'sms' && (
             <div>
@@ -833,13 +1088,51 @@ export function TemplateStudioPage() {
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Live Device Output</h2>
             </div>
 
+            {/* Device switcher for Push & Email */}
+            {activeChannel === 'email' && (
+              <div className="flex items-center gap-1.5">
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setEmailPreviewDevice('desktop')}
+                    className={`px-2 py-0.5 rounded font-medium flex items-center gap-1 ${
+                      emailPreviewDevice === 'desktop'
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    <Laptop className="w-3 h-3" /> Desktop
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailPreviewDevice('mobile')}
+                    className={`px-2 py-0.5 rounded font-medium flex items-center gap-1 ${
+                      emailPreviewDevice === 'mobile'
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    <Smartphone className="w-3 h-3" /> iOS Mail
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEmailPreviewTheme(emailPreviewTheme === 'light' ? 'dark' : 'light')}
+                  className="p-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                  title="Toggle Email Client Theme"
+                >
+                  {emailPreviewTheme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            )}
+
             {activeChannel === 'push' && (
               <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded text-[11px]">
                 <button
                   type="button"
-                  onClick={() => setPreviewDevice('ios')}
+                  onClick={() => setPushPreviewDevice('ios')}
                   className={`px-2 py-0.5 rounded font-medium ${
-                    previewDevice === 'ios'
+                    pushPreviewDevice === 'ios'
                       ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
                       : 'text-slate-500'
                   }`}
@@ -848,9 +1141,9 @@ export function TemplateStudioPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPreviewDevice('android')}
+                  onClick={() => setPushPreviewDevice('android')}
                   className={`px-2 py-0.5 rounded font-medium ${
-                    previewDevice === 'android'
+                    pushPreviewDevice === 'android'
                       ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
                       : 'text-slate-500'
                   }`}
@@ -861,7 +1154,147 @@ export function TemplateStudioPage() {
             )}
           </div>
 
-          {/* 1. WHATSAPP MOCKUP PREVIEW */}
+          {/* 1. HYPER-REALISTIC EMAIL CLIENT PREVIEW (Desktop macOS / Mobile iPhone) */}
+          {activeChannel === 'email' && emailPreviewDevice === 'desktop' && (
+            <div className="w-full bg-[#1e222b] rounded-2xl shadow-2xl border border-slate-700/80 overflow-hidden text-slate-100 font-sans">
+              {/* macOS Window Titlebar */}
+              <div className="bg-[#181a20] px-4 py-2.5 border-b border-slate-700/50 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                  <Mail className="w-3 h-3 text-indigo-400" />
+                  Mail — {emailFromName}
+                </span>
+                <div className="flex items-center gap-2 text-slate-500">
+                  <Reply className="w-3.5 h-3.5 hover:text-slate-300 cursor-pointer" />
+                  <Forward className="w-3.5 h-3.5 hover:text-slate-300 cursor-pointer" />
+                  <Archive className="w-3.5 h-3.5 hover:text-slate-300 cursor-pointer" />
+                </div>
+              </div>
+
+              {/* Email Envelope Metadata Header */}
+              <div className="p-4 bg-[#1f232d] border-b border-slate-700/40 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-linear-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center font-bold text-white text-sm shadow-sm">
+                      {emailFromName.charAt(0) || 'C'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs text-white">{emailFromName}</span>
+                        <span className="text-[11px] text-slate-400 font-mono">&lt;{emailFromAddress}&gt;</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <span>To: Alex Mercer &lt;alex@example.com&gt;</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">18:42 (Just now)</span>
+                </div>
+
+                <div className="pt-1">
+                  <div className="font-bold text-sm text-slate-100">
+                    {renderedOutput?.renderedEmail?.subject || emailSubject}
+                  </div>
+                  {renderedOutput?.renderedEmail?.previewText && (
+                    <div className="text-xs text-slate-400 truncate mt-0.5">
+                      {renderedOutput.renderedEmail.previewText}
+                    </div>
+                  )}
+                </div>
+
+                {/* Attached Files Tray */}
+                {emailAttachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {emailAttachments.map((att) => (
+                      <div
+                        key={att.contentId || att.filename}
+                        className="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 rounded-lg flex items-center gap-1.5 text-[11px] text-slate-200 shadow-xs transition-colors"
+                      >
+                        <Paperclip className="w-3 h-3 text-indigo-400" />
+                        <span className="font-mono truncate max-w-[140px]">{att.filename}</span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          {((att.sizeBytes || 0) / 1024).toFixed(0)}KB
+                        </span>
+                        <Download className="w-3 h-3 text-slate-400 hover:text-white cursor-pointer ml-0.5" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Rendered HTML Email Body */}
+              <div
+                className={`w-full h-[400px] overflow-hidden transition-colors ${
+                  emailPreviewTheme === 'dark' ? 'bg-[#0f172a]' : 'bg-[#f8fafc]'
+                }`}
+              >
+                <iframe
+                  title="Rendered Email Output"
+                  srcDoc={
+                    renderedOutput?.html ||
+                    '<p style="padding: 20px; font-family: sans-serif; color: #64748b;">Rendering email output...</p>'
+                  }
+                  className="w-full h-full border-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {activeChannel === 'email' && emailPreviewDevice === 'mobile' && (
+            <div className="w-full bg-[#121214] rounded-3xl p-3 shadow-2xl border border-slate-700 text-white font-sans max-w-sm mx-auto overflow-hidden">
+              {/* iPhone Notch & Status Bar */}
+              <div className="flex items-center justify-between text-[10px] text-slate-300 px-3 pt-1 pb-2">
+                <span className="font-semibold">18:42</span>
+                <div className="w-16 h-3.5 bg-black rounded-full mx-auto" />
+                <div className="flex items-center gap-1">
+                  <span>5G</span>
+                  <span>100%</span>
+                </div>
+              </div>
+
+              {/* iOS Mail Top Bar */}
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-800 text-indigo-400 text-xs">
+                <span className="flex items-center gap-1 cursor-pointer">
+                  <ArrowLeft className="w-3.5 h-3.5" /> Inbox
+                </span>
+                <div className="flex items-center gap-3 text-slate-400">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <Reply className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
+              {/* Mobile Subject & From */}
+              <div className="p-3 space-y-1.5 border-b border-slate-800">
+                <div className="font-bold text-xs text-white leading-tight">
+                  {renderedOutput?.renderedEmail?.subject || emailSubject}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-[10px]">
+                    {emailFromName.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold text-slate-200 truncate">{emailFromName}</div>
+                    <div className="text-[9px] text-slate-400 truncate">To: Alex Mercer</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile HTML Render */}
+              <div className="w-full h-[360px] bg-white rounded-xl overflow-hidden mt-2">
+                <iframe
+                  title="Mobile Email Output"
+                  srcDoc={renderedOutput?.html || '<p style="padding: 10px;">Rendering...</p>'}
+                  className="w-full h-full border-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 2. WHATSAPP MOCKUP PREVIEW */}
           {activeChannel === 'whatsapp' && (
             <div className="w-full bg-[#0b141a] rounded-2xl p-4 shadow-xl border border-slate-800 text-slate-100 relative overflow-hidden font-sans">
               {/* WhatsApp Header */}
@@ -976,8 +1409,8 @@ export function TemplateStudioPage() {
             </div>
           )}
 
-          {/* 2. PUSH NOTIFICATION PREVIEW (iOS / Android) */}
-          {activeChannel === 'push' && previewDevice === 'ios' && (
+          {/* 3. PUSH NOTIFICATION PREVIEW (iOS / Android) */}
+          {activeChannel === 'push' && pushPreviewDevice === 'ios' && (
             <div className="w-full bg-linear-to-b from-slate-900 to-indigo-950 rounded-3xl p-4 shadow-2xl border border-slate-700 text-white relative font-sans overflow-hidden">
               {/* iOS Lock Screen Time Header */}
               <div className="text-center pt-2 pb-4">
@@ -1044,7 +1477,7 @@ export function TemplateStudioPage() {
             </div>
           )}
 
-          {activeChannel === 'push' && previewDevice === 'android' && (
+          {activeChannel === 'push' && pushPreviewDevice === 'android' && (
             <div className="w-full bg-[#121316] rounded-2xl p-4 shadow-2xl border border-slate-800 text-slate-200 relative font-sans">
               <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800 mb-3">
                 <span className="font-mono">18:42</span>
@@ -1091,25 +1524,6 @@ export function TemplateStudioPage() {
                     ))}
                   </div>
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* 3. EMAIL HTML PREVIEW */}
-          {activeChannel === 'email' && (
-            <div className="space-y-3">
-              <div className="text-xs text-slate-500 dark:text-slate-400 font-mono border-b border-slate-200 dark:border-slate-800 pb-2">
-                Subject:{' '}
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {renderedOutput?.subject || emailSubject}
-                </span>
-              </div>
-              <div className="w-full h-[460px] bg-white rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner">
-                <iframe
-                  title="Rendered Email HTML"
-                  srcDoc={renderedOutput?.html || '<p style="padding: 20px; font-family: sans-serif;">Rendering...</p>'}
-                  className="w-full h-full border-none"
-                />
               </div>
             </div>
           )}

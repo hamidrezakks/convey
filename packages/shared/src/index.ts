@@ -772,13 +772,55 @@ export interface PushChannelConfig {
   data?: Record<string, unknown>;
 }
 
+// ==========================================
+// Rich Email Component Contracts
+// ==========================================
+
+export interface EmailAttachment {
+  filename: string;
+  content?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  disposition?: 'attachment' | 'inline';
+  contentId?: string;
+}
+
+export interface EmailTrackingConfig {
+  openTracking?: boolean;
+  clickTracking?: boolean;
+  unsubscribeTracking?: boolean;
+}
+
+export interface EmailBrandTheme {
+  primaryColor?: string;
+  backgroundColor?: string;
+  cardBackgroundColor?: string;
+  fontFamily?: string;
+  logoUrl?: string;
+  logoHeightPx?: number;
+}
+
+export interface EmailChannelConfig {
+  subject: string;
+  html?: string;
+  text?: string;
+  mjml?: string;
+  previewText?: string;
+  fromName?: string;
+  fromEmail?: string;
+  replyTo?: string;
+  cc?: string[];
+  bcc?: string[];
+  headers?: Record<string, string>;
+  attachments?: EmailAttachment[];
+  tags?: string[];
+  tracking?: EmailTrackingConfig;
+  brandTheme?: EmailBrandTheme;
+  ampHtml?: string;
+}
+
 export interface TemplateChannelConfig {
-  email?: {
-    subject: string;
-    html?: string;
-    text?: string;
-    mjml?: string;
-  };
+  email?: EmailChannelConfig;
   sms?: {
     body: string;
   };
@@ -874,6 +916,7 @@ export interface RenderTemplateResponse {
   body?: string;
   html?: string;
   text?: string;
+  renderedEmail?: EmailChannelConfig;
   renderedWhatsApp?: WhatsAppChannelConfig;
   renderedPush?: PushChannelConfig;
   localeUsed: string;
