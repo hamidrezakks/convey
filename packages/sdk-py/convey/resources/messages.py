@@ -329,12 +329,32 @@ class SyncMessagesResource:
             missing_variables=res.get("missingVariables", []),
         )
 
+    def builder(self) -> Any:
+        """Create a fluent MessageBuilder bound to this resource."""
+        from convey.builder import MessageBuilder
+        return MessageBuilder(self)
+
+    def wait_for_delivery(self, message_id: str, **kwargs: Any) -> MessageDetailDto:
+        """Poll message status synchronously until DELIVERED or timeout."""
+        from convey.polling import wait_for_delivery
+        return wait_for_delivery(self, message_id, **kwargs)
+
 
 class AsyncMessagesResource:
     """Asynchronous Messages resource client."""
 
     def __init__(self, sync_res: SyncMessagesResource) -> None:
         self._sync = sync_res
+
+    def builder(self) -> Any:
+        """Create a fluent MessageBuilder bound to this asynchronous resource."""
+        from convey.builder import MessageBuilder
+        return MessageBuilder(self)
+
+    async def wait_for_delivery(self, message_id: str, **kwargs: Any) -> MessageDetailDto:
+        """Poll message status asynchronously until DELIVERED or timeout."""
+        from convey.polling import wait_for_delivery_async
+        return await wait_for_delivery_async(self, message_id, **kwargs)
 
     async def send(self, *args: Any, **kwargs: Any) -> MessageAcceptedResponse:
         import asyncio

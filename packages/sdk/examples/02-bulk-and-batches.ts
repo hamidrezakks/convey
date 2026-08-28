@@ -5,10 +5,11 @@
  * and live campaign batch pause/resume/cancel lifecycles.
  */
 
-import { Convey, type SendMessageRequest } from '../src';
+import { Channel, Convey, MessagePriority, type SendMessageRequest } from '../src';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY || 'sk_live_sample_key',
+  baseUrl: process.env.CONVEY_BASE_URL || 'https://api.convey.dev',
   teamId: 'campaign-ops',
 });
 
@@ -22,9 +23,9 @@ async function main() {
   ];
 
   const bulkPayload: SendMessageRequest[] = recipients.map((r, idx) => ({
-    channel: 'EMAIL',
+    channel: Channel.EMAIL,
     recipient: r.email,
-    priority: 'DEFAULT',
+    priority: MessagePriority.DEFAULT,
     content: {
       subject: `Product Update for ${r.name}`,
       body: `<p>Hello ${r.name}, we just shipped new features in version 2.4!</p>`,
@@ -50,22 +51,22 @@ async function main() {
     },
   });
   const batchId = batchRes.batch.id;
-  console.log(`Created Campaign Batch: ${batchId} (Status: ${batchRes.batch.status})`);
+  console.log(`Created Campaign Batch: ${batchId} (State: ${batchRes.batch.state})`);
 
   // Query Batch Status
-  const currentBatch = await convey.batches.get(batchId);
+  const { batch: currentBatch } = await convey.batches.get(batchId);
   console.log(`Batch ${batchId} Progress: ${currentBatch.processedCount} / ${currentBatch.totalCount}`);
 
   // Pause Batch Processing (e.g. during unexpected downstream throttle)
   const paused = await convey.batches.pause(batchId);
-  console.log(`Paused Batch: ${paused.batchId} (Status: ${paused.status})`);
+  console.log(`Paused Batch: ${paused.batch.id} (State: ${paused.batch.state})`);
 
   // Resume Batch Processing
   const resumed = await convey.batches.resume(batchId);
-  console.log(`Resumed Batch: ${resumed.batchId} (Status: ${resumed.status})`);
+  console.log(`Resumed Batch: ${resumed.batch.id} (State: ${resumed.batch.state})`);
 
   // List Active Batches for Team
-  const activeBatches = await convey.batches.list({ limit: 10 });
+  const activeBatches = await convey.batches.list();
   console.log(`Retrieved ${activeBatches.batches.length} active batches for team.`);
 }
 

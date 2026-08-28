@@ -69,12 +69,22 @@ class SyncBatchesResource:
         """Cancel execution of an active or paused batch."""
         return self._http.request("POST", f"/v1/batches/{urllib.parse.quote(batch_id)}/cancel")
 
+    def wait_for_completion(self, batch_id: str, **kwargs: Any) -> BatchDto:
+        """Poll batch completion status synchronously until finished."""
+        from convey.polling import wait_for_batch_completion
+        return wait_for_batch_completion(self, batch_id, **kwargs)
+
 
 class AsyncBatchesResource:
     """Asynchronous Batches resource client."""
 
     def __init__(self, sync_res: SyncBatchesResource) -> None:
         self._sync = sync_res
+
+    async def wait_for_completion(self, batch_id: str, **kwargs: Any) -> BatchDto:
+        """Poll batch completion status asynchronously until finished."""
+        from convey.polling import wait_for_batch_completion_async
+        return await wait_for_batch_completion_async(self, batch_id, **kwargs)
 
     async def create(self, request: Dict[str, Any]) -> Dict[str, Any]:
         loop = asyncio.get_running_loop()
@@ -99,3 +109,4 @@ class AsyncBatchesResource:
     async def cancel(self, batch_id: str) -> Dict[str, Any]:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: self._sync.cancel(batch_id))
+

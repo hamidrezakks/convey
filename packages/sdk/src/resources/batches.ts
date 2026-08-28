@@ -1,9 +1,6 @@
-/**
- * @convey/sdk - Batches Resource Client
- * Campaign dispatch batches, state progression, and lifecycle controls (pause/resume/cancel).
- */
-
+import { BatchBuilder } from '../builder';
 import type { HttpClient } from '../http';
+import { type WaitForBatchOptions, waitForBatchCompletion } from '../polling';
 import type {
   BatchActionResponse,
   BatchDto,
@@ -12,9 +9,25 @@ import type {
   ListBatchesResponse,
   RequestOptions,
 } from '../types';
+import type { MessagesResource } from './messages';
 
 export class BatchesResource {
   constructor(private readonly http: HttpClient) {}
+
+  /**
+   * Instantiate a BatchBuilder for chunked high-concurrency message staging and dispatch.
+   */
+  builder(messagesResource?: MessagesResource): BatchBuilder {
+    return new BatchBuilder(messagesResource);
+  }
+
+  /**
+   * Poll batch execution status until completion (COMPLETED, CANCELLED) or timeout.
+   */
+  async waitForCompletion(batchId: string, options?: WaitForBatchOptions): Promise<BatchDto> {
+    const res = await waitForBatchCompletion(this, batchId, options);
+    return res;
+  }
 
   /**
    * Create a new campaign batch dispatch container.

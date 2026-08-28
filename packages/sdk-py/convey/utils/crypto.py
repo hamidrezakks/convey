@@ -99,3 +99,10 @@ def construct_webhook_event(
         )
     except Exception as e:
         raise ConveySecurityError(f"Failed to parse webhook JSON payload: {str(e)}") from e
+
+
+def compute_hmac_sha256_hex(secret: str, data: bytes) -> str:
+    """Calculate the HMAC-SHA256 hex digest of given data."""
+    secret_bytes = secret.encode("utf-8") if isinstance(secret, str) else secret
+    return hmac.new(secret_bytes, data, hashlib.sha256).hexdigest()
+

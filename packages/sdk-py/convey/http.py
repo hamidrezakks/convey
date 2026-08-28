@@ -18,8 +18,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+from convey.environments import ConveyEnvironment, resolve_base_url
 from convey.errors import (
     ConveyApiError,
     ConveyAuthenticationError,
@@ -32,10 +33,11 @@ from convey.errors import (
     ConveyTimeoutError,
     ConveyValidationError,
 )
+from convey.middleware import ConveyMiddleware, MiddlewarePipeline
+from convey.rate_limiter import TokenBucketRateLimiter
 from convey.utils.trace import create_child_traceparent, generate_traceparent
 from convey.utils.ulid import generate_ulid
 
-DEFAULT_BASE_URL = "http://localhost:3000"
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_MAX_RETRIES = 3
 INITIAL_BACKOFF_MS = 100
@@ -56,17 +58,20 @@ class SyncHttpClient:
         self,
         api_key: str,
         base_url: Optional[str] = None,
+        environment: Optional[Union[ConveyEnvironment, str]] = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         is_sandbox: Optional[bool] = None,
         team_id: Optional[str] = None,
         default_headers: Optional[Dict[str, str]] = None,
+        rate_limiter: Optional[Union[TokenBucketRateLimiter, Dict[str, Any]]] = None,
+        middlewares: Optional[List[ConveyMiddleware]] = None,
     ) -> None:
         if not api_key or not isinstance(api_key, str) or not api_key.strip():
-            raise ConveyError("ConveyClient requires a valid apiKey. API Key is required.")
+            raise ConveyError("ConveyClient requires a valid apiKey. Please provide 'api_key' or set 'CONVEY_API_KEY'.")
 
         self.api_key = api_key.strip()
-        self.base_url = (base_url or os.getenv("CONVEY_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+        self.base_url = resolve_base_url(base_url, environment)
         self.timeout = timeout
         self.max_retries = max_retries
         self.is_sandbox = is_sandbox if is_sandbox is not None else self.api_key.startswith("sk_test_")
@@ -74,6 +79,21 @@ class SyncHttpClient:
         self.default_headers = default_headers or {}
         self.user_agent = _build_user_agent()
         self._opener = urllib.request.build_opener()
+
+        self.pipeline = MiddlewarePipeline(middlewares)
+        if isinstance(rate_limiter, dict):
+            self.rate_limiter: Optional[TokenBucketRateLimiter] = TokenBucketRateLimiter(
+                requests_per_second=rate_limiter.get("requests_per_second", 50),
+                burst=rate_limiter.get("burst"),
+            )
+        else:
+            self.rate_limiter = rate_limiter
+
+    def use(self, middleware: ConveyMiddleware) -> None:
+        self.pipeline.use(middleware)
+
+    def set_base_url(self, url: str) -> None:
+        self.base_url = resolve_base_url(base_url=url)
 
     def request(
         self,
@@ -87,46 +107,40 @@ class SyncHttpClient:
         idempotency_key: Optional[str] = None,
         traceparent: Optional[str] = None,
         is_sandbox: Optional[bool] = None,
+        base_url: Optional[str] = None,
     ) -> Any:
-        """Execute request with full-jitter exponential backoff."""
-        clean_path = path if path.startswith("/") else f"/{path}"
-        url = f"{self.base_url}{clean_path}"
+        effective_base_url = (base_url.rstrip("/") if base_url else self.base_url)
+        clean_path = ("/" + path.lstrip("/")) if not path.startswith("/") else path
+        url = f"{effective_base_url}{clean_path}"
 
         if query:
-            clean_query = {k: str(v) for k, v in query.items() if v is not None}
-            if clean_query:
-                url += "?" + urllib.parse.urlencode(clean_query)
-
-        max_attempts = (max_retries if max_retries is not None else self.max_retries) + 1
-        req_timeout = timeout if timeout is not None else self.timeout
-
-        traceparent_header = create_child_traceparent(traceparent) if traceparent else generate_traceparent()
-
-        if idempotency_key:
-            idem_key = idempotency_key
-        elif method.upper() not in ("GET", "HEAD", "OPTIONS"):
-            idem_key = f"sdk_{generate_ulid()}"
-        else:
-            idem_key = None
-
-        sandbox_flag = is_sandbox if is_sandbox is not None else self.is_sandbox
+            filtered_query = {k: v for k, v in query.items() if v is not None and v != ""}
+            if filtered_query:
+                query_string = urllib.parse.urlencode(filtered_query)
+                url = f"{url}?{query_string}"
 
         req_headers: Dict[str, str] = {
             "Accept": "application/json",
+            "User-Agent": self.user_agent,
             "Authorization": f"Bearer {self.api_key}",
             "x-api-key": self.api_key,
-            "traceparent": traceparent_header,
-            "User-Agent": self.user_agent,
         }
 
-        if idem_key:
-            req_headers["Idempotency-Key"] = idem_key
+        traceparent_header = generate_traceparent()
+        if traceparent:
+            traceparent_header = create_child_traceparent(traceparent)
+        req_headers["traceparent"] = traceparent_header
 
-        if sandbox_flag:
+        effective_sandbox = is_sandbox if is_sandbox is not None else self.is_sandbox
+        if effective_sandbox:
             req_headers["x-convey-sandbox"] = "true"
 
         if self.team_id:
             req_headers["x-convey-team"] = self.team_id
+
+        if method.upper() not in ("GET", "HEAD", "OPTIONS"):
+            effective_idempotency = idempotency_key or f"sdk_{generate_ulid()}"
+            req_headers["Idempotency-Key"] = effective_idempotency
 
         req_headers.update(self.default_headers)
         if headers:
@@ -142,9 +156,23 @@ class SyncHttpClient:
             else:
                 encoded_data = json.dumps(body).encode("utf-8")
 
-        attempt = 0
-        while True:
-            attempt += 1
+        # Execute middleware on_request
+        req_context = {
+            "method": method.upper(),
+            "url": url,
+            "headers": req_headers,
+            "body": body,
+        }
+        modified_ctx = self.pipeline.run_on_request(req_context)
+        req_headers = modified_ctx.get("headers", req_headers)
+
+        max_attempts = (max_retries if max_retries is not None else self.max_retries) + 1
+        req_timeout = timeout if timeout is not None else self.timeout
+        start_time = time.time()
+
+        for attempt in range(1, max_attempts + 1):
+            if self.rate_limiter:
+                self.rate_limiter.acquire()
 
             req = urllib.request.Request(
                 url=url,
@@ -158,13 +186,17 @@ class SyncHttpClient:
                     resp_bytes = response.read()
                     resp_headers = dict(response.info().items())
                     raw_text = resp_bytes.decode("utf-8", errors="replace")
+                    duration_ms = (time.time() - start_time) * 1000
 
                     if not raw_text.strip():
-                        return {}
-                    try:
-                        return json.loads(raw_text)
-                    except json.JSONDecodeError:
-                        return raw_text
+                        result = {}
+                    else:
+                        try:
+                            result = json.loads(raw_text)
+                        except json.JSONDecodeError:
+                            result = raw_text
+
+                    return self.pipeline.run_on_response(result, duration_ms)
 
             except urllib.error.HTTPError as err:
                 status_code = err.code
@@ -181,14 +213,23 @@ class SyncHttpClient:
                     time.sleep(sleep_seconds)
                     continue
 
-                raise self._deserialize_error(status_code, raw_text, resp_headers, traceparent_header)
+                deserialized_err = self._deserialize_error(status_code, raw_text, resp_headers, traceparent_header)
+                duration_ms = (time.time() - start_time) * 1000
+                self.pipeline.run_on_error(deserialized_err, duration_ms)
+                raise deserialized_err
 
             except (urllib.error.URLError, TimeoutError, OSError) as err:
                 if isinstance(err, TimeoutError) or "timed out" in str(err).lower():
                     if attempt >= max_attempts:
-                        raise ConveyTimeoutError(f"Request timed out after {req_timeout}s", req_timeout) from err
+                        timeout_err = ConveyTimeoutError(f"Request timed out after {req_timeout}s", req_timeout)
+                        duration_ms = (time.time() - start_time) * 1000
+                        self.pipeline.run_on_error(timeout_err, duration_ms)
+                        raise timeout_err from err
                 elif attempt >= max_attempts:
-                    raise ConveyNetworkError(f"Network request failed: {str(err)}", err) from err
+                    net_err = ConveyNetworkError(f"Network request failed: {str(err)}", err)
+                    duration_ms = (time.time() - start_time) * 1000
+                    self.pipeline.run_on_error(net_err, duration_ms)
+                    raise net_err from err
 
                 sleep_seconds = self._calculate_retry_delay(attempt, {})
                 time.sleep(sleep_seconds)
@@ -263,42 +304,21 @@ class SyncHttpClient:
         if status_code == 409:
             return ConveyConflictError(**kwargs)
         if status_code == 429:
-            retry_after_str = headers.get("retry-after") or headers.get("Retry-After")
-            retry_after_sec = None
-            if retry_after_str:
-                try:
-                    retry_after_sec = int(float(retry_after_str))
-                except ValueError:
-                    pass
-            return ConveyRateLimitError(retry_after_seconds=retry_after_sec, **kwargs)
+            retry_sec: Optional[int] = None
+            retry_hdr = headers.get("retry-after")
+            if retry_hdr and retry_hdr.isdigit():
+                retry_sec = int(retry_hdr)
+            return ConveyRateLimitError(retry_after_seconds=retry_sec, **kwargs)
 
         return ConveyApiError(**kwargs)
 
 
 class AsyncHttpClient:
-    """Asynchronous HTTP client engine running natively on asyncio."""
+    """Zero-dependency asynchronous HTTP client executing non-blocking on asyncio event loop."""
 
-    def __init__(
-        self,
-        api_key: str,
-        base_url: Optional[str] = None,
-        timeout: float = DEFAULT_TIMEOUT,
-        max_retries: int = DEFAULT_MAX_RETRIES,
-        is_sandbox: Optional[bool] = None,
-        team_id: Optional[str] = None,
-        default_headers: Optional[Dict[str, str]] = None,
-    ) -> None:
-        self._sync = SyncHttpClient(
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-            max_retries=max_retries,
-            is_sandbox=is_sandbox,
-            team_id=team_id,
-            default_headers=default_headers,
-        )
+    def __init__(self, sync_http: SyncHttpClient) -> None:
+        self._sync_http = sync_http
 
     async def request(self, *args: Any, **kwargs: Any) -> Any:
-        """Asynchronously dispatch request using thread pool executor."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, lambda: self._sync.request(*args, **kwargs))
+        return await loop.run_in_executor(None, lambda: self._sync_http.request(*args, **kwargs))

@@ -25,11 +25,12 @@ Complete method-by-method, parameter-by-parameter API reference for `@convey/sdk
 Primary entry point for interacting with Convey.
 
 ```typescript
-import { Convey, ConveyClient } from '@convey/sdk';
+import { Convey, ConveyClient, ConveyEnvironment } from '@convey/sdk';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
-  baseUrl: 'http://localhost:3000',    // Defaults to http://localhost:3000
+  environment: ConveyEnvironment.PRODUCTION, // 'us', 'eu', 'staging', 'local', 'sandbox'
+  // Or explicit: baseUrl: 'https://api.convey.dev'
   timeoutMs: 10000,                    // 10s request timeout
   maxRetries: 3,                       // Max exponential backoff retry attempts
   teamId: 'growth-team',               // Optional default team ID
@@ -41,9 +42,13 @@ const convey = new Convey({
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `apiKey` | `string` | **Required** | The Convey secret API key (`sk_live_...` or `sk_test_...`). |
-| `baseUrl` | `string` | `process.env.CONVEY_BASE_URL` \|\| `'http://localhost:3000'` | Base URL of the Convey server. |
+| `baseUrl` | `string` | **Mandatory** | Base URL of the Convey server (or resolved via `environment` / `CONVEY_BASE_URL`). |
+| `environment` | `ConveyEnvironment \| string` | `undefined` | Canonical environment preset (`PRODUCTION`, `US`, `EU`, `STAGING`, `LOCAL`, `SANDBOX`). |
 | `timeoutMs` | `number` | `10000` | Request timeout in milliseconds. |
 | `maxRetries` | `number` | `3` | Maximum automatic retries for HTTP 429 and transient 5xx responses. |
+| `rateLimiter` | `TokenBucketRateLimiter \| RateLimiterOptions` | `undefined` | Client-side rate smoother. |
+| `middlewares` | `ConveyMiddleware[]` | `[]` | Request/response interceptor pipeline. |
+| `logger` | `ConveyLogger` | `undefined` | Structured logger with automatic token redaction. |
 | `isSandbox` | `boolean` | `false` | Enables test sandbox mode (automatically true if `apiKey` starts with `sk_test_`). |
 | `teamId` | `string` | `undefined` | Default team ID attached to requests. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Custom `fetch` function override. |

@@ -130,7 +130,9 @@ class ConveyApiError(ConveyError):
         self.error_code = error_code
 
 class ConveyClient:
-    def __init__(self, api_key: str, base_url: str = "http://localhost:3000", max_retries: int = 3, timeout: float = 10.0):
+    def __init__(self, api_key: str, base_url: str, max_retries: int = 3, timeout: float = 10.0):
+        if not base_url:
+            raise ConveyError("base_url is mandatory (e.g. 'https://api.convey.dev')")
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.max_retries = max_retries
@@ -191,10 +193,10 @@ type Client struct {
 	httpClient *http.Client
 }
 
-func NewClient(apiKey string, opts ...Option) *Client {
+func NewClient(apiKey, baseURL string, opts ...Option) *Client {
 	c := &Client{
 		apiKey:  apiKey,
-		baseURL: "http://localhost:3000",
+		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -288,10 +290,10 @@ pub struct MessageAcceptedResponse {
 }
 
 impl Convey {
-    pub fn new(api_key: impl Into<String>) -> Self {
+    pub fn new(api_key: impl Into<String>, base_url: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
-            base_url: "http://localhost:3000".to_string(),
+            base_url: base_url.into().trim_end_matches('/').to_string(),
             http: ReqwestClient::new(),
         }
     }
@@ -345,9 +347,12 @@ public class ConveyClient {
     private final String baseUrl;
     private final HttpClient httpClient;
 
-    public ConveyClient(String apiKey) {
+    public ConveyClient(String apiKey, String baseUrl) {
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            throw new IllegalArgumentException("baseUrl is mandatory (e.g. https://api.convey.dev)");
+        }
         this.apiKey = apiKey;
-        this.baseUrl = "http://localhost:3000";
+        this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.httpClient = HttpClient.newHttpClient();
     }
 
@@ -382,7 +387,10 @@ class ConveyClient {
     private string $apiKey;
     private string $baseUrl;
 
-    public function __construct(string $apiKey, string $baseUrl = 'http://localhost:3000') {
+    public function __construct(string $apiKey, string $baseUrl) {
+        if (empty($baseUrl)) {
+            throw new \InvalidArgumentException("baseUrl is mandatory (e.g. 'https://api.convey.dev')");
+        }
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
     }

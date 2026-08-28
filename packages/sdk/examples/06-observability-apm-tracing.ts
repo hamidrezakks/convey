@@ -5,10 +5,11 @@
  * attempt timelines, and diagnosing latency bottlenecks with the trace span waterfall.
  */
 
-import { Convey } from '../src';
+import { Channel, Convey, MessagePriority } from '../src';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY || 'sk_live_sample_key',
+  baseUrl: process.env.CONVEY_BASE_URL || 'https://api.convey.dev',
   teamId: 'platform-core',
 });
 
@@ -20,9 +21,9 @@ async function main() {
 
   const sendResult = await convey.messages.send(
     {
-      channel: 'EMAIL',
+      channel: Channel.EMAIL,
       recipient: 'developer@example.com',
-      priority: 'HIGH',
+      priority: MessagePriority.HIGH,
       content: {
         subject: 'Observability Test Dispatch',
         body: '<p>Testing distributed trace propagation across services.</p>',

@@ -13,7 +13,11 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     const res = await client.messages.send({
       channel: Channel.SMS,
       recipient: '+14155552671',
@@ -46,7 +50,11 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     await client.messages.send({
       channel: Channel.WHATSAPP,
       recipient: '+447911123456',
@@ -79,7 +87,11 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     await client.messages.send({
       channel: Channel.SLACK,
       recipient: 'C0123456789',
@@ -106,7 +118,11 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     await client.messages.send({
       channel: Channel.PUSH,
       recipient: 'fcm_token_device_abc123',
@@ -133,7 +149,11 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     const scheduledDate = new Date('2026-12-31T23:59:59.000Z');
 
     await client.messages.send({
@@ -157,7 +177,11 @@ describe('QA Omnichannel Messages Serialization & Normalization', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
 
     await client.messages.send({
       userId: 'usr_premium_101',

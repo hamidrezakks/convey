@@ -22,6 +22,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
       maxRetries: 3,
       fetch: mockFetch as unknown as typeof fetch,
     });
@@ -43,6 +44,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
       maxRetries: 1,
       fetch: mockFetch as unknown as typeof fetch,
     });
@@ -84,6 +86,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
       maxRetries: 2,
       fetch: mockFetch as unknown as typeof fetch,
     });
@@ -109,6 +112,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
       maxRetries: 0,
       fetch: mockFetch as unknown as typeof fetch,
     });
@@ -144,6 +148,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
       maxRetries: 0,
       fetch: mockFetch as unknown as typeof fetch,
     });
@@ -176,6 +181,7 @@ describe('QA HTTP Resilience, Chaos & Boundary Tests', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
       fetch: mockFetch as unknown as typeof fetch,
     });
 

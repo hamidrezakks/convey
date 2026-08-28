@@ -10,11 +10,16 @@ Official zero-dependency, high-throughput TypeScript/JavaScript SDK for the **Co
 ## Features
 
 - ⚡ **Zero Runtime Dependencies**: Built entirely on standard Web APIs (`fetch`, `AbortSignal`, `crypto.subtle` / `node:crypto`). Micro-footprint (<15KB).
-- 🛡️ **Deterministic Resiliency**: Built-in full-jitter exponential backoff and automatic HTTP 429 `Retry-After` header parsing.
+- 🌐 **Mandatory Base URL & Canonical Environments**: Explicit base URL resolution (`baseUrl`, `environment` presets `PRODUCTION`, `US`, `EU`, `STAGING`, `LOCAL`, `SANDBOX`, or `CONVEY_BASE_URL` env). No ambiguous defaults.
+- 🏗️ **Fluent Builders**: Chainable DSL for constructing and dispatching single messages (`client.message().to(...).email(...).send()`) and staged batch chunks.
+- ⏱️ **Lifecycle Polling Awaiters**: Async awaiters for message delivery (`waitForDelivery`) and campaign batch processing (`waitForCompletion`) with signal cancellation.
+- 🛡️ **Deterministic Resiliency & Rate Limiting**: Built-in full-jitter exponential backoff, HTTP 429 `Retry-After` handling, and client-side Token Bucket rate pacing.
+- 🔌 **Middleware & Request Interceptors**: Pipeline for request mutation, telemetry tracing, response logging, and error hooks.
+- 🪵 **Structured Logging**: Zero-dependency logger with automatic sensitive token redaction (`apiKey`, authorization headers, credentials).
 - 🔁 **Idempotency by Default**: Transparent or explicit `Idempotency-Key` (ULID) generation preventing duplicate dispatches on network retries.
 - 🌊 **Auto-Pagination Streaming**: Native `for await...of` async iterators for memory-efficient processing of huge datasets.
 - 🕵️ **W3C Distributed Tracing**: Automatic generation and propagation of W3C `traceparent` child spans.
-- 🔐 **Timing-Safe Webhook Verification**: Cryptographic HMAC-SHA256 verification with replay tolerance window protection.
+- 🔐 **Timing-Safe Webhook Handlers**: Universal framework adapters (Next.js App Router, Hono, Elysia, Cloudflare Workers, Express) and test event fixture generators.
 - 🧪 **First-Class Sandbox Mode**: Zero-cost test simulations and mock provider inspections.
 
 ---
@@ -37,129 +42,215 @@ yarn add @convey/sdk
 
 ---
 
-## Quickstart
+## Initialization
+
+Convey requires an explicit base URL or environment preset to prevent misrouted communications.
 
 ```typescript
-import { Convey } from '@convey/sdk';
+import { Convey, ConveyEnvironment } from '@convey/sdk';
 
-// Initialize client
+// 1. Using Environment Preset (Recommended)
 const convey = new Convey({
-  apiKey: process.env.CONVEY_API_KEY!, // e.g. 'sk_live_...'
-  baseUrl: 'http://localhost:3000',    // optional, defaults to CONVEY_BASE_URL
+  apiKey: process.env.CONVEY_API_KEY!,
+  environment: ConveyEnvironment.PRODUCTION, // or 'us', 'eu', 'staging', 'local', 'sandbox'
 });
 
-// Send an email
-const message = await convey.messages.send({
-  channel: 'EMAIL',
-  recipient: 'customer@example.com',
-  priority: 'HIGH',
-  content: {
-    subject: 'Welcome to our platform!',
-    body: '<h1>Welcome, Alex!</h1><p>We are thrilled to have you onboard.</p>',
-  },
-  category: 'ONBOARDING',
+// 2. Using Explicit Base URL
+const customClient = new Convey({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'https://api.convey.dev',
+  timeoutMs: 10000,
+  maxRetries: 3,
+  rateLimiter: { maxRequestsPerSecond: 100, maxBurst: 20 },
 });
+```
+
+---
+
+## Fluent Message Builder DSL
+
+Construct and dispatch omnichannel messages with an ergonomic, chainable builder:
+
+```typescript
+// Dispatch directly
+const message = await convey
+  .message()
+  .to('customer@example.com')
+  .email({
+    subject: 'Your Order #4892 Confirmation',
+    html: '<h1>Thank you for your order!</h1><p>We are preparing your shipment.</p>',
+  })
+  .priority('HIGH')
+  .team('orders-team')
+  .metadata({ orderId: '4892' })
+  .idempotencyKey('order_4892_conf')
+  .send();
 
 console.log(`Accepted: ${message.publicId} (${message.status})`);
 ```
 
----
-
-## Omnichannel Dispatches
-
-### WhatsApp 24-Hour Free Session Optimization / OTP
+### Channel Shortcuts
 ```typescript
-const whatsapp = await convey.messages.send({
-  channel: 'WHATSAPP',
-  recipient: '+14155552671',
-  priority: 'CRITICAL',
-  content: {
-    body: 'Your Convey verification code is *920-184*. Valid for 5 minutes.',
-    templateId: 'otp_v1',
-    variables: { code: '920184' },
-  },
-  category: 'AUTH',
-});
-```
+// SMS
+await convey.message().sms({ to: '+14155550199', body: 'Your driver is outside.' }).send();
 
-### SMS with Smart GSM Packing
-```typescript
-const sms = await convey.messages.send({
-  channel: 'SMS',
-  recipient: '+14155550199',
-  content: {
-    body: 'Your delivery driver has arrived.',
-  },
-});
-```
+// WhatsApp
+await convey.message().whatsapp({ to: '+14155552671', templateId: 'otp_v1', variables: { code: '123456' } }).send();
 
-### Push Notifications
-```typescript
-const push = await convey.messages.send({
-  channel: 'PUSH',
-  recipient: 'device_token_apns_88f9b2c1...',
-  content: {
-    subject: 'New Order Received',
-    body: 'Order #4892 was just placed.',
-  },
-  metadata: { deepLink: 'app://orders/4892' },
-});
-```
+// Slack
+await convey.message().slack({ channelId: 'C12345', text: '🔥 High error rate alert' }).send();
 
-### Slack Interactive Notification
-```typescript
-const slack = await convey.messages.send({
-  channel: 'SLACK',
-  recipient: 'https://hooks.slack.com/services/T00/B00/XXXX',
-  content: {
-    body: ':warning: *High Error Rate Detected* in `outbox-relay.worker`',
-  },
-});
+// Push
+await convey.message().push({ token: 'apns_tok_...', title: 'New Message', body: 'You received a notification.' }).send();
 ```
 
 ---
 
-## High-Throughput Bulk Dispatch
+## Staged Batch Dispatching
+
+Queue large numbers of messages and dispatch them in parallel chunks with progress callbacks:
 
 ```typescript
-const bulk = await convey.messages.sendBulk([
-  { channel: 'EMAIL', recipient: 'user1@test.com', content: { subject: 'Digest', body: '...' } },
-  { channel: 'EMAIL', recipient: 'user2@test.com', content: { subject: 'Digest', body: '...' } },
-  { channel: 'SMS', recipient: '+14155550001', content: { body: 'Alert' } },
-]);
+const batch = convey.batches.builder(convey.messages);
 
-console.log(`Accepted ${bulk.total} messages into transactional outbox.`);
-```
-
----
-
-## Lifecycle, Timelines & Distributed Traces
-
-```typescript
-const messageId = 'msg_01J9X8K2M4N5P6Q7R8S9T0V1W2';
-
-// 1. Inspect Status
-const status = await convey.messages.get(messageId);
-
-// 2. Chronological Provider Attempt Timeline
-const { timeline } = await convey.messages.getTimeline(messageId);
-for (const step of timeline) {
-  console.log(`[${step.status}] provider=${step.provider} attempts=${step.attemptNumber} at ${step.timestamp}`);
+for (let i = 0; i < 500; i++) {
+  batch.add(
+    convey.message().to(`user_${i}@example.com`).email({ subject: 'Newsletter', body: '...' })
+  );
 }
 
-// 3. W3C Distributed Trace Span Waterfall
-const trace = await convey.messages.getTrace(messageId);
-console.log(`Traceparent: ${trace.traceparent} | Total Duration: ${trace.totalDurationMs}ms`);
-for (const span of trace.spans) {
-  console.log(`  └─ Span [${span.status}] ${span.name} (${span.serviceName}) took ${span.durationMs}ms`);
+const result = await batch.dispatch({
+  chunkSize: 50,
+  concurrency: 4,
+  onProgress: (completed, total) => {
+    console.log(`Dispatched ${completed} / ${total} messages...`);
+  },
+});
+```
+
+---
+
+## Lifecycle Polling & Awaiting Delivery
+
+Wait for asynchronous delivery confirmation or batch campaign completion without writing custom polling loops:
+
+```typescript
+// Wait for single message delivery (DELIVERED, FAILED, SUPPRESSED)
+const delivery = await convey.messages.waitForDelivery('msg_01J9X8K2M4N5P6Q7R8S9T0V1W2', {
+  pollIntervalMs: 500,
+  timeoutMs: 30000,
+  onPoll: (msg) => console.log(`Current status: ${msg.status}`),
+});
+
+console.log(`Final Delivery State: ${delivery.status}`);
+
+// Wait for batch processing to finish
+const batchSummary = await convey.batches.waitForCompletion('batch_01J8K9P2X', {
+  pollIntervalMs: 1000,
+  timeoutMs: 60000,
+});
+```
+
+---
+
+## Middlewares & Interceptors
+
+Attach custom interceptors to inspect or mutate requests, log responses, or handle exceptions:
+
+```typescript
+convey.use({
+  name: 'auth-and-metrics',
+  onRequest: (ctx) => {
+    ctx.headers['x-custom-tenant'] = 'enterprise_acme';
+    return ctx;
+  },
+  onResponse: (ctx) => {
+    console.log(`[HTTP] ${ctx.response.status} took ${ctx.durationMs}ms`);
+    return ctx;
+  },
+  onError: (ctx) => {
+    console.error(`[HTTP ERROR] attempt=${ctx.attempt} err=${ctx.error.message}`);
+  },
+});
+```
+
+---
+
+## Webhook Framework Adapters & Test Fixtures
+
+### Web Standard (Next.js App Router / Hono / Elysia / Cloudflare Workers)
+```typescript
+import { Convey } from '@convey/sdk';
+
+const webhookHandler = Convey.webhooks.createHandler({
+  secret: process.env.CONVEY_WEBHOOK_SECRET!,
+  handlers: {
+    'message.delivered': (event) => {
+      console.log(`Message delivered: ${event.data.messageId}`);
+    },
+    'message.failed': (event) => {
+      console.warn(`Message failed: ${event.data.messageId}`);
+    },
+  },
+});
+
+export async function POST(req: Request) {
+  return webhookHandler.handleRequest(req);
 }
+```
+
+### Express / Fastify
+```typescript
+import express from 'express';
+import { Convey } from '@convey/sdk';
+
+const app = express();
+const handler = Convey.webhooks.createHandler({
+  secret: process.env.CONVEY_WEBHOOK_SECRET!,
+  handlers: {
+    'message.delivered': (event) => console.log(event),
+  },
+});
+
+app.post('/webhooks/convey', express.raw({ type: 'application/json' }), handler.expressHandler());
+```
+
+### Generating Test Fixtures for Unit Tests
+```typescript
+import { Convey } from '@convey/sdk';
+
+const fixture = await Convey.webhooks.generateTestEvent({
+  type: 'message.delivered',
+  data: { messageId: 'msg_test_123', recipient: 'alice@example.com' },
+  secret: 'whsec_test_secret',
+});
+
+// Pass fixture.rawBody and fixture.headers to your test handler
+```
+
+---
+
+## Client Scoping & Dynamic Base URL
+
+```typescript
+// Clone client scoped to a tenant team
+const teamClient = convey.withTeam('finance-dept');
+
+// Clone client with customized options
+const devClient = convey.withOptions({
+  timeoutMs: 30000,
+  maxRetries: 5,
+});
+
+// Mutate base URL dynamically
+convey.setBaseUrl('https://eu.api.convey.dev');
 ```
 
 ---
 
 ## Auto-Pagination Async Iterators (`for await...of`)
 
-Stream through huge datasets without buffering thousands of items into RAM:
+Stream through large datasets without loading everything into memory:
 
 ```typescript
 // Stream suppressions
@@ -167,137 +258,8 @@ for await (const suppression of convey.suppressions.listAutoPaging({ reason: 'SP
   console.log(`Suppression: ${suppression.identifier} (${suppression.reason})`);
 }
 
-// Or accumulate up to 500 items into an array cleanly:
+// Or slice up to 500 items into an array cleanly:
 const list = await convey.suppressions.listAutoPaging().autoPagingToArray(500);
-```
-
----
-
-## Webhook Signature Verification
-
-Convey signs all webhook delivery receipts using HMAC-SHA256.
-
-### Express / Node.js
-```typescript
-import express from 'express';
-import { Convey } from '@convey/sdk';
-
-const app = express();
-const WEBHOOK_SECRET = process.env.CONVEY_WEBHOOK_SECRET!;
-
-app.post('/api/webhooks', express.raw({ type: 'application/json' }), async (req, res) => {
-  const signature = req.headers['x-convey-signature'] as string;
-  const rawBody = req.body.toString('utf8');
-
-  try {
-    const event = await Convey.webhooks.constructEvent(rawBody, signature, WEBHOOK_SECRET, 300);
-
-    if (event.type === 'message.delivered') {
-      console.log(`Delivered message: ${event.data.messageId} via ${event.data.provider}`);
-    }
-
-    res.status(200).json({ received: true });
-  } catch (err) {
-    res.status(401).send('Webhook signature verification failed');
-  }
-});
-```
-
-### Bun / Elysia / Next.js / Cloudflare Workers
-```typescript
-import { Convey } from '@convey/sdk';
-
-export async function POST(req: Request) {
-  const rawBody = await req.text();
-  const signature = req.headers.get('x-convey-signature') || '';
-
-  try {
-    const event = await Convey.webhooks.constructEvent(
-      rawBody,
-      signature,
-      process.env.CONVEY_WEBHOOK_SECRET!
-    );
-    return Response.json({ success: true, eventId: event.id });
-  } catch {
-    return new Response('Invalid Webhook Signature', { status: 401 });
-  }
-}
-```
-
----
-
-## Dead-Letter Queue (DLQ) & Mutated Replay
-
-```typescript
-// 1. List Failed Messages in DLQ
-const dlq = await convey.dlq.list({ team: 'billing_team' });
-
-// 2. Simple Replay (Non-Mutated)
-await convey.dlq.replay({
-  messageIds: dlq.items.map(m => m.publicId),
-});
-
-// 3. Dry-Run Mutated Replay Simulation
-const simulation = await convey.dlq.replayMutated({
-  dryRun: true,
-  filter: {
-    errorCategory: 'RATE_LIMIT_429',
-    timeRange: 'last_24_hours',
-  },
-  replayConfig: {
-    concurrency: 10,
-    backoffJitterMs: 1000,
-  },
-});
-console.log(`Simulation matched: ${simulation.matchedMessagesCount} messages. Risk: ${simulation.simulation?.riskLevel}`);
-```
-
----
-
-## Multi-Dimension Analytics & Reports
-
-```typescript
-// Overview Report
-const overview = await convey.reports.getOverview({
-  startDate: '2026-08-01T00:00:00Z',
-  endDate: '2026-08-24T23:59:59Z',
-});
-console.log(`Delivery Rate: ${overview.summary.deliveryRatePercent}% | Cost: $${overview.summary.totalCostUsd}`);
-
-// Teams Budget Report
-const teams = await convey.reports.getTeams();
-
-// Campaign Performance Funnel
-const campaign = await convey.reports.getCampaignDetails('cmp_welcome_series');
-
-// Export CSV Report
-const csv = await convey.reports.export('campaigns', 'csv', {
-  startDate: '2026-08-01T00:00:00Z',
-});
-```
-
----
-
-## Admin Studio & Live Telemetry
-
-```typescript
-// 1. Real-Time Live Telemetry Snapshot
-const telemetry = await convey.admin.getLiveTelemetry();
-console.log(`Throughput: ${telemetry.throughputRps} rps | p95 Latency: ${telemetry.latency.p95Ms}ms`);
-
-// 2. Dynamic Circuit Breaker Override
-await convey.admin.setCircuitState('sendgrid', 'FORCE_HALF_OPEN', 25);
-
-// 3. Trigger Synthetic Canary Probe
-const canary = await convey.admin.triggerCanary('twilio');
-
-// 4. Register a New Provider Dynamically
-await convey.admin.registerProvider({
-  providerId: 'resend',
-  channel: 'EMAIL',
-  credentials: { RESEND_API_KEY: 're_123' },
-  isPrimary: true,
-});
 ```
 
 ---
@@ -307,6 +269,7 @@ await convey.admin.registerProvider({
 ```typescript
 import {
   ConveyError,
+  ConveyConfigurationError,
   ConveyValidationError,
   ConveyRateLimitError,
   ConveyConflictError,
@@ -318,7 +281,9 @@ import {
 try {
   await convey.messages.send({ ... });
 } catch (err) {
-  if (err instanceof ConveyValidationError) {
+  if (err instanceof ConveyConfigurationError) {
+    console.error('Invalid configuration or missing base URL:', err.message);
+  } else if (err instanceof ConveyValidationError) {
     console.error('Validation failed on request:', err.details);
   } else if (err instanceof ConveyRateLimitError) {
     console.warn(`Rate limited! Retry after ${err.retryAfterSeconds}s`);
@@ -330,27 +295,9 @@ try {
     console.error(`Timeout exceeded (${err.timeoutMs}ms)`);
   } else if (err instanceof ConveyNetworkError) {
     console.error('Network failure:', err.cause);
-  } else if (err instanceof ConveyError) {
-    console.error(`Convey API Error [${err.name}]: ${err.message}`);
   }
 }
 ```
-
----
-
-## Documentation & Guides
-
-- 📖 [Complete API Reference](./docs/API_REFERENCE.md)
-- 🍳 [Enterprise Production Cookbook (Next.js, Elysia, Express, Edge)](./docs/COOKBOOK.md)
-- 🌐 [Language-Agnostic Porting Specification](./docs/PORTING_SPECIFICATION.md) (Python, Go, Rust, Java, PHP, Ruby)
-- 💡 [Runnable TypeScript Examples](./examples/):
-  - [01-quickstart-omnichannel.ts](./examples/01-quickstart-omnichannel.ts)
-  - [02-bulk-and-batches.ts](./examples/02-bulk-and-batches.ts)
-  - [03-webhook-verification-servers.ts](./examples/03-webhook-verification-servers.ts)
-  - [04-auto-pagination-streaming.ts](./examples/04-auto-pagination-streaming.ts)
-  - [05-dlq-inspection-and-mutated-replay.ts](./examples/05-dlq-inspection-and-mutated-replay.ts)
-  - [06-observability-apm-tracing.ts](./examples/06-observability-apm-tracing.ts)
-  - [07-analytics-and-admin-studio.ts](./examples/07-analytics-and-admin-studio.ts)
 
 ---
 

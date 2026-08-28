@@ -97,3 +97,9 @@ class ConveyNetworkError(ConveyError):
 class ConveySecurityError(ConveyError):
     """Raised when cryptographic verification (e.g. webhook HMAC signature) fails."""
     pass
+
+
+class ConveyConfigurationError(ConveyError):
+    """Raised when client initialization or configuration options are invalid or missing."""
+    pass
+

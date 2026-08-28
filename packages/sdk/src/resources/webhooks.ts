@@ -13,6 +13,13 @@ import type {
   RequestOptions,
 } from '../types';
 import { constructWebhookEvent, verifyWebhookSignature } from '../utils/crypto';
+import {
+  createWebhookHandler,
+  type GenerateTestEventOptions,
+  generateTestWebhookEvent,
+  type WebhookHandler,
+  type WebhookHandlerConfig,
+} from '../webhooks-handler';
 
 export class WebhookSubscriptionsResource {
   constructor(private readonly http: HttpClient) {}
@@ -100,5 +107,19 @@ export class WebhooksResource {
     toleranceSeconds = 300,
   ): Promise<ConveyWebhookEvent<T>> {
     return constructWebhookEvent<T>(payload, signature, secret, toleranceSeconds);
+  }
+
+  /**
+   * Create a framework-agnostic webhook receiver and event router (Next.js, Cloudflare, Express, Hono).
+   */
+  createHandler<T = Record<string, unknown>>(config: WebhookHandlerConfig<T>): WebhookHandler<T> {
+    return createWebhookHandler<T>(config);
+  }
+
+  /**
+   * Generate a cryptographically valid mock webhook event and signature header for local unit testing.
+   */
+  async generateTestEvent<T = Record<string, unknown>>(options: GenerateTestEventOptions<T>) {
+    return generateTestWebhookEvent<T>(options);
   }
 }

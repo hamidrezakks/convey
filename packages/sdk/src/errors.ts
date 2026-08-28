@@ -125,3 +125,11 @@ export class ConveySecurityError extends ConveyError {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+export class ConveyConfigurationError extends ConveyError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConveyConfigurationError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}

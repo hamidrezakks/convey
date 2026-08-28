@@ -5,19 +5,20 @@
  * Email, SMS, WhatsApp, Slack, Push (FCM/APNS), Telegram, and Omnichannel Cascade.
  */
 
-import { Convey } from '../src';
+import { Channel, Convey, MessagePriority } from '../src';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY || 'sk_live_sample_key',
+  baseUrl: process.env.CONVEY_BASE_URL || 'https://api.convey.dev',
   teamId: 'marketing-core',
 });
 
 async function main() {
   console.log('--- 1. Transactional Email with HTML & Attachments ---');
   const emailRes = await convey.messages.send({
-    channel: 'EMAIL',
+    channel: Channel.EMAIL,
     recipient: 'alex.doe@example.com',
-    priority: 'HIGH',
+    priority: MessagePriority.HIGH,
     content: {
       subject: 'Your Monthly Invoice #INV-2026-08',
       body: '<p>Hi Alex, your invoice of <strong>$149.00</strong> is ready.</p>',
@@ -32,9 +33,9 @@ async function main() {
 
   console.log('\n--- 2. Urgent Two-Factor SMS with Critical Priority ---');
   const smsRes = await convey.messages.send({
-    channel: 'SMS',
+    channel: Channel.SMS,
     recipient: '+14155552671',
-    priority: 'CRITICAL',
+    priority: MessagePriority.CRITICAL,
     content: {
       body: 'Your Convey verification code is: 489-201. Expires in 5 minutes.',
     },
@@ -44,7 +45,7 @@ async function main() {
 
   console.log('\n--- 3. WhatsApp Message with Dynamic Template Variables ---');
   const waRes = await convey.messages.send({
-    channel: 'WHATSAPP',
+    channel: Channel.WHATSAPP,
     recipient: '+447911123456',
     content: {
       templateId: 'order_status_update_v2',
@@ -59,9 +60,9 @@ async function main() {
 
   console.log('\n--- 4. Slack Incident Alert with Channel ID ---');
   const slackRes = await convey.messages.send({
-    channel: 'SLACK',
+    channel: Channel.SLACK,
     recipient: 'C0123456789', // Target Slack Channel ID
-    priority: 'CRITICAL',
+    priority: MessagePriority.CRITICAL,
     content: {
       body: '🚨 *INCIDENT ALERT*: Database replica lag exceeded 500ms on US-East.',
     },
@@ -70,7 +71,7 @@ async function main() {
 
   console.log('\n--- 5. Mobile Push Notification (FCM / APNS) ---');
   const pushRes = await convey.messages.send({
-    channel: 'PUSH',
+    channel: Channel.PUSH,
     recipient: 'fcm_token_device_device_identifier_abc123',
     content: {
       subject: 'Flash Sale Started! ⚡',
