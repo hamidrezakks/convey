@@ -59,3 +59,16 @@ scratch/
 .system_generated/
 scripts/build-git-history.ts
 build-git-history.ts
+
+# Python & Go
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+env/
+venv/
+
