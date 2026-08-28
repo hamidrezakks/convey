@@ -23,7 +23,7 @@ Before running Convey, ensure your local or staging environment has the followin
   <Tab value="Docker Compose (Fastest)">
 ```bash
 # 1. Clone the repository
-git clone https://github.com/convey/convey.git
+git clone https://github.com/hamidrezakks/convey.git
 cd convey
 
 # 2. Launch PostgreSQL 18, DragonflyDB, Convey API Server, and Mission Control UI
@@ -84,8 +84,77 @@ kubectl apply -f deploy/k8s/convey-hpa.yaml
 
 ## Sending Your First Message
 
-Once the server is running, dispatch a high-priority SMS or Email via `cURL`:
+Once the server is running, dispatch an omnichannel message using your preferred SDK or `cURL`:
 
+<Tabs items={['TypeScript', 'Python', 'Go', 'cURL']}>
+  <Tab value="TypeScript">
+```typescript
+import { Convey } from '@convey/sdk';
+
+const convey = new Convey({ apiKey: 'cv_live_dev_api_key_001' });
+
+const res = await convey.messages.send({
+  channel: 'SMS',
+  recipient: '+14155552671',
+  priority: 'HIGH',
+  content: {
+    body: 'Welcome to Convey! Your high-throughput notification gateway is active.',
+  },
+});
+
+console.log(`Accepted: ${res.publicId}`);
+```
+  </Tab>
+
+  <Tab value="Python">
+```python
+from convey import Convey, Channel, MessagePriority
+
+client = Convey(api_key="cv_live_dev_api_key_001")
+
+res = client.messages.send(
+    channel=Channel.SMS,
+    recipient="+14155552671",
+    priority=MessagePriority.HIGH,
+    content={"body": "Welcome to Convey! Your high-throughput notification gateway is active."},
+)
+
+print(f"Accepted: {res.public_id}")
+```
+  </Tab>
+
+  <Tab value="Go">
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hamidrezakks/convey/packages/sdk-go"
+)
+
+func main() {
+	client := convey.NewClient("cv_live_dev_api_key_001")
+
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
+		Channel:   convey.ChannelSMS,
+		Recipient: "+14155552671",
+		Priority:  convey.PriorityHigh,
+		Content: &convey.MessageContent{
+			Body: "Welcome to Convey! Your high-throughput notification gateway is active.",
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Accepted: %s\n", res.PublicID)
+}
+```
+  </Tab>
+
+  <Tab value="cURL">
 ```bash
 curl -X POST http://localhost:3000/v1/messages/send \
   -H "Authorization: Bearer cv_live_dev_api_key_001" \
@@ -98,13 +167,11 @@ curl -X POST http://localhost:3000/v1/messages/send \
     "priority": "HIGH",
     "content": {
       "body": "Welcome to Convey! Your high-throughput notification gateway is active."
-    },
-    "routing": {
-      "strategy": "SMART_SCORECARD",
-      "fallbackChain": ["vonage", "infobip"]
     }
   }'
 ```
+  </Tab>
+</Tabs>
 
 ### Expected Synchronous Response (`202 Accepted`)
 

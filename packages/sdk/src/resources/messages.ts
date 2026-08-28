@@ -3,25 +3,38 @@
  * Omnichannel message dispatches, bulk pipelines, timeline inspections, and trace waterfalls.
  */
 
+import { MessageBuilder } from '../builder';
 import type { HttpClient } from '../http';
-import type {
-  BulkMessageResponse,
-  BulkSendMessageRequest,
-  MessageAcceptedResponse,
-  MessageDetailDto,
-  MessagePriority,
+import { type WaitForDeliveryOptions, waitForDelivery } from '../polling';
+import {
+  type BulkMessageResponse,
+  type BulkSendMessageRequest,
+  Channel,
+  type MessageAcceptedResponse,
+  type MessageDetailDto,
+  type MessagePriority,
   MessageStatus,
-  MessageTimelineResponse,
-  MessageTraceResponse,
-  RequestOptions,
-  SendMessageRequest,
-  TemplatePreviewRequest,
-  TemplatePreviewResponse,
+  type MessageTimelineResponse,
+  type MessageTraceResponse,
+  type RequestOptions,
+  type SendMessageRequest,
+  type TemplatePreviewRequest,
+  type TemplatePreviewResponse,
 } from '../types';
 import { generateUlid } from '../utils/ulid';
 
 export class MessagesResource {
   constructor(private readonly http: HttpClient) {}
+
+  /**
+   * Initialize a fluent message builder bound to this resource.
+   */
+  builder<TVariables = Record<string, unknown>, TMetadata = Record<string, unknown>>(): MessageBuilder<
+    TVariables,
+    TMetadata
+  > {
+    return new MessageBuilder<TVariables, TMetadata>(this);
+  }
 
   /**
    * Normalize an ergonomic SDK request into the Convey wire schema.
@@ -49,7 +62,7 @@ export class MessagesResource {
       };
     }
 
-    const channelStr = String(request.channel || 'EMAIL').toLowerCase();
+    const channelStr = String(request.channel || Channel.EMAIL).toLowerCase();
     const recipientStr = request.recipient || '';
     const content = request.content || {};
 
@@ -150,10 +163,11 @@ export class MessagesResource {
   }
 
   private formatAcceptedResponse(raw: Record<string, unknown>, isSandbox = false): MessageAcceptedResponse {
-    const id = String(raw.messageId || raw.publicId || '');
-    const state = String(raw.state || raw.status || 'accepted');
-    const status = (state.toUpperCase() as MessageStatus) || 'ACCEPTED';
-    const createdAt = String(raw.createdAt || new Date().toISOString());
+    const data = (raw.body && typeof raw.body === 'object' ? raw.body : raw) as Record<string, unknown>;
+    const id = String(data.messageId || data.publicId || '');
+    const state = String(data.state || data.status || 'accepted');
+    const status = (state.toUpperCase() as MessageStatus) || MessageStatus.ACCEPTED;
+    const createdAt = String(data.createdAt || new Date().toISOString());
 
     return {
       messageId: id,
@@ -162,10 +176,10 @@ export class MessagesResource {
       status,
       createdAt,
       acceptedAt: createdAt,
-      scheduledAt: raw.scheduledAt ? String(raw.scheduledAt) : undefined,
+      scheduledAt: data.scheduledAt ? String(data.scheduledAt) : undefined,
       success: true,
-      isSandbox: typeof raw.isSandbox === 'boolean' ? raw.isSandbox : isSandbox,
-      idempotencyKey: raw.idempotencyKey ? String(raw.idempotencyKey) : undefined,
+      isSandbox: typeof data.isSandbox === 'boolean' ? data.isSandbox : isSandbox,
+      idempotencyKey: data.idempotencyKey ? String(data.idempotencyKey) : undefined,
     };
   }
 
@@ -265,5 +279,12 @@ export class MessagesResource {
       rendered: res.rendered || res.text || res.body || res.html || '',
       missingVariables: res.missingVariables || [],
     };
+  }
+
+  /**
+   * Poll message lifecycle status until terminal delivery (DELIVERED, FAILED, SUPPRESSED) or timeout.
+   */
+  async waitForDelivery(messageId: string, options?: WaitForDeliveryOptions): Promise<MessageDetailDto> {
+    return waitForDelivery(this, messageId, options);
   }
 }

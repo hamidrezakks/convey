@@ -3,13 +3,28 @@
  * Official zero-dependency Node.js, Bun, and Edge SDK for Convey communication service.
  */
 
+// Fluent Builders
+export {
+  BatchBuilder,
+  type BatchDispatchOptions,
+  MessageBuilder,
+} from './builder';
 // Main Client
 export { Convey, ConveyClient } from './client';
+// Environments & URL Resolution
+export {
+  ConveyEnvironment,
+  type ConveyEnvironmentName,
+  normalizeBaseUrl,
+  resolveBaseUrl,
+  resolveEnvironmentUrl,
+} from './environments';
 // Errors
 export {
   ConveyApiError,
   type ConveyApiErrorOptions,
   ConveyAuthenticationError,
+  ConveyConfigurationError,
   ConveyConflictError,
   ConveyError,
   ConveyForbiddenError,
@@ -22,7 +37,38 @@ export {
 } from './errors';
 // HTTP Engine & Pagination
 export { HttpClient } from './http';
+
+// Logging & Telemetry
+export {
+  ConsoleLogger,
+  type ConveyLogger,
+  createLogger,
+  type LogLevel,
+  NoopLogger,
+  sanitizeLogData,
+} from './logger';
+
+// Middleware & Interceptors
+export {
+  type ConveyMiddleware,
+  type ErrorContext,
+  MiddlewareRunner,
+  type RequestContext,
+  type ResponseContext,
+} from './middleware';
 export { AutoPaginator, type PageFetcher, type PageResult } from './pagination';
+// Polling Helpers
+export {
+  type WaitForBatchOptions,
+  type WaitForDeliveryOptions,
+  waitForBatchCompletion,
+  waitForDelivery,
+} from './polling';
+// Rate Limiting
+export {
+  type RateLimiterOptions,
+  TokenBucketRateLimiter,
+} from './rate-limiter';
 export { type AdminListMessagesQuery, type AdminListMessagesResponse, AdminResource } from './resources/admin';
 export { BatchesResource } from './resources/batches';
 export { DlqResource } from './resources/dlq';
@@ -81,6 +127,7 @@ export type {
   ReportingOverviewResponse,
   ReportingQueryParams,
   RequestOptions,
+  RetryPolicy,
   SendMessageRequest,
   SuppressionDto,
   TeamReportDto,
@@ -107,6 +154,7 @@ export {
 export {
   computeHmacSha256Hex,
   constructWebhookEvent,
+  generateTestSignature,
   parseWebhookSignatureHeader,
   timingSafeEqual,
   verifyWebhookSignature,
@@ -114,6 +162,16 @@ export {
 } from './utils/crypto';
 export { createChildTraceparent, generateTraceparent } from './utils/trace';
 export { generateUlid } from './utils/ulid';
+// Webhook Framework Adapters & Test Fixtures
+export {
+  createWebhookHandler,
+  type GenerateTestEventOptions,
+  generateTestWebhookEvent,
+  type WebhookEventHandler,
+  type WebhookEventHandlerMap,
+  type WebhookHandler,
+  type WebhookHandlerConfig,
+} from './webhooks-handler';
 
 // Default export
 import { Convey } from './client';

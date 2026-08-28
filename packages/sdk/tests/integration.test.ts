@@ -16,6 +16,7 @@ describe('SDK Live Integration with Convey Server Routes', () => {
 
   const client = new Convey({
     apiKey: SEEDED_API_KEY_RAW,
+    baseUrl: 'http://localhost:3000',
     isSandbox: true,
     fetch: elysiaFetch as unknown as typeof fetch,
   });

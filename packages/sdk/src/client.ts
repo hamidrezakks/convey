@@ -3,7 +3,9 @@
  * Primary entry point for the Convey communication service.
  */
 
+import type { MessageBuilder } from './builder';
 import { HttpClient } from './http';
+import type { ConveyMiddleware } from './middleware';
 import { AdminResource } from './resources/admin';
 import { BatchesResource } from './resources/batches';
 import { DlqResource } from './resources/dlq';
@@ -17,6 +19,13 @@ import { TemplatesResource } from './resources/templates';
 import { WebhooksResource } from './resources/webhooks';
 import type { ConveyClientOptions, ConveyWebhookEvent } from './types';
 import { constructWebhookEvent, verifyWebhookSignature } from './utils/crypto';
+import {
+  createWebhookHandler,
+  type GenerateTestEventOptions,
+  generateTestWebhookEvent,
+  type WebhookHandler,
+  type WebhookHandlerConfig,
+} from './webhooks-handler';
 
 export class Convey {
   readonly http: HttpClient;
@@ -31,8 +40,10 @@ export class Convey {
   readonly templates: TemplatesResource;
   readonly preferences: PreferencesResource;
   readonly inbox: InboxResource;
+  private readonly rawOptions: ConveyClientOptions;
 
-  constructor(options: ConveyClientOptions) {
+  constructor(options: ConveyClientOptions = {}) {
+    this.rawOptions = { ...options };
     this.http = new HttpClient(options);
     this.messages = new MessagesResource(this.http);
     this.batches = new BatchesResource(this.http);
@@ -48,7 +59,68 @@ export class Convey {
   }
 
   /**
-   * Static cryptographic webhook verification helpers.
+   * Get the current effective base URL.
+   */
+  get baseUrl(): string {
+    return this.http.baseUrl;
+  }
+
+  /**
+   * Helper method to retrieve current base URL.
+   */
+  getBaseUrl(): string {
+    return this.http.baseUrl;
+  }
+
+  /**
+   * Dynamically update the base URL for subsequent client requests.
+   */
+  setBaseUrl(url: string): void {
+    this.http.setBaseUrl(url);
+  }
+
+  /**
+   * Register a middleware interceptor into the client pipeline.
+   */
+  use(middleware: ConveyMiddleware): this {
+    this.http.use(middleware);
+    return this;
+  }
+
+  /**
+   * Create an ergonomic fluent MessageBuilder attached to this client.
+   */
+  message<TVariables = Record<string, unknown>, TMetadata = Record<string, unknown>>(): MessageBuilder<
+    TVariables,
+    TMetadata
+  > {
+    return this.messages.builder<TVariables, TMetadata>();
+  }
+
+  /**
+   * Create a scoped clone of this client with a specific default team ID boundary.
+   */
+  withTeam(teamId: string): Convey {
+    return new Convey({
+      ...this.rawOptions,
+      baseUrl: this.http.baseUrl,
+      teamId,
+    });
+  }
+
+  /**
+   * Create a clone of this client with overridden options.
+   */
+  withOptions(overrides: Partial<ConveyClientOptions>): Convey {
+    return new Convey({
+      ...this.rawOptions,
+      baseUrl: overrides.baseUrl || this.http.baseUrl,
+      ...overrides,
+    });
+  }
+
+  /**
+   * Static cryptographic webhook verification and framework adapter helpers.
    */
   static readonly webhooks = {
     /**
@@ -73,6 +145,20 @@ export class Convey {
       toleranceSeconds = 300,
     ): Promise<ConveyWebhookEvent<T>> {
       return constructWebhookEvent<T>(payload, signature, secret, toleranceSeconds);
+    },
+
+    /**
+     * Create a framework-agnostic webhook receiver and event router (Next.js, Cloudflare, Express, Hono).
+     */
+    createHandler<T = Record<string, unknown>>(config: WebhookHandlerConfig<T>): WebhookHandler<T> {
+      return createWebhookHandler<T>(config);
+    },
+
+    /**
+     * Generate a cryptographically valid mock webhook event and signature header for local unit testing.
+     */
+    generateTestEvent<T = Record<string, unknown>>(options: GenerateTestEventOptions<T>) {
+      return generateTestWebhookEvent<T>(options);
     },
   };
 }

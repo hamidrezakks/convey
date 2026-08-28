@@ -40,10 +40,10 @@ jobs:
         run: bun run typecheck
 
   # --------------------------------------------------------------------------
-  # 2. Automated Test Suite
+  # 2. Server & Monorepo Test Suite
   # --------------------------------------------------------------------------
   test-suite:
-    name: Unit & Integration Tests
+    name: Core Monorepo Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -61,10 +61,10 @@ jobs:
         run: bun test
 
   # --------------------------------------------------------------------------
-  # 3. SDK Build & Artifact Verification
+  # 3. Multi-Language SDK Test Suites (TypeScript, Go, Python)
   # --------------------------------------------------------------------------
-  build-sdk:
-    name: Build & Verify @convey/sdk
+  test-sdks:
+    name: Test SDKs (TypeScript, Go, Python)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -75,13 +75,59 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: packages/sdk-go/go.sum
+
+      - name: Setup Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Monorepo Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test TypeScript SDK (@convey/sdk)
+        run: bun --filter @convey/sdk test
+
+      - name: Test Go SDK (packages/sdk-go)
+        run: cd packages/sdk-go && go test -v -race -cover ./...
+
+      - name: Test Python SDK (packages/sdk-py)
+        run: PYTHONPATH=packages/sdk-py python3 -m unittest discover -s packages/sdk-py/tests -v
+
+      - name: Test Multi-SDK Live E2E Integration with Convey Server
+        run: bun run test:e2e:sdks
+
+  # --------------------------------------------------------------------------
+  # 4. SDK Build & Distribution Verification
+  # --------------------------------------------------------------------------
+  build-sdks:
+    name: Build & Verify SDK Distributions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build SDK Artifacts (ESM, CJS, Types)
+      - name: Build TypeScript SDK Artifacts (ESM, CJS, Types)
         run: bun --filter @convey/sdk build
 
-      - name: Verify Build Artifacts Integrity
+      - name: Verify TypeScript SDK Artifacts Integrity
         run: |
           test -f packages/sdk/dist/index.js || { echo "Missing index.js"; exit 1; }
           test -f packages/sdk/dist/index.cjs || { echo "Missing index.cjs"; exit 1; }
@@ -89,8 +135,16 @@ jobs:
           test -f packages/sdk/dist/index.d.cts || { echo "Missing index.d.cts"; exit 1; }
           echo "All @convey/sdk build artifacts verified!"
 
+      - name: Verify Python SDK Package Build
+        run: |
+          python3 -m pip install --upgrade build hatchling
+          cd packages/sdk-py
+          python3 -m build
+          test -d dist || { echo "Missing Python dist directory"; exit 1; }
+          echo "Python wheel and sdist verified!"
+
   # --------------------------------------------------------------------------
-  # 4. Web Console & Documentation Build Verification
+  # 5. Web Console & Documentation Build Verification
   # --------------------------------------------------------------------------
   build-apps:
     name: Build Web Console & Website
@@ -114,7 +168,7 @@ jobs:
         run: bun --filter @convey/website build
 
   # --------------------------------------------------------------------------
-  # 5. Docker Build Verification
+  # 6. Docker Build Verification
   # --------------------------------------------------------------------------
   docker-validate:
     name: Validate Docker Build Targets

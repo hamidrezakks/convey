@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "High-performance, resilient multi-tenant communication service monorepo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamidrezakks/convey.git"
+  },
+  "homepage": "https://github.com/hamidrezakks/convey#readme",
+  "bugs": {
+    "url": "https://github.com/hamidrezakks/convey/issues"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -22,6 +30,10 @@
     "test:plugins": "bun --filter @convey/plugins test",
     "test:web": "bun --filter @convey/web test",
     "test:sdk": "bun --filter @convey/sdk test",
+    "test:go": "cd packages/sdk-go && go test -v -race ./...",
+    "test:py": "PYTHONPATH=packages/sdk-py python3 -m unittest discover -s packages/sdk-py/tests -v",
+    "test:sdks": "bun run --filter @convey/sdk test && bun run test:go && bun run test:py",
+    "test:e2e:sdks": "bun run scripts/run-e2e-sdks.ts",
     "test:all": "bun test",
     "test:e2e": "bun --filter @convey/server test:e2e",
     "test:bench": "bun --filter @convey/server test:bench",

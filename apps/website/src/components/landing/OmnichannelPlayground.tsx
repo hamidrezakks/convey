@@ -94,27 +94,25 @@ console.log(\`Accepted: \${response.publicId} (\${response.status})\`);`;
     }
 
     if (lang === 'python') {
-      return `import asyncio
-from convey import AsyncConveyClient, MessagePriority
+      return `import os
+from convey import Convey, Channel, MessagePriority
 
-async def send_msg():
-    async with AsyncConveyClient(api_key="cv_live_...") as client:
-        res = await client.messages.send(
-            channel="${channel}",
-            recipient="${recipient}",
-            priority=MessagePriority.${priority},
-            idempotency_key="ord_99218_dispatch",
-            content={
-                ${channel === 'email' ? `"subject": "${subject}",\n                ` : ''}"body": "${body}"
-            },
-            routing={
-                "strategy": "${strategy}",
-                "fallback_chain": ["vonage", "infobip"]
-            }
-        )
-        print(f"Accepted: {res.public_id} latency={res.latency_ms}ms")
+client = Convey(
+    api_key=os.environ.get("CONVEY_API_KEY", "cv_live_..."),
+    base_url="https://api.convey.internal",
+)
 
-asyncio.run(send_msg())`;
+response = client.messages.send(
+    channel=Channel.${channel.toUpperCase()},
+    recipient="${recipient}",
+    priority=MessagePriority.${priority},
+    idempotency_key="ord_99218_dispatch",
+    content={
+        ${channel === 'email' ? `"subject": "${subject}",\n        ` : ''}"body": "${body}",
+    },
+)
+
+print(f"Accepted: {response.public_id} (Status: {response.status})")`;
     }
 
     if (lang === 'go') {
@@ -123,26 +121,30 @@ asyncio.run(send_msg())`;
 import (
     "context"
     "fmt"
-    "github.com/convey/convey-go/convey"
+    "os"
+
+    "github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
-    client := convey.NewClient("cv_live_...")
-    ctx := context.Background()
+    client := convey.NewClient(os.Getenv("CONVEY_API_KEY"),
+        convey.WithBaseURL("https://api.convey.internal"),
+    )
 
-    msg, err := client.Messages.Send(ctx, &convey.SendMessageRequest{
+    res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
         Channel:        convey.Channel${channel.toUpperCase()},
         Recipient:      "${recipient}",
-        Priority:       convey.Priority${priority},
+        Priority:       convey.Priority${priority === 'CRITICAL' ? 'Critical' : priority === 'HIGH' ? 'High' : 'Normal'},
         IdempotencyKey: "ord_99218_dispatch",
-        Content: convey.MessageContent{
+        Content: &convey.MessageContent{
             ${channel === 'email' ? `Subject: "${subject}",\n            ` : ''}Body: "${body}",
         },
     })
     if err != nil {
         panic(err)
     }
-    fmt.Printf("Accepted %s (Latency: %dms)\\n", msg.PublicID, msg.LatencyMs)
+
+    fmt.Printf("Accepted: %s (Status: %s)\\n", res.PublicID, res.Status)
 }`;
     }
 

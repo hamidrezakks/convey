@@ -28,7 +28,11 @@ describe('SDK Resource Modules Unit Tests', () => {
       });
     };
 
-    return new Convey({ apiKey: 'sk_live_test', fetch: mockFetch as unknown as typeof fetch });
+    return new Convey({
+      apiKey: 'sk_live_test',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
   }
 
   // --- Messages Resource ---

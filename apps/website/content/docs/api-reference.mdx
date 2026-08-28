@@ -120,9 +120,13 @@ curl -X POST http://localhost:3000/v1/messages/send \
   </Tab>
   <Tab value="TypeScript">
 ```typescript
-import { Convey } from '@convey/sdk';
+import { Convey, ConveyEnvironment } from '@convey/sdk';
 
-const convey = new Convey({ apiKey: 'sk_live_demo_key' });
+const convey = new Convey({
+  apiKey: 'sk_live_demo_key',
+  environment: ConveyEnvironment.PRODUCTION,
+});
+
 const res = await convey.messages.send({
   channel: 'SMS',
   recipient: '+14155552671',
@@ -133,20 +137,20 @@ const res = await convey.messages.send({
   </Tab>
   <Tab value="Python">
 ```python
-import asyncio
-from convey import ConveyClient
+from convey import Convey, ConveyEnvironment
 
-async def main():
-    convey = ConveyClient(api_key="cv_live_demo_key")
-    res = await convey.messages.send(
-        channel="sms",
-        recipient="+14155552671",
-        priority="HIGH",
-        content={"body": "Your code is 849201."}
-    )
-    print(res.public_id)
+client = Convey(
+    api_key="cv_live_demo_key",
+    environment=ConveyEnvironment.PRODUCTION,
+)
 
-asyncio.run(main())
+res = client.messages.send(
+    channel="SMS",
+    recipient="+14155552671",
+    priority="HIGH",
+    content={"body": "Your code is 849201."},
+)
+print(res.public_id)
 ```
   </Tab>
   <Tab value="Go">
@@ -156,16 +160,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/convey/go-convey/convey"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
-	client := convey.NewClient("cv_live_demo_key")
-	res, err := client.Messages.Send(context.Background(), &convey.SendParams{
-		Channel:   "sms",
+	client := convey.NewClient("cv_live_demo_key", convey.WithEnvironment(convey.EnvProduction))
+
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
+		Channel:   convey.ChannelSMS,
 		Recipient: "+14155552671",
-		Priority:  "HIGH",
-		Content:   convey.Content{Body: "Your code is 849201."},
+		Priority:  convey.PriorityHigh,
+		Content:   &convey.MessageContent{Body: "Your code is 849201."},
 	})
 	if err != nil {
 		panic(err)

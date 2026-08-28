@@ -23,7 +23,11 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_12345', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_12345',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     const result = await client.messages.send({
       channel: Channel.EMAIL,
       recipient: 'user@test.com',
@@ -55,7 +59,12 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', maxRetries: 2, fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      maxRetries: 2,
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     const res = await client.messages.send({
       channel: Channel.SMS,
       recipient: '+14155550000',
@@ -82,7 +91,12 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', maxRetries: 3, fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      maxRetries: 3,
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     const res = await client.batches.create({ totalCount: 100 });
 
     expect(attempts).toBe(3);
@@ -106,7 +120,12 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       );
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', maxRetries: 3, fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      maxRetries: 3,
+      fetch: mockFetch as unknown as typeof fetch,
+    });
 
     let thrownError: unknown;
     try {
@@ -134,7 +153,11 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_bad', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_bad',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     expect(
       client.messages.send({
         channel: Channel.EMAIL,
@@ -152,7 +175,11 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       );
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     expect(
       client.messages.send({
         channel: Channel.EMAIL,
@@ -171,7 +198,12 @@ describe('HTTP Engine & Deterministic Resilience', () => {
       });
     };
 
-    const client = new Convey({ apiKey: 'sk_live_123', maxRetries: 1, fetch: mockFetch as unknown as typeof fetch });
+    const client = new Convey({
+      apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
+      maxRetries: 1,
+      fetch: mockFetch as unknown as typeof fetch,
+    });
     let error: ConveyRateLimitError | undefined;
     try {
       await client.messages.send({
@@ -207,6 +239,7 @@ describe('HTTP Engine & Deterministic Resilience', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_123',
+      baseUrl: 'http://localhost:3000',
       timeoutMs: 10,
       maxRetries: 0,
       fetch: mockFetch as unknown as typeof fetch,

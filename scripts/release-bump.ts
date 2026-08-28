@@ -249,6 +249,42 @@ function updatePackageJson(filePath: string, newVersion: string, dryRun: boolean
   }
 }
 
+function updatePyprojectToml(filePath: string, newVersion: string, dryRun: boolean) {
+  if (!existsSync(filePath)) return;
+  const content = readFileSync(filePath, 'utf8');
+  const updated = content.replace(/^version = ".*?"/m, `version = "${newVersion}"`);
+  if (!dryRun) {
+    writeFileSync(filePath, updated);
+  }
+}
+
+function updatePythonInit(filePath: string, newVersion: string, dryRun: boolean) {
+  if (!existsSync(filePath)) return;
+  const content = readFileSync(filePath, 'utf8');
+  const updated = content.replace(/^__version__ = ".*?"/m, `__version__ = "${newVersion}"`);
+  if (!dryRun) {
+    writeFileSync(filePath, updated);
+  }
+}
+
+function updatePythonHttp(filePath: string, newVersion: string, dryRun: boolean) {
+  if (!existsSync(filePath)) return;
+  const content = readFileSync(filePath, 'utf8');
+  const updated = content.replace(/^SDK_VERSION = ".*?"/m, `SDK_VERSION = "${newVersion}"`);
+  if (!dryRun) {
+    writeFileSync(filePath, updated);
+  }
+}
+
+function updateGoSdkVersion(filePath: string, newVersion: string, dryRun: boolean) {
+  if (!existsSync(filePath)) return;
+  const content = readFileSync(filePath, 'utf8');
+  const updated = content.replace(/sdkVersion = ".*?"/m, `sdkVersion = "${newVersion}"`);
+  if (!dryRun) {
+    writeFileSync(filePath, updated);
+  }
+}
+
 function appendToChangelogFile(changelogContent: string, dryRun: boolean) {
   const changelogPath = resolve(rootDir, 'CHANGELOG.md');
   let existing = '';
@@ -359,6 +395,14 @@ async function main() {
       for (const pkgPath of packagesToUpdate) {
         updatePackageJson(pkgPath, nextVersion, false);
       }
+
+      // Update Python SDK version metadata
+      updatePyprojectToml(resolve(rootDir, 'packages/sdk-py/pyproject.toml'), nextVersion, false);
+      updatePythonInit(resolve(rootDir, 'packages/sdk-py/convey/__init__.py'), nextVersion, false);
+      updatePythonHttp(resolve(rootDir, 'packages/sdk-py/convey/http.py'), nextVersion, false);
+
+      // Update Go SDK version metadata
+      updateGoSdkVersion(resolve(rootDir, 'packages/sdk-go/client_options.go'), nextVersion, false);
 
       console.log('📄 Updating CHANGELOG.md...');
       appendToChangelogFile(changelogBody, false);

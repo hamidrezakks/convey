@@ -29,6 +29,7 @@ if (!process.env.CONVEY_API_KEY) {
 
 export const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY,
+  environment: 'production',
   teamId: process.env.CONVEY_TEAM_ID || 'web-app',
   timeoutMs: 8000,
 });
@@ -241,6 +242,7 @@ export default {
     // Initializing Convey on the Edge (Zero Dependencies)
     const convey = new Convey({
       apiKey: env.CONVEY_API_KEY,
+      baseUrl: env.CONVEY_BASE_URL || 'https://api.convey.dev',
     });
 
     if (request.method === 'POST' && url.pathname === '/dispatch-alert') {
@@ -287,6 +289,7 @@ import { Convey } from '@convey/sdk';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
+  environment: 'production',
 });
 
 export async function handler() {
@@ -334,6 +337,7 @@ import {
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
+  environment: 'production',
   maxRetries: 4, // 4 exponential backoff attempts on 429 and transient 5xx
 });
 
@@ -382,6 +386,7 @@ import { Convey } from '@convey/sdk';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
+  environment: 'production',
 });
 
 export async function sendTracedEmail(recipient: string, subject: string, body: string) {

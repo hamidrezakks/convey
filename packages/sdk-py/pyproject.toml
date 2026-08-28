@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "convey-sdk"
+version = "1.0.0"
+description = "Official zero-dependency, high-performance Python SDK for Convey communication service"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Convey Team", email = "engineering@convey.dev" }
+]
+keywords = [
+    "convey",
+    "sdk",
+    "communication",
+    "email",
+    "sms",
+    "whatsapp",
+    "push",
+    "slack",
+    "messaging",
+    "resilience",
+    "idempotency"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/hamidrezakks/convey"
+Repository = "https://github.com/hamidrezakks/convey"
+Issues = "https://github.com/hamidrezakks/convey/issues"
+Documentation = "https://github.com/hamidrezakks/convey/tree/main/packages/sdk-py#readme"
+
+[tool.hatch.build.targets.wheel]
+packages = ["convey"]

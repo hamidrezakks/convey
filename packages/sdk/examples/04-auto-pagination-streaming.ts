@@ -5,10 +5,11 @@
  * unbounded datasets without memory exhaustion or high GC pause times.
  */
 
-import { Convey } from '../src';
+import { Convey, SuppressionReason } from '../src';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY || 'sk_live_sample_key',
+  baseUrl: process.env.CONVEY_BASE_URL || 'https://api.convey.dev',
   teamId: 'compliance',
 });
 
@@ -26,8 +27,8 @@ async function main() {
   for await (const entry of suppressionStream) {
     processedCount++;
 
-    if (entry.reason === 'HARD_BOUNCE') {
-      hardBounces.push(entry.recipient);
+    if (entry.reason === SuppressionReason.HARD_BOUNCE) {
+      hardBounces.push(entry.identifier);
     }
 
     if (processedCount % 500 === 0) {
@@ -59,9 +60,9 @@ async function main() {
   let poisonPills = 0;
 
   for await (const failedMsg of dlqStream) {
-    if (failedMsg.failureCategory === 'PERMANENT') {
+    if (failedMsg.status === 'FAILED') {
       poisonPills++;
-      console.log(`Poison pill message in DLQ: ${failedMsg.messageId} (Error: ${failedMsg.errorReason})`);
+      console.log(`Failed message in DLQ: ${failedMsg.publicId} (Recipient: ${failedMsg.recipient})`);
     }
   }
   console.log(`Total poison pills found in DLQ: ${poisonPills}`);

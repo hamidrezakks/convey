@@ -3,6 +3,8 @@
  * Comprehensive domain types, request payloads, response DTOs, and client options.
  */
 
+import type { ConveyMiddleware } from './middleware';
+
 // ==========================================
 // 1. Core Domain Enums
 // ==========================================
@@ -76,21 +78,81 @@ export enum BatchState {
   CANCELLED = 'CANCELLED',
 }
 
+export type ChannelType = Channel | `${Channel}` | Lowercase<`${Channel}`>;
+export type MessagePriorityType = MessagePriority | `${MessagePriority}` | Lowercase<`${MessagePriority}`>;
+export type MessageStatusType = MessageStatus | `${MessageStatus}` | Lowercase<`${MessageStatus}`>;
+export type SuppressionReasonType = SuppressionReason | `${SuppressionReason}` | Lowercase<`${SuppressionReason}`>;
+export type CircuitStateType = CircuitState | `${CircuitState}` | Lowercase<`${CircuitState}`>;
+export type BatchStateType = BatchState | `${BatchState}` | Lowercase<`${BatchState}`>;
+
 // ==========================================
-// 2. Client Configuration & Request Options
-// ==========================================
+export interface RetryPolicy {
+  /**
+   * Maximum retry attempts for rate-limited (429) or transient server errors (5xx).
+   * @default 3
+   */
+  maxRetries?: number;
+
+  /**
+   * Initial backoff delay in milliseconds.
+   * @default 100
+   */
+  initialBackoffMs?: number;
+
+  /**
+   * Maximum backoff delay in milliseconds.
+   * @default 10000
+   */
+  maxBackoffMs?: number;
+
+  /**
+   * Backoff rate progression strategy.
+   * @default 'exponential'
+   */
+  strategy?: 'exponential' | 'linear' | 'fixed';
+
+  /**
+   * Jitter randomization scheme to prevent thundering herd.
+   * @default 'full'
+   */
+  jitter?: 'full' | 'equal' | 'none';
+
+  /**
+   * Custom filter determining whether a specific error should be retried.
+   */
+  shouldRetry?: (error: Error, attempt: number) => boolean;
+}
 
 export interface ConveyClientOptions {
   /**
-   * Convey API Key (e.g. `sk_live_...` or `sk_test_...`)
+   * Convey API Key (e.g. `sk_live_...` or `sk_test_...`).
+   * Optional if `process.env.CONVEY_API_KEY` is set.
    */
-  apiKey: string;
+  apiKey?: string;
 
   /**
    * Base URL for the Convey API.
-   * @default 'http://localhost:3000' (or process.env.CONVEY_BASE_URL)
+   * MANDATORY unless `environment` preset or `CONVEY_BASE_URL` env var is specified.
    */
   baseUrl?: string;
+
+  /**
+   * Environment preset identifier (e.g. `PRODUCTION`, `US`, `EU`, `STAGING`, `LOCAL`, `SANDBOX`).
+   */
+  environment?:
+    | 'production'
+    | 'staging'
+    | 'eu'
+    | 'us'
+    | 'local'
+    | 'sandbox'
+    | 'PRODUCTION'
+    | 'STAGING'
+    | 'EU'
+    | 'US'
+    | 'LOCAL'
+    | 'SANDBOX'
+    | string;
 
   /**
    * Request timeout in milliseconds.
@@ -103,6 +165,37 @@ export interface ConveyClientOptions {
    * @default 3
    */
   maxRetries?: number;
+
+  /**
+   * Advanced retry policy configuration.
+   */
+  retryPolicy?: RetryPolicy;
+
+  /**
+   * Client-side rate smoother configuration (Token Bucket).
+   */
+  rateLimiter?: { maxRequestsPerSecond: number; maxBurst?: number } | boolean;
+
+  /**
+   * Pluggable structured logger.
+   */
+  logger?: {
+    debug: (message: string, meta?: Record<string, unknown>) => void;
+    info: (message: string, meta?: Record<string, unknown>) => void;
+    warn: (message: string, meta?: Record<string, unknown>) => void;
+    error: (message: string, meta?: Record<string, unknown>) => void;
+  };
+
+  /**
+   * Logging verbosity level.
+   * @default 'silent'
+   */
+  logLevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug';
+
+  /**
+   * Middleware / Interceptor chain.
+   */
+  middlewares?: ConveyMiddleware[];
 
   /**
    * When true, requests are routed to the simulated sandbox engine.
@@ -127,6 +220,11 @@ export interface ConveyClientOptions {
 }
 
 export interface RequestOptions {
+  /**
+   * Per-request custom base URL override.
+   */
+  baseUrl?: string;
+
   /**
    * Custom timeout for this specific request in milliseconds.
    */
@@ -201,9 +299,9 @@ export interface MessageContent<TVariables = Record<string, unknown>> {
 }
 
 export interface SendMessageRequest<TVariables = Record<string, unknown>, TMetadata = Record<string, unknown>> {
-  channel?: Channel;
+  channel?: ChannelType;
   recipient?: string;
-  priority?: MessagePriority;
+  priority?: MessagePriorityType;
   content?: MessageContent<TVariables>;
   category?: string;
   campaignId?: string;
@@ -241,9 +339,9 @@ export interface MessageAcceptedResponse {
   acceptedAt: string;
   scheduledAt?: string;
   success?: boolean;
-  channel?: Channel;
+  channel?: ChannelType;
   recipient?: string;
-  priority?: MessagePriority;
+  priority?: MessagePriorityType;
   isSandbox?: boolean;
   idempotencyKey?: string;
 }
@@ -279,6 +377,7 @@ export interface MessageAttemptDto {
 
 export interface MessageDetailDto {
   publicId: string;
+  messageId?: string;
   teamId: string;
   channel: Channel;
   recipient: string;
@@ -286,6 +385,9 @@ export interface MessageDetailDto {
   status: MessageStatus;
   isSandbox?: boolean;
   providerId?: string;
+  failureCategory?: string;
+  errorReason?: string;
+  retryCount?: number;
   latencyMs?: number;
   costUsd?: number;
   createdAt: string;
@@ -368,11 +470,13 @@ export interface CreateBatchRequest {
 
 export interface BatchDto {
   id: string;
+  batchId?: string;
   tenantId: string;
   team: string;
   totalCount: number;
   processedCount: number;
   state: BatchState;
+  status?: BatchState;
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -391,6 +495,10 @@ export interface ListBatchesResponse {
 export interface BatchActionResponse {
   success: boolean;
   batch: BatchDto;
+  batchId?: string;
+  status?: BatchState;
+  processedCount?: number;
+  totalCount?: number;
 }
 
 // ==========================================
@@ -398,12 +506,13 @@ export interface BatchActionResponse {
 // ==========================================
 
 export interface AddSuppressionRequest {
-  identifier: string;
+  identifier?: string;
+  recipient?: string;
   identifierType?: 'email' | 'phone' | 'whatsapp' | 'push' | 'user_id' | string;
-  reason: SuppressionReason;
+  reason: SuppressionReasonType;
   category?: string;
   country?: string;
-  channel?: Channel;
+  channel?: ChannelType;
   startsAt?: string | Date;
   endsAt?: string | Date;
 }
@@ -416,6 +525,7 @@ export interface SuppressionDto {
   id: string;
   teamId: string;
   identifier: string;
+  recipient?: string;
   identifierType?: string;
   reason: SuppressionReason;
   category?: string;
@@ -488,9 +598,11 @@ export interface ConveyWebhookEvent<TData = Record<string, unknown>> {
     | 'message.suppressed'
     | 'ping.test'
     | string;
-  timestamp: string;
-  tenantId: string;
-  team: string;
+  timestamp?: string;
+  createdAt?: string;
+  tenantId?: string;
+  team?: string;
+  teamId?: string;
   data: TData;
 }
 
@@ -521,6 +633,7 @@ export interface DlqReplayResult {
 }
 
 export interface DlqMutatedReplayRequest {
+  messageIds?: string[];
   dryRun?: boolean;
   category?: DlqFailureCategory;
   filter?: {
@@ -539,6 +652,8 @@ export interface DlqMutatedReplayResult {
   dryRun: boolean;
   matchedMessagesCount: number;
   replayedCount?: number;
+  failedCount?: number;
+  messages?: string[];
   simulation?: {
     estimatedSuccessRatePercent: number;
     estimatedApiCostUsd: number;
@@ -581,6 +696,7 @@ export interface ReportingMetrics {
 export interface ReportingQueryParams {
   startDate?: string;
   endDate?: string;
+  range?: string;
   teamId?: string;
   category?: string;
   campaignId?: string;
@@ -603,6 +719,9 @@ export interface ReportingOverviewResponse {
     totalCostUsd: number;
     activeTeamsCount?: number;
     activeCampaignsCount?: number;
+    deliveryRate?: number;
+    totalBounced?: number;
+    avgLatencyMs?: number;
   };
   channelBreakdown: Array<{
     channel: Channel;
@@ -737,6 +856,8 @@ export interface LiveTelemetrySnapshot {
     customerWebhookDepth: number;
     activeWorkersCount: number;
     autoscalerTargetConcurrency: number;
+    outboxBacklog?: number;
+    providerQueues?: Record<string, { waiting: number; active: number; failed: number }>;
   };
   runtimeGuard: {
     v8HeapUsedMb: number;
@@ -745,6 +866,8 @@ export interface LiveTelemetrySnapshot {
     heapGuardThresholdPercent: number;
     eventLoopLagMs: number;
     loadSheddingActive: boolean;
+    heapUsedMb?: number;
+    heapTotalMb?: number;
   };
   subsystems: {
     postgresPool: {

@@ -2,6 +2,11 @@
   "name": "@convey/server",
   "version": "1.0.0",
   "description": "High-performance, resilient multi-tenant communication service backend",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamidrezakks/convey.git",
+    "directory": "apps/server"
+  },
   "main": "src/index.ts",
   "type": "module",
   "scripts": {

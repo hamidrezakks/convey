@@ -24,7 +24,7 @@ export default function RootDocsLayout({ children }: { children: ReactNode }) {
         { text: 'Home', url: '/' },
         { text: 'Mission Control', url: 'http://localhost:5173', external: true },
         { text: 'OpenAPI Spec', url: 'http://localhost:3000/swagger', external: true },
-        { text: 'GitHub', url: 'https://github.com/convey/convey', external: true },
+        { text: 'GitHub', url: 'https://github.com/hamidrezakks/convey', external: true },
       ]}
     >
       {children}

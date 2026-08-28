@@ -135,7 +135,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="https://github.com/convey/convey"
+                  href="https://github.com/hamidrezakks/convey"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"

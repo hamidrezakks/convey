@@ -151,22 +151,22 @@ const response = await convey.messages.send({
 console.log('✅ Dispatched message ID:', response.messageId);`;
 
         case 'python':
-          return `from convey import ConveyClient
-import os
+          return `import os
+from convey import Convey, Channel, MessagePriority
 
-client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+client = Convey(api_key=os.environ["CONVEY_API_KEY"])
 
 response = client.messages.send(
-    channel="${channelKey}",
+    channel=Channel.${channelKey},
     recipient="${recipient}",
     content={
         ${subject ? `"subject": "${subject.replace(/"/g, '\\"')}",\n        ` : ''}"body": """${body}""",
         "variables": ${JSON.stringify(parsedVariables, null, 4).replace(/\n/g, '\n        ')}
     },
-    priority="HIGH"
+    priority=MessagePriority.HIGH
 )
 
-print(f"✅ Dispatched message ID: {response.message_id}")`;
+print(f"✅ Dispatched message ID: {response.public_id} ({response.status})")`;
 
         case 'go':
           return `package main
@@ -176,25 +176,25 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/convey/convey-go"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
 	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
 
-	res, err := client.Messages.Send(context.Background(), convey.SendMessageParams{
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
 		Channel:   convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
 		Recipient: "${recipient}",
-		Content: convey.MessageContent{
+		Content: &convey.MessageContent{
 			${subject ? `Subject: "${subject.replace(/"/g, '\\"')}",\n			` : ''}Body: "${body.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",
 		},
-		Priority: "HIGH",
+		Priority: convey.PriorityHigh,
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("✅ Message ID:", res.MessageID)
+	fmt.Println("✅ Message ID:", res.PublicID)
 }`;
       }
     }
@@ -227,9 +227,9 @@ func main() {
   }'`;
 
         case 'typescript':
-          return `import { ConveyClient } from '@convey/sdk';
+          return `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({
+const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
 });
 
@@ -256,10 +256,10 @@ const batchResponse = await convey.messages.sendBulk([
 console.log(\`✅ Dispatched \${batchResponse.total} messages across worker pool\`);`;
 
         case 'python':
-          return `from convey import ConveyClient
-import os
+          return `import os
+from convey import Convey, Channel
 
-client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+client = Convey(api_key=os.environ["CONVEY_API_KEY"])
 
 batch = client.messages.send_bulk([
     {
@@ -290,20 +290,18 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/convey/convey-go"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
 	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
 
-	batch, err := client.Messages.SendBulk(context.Background(), convey.BulkSendMessageParams{
-		Messages: []convey.SendMessageParams{
-			{
-				Channel:   convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
-				Recipient: "${recipient}",
-				Content: convey.MessageContent{
-					${subject ? `Subject: "${subject.replace(/"/g, '\\"')}",\n					` : ''}Body: "${body.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",
-				},
+	batch, err := client.Messages.SendBulk(context.Background(), []convey.SendMessageRequest{
+		{
+			Channel:   convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+			Recipient: "${recipient}",
+			Content: &convey.MessageContent{
+				${subject ? `Subject: "${subject.replace(/"/g, '\\"')}",\n				` : ''}Body: "${body.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",
 			},
 		},
 	})
@@ -350,9 +348,9 @@ func main() {
   }'`;
 
       case 'typescript':
-        return `import { ConveyClient } from '@convey/sdk';
+        return `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({
+const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
 });
 
@@ -384,22 +382,22 @@ const response = await convey.messages.send({
   ],
 });
 
-console.log('✅ Omnichannel cascade initiated:', response.messageId);`;
+console.log('✅ Omnichannel cascade initiated:', response.publicId);`;
 
       case 'python':
-        return `from convey import ConveyClient
-import os
+        return `import os
+from convey import Convey, MessagePriority
 
-client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+client = Convey(api_key=os.environ["CONVEY_API_KEY"])
 
-response = client.messages.send(
-    cascade=True,
-    priority="CRITICAL",
-    recipients={
+response = client.messages.send({
+    "cascade": True,
+    "priority": MessagePriority.CRITICAL,
+    "recipients": {
         "phone": "${recipient}",
         "email": "alex.rivera@enterprise.corp"
     },
-    channels=[
+    "channels": [
         {
             "channel": "${channelKey}",
             "content": {
@@ -412,9 +410,9 @@ response = client.messages.send(
             "fallback_trigger": {"condition": "UNREAD_OR_FAILED", "timeout_seconds": 180}
         }
     ]
-)
+})
 
-print(f"✅ Cascade initiated: {response.message_id}")`;
+print(f"✅ Cascade initiated: {response.public_id}")`;
 
       case 'go':
         return `package main
@@ -424,30 +422,24 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/convey/convey-go"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
 	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
 
-	res, err := client.Messages.Send(context.Background(), convey.SendMessageParams{
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
 		Cascade:  true,
-		Priority: "CRITICAL",
-		Recipients: map[string]string{
+		Priority: convey.PriorityCritical,
+		Recipients: map[string]interface{}{
 			"phone": "${recipient}",
 			"email": "alex.rivera@enterprise.corp",
 		},
-		Channels: []convey.ChannelPayload{
+		Channels: []map[string]interface{}{
 			{
-				Channel: convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
-				Content: convey.MessageContent{Body: "${body.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"},
-			},
-			{
-				Channel: convey.Channel${fallbackChannel === 'EMAIL' ? 'Email' : 'SMS'},
-				Content: convey.MessageContent{Body: "Urgent notification follow-up"},
-				FallbackTrigger: &convey.FallbackConfig{
-					Condition:      "UNREAD_OR_FAILED",
-					TimeoutSeconds: 180,
+				"channel": "${channelKey}",
+				"content": map[string]interface{}{
+					${subject ? `"subject": "${subject.replace(/"/g, '\\"')}",\n					` : ''}"body": "${body.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",
 				},
 			},
 		},
@@ -456,7 +448,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("✅ Cascade initialized:", res.MessageID)
+	fmt.Println("✅ Cascade initiated:", res.PublicID)
 }`;
     }
   };
@@ -953,7 +945,7 @@ func main() {
                     : snippetLang === 'python'
                       ? 'pip install convey-sdk'
                       : snippetLang === 'go'
-                        ? 'go get github.com/convey/convey-go'
+                        ? 'go get github.com/hamidrezakks/convey/packages/sdk-go'
                         : 'curl --version'}
                 </code>
               </div>

@@ -231,16 +231,17 @@ export enum TenantTier {
 
 export const EmailChannelContentSchema = z.object({
   subject: z.string(),
-  html: z.string().optional(),
-  text: z.string().optional(),
+  html: z.string().optional().nullable(),
+  text: z.string().optional().nullable(),
   render: z
     .object({
       template: z.string(),
-      version: z.string().optional(),
-      locale: z.string().optional(),
-      props: z.record(z.string(), z.unknown()).optional(),
+      version: z.string().optional().nullable(),
+      locale: z.string().optional().nullable(),
+      props: z.record(z.string(), z.unknown()).optional().nullable(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
 });
 
 export const EmailChannelRequestSchema = z.object({
@@ -472,17 +473,17 @@ export const SendMessageRequestSchema = z.object({
   team: z.string().min(1),
   category: z.string().min(1),
   country: z.string().length(2),
-  campaignId: z.string().optional(),
+  campaignId: z.string().optional().nullable(),
   priority: z.nativeEnum(MessagePriority).default(MessagePriority.NORMAL),
-  scheduledAt: z.string().datetime().optional(),
-  expiresAt: z.string().datetime().optional(),
+  scheduledAt: z.string().datetime().optional().nullable(),
+  expiresAt: z.string().datetime().optional().nullable(),
   recipients: RecipientSchema,
   channels: z.array(ChannelRequestSchema).min(1),
-  template: TemplateSpecSchema.optional(),
-  variables: z.record(z.string(), z.unknown()).optional(),
-  fallback: FallbackConfigSchema.optional(),
-  cascade: CascadeConfigSchema.optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  template: TemplateSpecSchema.optional().nullable(),
+  variables: z.record(z.string(), z.unknown()).optional().nullable(),
+  fallback: FallbackConfigSchema.optional().nullable(),
+  cascade: CascadeConfigSchema.optional().nullable(),
+  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export type SendMessageRequest = z.infer<typeof SendMessageRequestSchema>;

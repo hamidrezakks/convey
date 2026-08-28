@@ -140,3 +140,17 @@ export async function constructWebhookEvent<T = Record<string, unknown>>(
 }
 
 export const constructEvent = constructWebhookEvent;
+
+/**
+ * Generate a signed webhook header (t=...,v1=...) for testing.
+ */
+export async function generateTestSignature(
+  payload: string | Uint8Array,
+  secret: string,
+  timestamp: number = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  const payloadString = typeof payload === 'string' ? payload : new TextDecoder().decode(payload);
+  const signedContent = `${timestamp}.${payloadString}`;
+  const signatureHex = await computeHmacSha256Hex(secret, signedContent);
+  return `t=${timestamp},v1=${signatureHex}`;
+}

@@ -61,6 +61,7 @@ describe('QA W3C Distributed Traceparent Propagation & APM', () => {
 
     const client = new Convey({
       apiKey: 'sk_live_12345',
+      baseUrl: 'http://localhost:3000',
       fetch: mockFetch as unknown as typeof fetch,
     });
 

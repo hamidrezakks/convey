@@ -9,6 +9,7 @@ import { Convey } from '../src';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY || 'sk_live_sample_key',
+  baseUrl: process.env.CONVEY_BASE_URL || 'https://api.convey.dev',
   teamId: 'billing-ops',
 });
 
@@ -21,10 +22,8 @@ async function main() {
 
   console.log(`Found ${dlqResponse.items.length} failed messages in DLQ (Total: ${dlqResponse.total}):`);
   for (const item of dlqResponse.items) {
-    console.log(
-      `  [DLQ] ID: ${item.messageId} | Channel: ${item.channel} | Category: ${item.failureCategory} | Attempts: ${item.retryCount}`,
-    );
-    console.log(`        Reason: ${item.errorReason}`);
+    console.log(`  [DLQ] ID: ${item.publicId} | Channel: ${item.channel} | Status: ${item.status}`);
+    console.log(`        Recipient: ${item.recipient}`);
   }
 
   if (dlqResponse.items.length === 0) {
@@ -32,43 +31,30 @@ async function main() {
     return;
   }
 
-  const targetMessageId = dlqResponse.items[0].messageId;
+  const targetMessageId = dlqResponse.items[0].publicId;
 
   console.log(`\n--- 2. Dry-Run Simulation for Message ${targetMessageId} ---`);
 
   // Dry run simulates the routing and payload resolution without firing downstream providers
   const dryRunResult = await convey.dlq.replayMutated({
-    messageIds: [targetMessageId],
+    filter: { messageIds: [targetMessageId] },
     dryRun: true,
-    mutations: {
-      metadata: { debugReplayInitiatedBy: 'ops-engineer' },
-    },
   });
 
   console.log(`Dry-run simulation completed:`);
-  console.log(`  - Replayed: ${dryRunResult.replayedCount}`);
-  console.log(`  - Failed: ${dryRunResult.failedCount}`);
-  console.log(`  - Message status:`, dryRunResult.messages);
+  console.log(`  - Matched: ${dryRunResult.matchedMessagesCount}`);
+  console.log(`  - Estimated success rate: ${dryRunResult.simulation?.estimatedSuccessRatePercent}%`);
 
   console.log('\n--- 3. Mutated In-Flight Replay (Fixing Typo in Recipient) ---');
 
   // Perform live mutated replay: correct the recipient email and re-inject into transactional outbox
   const liveReplay = await convey.dlq.replayMutated({
-    messageIds: [targetMessageId],
+    filter: { messageIds: [targetMessageId] },
     dryRun: false,
-    mutations: {
-      recipients: {
-        email: 'corrected.recipient@company.com',
-      },
-      metadata: {
-        remediationReason: 'Customer updated incorrect email address in portal',
-      },
-    },
   });
 
   console.log(`Mutated replay executed:`);
-  console.log(`  - Success count: ${liveReplay.replayedCount}`);
-  console.log(`  - Details:`, liveReplay.messages);
+  console.log(`  - Replayed count: ${liveReplay.replayedCount ?? liveReplay.matchedMessagesCount}`);
 }
 
 main().catch(console.error);
