@@ -206,21 +206,23 @@ const response = await convey.messages.send({
 console.log('✅ Message accepted:', response.messageId);`;
 
         case 'python':
-          return `from convey import ConveyClient
-import os
+          return `import os
+from convey import Convey, Channel, MessagePriority
 
-client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+client = Convey(api_key=os.environ["CONVEY_API_KEY"])
 
 # Single transactional dispatch with template "${slug}"
 response = client.messages.send(
-    channel="${channelKey}",
+    channel=Channel.${channelKey},
     recipient="${targetRecipient}",
-    template_id="${slug}",
-    variables=${JSON.stringify(varsObj, null, 4).replace(/\n/g, '\n    ')},
-    priority="HIGH"
+    content={
+        "template_id": "${slug}",
+        "variables": ${JSON.stringify(varsObj, null, 4).replace(/\n/g, '\n        ')}
+    },
+    priority=MessagePriority.HIGH
 )
 
-print(f"✅ Message accepted: {response.message_id}")`;
+print(f"✅ Message accepted: {response.public_id} ({response.status})")`;
 
         case 'go':
           return `package main
@@ -230,26 +232,28 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/convey/convey-go"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
 	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
 
-	res, err := client.Messages.Send(context.Background(), convey.SendMessageParams{
-		Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
-		Recipient:  "${targetRecipient}",
-		TemplateID: "${slug}",
-		Variables: map[string]any{
-			"orderId": "ORD-9942",
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
+		Channel:   convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+		Recipient: "${targetRecipient}",
+		Content: &convey.MessageContent{
+			TemplateID: "${slug}",
+			Variables: map[string]interface{}{
+				"orderId": "ORD-9942",
+			},
 		},
-		Priority: "HIGH",
+		Priority: convey.PriorityHigh,
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("✅ Message accepted:", res.MessageID)
+	fmt.Println("✅ Message accepted:", res.PublicID)
 }`;
       }
     }
@@ -315,24 +319,28 @@ const batchResponse = await convey.messages.sendBulk([
 console.log(\`✅ Accepted \${batchResponse.total} messages across virtual shards\`);`;
 
         case 'python':
-          return `from convey import ConveyClient
-import os
+          return `import os
+from convey import Convey, Channel
 
-client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+client = Convey(api_key=os.environ["CONVEY_API_KEY"])
 
 # High-throughput batch broadcast into transactional outbox
 batch = client.messages.send_bulk([
     {
         "channel": "${channelKey}",
         "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}",
-        "template_id": "${slug}",
-        "variables": {"orderId": "ORD-9941", "customerName": "Alex Mercer"}
+        "content": {
+            "template_id": "${slug}",
+            "variables": {"orderId": "ORD-9941", "customerName": "Alex Mercer"}
+        }
     },
     {
         "channel": "${channelKey}",
         "recipient": "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}",
-        "template_id": "${slug}",
-        "variables": {"orderId": "ORD-9942", "customerName": "Sarah Connor"}
+        "content": {
+            "template_id": "${slug}",
+            "variables": {"orderId": "ORD-9942", "customerName": "Sarah Connor"}
+        }
     }
 ])
 
@@ -346,25 +354,27 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/convey/convey-go"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
 	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
 
-	batch, err := client.Messages.SendBulk(context.Background(), convey.BulkSendMessageParams{
-		Messages: []convey.SendMessageParams{
-			{
-				Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
-				Recipient:  "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}",
+	batch, err := client.Messages.SendBulk(context.Background(), []convey.SendMessageRequest{
+		{
+			Channel:   convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+			Recipient: "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550101' : 'alex@example.com'}",
+			Content: &convey.MessageContent{
 				TemplateID: "${slug}",
-				Variables:  map[string]any{"orderId": "ORD-9941", "customerName": "Alex"},
+				Variables:  map[string]interface{}{"orderId": "ORD-9941", "customerName": "Alex"},
 			},
-			{
-				Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
-				Recipient:  "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}",
+		},
+		{
+			Channel:   convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
+			Recipient: "${activeChannel === 'sms' || activeChannel === 'whatsapp' ? '+14155550102' : 'sarah@example.com'}",
+			Content: &convey.MessageContent{
 				TemplateID: "${slug}",
-				Variables:  map[string]any{"orderId": "ORD-9942", "customerName": "Sarah"},
+				Variables:  map[string]interface{}{"orderId": "ORD-9942", "customerName": "Sarah"},
 			},
 		},
 	})
@@ -410,9 +420,9 @@ func main() {
   }'`;
 
       case 'typescript':
-        return `import { ConveyClient } from '@convey/sdk';
+        return `import { Convey } from '@convey/sdk';
 
-const convey = new ConveyClient({
+const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
 });
 
@@ -443,24 +453,24 @@ const response = await convey.messages.send({
   ],
 });
 
-console.log('✅ Omnichannel cascade initiated:', response.messageId);`;
+console.log('✅ Omnichannel cascade initiated:', response.publicId);`;
 
       case 'python':
-        return `from convey import ConveyClient
-import os
+        return `import os
+from convey import Convey, MessagePriority
 
-client = ConveyClient(api_key=os.environ["CONVEY_API_KEY"])
+client = Convey(api_key=os.environ["CONVEY_API_KEY"])
 
 # Omnichannel cascade with automatic multi-channel fallback
-response = client.messages.send(
-    cascade=True,
-    priority="CRITICAL",
-    recipients={
+response = client.messages.send({
+    "cascade": True,
+    "priority": MessagePriority.CRITICAL,
+    "recipients": {
         "whatsapp": "+14155552671",
         "phone": "+14155552671",
         "email": "alex@example.com"
     },
-    channels=[
+    "channels": [
         {
             "channel": "${channelKey}",
             "template_id": "${slug}",
@@ -476,9 +486,9 @@ response = client.messages.send(
             }
         }
     ]
-)
+})
 
-print(f"✅ Omnichannel cascade initiated: {response.message_id}")`;
+print(f"✅ Omnichannel cascade initiated: {response.public_id}")`;
 
       case 'go':
         return `package main
@@ -488,34 +498,30 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/convey/convey-go"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
 	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"))
 
-	res, err := client.Messages.Send(context.Background(), convey.SendMessageParams{
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
 		Cascade:  true,
-		Priority: "CRITICAL",
-		Recipients: map[string]string{
+		Priority: convey.PriorityCritical,
+		Recipients: map[string]interface{}{
 			"whatsapp": "+14155552671",
 			"phone":    "+14155552671",
 			"email":    "alex@example.com",
 		},
-		Channels: []convey.ChannelPayload{
+		Channels: []map[string]interface{}{
 			{
-				Channel:    convey.Channel${channelKey === 'EMAIL' ? 'Email' : channelKey === 'WHATSAPP' ? 'WhatsApp' : channelKey === 'PUSH' ? 'Push' : 'SMS'},
-				TemplateID: "${slug}",
-				Variables:  map[string]any{"orderId": "ORD-9942"},
+				"channel":    "${channelKey}",
+				"templateId": "${slug}",
+				"variables":  map[string]interface{}{"orderId": "ORD-9942"},
 			},
 			{
-				Channel:    convey.Channel${fallbackChannel === 'EMAIL' ? 'Email' : 'SMS'},
-				TemplateID: "${slug}",
-				Variables:  map[string]any{"orderId": "ORD-9942"},
-				FallbackTrigger: &convey.FallbackConfig{
-					Condition:      "UNREAD_OR_FAILED",
-					TimeoutSeconds: 180,
-				},
+				"channel":    "${fallbackChannel}",
+				"templateId": "${slug}",
+				"variables":  map[string]interface{}{"orderId": "ORD-9942"},
 			},
 		},
 	})
@@ -523,7 +529,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("✅ Cascade initialized:", res.MessageID)
+	fmt.Println("✅ Cascade initialized:", res.PublicID)
 }`;
     }
   };

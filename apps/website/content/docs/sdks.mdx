@@ -1,6 +1,6 @@
 ---
 title: Client Libraries & SDKs
-description: Official zero-dependency SDKs for Node.js, Bun, Edge runtimes, Python, and Go with automatic idempotency keying, W3C distributed tracing, exponential retry backoff, and webhook signature verification.
+description: Official zero-dependency SDKs for TypeScript/Node/Bun, Python, and Go with automatic idempotency keying, W3C distributed tracing, exponential retry backoff, and webhook signature verification.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
@@ -8,7 +8,17 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 # Official Client Libraries & SDKs
 
-Convey provides production-tested, zero-dependency client SDKs across TypeScript/JavaScript (Node.js, Bun, Edge), Python, and Go with built-in connection pooling, exponential jittered retries, and W3C distributed tracing.
+Convey provides production-tested, zero-dependency client SDKs across **TypeScript/JavaScript** (Node.js, Bun, Edge runtimes), **Python** (Sync & Async), and **Go** with built-in connection pooling, exponential jittered retries, and W3C distributed tracing.
+
+---
+
+## Language SDK Matrix
+
+| Language | Package / Module | Runtimes | Features |
+| :--- | :--- | :--- | :--- |
+| **TypeScript / JS** | `@convey/sdk` | Node.js 18+, Bun, Deno, Cloudflare Workers | Zero deps, ESM/CJS, Web Streams, Async iterators |
+| **Go** | `github.com/hamidrezakks/convey/packages/sdk-go` | Go 1.22+ | Zero deps, HTTP/2 connection pooling, Generics |
+| **Python** | `convey-sdk` | Python 3.10+ | Zero deps, Sync + Asyncio native, Type annotations |
 
 ---
 
@@ -155,233 +165,215 @@ for await (const record of convey.suppressions.listAutoPaging({ limit: 100 })) {
     console.log(`Hard bounce detected: ${record.recipient}`);
   }
 }
-
-// Or eagerly extract a bounded slice into a standard array
-const top50AuditLogs = await convey.admin
-  .listAuditLogsAutoPaging({ limit: 25 })
-  .autoPagingToArray(50);
 ```
   </Tab>
 </Tabs>
 
 ---
 
-## 2. Webhook Signature Verification
+## 2. Official Go SDK
 
-When Convey delivers webhook callbacks to your server, verify the cryptographic HMAC-SHA256 signature to protect against tampering and replay attacks.
+The Go SDK (`packages/sdk-go`) provides zero external dependencies, thread-safe monotonic ULIDs, and high-performance HTTP transport pooling.
 
-<Tabs items={['Next.js App Router', 'Elysia', 'Express.js', 'Cloudflare Workers', 'Python', 'Go']}>
-  <Tab value="Next.js App Router">
-```typescript
-// app/api/webhooks/convey/route.ts
-import { Convey, ConveySecurityError } from '@convey/sdk';
+### Installation
 
-const WEBHOOK_SECRET = process.env.CONVEY_WEBHOOK_SECRET!;
+```bash
+go get github.com/hamidrezakks/convey/packages/sdk-go
+```
 
-export async function POST(req: Request) {
-  const signature = req.headers.get('x-convey-signature');
-  if (!signature) {
-    return new Response('Missing signature', { status: 401 });
-  }
+### Initialization & Sending Messages
 
-  const rawBody = await req.text();
+```go
+package main
 
-  try {
-    const event = await Convey.webhooks.constructEvent<{
-      messageId: string;
-      provider?: string;
-      deliveredAt?: string;
-    }>(rawBody, signature, WEBHOOK_SECRET);
+import (
+	"context"
+	"fmt"
+	"os"
+	"time"
 
-    console.log(`[Webhook] Verified event ${event.type} for message ${event.data.messageId}`);
-    return Response.json({ received: true });
-  } catch (err) {
-    if (err instanceof ConveySecurityError) {
-      return new Response('Invalid webhook signature', { status: 403 });
-    }
-    return new Response('Internal error', { status: 500 });
-  }
+	"github.com/hamidrezakks/convey/packages/sdk-go"
+)
+
+func main() {
+	client := convey.NewClient(os.Getenv("CONVEY_API_KEY"),
+		convey.WithBaseURL("http://localhost:3000"),
+		convey.WithTimeout(10*time.Second),
+		convey.WithMaxRetries(3),
+	)
+
+	// Send an omnichannel email
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
+		Channel:   convey.ChannelEmail,
+		Recipient: "alex.doe@example.com",
+		Priority:  convey.PriorityHigh,
+		Content: &convey.MessageContent{
+			Subject: "Your Monthly Statement",
+			HTML:    "<p>Your monthly statement is ready for review.</p>",
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Accepted message: %s (Status: %s)\n", res.PublicID, res.Status)
 }
 ```
-  </Tab>
 
-  <Tab value="Elysia">
-```typescript
-import { Elysia } from 'elysia';
-import { Convey } from '@convey/sdk';
+### Go Auto-Pagination
 
-const app = new Elysia().post('/webhooks/convey', async ({ request, set }) => {
-  const signature = request.headers.get('x-convey-signature') || '';
-  const rawBody = await request.text();
+```go
+paginator := client.Suppressions.ListAutoPaging(&convey.ListSuppressionsQuery{
+	Reason: convey.SuppressionHardBounce,
+})
 
-  try {
-    const event = await Convey.webhooks.constructEvent(
-      rawBody,
-      signature,
-      process.env.CONVEY_WEBHOOK_SECRET!,
-    );
-    return { success: true, eventId: event.id };
-  } catch (err) {
-    set.status = 403;
-    return { error: (err as Error).message };
-  }
-});
+for {
+	item, err := paginator.Next(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	if item == nil {
+		break // End of streaming results
+	}
+	fmt.Printf("Suppression: %s (%s)\n", item.Recipient, item.Reason)
+}
 ```
-  </Tab>
 
-  <Tab value="Express.js">
+---
+
+## 3. Official Python SDK (`convey-sdk`)
+
+The Python SDK provides both **Synchronous** (`Convey`) and **Asynchronous** (`AsyncConvey`) client engines with zero third-party dependencies.
+
+### Installation
+
+```bash
+pip install convey-sdk
+```
+
+### Synchronous Usage
+
+```python
+import os
+from convey import Convey, Channel, MessagePriority
+
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    timeout=10.0,
+    max_retries=3,
+)
+
+# Dispatch omnichannel message
+response = client.messages.send(
+    channel=Channel.EMAIL,
+    recipient="alex@example.com",
+    priority=MessagePriority.HIGH,
+    content={
+        "subject": "Security Alert: New Sign-in",
+        "body": "<p>We detected a new sign-in to your account from San Francisco, CA.</p>",
+    },
+)
+
+print(f"Accepted: {response.public_id} ({response.status})")
+```
+
+### Asynchronous Usage (FastAPI, Asyncio)
+
+```python
+import asyncio
+import os
+from convey import AsyncConvey, Channel, MessagePriority
+
+async def main():
+    client = AsyncConvey(api_key=os.environ["CONVEY_API_KEY"])
+
+    # High-priority SMS OTP
+    response = await client.messages.send(
+        channel=Channel.SMS,
+        recipient="+14155552671",
+        priority=MessagePriority.CRITICAL,
+        content={"body": "Your Convey verification code is: 489-201."},
+    )
+
+    print(f"Accepted SMS ID: {response.public_id}")
+
+asyncio.run(main())
+```
+
+### Python Streaming Iterators
+
+```python
+# Synchronous streaming
+for item in client.suppressions.list_auto_paging(limit=50):
+    print(f"Suppressed: {item.recipient}")
+
+# Asynchronous streaming
+async for item in async_client.suppressions.list_auto_paging(limit=50):
+    print(f"Suppressed: {item.recipient}")
+```
+
+---
+
+## 4. Webhook Signature Verification
+
+When Convey delivers webhook events, verify the HMAC-SHA256 signature using constant-time verification.
+
+<Tabs items={['TypeScript / Node', 'Python', 'Go']}>
+  <Tab value="TypeScript / Node">
 ```typescript
-import express from 'express';
 import { Convey, ConveySecurityError } from '@convey/sdk';
 
-const app = express();
-
-app.post(
-  '/webhooks/convey',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const signature = req.headers['x-convey-signature'] as string;
-    const rawBody = req.body; // Raw Buffer
-
-    try {
-      const event = await Convey.webhooks.constructEvent(
-        rawBody,
-        signature,
-        process.env.CONVEY_WEBHOOK_SECRET!,
-      );
-      res.status(200).json({ received: true });
-    } catch (err) {
-      res.status(403).send('Signature Verification Failed');
-    }
-  },
+const isValid = await Convey.webhooks.verifySignature(
+  rawPayload,
+  signatureHeader,
+  process.env.CONVEY_WEBHOOK_SECRET!,
 );
-```
-  </Tab>
 
-  <Tab value="Cloudflare Workers">
-```typescript
-import { Convey, ConveySecurityError } from '@convey/sdk';
-
-export default {
-  async fetch(request: Request, env: { CONVEY_WEBHOOK_SECRET: string }): Promise<Response> {
-    if (request.method === 'POST') {
-      const signature = request.headers.get('x-convey-signature') || '';
-      const rawBody = await request.text();
-
-      const isValid = await Convey.webhooks.verifySignature(
-        rawBody,
-        signature,
-        env.CONVEY_WEBHOOK_SECRET,
-      );
-
-      if (!isValid) {
-        return new Response('Unauthorized Signature', { status: 401 });
-      }
-
-      const event = JSON.parse(rawBody);
-      return Response.json({ ok: true });
-    }
-    return new Response('Not Found', { status: 404 });
-  },
-};
+// Or construct typed event
+const event = await Convey.webhooks.constructEvent(
+  rawPayload,
+  signatureHeader,
+  process.env.CONVEY_WEBHOOK_SECRET!,
+);
 ```
   </Tab>
 
   <Tab value="Python">
 ```python
-import hmac
-import hashlib
-import json
-import time
+from convey import construct_webhook_event, verify_webhook_signature
 
-def verify_convey_webhook(raw_payload: bytes, signature_header: str, secret: str, tolerance_s: int = 300) -> bool:
-    # Parse t=timestamp,v1=signature
-    parts = dict(kv.split("=", 1) for kv in signature_header.split(","))
-    timestamp, received_sig = int(parts["t"]), parts["v1"]
+# Verify signature bool
+is_valid = verify_webhook_signature(
+    raw_payload,
+    signature_header,
+    secret=os.environ["CONVEY_WEBHOOK_SECRET"],
+)
 
-    if abs(time.time() - timestamp) > tolerance_s:
-        return False
-
-    signed_payload = f"{timestamp}.".encode("utf-8") + raw_payload
-    expected_sig = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected_sig, received_sig)
+# Or construct deserialized event
+event = construct_webhook_event(
+    raw_payload,
+    signature_header,
+    secret=os.environ["CONVEY_WEBHOOK_SECRET"],
+)
+print(f"Verified event {event.id}: {event.type}")
 ```
   </Tab>
 
   <Tab value="Go">
 ```go
-package main
+import "github.com/hamidrezakks/convey/packages/sdk-go"
 
-import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"math"
-	"strconv"
-	"strings"
-	"time"
+// Verify signature
+isValid := convey.VerifyWebhookSignature(rawBody, signatureHeader, secret, 300*time.Second)
+
+// Construct typed event
+event, err := convey.ConstructWebhookEvent[map[string]interface{}](
+    rawBody,
+    signatureHeader,
+    secret,
+    300*time.Second,
 )
-
-func VerifyConveySignature(payload []byte, header string, secret string, toleranceSeconds float64) bool {
-	parts := strings.Split(header, ",")
-	var tStr, v1Hex string
-	for _, p := range parts {
-		kv := strings.SplitN(p, "=", 2)
-		if len(kv) == 2 {
-			if kv[0] == "t" { tStr = kv[1] }
-			if kv[0] == "v1" { v1Hex = kv[1] }
-		}
-	}
-
-	ts, err := strconv.ParseInt(tStr, 10, 64)
-	if err != nil || math.Abs(float64(time.Now().Unix()-ts)) > toleranceSeconds {
-		return false
-	}
-
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(fmt.Sprintf("%d.", ts)))
-	mac.Write(payload)
-	expected := hex.EncodeToString(mac.Sum(nil))
-
-	return hmac.Equal([]byte(expected), []byte(v1Hex))
-}
 ```
   </Tab>
 </Tabs>
-
----
-
-## 3. Resilient Error Handling
-
-All SDK operations throw typed errors derived from `ConveyError`:
-
-```typescript
-import {
-  ConveyError,
-  ConveyValidationError,
-  ConveyRateLimitError,
-  ConveyConflictError,
-  ConveyAuthenticationError,
-  ConveyTimeoutError,
-  ConveyNetworkError,
-} from '@convey/sdk';
-
-try {
-  await convey.messages.send({ ... });
-} catch (err) {
-  if (err instanceof ConveyValidationError) {
-    console.error('Invalid recipient format or payload:', err.details);
-  } else if (err instanceof ConveyRateLimitError) {
-    console.warn(`Rate limited! Retry after ${err.retryAfterSeconds}s`);
-  } else if (err instanceof ConveyConflictError) {
-    console.info('Idempotent duplicate send detected.');
-  } else if (err instanceof ConveyAuthenticationError) {
-    console.error('Invalid or expired API Key');
-  } else if (err instanceof ConveyTimeoutError) {
-    console.error(`Request timed out after ${err.timeoutMs}ms`);
-  } else if (err instanceof ConveyNetworkError) {
-    console.error('Network socket disconnect:', err.cause);
-  }
-}
-```
