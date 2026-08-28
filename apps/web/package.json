@@ -2,6 +2,11 @@
   "name": "@convey/web",
   "version": "1.0.0",
   "description": "Convey Admin & Telemetry Mission Control Console",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamidrezakks/convey.git",
+    "directory": "apps/web"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -146,7 +146,7 @@ Convey includes a **Staff-level React 19 + Base UI Mission Control Console** (`a
 ### 1. Installation & Environment Configuration
 ```bash
 # Clone the repository
-git clone https://github.com/convey/convey.git
+git clone https://github.com/hamidrezakks/convey.git
 cd convey
 
 # Install dependencies across all monorepo packages (ultra-fast via Bun)

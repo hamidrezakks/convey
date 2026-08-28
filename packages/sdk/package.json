@@ -57,5 +57,14 @@
     "idempotency"
   ],
   "author": "Convey",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamidrezakks/convey.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/hamidrezakks/convey/tree/main/packages/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/hamidrezakks/convey/issues"
+  }
 }

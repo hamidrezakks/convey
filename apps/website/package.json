@@ -2,6 +2,11 @@
   "name": "@convey/website",
   "version": "1.0.0",
   "description": "Convey Developer Portal & Technical Documentation Website powered by Fumadocs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamidrezakks/convey.git",
+    "directory": "apps/website"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev --port 5174",

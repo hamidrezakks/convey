@@ -106,7 +106,7 @@ export function Navbar() {
           </a>
 
           <a
-            href="https://github.com/convey/convey"
+            href="https://github.com/hamidrezakks/convey"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="GitHub Repository"
@@ -211,7 +211,7 @@ export function Navbar() {
             </a>
 
             <a
-              href="https://github.com/convey/convey"
+              href="https://github.com/hamidrezakks/convey"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
