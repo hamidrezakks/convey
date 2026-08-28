@@ -10,6 +10,7 @@ import (
 )
 
 func createMockServer(t *testing.T) (*httptest.Server, *Client) {
+	t.Helper()
 	mux := http.NewServeMux()
 
 	// Messages

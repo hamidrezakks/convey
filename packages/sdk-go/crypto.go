@@ -95,3 +95,11 @@ func ConstructWebhookEvent[T any](payload []byte, signatureHeader string, secret
 
 	return &event, nil
 }
+
+// ComputeHMACSHA256Hex calculates the HMAC-SHA256 hex digest of a message.
+func ComputeHMACSHA256Hex(secret string, data []byte) (string, error) {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(data)
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+

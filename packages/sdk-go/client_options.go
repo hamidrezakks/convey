@@ -11,7 +11,20 @@ type Option func(*Client)
 // WithBaseURL sets a custom base API URL.
 func WithBaseURL(url string) Option {
 	return func(c *Client) {
-		c.http.baseURL = url
+		if norm, err := NormalizeBaseURL(url); err == nil {
+			c.http.baseURL = norm
+		} else {
+			c.http.baseURL = url
+		}
+	}
+}
+
+// WithEnvironment sets the target environment preset (e.g. EnvProduction, EnvUS, EnvEU, EnvStaging, EnvLocal, EnvSandbox).
+func WithEnvironment(env string) Option {
+	return func(c *Client) {
+		if resolved, err := ResolveEnvironmentURL(env); err == nil {
+			c.http.baseURL = resolved
+		}
 	}
 }
 
@@ -59,5 +72,19 @@ func WithDefaultHeader(key, value string) Option {
 			c.http.defaultHeaders = make(map[string]string)
 		}
 		c.http.defaultHeaders[key] = value
+	}
+}
+
+// WithMiddleware appends custom interceptors to the HTTP transport chain.
+func WithMiddleware(middlewares ...Middleware) Option {
+	return func(c *Client) {
+		c.http.middlewares = append(c.http.middlewares, middlewares...)
+	}
+}
+
+// WithRateLimiter configures client-side token bucket rate smoothing.
+func WithRateLimiter(rps float64, burst int) Option {
+	return func(c *Client) {
+		c.http.rateLimiter = NewRateLimiter(rps, burst)
 	}
 }

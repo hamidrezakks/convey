@@ -18,12 +18,11 @@ import (
 )
 
 const (
-	defaultBaseURL      = "http://localhost:3000"
-	defaultTimeout      = 10 * time.Second
-	defaultMaxRetries   = 3
-	initialBackoffMs    = 100
-	maxBackoffMs        = 10000
-	sdkVersion          = "1.0.0"
+	defaultTimeout    = 10 * time.Second
+	defaultMaxRetries = 3
+	initialBackoffMs  = 100
+	maxBackoffMs      = 10000
+	sdkVersion        = "1.0.0"
 )
 
 // HTTPClient is the core resilient HTTP engine for the Convey Go SDK.
@@ -37,6 +36,8 @@ type HTTPClient struct {
 	httpClient     *http.Client
 	defaultHeaders map[string]string
 	userAgent      string
+	middlewares    []Middleware
+	rateLimiter    *RateLimiter
 }
 
 // NewDefaultTransport returns a high-performance tuned HTTP transport with socket pooling.
@@ -59,6 +60,7 @@ func NewDefaultTransport() *http.Transport {
 
 // RequestOptions allows overriding options per request.
 type RequestOptions struct {
+	BaseURL        string
 	Timeout        *time.Duration
 	MaxRetries     *int
 	IdempotencyKey string
@@ -68,9 +70,30 @@ type RequestOptions struct {
 	IsSandbox      *bool
 }
 
+// RequestOption is a functional argument for RequestOptions.
+type RequestOption func(*RequestOptions)
+
+// WithReqBaseURL sets per-request base URL override.
+func WithReqBaseURL(u string) RequestOption {
+	return func(o *RequestOptions) {
+		o.BaseURL = u
+	}
+}
+
 // Request executes an authenticated HTTP request with full-jitter exponential retries and distributed tracing.
 func (c *HTTPClient) Request(ctx context.Context, method, path string, body interface{}, opts *RequestOptions, target interface{}) error {
-	reqURL, err := url.Parse(c.baseURL)
+	effectiveBaseURL := c.baseURL
+	if opts != nil && opts.BaseURL != "" {
+		effectiveBaseURL = opts.BaseURL
+	}
+
+	if strings.TrimSpace(effectiveBaseURL) == "" {
+		return &ConfigurationError{
+			BaseError: BaseError{Message: "Convey client requires a valid base URL. Please specify WithBaseURL(), WithEnvironment(), or set CONVEY_BASE_URL environment variable"},
+		}
+	}
+
+	reqURL, err := url.Parse(effectiveBaseURL)
 	if err != nil {
 		return &NetworkError{
 			BaseError: BaseError{Message: fmt.Sprintf("invalid base URL: %s", err.Error())},
@@ -143,9 +166,19 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, body inte
 		isSandbox = *opts.IsSandbox
 	}
 
+	// Transport with middlewares
+	transport := c.httpClient.Transport
+	if len(c.middlewares) > 0 {
+		transport = NewMiddlewareChain(transport, c.middlewares...)
+	}
+
 	attempt := 0
 	for {
 		attempt++
+
+		if c.rateLimiter != nil {
+			c.rateLimiter.Wait()
+		}
 
 		reqCtx := ctx
 		var cancel context.CancelFunc
@@ -164,19 +197,19 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, body inte
 				cancel()
 			}
 			return &NetworkError{
-				BaseError: BaseError{Message: fmt.Sprintf("failed to build HTTP request: %s", err.Error())},
+				BaseError: BaseError{Message: fmt.Sprintf("failed to create request: %s", err.Error())},
 				Cause:     err,
 			}
 		}
 
-		// Set headers
+		// Headers
 		httpReq.Header.Set("Accept", "application/json")
+		httpReq.Header.Set("User-Agent", c.userAgent)
 		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 		httpReq.Header.Set("x-api-key", c.apiKey)
 		httpReq.Header.Set("traceparent", traceparentHeader)
-		httpReq.Header.Set("User-Agent", c.userAgent)
 
-		if len(bodyBytes) > 0 {
+		if bodyBytes != nil {
 			httpReq.Header.Set("Content-Type", "application/json")
 		}
 
@@ -196,36 +229,41 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, body inte
 			httpReq.Header.Set(k, v)
 		}
 
-		if opts != nil && opts.Headers != nil {
+		if opts != nil && len(opts.Headers) > 0 {
 			for k, v := range opts.Headers {
 				httpReq.Header.Set(k, v)
 			}
 		}
 
-		resp, err := c.httpClient.Do(httpReq)
+		// Execute
+		resp, err := transport.RoundTrip(httpReq)
+
 		if err != nil {
 			if cancel != nil {
 				cancel()
 			}
 
-			if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return ctx.Err()
-			}
-			if reqCtx.Err() == context.DeadlineExceeded {
+			// Context timeout check
+			if errors.Is(reqCtx.Err(), context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				return &TimeoutError{
-					BaseError: BaseError{Message: fmt.Sprintf("request timed out after %s", timeout)},
+					BaseError: BaseError{Message: fmt.Sprintf("request timed out after %v", timeout)},
 					TimeoutMs: int(timeout.Milliseconds()),
 				}
 			}
 
-			// Transient network failure retry
+			// Context cancel check
+			if errors.Is(reqCtx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+				return &BaseError{Message: "request cancelled by caller context"}
+			}
+
+			// Retry on network failures
 			if attempt <= maxRetries {
-				sleepDuration := calculateFullJitter(attempt)
+				backoff := computeBackoff(attempt)
 				select {
+				case <-time.After(backoff):
+					continue
 				case <-ctx.Done():
 					return ctx.Err()
-				case <-time.After(sleepDuration):
-					continue
 				}
 			}
 
@@ -235,7 +273,7 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, body inte
 			}
 		}
 
-		respBytes, readErr := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if cancel != nil {
 			cancel()
@@ -250,114 +288,94 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, body inte
 
 		// Success (2xx)
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			if target == nil || len(respBytes) == 0 {
-				return nil
-			}
-
-			// If target is *string or *[]byte
-			switch t := target.(type) {
-			case *string:
-				*t = string(respBytes)
-				return nil
-			case *[]byte:
-				*t = respBytes
-				return nil
-			default:
-				if err := json.Unmarshal(respBytes, target); err != nil {
-					return &APIError{
-						BaseError:   BaseError{Message: fmt.Sprintf("failed to parse JSON response: %s", err.Error())},
-						StatusCode:  resp.StatusCode,
-						Headers:     resp.Header,
-						RawBody:     string(respBytes),
-						Traceparent: traceparentHeader,
+			if target != nil && len(respBody) > 0 {
+				if err := json.Unmarshal(respBody, target); err != nil {
+					return &ValidationError{
+						APIError: APIError{
+							BaseError: BaseError{Message: fmt.Sprintf("failed to parse JSON response: %s", err.Error())},
+							RawBody:   string(respBody),
+						},
 					}
 				}
-				return nil
 			}
+			return nil
 		}
 
-		// Evaluate retry on 429 or transient 5xx (500, 502, 503, 504)
+		// Retry condition: 429 or 500, 502, 503, 504
 		isTransient5xx := resp.StatusCode == 500 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504
-		isRateLimited := resp.StatusCode == 429
-		canRetry := (isTransient5xx || isRateLimited) && attempt <= maxRetries
+		isRateLimit := resp.StatusCode == 429
+		canRetry := (isTransient5xx || isRateLimit) && attempt <= maxRetries
 
 		if canRetry {
+			var delay time.Duration
 			retryAfterHeader := resp.Header.Get("Retry-After")
-			var sleepDuration time.Duration
 			if retryAfterHeader != "" {
 				if seconds, err := strconv.Atoi(retryAfterHeader); err == nil && seconds >= 0 {
-					sleepDuration = time.Duration(seconds) * time.Second
+					delay = time.Duration(seconds) * time.Second
 				} else if targetTime, err := http.ParseTime(retryAfterHeader); err == nil {
-					sleepDuration = time.Until(targetTime)
-					if sleepDuration < 0 {
-						sleepDuration = 0
+					delay = time.Until(targetTime)
+					if delay < 0 {
+						delay = 0
 					}
 				}
 			}
 
-			if sleepDuration <= 0 {
-				sleepDuration = calculateFullJitter(attempt)
+			if delay == 0 {
+				delay = computeBackoff(attempt)
 			}
 
 			select {
+			case <-time.After(delay):
+				continue
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(sleepDuration):
-				continue
 			}
 		}
 
-		return c.deserializeError(resp, respBytes, traceparentHeader)
+		return c.deserializeError(resp, respBody, traceparentHeader)
 	}
 }
 
-func calculateFullJitter(attempt int) time.Duration {
-	backoffFactor := math.Pow(2, float64(attempt-1))
-	currentMax := math.Min(float64(maxBackoffMs), float64(initialBackoffMs)*backoffFactor)
-	sleepMs := rand.Float64() * currentMax
-	return time.Duration(sleepMs) * time.Millisecond
+func computeBackoff(attempt int) time.Duration {
+	base := float64(initialBackoffMs) * math.Pow(2, float64(attempt-1))
+	if base > float64(maxBackoffMs) {
+		base = float64(maxBackoffMs)
+	}
+	jitter := rand.Float64() * base
+	return time.Duration(jitter) * time.Millisecond
 }
 
-func (c *HTTPClient) deserializeError(resp *http.Response, bodyBytes []byte, traceparent string) error {
+func (c *HTTPClient) deserializeError(resp *http.Response, rawBody []byte, traceparent string) error {
 	statusCode := resp.StatusCode
 	errorCode := "API_ERROR"
 	message := fmt.Sprintf("Convey HTTP %d %s", statusCode, resp.Status)
 	var details interface{}
-	rawBody := string(bodyBytes)
 
 	var parsed map[string]interface{}
-	if err := json.Unmarshal(bodyBytes, &parsed); err == nil {
-		if errVal, ok := parsed["error"]; ok {
-			switch e := errVal.(type) {
-			case string:
-				message = e
-			case map[string]interface{}:
-				if code, ok := e["code"].(string); ok {
-					errorCode = code
-				}
-				if msg, ok := e["message"].(string); ok {
-					message = msg
-				}
-				details = e["details"]
+	if err := json.Unmarshal(rawBody, &parsed); err == nil && parsed != nil {
+		if errObj, ok := parsed["error"].(map[string]interface{}); ok {
+			if code, ok := errObj["code"].(string); ok {
+				errorCode = code
 			}
-		} else if msgVal, ok := parsed["message"].(string); ok {
-			message = msgVal
+			if msg, ok := errObj["message"].(string); ok {
+				message = msg
+			}
+			details = errObj["details"]
+		} else if errMsg, ok := parsed["error"].(string); ok {
+			message = errMsg
+		} else if msg, ok := parsed["message"].(string); ok {
+			message = msg
 			if code, ok := parsed["code"].(string); ok {
 				errorCode = code
 			}
 			details = parsed["details"]
 		}
 	} else if len(rawBody) > 0 {
-		if len(rawBody) > 500 {
-			message = rawBody[:500]
-		} else {
-			message = rawBody
+		strBody := string(rawBody)
+		if len(strBody) > 500 {
+			strBody = strBody[:500]
 		}
-	}
-
-	requestID := resp.Header.Get("x-request-id")
-	if requestID == "" {
-		requestID = resp.Header.Get("request-id")
+		message = strBody
 	}
 
 	apiErr := APIError{
@@ -365,10 +383,10 @@ func (c *HTTPClient) deserializeError(resp *http.Response, bodyBytes []byte, tra
 		StatusCode:  statusCode,
 		ErrorCode:   errorCode,
 		Details:     details,
-		RequestID:   requestID,
+		RequestID:   resp.Header.Get("x-request-id"),
 		Traceparent: traceparent,
 		Headers:     resp.Header,
-		RawBody:     rawBody,
+		RawBody:     string(rawBody),
 	}
 
 	switch statusCode {
@@ -383,13 +401,13 @@ func (c *HTTPClient) deserializeError(resp *http.Response, bodyBytes []byte, tra
 	case 409:
 		return &ConflictError{APIError: apiErr}
 	case 429:
-		var retryAfterSec *int
-		if headerVal := resp.Header.Get("Retry-After"); headerVal != "" {
-			if s, err := strconv.Atoi(headerVal); err == nil {
-				retryAfterSec = &s
+		var retrySec *int
+		if s := resp.Header.Get("Retry-After"); s != "" {
+			if val, err := strconv.Atoi(s); err == nil {
+				retrySec = &val
 			}
 		}
-		return &RateLimitError{APIError: apiErr, RetryAfterSeconds: retryAfterSec}
+		return &RateLimitError{APIError: apiErr, RetryAfterSeconds: retrySec}
 	default:
 		return &apiErr
 	}

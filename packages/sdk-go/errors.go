@@ -93,6 +93,11 @@ type SecurityError struct {
 	BaseError
 }
 
+// ConfigurationError represents SDK initialization or configuration validation failures.
+type ConfigurationError struct {
+	BaseError
+}
+
 // Helper predicates
 
 // IsRateLimitError checks if an error is a RateLimitError.
