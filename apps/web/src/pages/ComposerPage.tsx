@@ -945,7 +945,7 @@ func main() {
                     : snippetLang === 'python'
                       ? 'pip install convey-sdk'
                       : snippetLang === 'go'
-                        ? 'go get github.com/convey/convey-go'
+                        ? 'go get github.com/hamidrezakks/convey/packages/sdk-go'
                         : 'curl --version'}
                 </code>
               </div>

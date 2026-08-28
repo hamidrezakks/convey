@@ -156,16 +156,20 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/convey/go-convey/convey"
+	"github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
-	client := convey.NewClient("cv_live_demo_key")
-	res, err := client.Messages.Send(context.Background(), &convey.SendParams{
-		Channel:   "sms",
+	client, err := convey.NewClient(convey.WithAPIKey("cv_live_demo_key"))
+	if err != nil {
+		panic(err)
+	}
+
+	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
+		Channel:   convey.ChannelSMS,
 		Recipient: "+14155552671",
-		Priority:  "HIGH",
-		Content:   convey.Content{Body: "Your code is 849201."},
+		Priority:  convey.PriorityHigh,
+		Content:   map[string]interface{}{"body": "Your code is 849201."},
 	})
 	if err != nil {
 		panic(err)
