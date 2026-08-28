@@ -270,11 +270,13 @@ type SuppressionDto struct {
 
 // AddSuppressionRequest parameters to suppress a recipient.
 type AddSuppressionRequest struct {
-	Recipient string            `json:"recipient"`
-	Channel   Channel           `json:"channel"`
-	Reason    SuppressionReason `json:"reason"`
-	Category  string            `json:"category,omitempty"`
-	Team      string            `json:"team,omitempty"`
+	Identifier string            `json:"identifier,omitempty"`
+	Recipient  string            `json:"recipient,omitempty"`
+	Channel    Channel           `json:"channel,omitempty"`
+	Reason     SuppressionReason `json:"reason,omitempty"`
+	Category   string            `json:"category,omitempty"`
+	Country    string            `json:"country,omitempty"`
+	Team       string            `json:"team,omitempty"`
 }
 
 // ListSuppressionsQuery query parameters for listing suppressions.
@@ -553,13 +555,19 @@ type InAppFeedResponse struct {
 
 // LiveTelemetrySnapshot real-time system telemetry.
 type LiveTelemetrySnapshot struct {
-	HeapSaturation   float64                `json:"heapSaturation"`
-	QueueDepths      map[string]int         `json:"queueDepths"`
-	ActiveWorkers    int                    `json:"activeWorkers"`
-	P95LatencyMs     float64                `json:"p95LatencyMs"`
-	CircuitBreakers  map[string]string      `json:"circuitBreakers"`
-	SystemHealth     string                 `json:"systemHealth"`
 	Timestamp        string                 `json:"timestamp"`
+	ThroughputRps    float64                `json:"throughputRps"`
+	Latency          map[string]interface{} `json:"latency,omitempty"`
+	Queues           map[string]interface{} `json:"queues,omitempty"`
+	RuntimeGuard     map[string]interface{} `json:"runtimeGuard,omitempty"`
+	Subsystems       map[string]interface{} `json:"subsystems,omitempty"`
+	RecentActivity   []interface{}          `json:"recentActivity,omitempty"`
+	HeapSaturation   float64                `json:"heapSaturation,omitempty"`
+	QueueDepths      map[string]int         `json:"queueDepths,omitempty"`
+	ActiveWorkers    int                    `json:"activeWorkers,omitempty"`
+	P95LatencyMs     float64                `json:"p95LatencyMs,omitempty"`
+	CircuitBreakers  map[string]string      `json:"circuitBreakers,omitempty"`
+	SystemHealth     string                 `json:"systemHealth,omitempty"`
 	ExtraDiagnostics map[string]interface{} `json:"extraDiagnostics,omitempty"`
 }
 

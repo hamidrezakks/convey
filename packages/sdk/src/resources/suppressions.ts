@@ -24,9 +24,15 @@ export class SuppressionsResource {
     request: AddSuppressionRequest,
     options?: RequestOptions,
   ): Promise<{ success: boolean; suppression: SuppressionDto }> {
+    const payload: Record<string, unknown> = {
+      ...request,
+      identifier: request.identifier || request.recipient,
+      reason: request.reason || 'MANUAL_BLOCK',
+    };
+    delete payload.recipient;
     return this.http.request<{ success: boolean; suppression: SuppressionDto }>('/v1/suppressions', {
       method: 'POST',
-      body: request,
+      body: payload,
       ...options,
     });
   }

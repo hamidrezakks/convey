@@ -26,6 +26,14 @@ from convey.types import (
 from convey.utils.ulid import generate_ulid
 
 
+def _extract_enum_str(val: Any) -> str:
+    if val is None:
+        return ""
+    if hasattr(val, "value"):
+        return str(val.value)
+    return str(val)
+
+
 def _normalize_send_payload(http_client: Any, request: Union[SendMessageRequest, Dict[str, Any]]) -> Dict[str, Any]:
     req = request if isinstance(request, dict) else request.__dict__
 
@@ -50,8 +58,9 @@ def _normalize_send_payload(http_client: Any, request: Union[SendMessageRequest,
             "priority": priority_val,
             "recipients": recipients or {"email": recipient},
             "channels": channels,
-            "metadata": req.get("metadata"),
         }
+        if req.get("metadata") is not None:
+            wire["metadata"] = req["metadata"]
         if req.get("template"):
             wire["template"] = req["template"]
         if req.get("variables"):
@@ -64,7 +73,7 @@ def _normalize_send_payload(http_client: Any, request: Union[SendMessageRequest,
             wire["scheduledAt"] = req["scheduled_at"]
         return wire
 
-    channel_str = str(req.get("channel") or "EMAIL").lower()
+    channel_str = _extract_enum_str(req.get("channel") or "EMAIL").lower()
     recipients_obj = dict(req.get("recipients") or {})
     recipient_str = req.get("recipient") or ""
 
@@ -86,46 +95,51 @@ def _normalize_send_payload(http_client: Any, request: Union[SendMessageRequest,
 
     channels_array: List[Dict[str, Any]] = []
     if channel_str == "email":
-        render = None
+        email_content: Dict[str, Any] = {
+            "subject": content.get("subject") or "Notification",
+            "html": content.get("html") or content.get("body", ""),
+            "text": content.get("text") or content.get("body", ""),
+        }
         if content.get("template_id"):
-            render = {"template": content["template_id"], "props": content.get("variables")}
+            email_content["render"] = {
+                "template": content["template_id"],
+                "props": content.get("variables"),
+            }
         channels_array.append({
             "channel": "email",
-            "content": {
-                "subject": content.get("subject", "Notification"),
-                "html": content.get("html") or content.get("body", ""),
-                "text": content.get("text") or content.get("body", ""),
-                "render": render,
-            },
+            "content": email_content,
         })
     elif channel_str == "sms":
-        channels_array.append({"channel": "sms", "content": {"text": content.get("body", "")}})
+        channels_array.append({"channel": "sms", "content": {"text": content.get("text") or content.get("body", "")}})
     elif channel_str == "whatsapp":
+        wa_content: Dict[str, Any] = {}
+        if content.get("body") or content.get("text"):
+            wa_content["text"] = content.get("body") or content.get("text")
+        if content.get("template_id"):
+            wa_content["template"] = content.get("template_id")
+        if content.get("variables"):
+            wa_content["variables"] = content.get("variables")
         channels_array.append({
             "channel": "whatsapp",
-            "content": {
-                "text": content.get("body"),
-                "template": content.get("template_id"),
-                "variables": content.get("variables"),
-            },
+            "content": wa_content,
         })
     elif channel_str == "slack":
-        channels_array.append({"channel": "slack", "content": {"text": content.get("body", "")}})
+        channels_array.append({"channel": "slack", "content": {"text": content.get("text") or content.get("body", "")}})
     elif channel_str in ("push", "fcm"):
         channels_array.append({
             "channel": "fcm",
-            "content": {"title": content.get("subject", ""), "body": content.get("body", "")},
+            "content": {"title": content.get("subject", "Notification"), "body": content.get("body", "")},
         })
     else:
         channels_array.append({
             "channel": channel_str,
-            "content": {"subject": content.get("subject"), "text": content.get("body", "")},
+            "content": {"subject": content.get("subject", "Notification"), "text": content.get("body", "")},
         })
 
     idempotency_key = req.get("idempotency_key") or f"sdk_{generate_ulid()}"
     team = req.get("team") or http_client.team_id or "default-team"
 
-    wire = {
+    wire: Dict[str, Any] = {
         "idempotencyKey": idempotency_key,
         "userId": req.get("user_id") or "usr_anonymous",
         "team": team,
@@ -134,8 +148,17 @@ def _normalize_send_payload(http_client: Any, request: Union[SendMessageRequest,
         "priority": _map_priority(req.get("priority")),
         "recipients": recipients_obj,
         "channels": channels_array,
-        "metadata": req.get("metadata"),
     }
+    if req.get("metadata") is not None:
+        wire["metadata"] = req["metadata"]
+    if req.get("template"):
+        wire["template"] = req["template"]
+    if req.get("variables"):
+        wire["variables"] = req["variables"]
+    if req.get("fallback"):
+        wire["fallback"] = req["fallback"]
+    if req.get("cascade"):
+        wire["cascade"] = req["cascade"]
     if req.get("scheduled_at"):
         wire["scheduledAt"] = req["scheduled_at"]
 
@@ -145,7 +168,7 @@ def _normalize_send_payload(http_client: Any, request: Union[SendMessageRequest,
 def _map_priority(priority: Optional[Union[MessagePriority, str]]) -> str:
     if not priority:
         return "normal"
-    p = str(priority).upper()
+    p = _extract_enum_str(priority).upper()
     if p == "CRITICAL":
         return "critical"
     if p == "HIGH":
@@ -154,14 +177,15 @@ def _map_priority(priority: Optional[Union[MessagePriority, str]]) -> str:
         return "normal"
     if p in ("LOW", "MARKETING"):
         return "marketing"
-    return str(priority).lower()
+    return p.lower()
 
 
 def _format_accepted_response(raw: Dict[str, Any], is_sandbox: bool = False) -> MessageAcceptedResponse:
-    mid = raw.get("messageId") or raw.get("publicId") or ""
-    state = raw.get("state") or raw.get("status") or "accepted"
+    data = raw.get("body") if isinstance(raw.get("body"), dict) else raw
+    mid = data.get("messageId") or data.get("publicId") or ""
+    state = data.get("state") or data.get("status") or "accepted"
     status = state.upper()
-    created_at = raw.get("createdAt") or ""
+    created_at = data.get("createdAt") or ""
 
     return MessageAcceptedResponse(
         message_id=mid,
@@ -171,9 +195,9 @@ def _format_accepted_response(raw: Dict[str, Any], is_sandbox: bool = False) -> 
         created_at=created_at,
         accepted_at=created_at,
         success=True,
-        is_sandbox=raw.get("isSandbox", is_sandbox),
-        scheduled_at=raw.get("scheduledAt"),
-        idempotency_key=raw.get("idempotencyKey"),
+        is_sandbox=data.get("isSandbox", is_sandbox),
+        scheduled_at=data.get("scheduledAt"),
+        idempotency_key=data.get("idempotencyKey"),
     )
 
 
@@ -287,18 +311,21 @@ class SyncMessagesResource:
         recipient: Optional[Any] = None,
     ) -> TemplatePreviewResponse:
         """Preview and test variable rendering against a message template."""
-        wire = {
+        wire: Dict[str, Any] = {
             "template": {"body": template} if isinstance(template, str) else template,
             "variables": variables or {},
-            "recipient": {"email": recipient} if isinstance(recipient, str) else (recipient or {}),
         }
+        if recipient is not None:
+            wire["recipient"] = {"email": recipient} if isinstance(recipient, str) else recipient
+
         res = self._http.request("POST", "/v1/messages/templates/preview", body=wire)
+        rendered = res.get("rendered") or res.get("body") or res.get("text") or res.get("html") or ""
         return TemplatePreviewResponse(
             subject=res.get("subject"),
             body=res.get("body"),
             text=res.get("text"),
             html=res.get("html"),
-            rendered=res.get("rendered") or res.get("text") or res.get("body") or res.get("html") or "",
+            rendered=rendered,
             missing_variables=res.get("missingVariables", []),
         )
 

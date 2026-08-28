@@ -23,11 +23,34 @@ func (r *SuppressionsResource) Add(ctx context.Context, req AddSuppressionReques
 		opt = opts[0]
 	}
 
+	identifier := req.Identifier
+	if identifier == "" {
+		identifier = req.Recipient
+	}
+	reason := req.Reason
+	if reason == "" {
+		reason = SuppressionManualBlock
+	}
+
+	wire := map[string]interface{}{
+		"identifier": identifier,
+		"reason":     reason,
+	}
+	if req.Channel != "" {
+		wire["channel"] = req.Channel
+	}
+	if req.Category != "" {
+		wire["category"] = req.Category
+	}
+	if req.Country != "" {
+		wire["country"] = req.Country
+	}
+
 	var res struct {
 		Success     bool           `json:"success"`
 		Suppression SuppressionDto `json:"suppression"`
 	}
-	err := r.http.Request(ctx, http.MethodPost, "/v1/suppressions", req, opt, &res)
+	err := r.http.Request(ctx, http.MethodPost, "/v1/suppressions", wire, opt, &res)
 	if err != nil {
 		return nil, err
 	}

@@ -150,10 +150,11 @@ export class MessagesResource {
   }
 
   private formatAcceptedResponse(raw: Record<string, unknown>, isSandbox = false): MessageAcceptedResponse {
-    const id = String(raw.messageId || raw.publicId || '');
-    const state = String(raw.state || raw.status || 'accepted');
+    const data = (raw.body && typeof raw.body === 'object' ? raw.body : raw) as Record<string, unknown>;
+    const id = String(data.messageId || data.publicId || '');
+    const state = String(data.state || data.status || 'accepted');
     const status = (state.toUpperCase() as MessageStatus) || 'ACCEPTED';
-    const createdAt = String(raw.createdAt || new Date().toISOString());
+    const createdAt = String(data.createdAt || new Date().toISOString());
 
     return {
       messageId: id,
@@ -162,10 +163,10 @@ export class MessagesResource {
       status,
       createdAt,
       acceptedAt: createdAt,
-      scheduledAt: raw.scheduledAt ? String(raw.scheduledAt) : undefined,
+      scheduledAt: data.scheduledAt ? String(data.scheduledAt) : undefined,
       success: true,
-      isSandbox: typeof raw.isSandbox === 'boolean' ? raw.isSandbox : isSandbox,
-      idempotencyKey: raw.idempotencyKey ? String(raw.idempotencyKey) : undefined,
+      isSandbox: typeof data.isSandbox === 'boolean' ? data.isSandbox : isSandbox,
+      idempotencyKey: data.idempotencyKey ? String(data.idempotencyKey) : undefined,
     };
   }
 

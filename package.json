@@ -33,6 +33,7 @@
     "test:go": "cd packages/sdk-go && go test -v -race ./...",
     "test:py": "PYTHONPATH=packages/sdk-py python3 -m unittest discover -s packages/sdk-py/tests -v",
     "test:sdks": "bun run --filter @convey/sdk test && bun run test:go && bun run test:py",
+    "test:e2e:sdks": "bun run scripts/run-e2e-sdks.ts",
     "test:all": "bun test",
     "test:e2e": "bun --filter @convey/server test:e2e",
     "test:bench": "bun --filter @convey/server test:bench",

@@ -28,19 +28,23 @@ class SyncSuppressionsResource:
         team: Optional[str] = None,
     ) -> SuppressionDto:
         """Add a single recipient to the suppression ledger."""
-        payload = {
-            "recipient": recipient,
-            "channel": str(channel),
+        payload: Dict[str, Any] = {
+            "identifier": recipient,
             "reason": str(reason),
-            "category": category,
-            "team": team,
         }
+        if channel:
+            payload["channel"] = str(channel)
+        if category:
+            payload["category"] = category
+        if team:
+            payload["team"] = team
+
         res = self._http.request("POST", "/v1/suppressions", body=payload)
         sup = res.get("suppression") or res
         return SuppressionDto(
             id=sup.get("id", ""),
             team=sup.get("team", ""),
-            recipient=sup.get("recipient", recipient),
+            recipient=sup.get("recipient") or sup.get("identifier", recipient),
             channel=sup.get("channel", str(channel)),
             reason=sup.get("reason", str(reason)),
             created_at=sup.get("createdAt", ""),

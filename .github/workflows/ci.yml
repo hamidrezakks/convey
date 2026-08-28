@@ -98,6 +98,9 @@ jobs:
       - name: Test Python SDK (packages/sdk-py)
         run: PYTHONPATH=packages/sdk-py python3 -m unittest discover -s packages/sdk-py/tests -v
 
+      - name: Test Multi-SDK Live E2E Integration with Convey Server
+        run: bun run test:e2e:sdks
+
   # --------------------------------------------------------------------------
   # 4. SDK Build & Distribution Verification
   # --------------------------------------------------------------------------

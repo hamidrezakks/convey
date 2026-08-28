@@ -122,22 +122,36 @@ func (r *MessagesResource) normalizeSendPayload(req SendMessageRequest) map[stri
 
 	switch channelStr {
 	case "email":
-		var render map[string]interface{}
+		subject := content.Subject
+		if subject == "" {
+			subject = "Notification"
+		}
+		html := content.HTML
+		if html == "" {
+			html = content.Body
+		}
+		text := content.Body
+		if text == "" {
+			text = content.HTML
+		}
+		emailContent := map[string]interface{}{
+			"subject": subject,
+			"html":    html,
+			"text":    text,
+		}
 		if content.TemplateID != "" {
-			render = map[string]interface{}{
+			render := map[string]interface{}{
 				"template": content.TemplateID,
-				"props":    content.Variables,
 			}
+			if content.Variables != nil {
+				render["props"] = content.Variables
+			}
+			emailContent["render"] = render
 		}
 
 		channelsArray = append(channelsArray, map[string]interface{}{
 			"channel": "email",
-			"content": map[string]interface{}{
-				"subject": content.Subject,
-				"html":    content.HTML,
-				"text":    content.Body,
-				"render":  render,
-			},
+			"content": emailContent,
 		})
 	case "sms":
 		channelsArray = append(channelsArray, map[string]interface{}{
@@ -147,13 +161,19 @@ func (r *MessagesResource) normalizeSendPayload(req SendMessageRequest) map[stri
 			},
 		})
 	case "whatsapp":
+		waContent := map[string]interface{}{}
+		if content.Body != "" {
+			waContent["text"] = content.Body
+		}
+		if content.TemplateID != "" {
+			waContent["template"] = content.TemplateID
+		}
+		if content.Variables != nil {
+			waContent["variables"] = content.Variables
+		}
 		channelsArray = append(channelsArray, map[string]interface{}{
 			"channel": "whatsapp",
-			"content": map[string]interface{}{
-				"text":      content.Body,
-				"template":  content.TemplateID,
-				"variables": content.Variables,
-			},
+			"content": waContent,
 		})
 	case "slack":
 		channelsArray = append(channelsArray, map[string]interface{}{
@@ -163,18 +183,26 @@ func (r *MessagesResource) normalizeSendPayload(req SendMessageRequest) map[stri
 			},
 		})
 	case "push", "fcm":
+		subject := content.Subject
+		if subject == "" {
+			subject = "Notification"
+		}
 		channelsArray = append(channelsArray, map[string]interface{}{
 			"channel": "fcm",
 			"content": map[string]interface{}{
-				"title": content.Subject,
+				"title": subject,
 				"body":  content.Body,
 			},
 		})
 	default:
+		subject := content.Subject
+		if subject == "" {
+			subject = "Notification"
+		}
 		channelsArray = append(channelsArray, map[string]interface{}{
 			"channel": channelStr,
 			"content": map[string]interface{}{
-				"subject": content.Subject,
+				"subject": subject,
 				"text":    content.Body,
 			},
 		})
@@ -217,9 +245,23 @@ func (r *MessagesResource) normalizeSendPayload(req SendMessageRequest) map[stri
 		"priority":       r.mapPriority(req.Priority),
 		"recipients":     recipientsObj,
 		"channels":       channelsArray,
-		"metadata":       req.Metadata,
 	}
 
+	if req.Metadata != nil {
+		wire["metadata"] = req.Metadata
+	}
+	if req.Template != "" {
+		wire["template"] = req.Template
+	}
+	if req.Variables != nil {
+		wire["variables"] = req.Variables
+	}
+	if req.Fallback != nil {
+		wire["fallback"] = req.Fallback
+	}
+	if req.Cascade != nil {
+		wire["cascade"] = req.Cascade
+	}
 	if req.ScheduledAt != nil {
 		wire["scheduledAt"] = req.ScheduledAt.UTC().Format(time.RFC3339)
 	}
@@ -355,47 +397,95 @@ func (r *MessagesResource) PreviewTemplate(ctx context.Context, req TemplatePrev
 		opt = opts[0]
 	}
 
-	wire := map[string]interface{}{
-		"template":  req.Template,
-		"variables": req.Variables,
-		"recipient": req.Recipient,
+	templateObj := req.Template
+	if str, ok := req.Template.(string); ok {
+		templateObj = map[string]interface{}{"body": str}
 	}
 
-	var res TemplatePreviewResponse
-	err := r.http.Request(ctx, http.MethodPost, "/v1/messages/templates/preview", wire, opt, &res)
+	recipientObj := req.Recipient
+	if str, ok := req.Recipient.(string); ok {
+		recipientObj = map[string]interface{}{"email": str}
+	}
+
+	variables := req.Variables
+	if variables == nil {
+		variables = make(map[string]interface{})
+	}
+
+	wire := map[string]interface{}{
+		"template":  templateObj,
+		"variables": variables,
+	}
+	if recipientObj != nil {
+		wire["recipient"] = recipientObj
+	}
+
+	var raw struct {
+		Subject          string   `json:"subject"`
+		Body             string   `json:"body"`
+		Text             string   `json:"text"`
+		HTML             string   `json:"html"`
+		Rendered         string   `json:"rendered"`
+		MissingVariables []string `json:"missingVariables"`
+	}
+	err := r.http.Request(ctx, http.MethodPost, "/v1/messages/templates/preview", wire, opt, &raw)
 	if err != nil {
 		return nil, err
 	}
-	return &res, nil
+
+	rendered := raw.Rendered
+	if rendered == "" {
+		if raw.Body != "" {
+			rendered = raw.Body
+		} else if raw.Text != "" {
+			rendered = raw.Text
+		} else if raw.HTML != "" {
+			rendered = raw.HTML
+		}
+	}
+
+	return &TemplatePreviewResponse{
+		Subject:          raw.Subject,
+		Body:             raw.Body,
+		Text:             raw.Text,
+		HTML:             raw.HTML,
+		Rendered:         rendered,
+		MissingVariables: raw.MissingVariables,
+	}, nil
 }
 
 func (r *MessagesResource) formatAcceptedResponse(raw map[string]interface{}) *MessageAcceptedResponse {
-	id, _ := raw["messageId"].(string)
-	if id == "" {
-		id, _ = raw["publicId"].(string)
+	data := raw
+	if bodyMap, ok := raw["body"].(map[string]interface{}); ok {
+		data = bodyMap
 	}
 
-	state, _ := raw["state"].(string)
+	id, _ := data["messageId"].(string)
+	if id == "" {
+		id, _ = data["publicId"].(string)
+	}
+
+	state, _ := data["state"].(string)
 	if state == "" {
-		state, _ = raw["status"].(string)
+		state, _ = data["status"].(string)
 	}
 	if state == "" {
 		state = "accepted"
 	}
 
-	createdAt, _ := raw["createdAt"].(string)
+	createdAt, _ := data["createdAt"].(string)
 	if createdAt == "" {
 		createdAt = time.Now().UTC().Format(time.RFC3339)
 	}
 
-	isSandbox, _ := raw["isSandbox"].(bool)
+	isSandbox, _ := data["isSandbox"].(bool)
 	var idempotencyKey *string
-	if k, ok := raw["idempotencyKey"].(string); ok {
+	if k, ok := data["idempotencyKey"].(string); ok {
 		idempotencyKey = &k
 	}
 
 	var scheduledAt *string
-	if s, ok := raw["scheduledAt"].(string); ok {
+	if s, ok := data["scheduledAt"].(string); ok {
 		scheduledAt = &s
 	}
 

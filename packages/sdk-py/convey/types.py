@@ -25,12 +25,18 @@ class Channel(str, Enum):
     TELEGRAM = "TELEGRAM"
     WEBHOOK = "WEBHOOK"
 
+    def __str__(self) -> str:
+        return str(self.value)
+
 
 class MessagePriority(str, Enum):
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     DEFAULT = "DEFAULT"
     LOW = "LOW"
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class MessageStatus(str, Enum):
@@ -42,11 +48,17 @@ class MessageStatus(str, Enum):
     SUPPRESSED = "SUPPRESSED"
     REPLAYED = "REPLAYED"
 
+    def __str__(self) -> str:
+        return str(self.value)
+
 
 class CircuitState(str, Enum):
     CLOSED = "CLOSED"
     HALF_OPEN = "HALF_OPEN"
     OPEN = "OPEN"
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class SuppressionReason(str, Enum):
@@ -54,6 +66,9 @@ class SuppressionReason(str, Enum):
     SPAM_COMPLAINT = "SPAM_COMPLAINT"
     UNSUBSCRIBE = "UNSUBSCRIBE"
     MANUAL_BLOCK = "MANUAL_BLOCK"
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class DlqFailureCategory(str, Enum):
@@ -65,12 +80,18 @@ class DlqFailureCategory(str, Enum):
     POLICY_REJECTED = "POLICY_REJECTED"
     UNKNOWN = "UNKNOWN"
 
+    def __str__(self) -> str:
+        return str(self.value)
+
 
 class UserRole(str, Enum):
     ORG_ADMIN = "ORG_ADMIN"
     TEAM_ADMIN = "TEAM_ADMIN"
     DEVELOPER = "DEVELOPER"
     VIEWER = "VIEWER"
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class BatchState(str, Enum):
@@ -79,6 +100,9 @@ class BatchState(str, Enum):
     PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 @dataclass
@@ -249,13 +273,19 @@ class ConveyWebhookEvent(Generic[T]):
 
 @dataclass
 class LiveTelemetrySnapshot:
-    heap_saturation: float
-    queue_depths: Dict[str, int]
-    active_workers: int
-    p95_latency_ms: float
-    circuit_breakers: Dict[str, str]
-    system_health: str
     timestamp: str = ""
+    throughput_rps: float = 0.0
+    latency: Optional[Dict[str, Any]] = None
+    queues: Optional[Dict[str, Any]] = None
+    runtime_guard: Optional[Dict[str, Any]] = None
+    subsystems: Optional[Dict[str, Any]] = None
+    recent_activity: Optional[List[Dict[str, Any]]] = None
+    heap_saturation: float = 0.0
+    queue_depths: Optional[Dict[str, int]] = None
+    active_workers: int = 0
+    p95_latency_ms: float = 0.0
+    circuit_breakers: Optional[Dict[str, str]] = None
+    system_health: str = "HEALTHY"
     extra_diagnostics: Optional[Dict[str, Any]] = None
 
 

@@ -34,13 +34,19 @@ class SyncAdminResource:
         """Retrieve real-time live telemetry snapshot."""
         res = self._http.request("GET", "/v1/admin/telemetry/live")
         return LiveTelemetrySnapshot(
+            timestamp=res.get("timestamp", ""),
+            throughput_rps=float(res.get("throughputRps", 0.0)),
+            latency=res.get("latency", {}),
+            queues=res.get("queues", {}),
+            runtime_guard=res.get("runtimeGuard", {}),
+            subsystems=res.get("subsystems", {}),
+            recent_activity=res.get("recentActivity", []),
             heap_saturation=float(res.get("heapSaturation", 0.0)),
             queue_depths=res.get("queueDepths", {}),
-            active_workers=res.get("activeWorkers", 0),
+            active_workers=int(res.get("activeWorkers", 0)),
             p95_latency_ms=float(res.get("p95LatencyMs", 0.0)),
             circuit_breakers=res.get("circuitBreakers", {}),
-            system_health=res.get("systemHealth", "UNKNOWN"),
-            timestamp=res.get("timestamp", ""),
+            system_health=res.get("systemHealth", "HEALTHY"),
             extra_diagnostics=res.get("extraDiagnostics"),
         )
 

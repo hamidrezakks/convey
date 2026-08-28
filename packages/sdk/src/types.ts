@@ -398,7 +398,8 @@ export interface BatchActionResponse {
 // ==========================================
 
 export interface AddSuppressionRequest {
-  identifier: string;
+  identifier?: string;
+  recipient?: string;
   identifierType?: 'email' | 'phone' | 'whatsapp' | 'push' | 'user_id' | string;
   reason: SuppressionReason;
   category?: string;

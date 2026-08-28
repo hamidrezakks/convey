@@ -38,7 +38,7 @@ class Convey:
         team_id: Optional[str] = None,
         default_headers: Optional[Dict[str, str]] = None,
     ) -> None:
-        resolved_key = api_key or os.getenv("CONVEY_API_KEY") or ""
+        resolved_key = api_key if api_key is not None else (os.getenv("CONVEY_API_KEY") or "")
         self.http = SyncHttpClient(
             api_key=resolved_key,
             base_url=base_url,
