@@ -100,7 +100,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          git add package.json packages/*/package.json apps/*/package.json CHANGELOG.md
+          git add package.json packages/*/package.json apps/*/package.json packages/sdk-py/pyproject.toml packages/sdk-py/convey/__init__.py packages/sdk-py/convey/http.py packages/sdk-go/client_options.go CHANGELOG.md
           git commit -m "chore(release): bump version to ${{ steps.bump.outputs.tag }} [skip ci]" || echo "No changes to commit"
           git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
           
@@ -166,7 +166,74 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # --------------------------------------------------------------------------
-  # 3. Docker Container Release (GHCR Multi-Arch)
+  # 3. PyPI Package Release (convey-sdk)
+  # --------------------------------------------------------------------------
+  publish-pypi:
+    name: Publish convey-sdk to PyPI
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true' && needs.prepare-release.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - name: Setup Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Build Tooling
+        run: python3 -m pip install --upgrade build hatchling twine
+
+      - name: Build Python Distribution (Wheel & Sdist)
+        run: |
+          cd packages/sdk-py
+          python3 -m build
+
+      - name: Publish Package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/sdk-py/dist/
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 4. Go Module Release Verification
+  # --------------------------------------------------------------------------
+  publish-go:
+    name: Verify & Index Go SDK Module
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true' && needs.prepare-release.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Verify Go Module Build & Tests
+        run: |
+          cd packages/sdk-go
+          go vet ./...
+          go test -v -race ./...
+
+      - name: Trigger Go Proxy Indexing
+        run: |
+          GOPROXY=https://proxy.golang.org go list -m github.com/hamidrezakks/convey/packages/sdk-go@${{ needs.prepare-release.outputs.tag }} || echo "Go proxy will index on first go get invocation"
+
+  # --------------------------------------------------------------------------
+  # 5. Docker Container Release (GHCR Multi-Arch)
   # --------------------------------------------------------------------------
   publish-docker:
     name: Build & Push Docker Image (${{ matrix.image }})
