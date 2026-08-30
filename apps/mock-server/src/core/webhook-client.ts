@@ -63,6 +63,44 @@ export function buildWebhookPayload(
       };
     }
 
+    case 'whatsapp-business': {
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            id: 'WHATSAPP_MOCK_ACCOUNT',
+            changes: [
+              {
+                value: {
+                  messaging_product: 'whatsapp',
+                  metadata: {
+                    display_phone_number: '15559876543',
+                    phone_number_id: '123456789',
+                  },
+                  statuses: [
+                    {
+                      id: options.messageId,
+                      status: eventType,
+                      timestamp: Math.floor(now.getTime() / 1000).toString(),
+                      recipient_id: options.recipient.replace(/\D/g, ''),
+                    },
+                  ],
+                },
+                field: 'messages',
+              },
+            ],
+          },
+        ],
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+          'x-hub-signature-256': `sha256=${crypto.randomBytes(32).toString('hex')}`,
+        },
+      };
+    }
+
     case 'sendgrid': {
       const payload = [
         {

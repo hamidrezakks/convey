@@ -3,11 +3,13 @@ import { discordMockHandler } from './discord';
 import { otherChatHandlers } from './other-chat';
 import { slackMockHandler } from './slack';
 import { telegramMockHandler } from './telegram';
+import { whatsappBusinessMockHandler } from './whatsapp-business';
 
 export const chatHandlers: Record<string, ProviderMockHandler> = {
   slack: slackMockHandler,
   telegram: telegramMockHandler,
   discord: discordMockHandler,
+  'whatsapp-business': whatsappBusinessMockHandler,
   ...otherChatHandlers,
 };
 

@@ -49,6 +49,53 @@ describe('Chat, Push & Tool Provider Handlers', () => {
     expect(data.id).toBeDefined();
   });
 
+  it('handles WhatsApp Business Meta Cloud API with authentic wamid', async () => {
+    const handler = chatHandlers['whatsapp-business'];
+    const req = new Request('https://graph.facebook.com/v18.0/123456789/messages', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer EAAGmocktoken12345',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: '+15550192834',
+        type: 'text',
+        text: { body: 'Hello WhatsApp Business' },
+      }),
+    });
+    const res = await handler.handle(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      messaging_product: string;
+      contacts: Array<{ wa_id: string }>;
+      messages: Array<{ id: string }>;
+    };
+    expect(data.messaging_product).toBe('whatsapp');
+    expect(data.contacts[0].wa_id).toBe('15550192834');
+    expect(data.messages[0].id).toMatch(/^wamid\./);
+  });
+
+  it('handles Twilio WhatsApp with authentic SM SID', async () => {
+    const handler = chatHandlers['twilio-whatsapp'];
+    const req = new Request('https://api.twilio.com/2010-04-01/Accounts/ACmock/Messages.json', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Basic QUNtb2NrOm1vY2tfdG9rZW4=',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        To: 'whatsapp:+15550192834',
+        From: 'whatsapp:+15559876543',
+        Body: 'Hello Twilio WhatsApp',
+      }),
+    });
+    const res = await handler.handle(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { id: string };
+    expect(data.id).toMatch(/^SM[0-9a-f]{32}$/);
+  });
+
   it('handles FCM POST messages:send with authentic name schema', async () => {
     const handler = pushHandlers.fcm;
     const req = new Request('https://fcm.googleapis.com/v1/projects/mock-proj/messages:send', {

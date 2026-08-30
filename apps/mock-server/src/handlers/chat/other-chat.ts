@@ -71,7 +71,6 @@ export class GenericChatMockHandler implements ProviderMockHandler {
 
 export const otherChatHandlers: Record<string, ProviderMockHandler> = {
   msteams: new GenericChatMockHandler('msteams', ['webhook.office.com', 'teams.microsoft.com'], ['/teams/']),
-  'whatsapp-business': new GenericChatMockHandler('whatsapp-business', ['graph.facebook.com'], ['/messages']),
   'twilio-whatsapp': new GenericChatMockHandler('twilio-whatsapp', ['api.twilio.com'], ['/Messages.json']),
   line: new GenericChatMockHandler('line', ['api.line.me'], ['/v2/bot/message/push']),
   zulip: new GenericChatMockHandler('zulip', ['zulipchat.com'], ['/api/v1/messages']),

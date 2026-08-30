@@ -21,6 +21,9 @@ export function generateProviderId(providerId: string, options?: { projectId?: s
     case 'twilio-whatsapp':
       return `SM${randomHex(32)}`;
 
+    case 'whatsapp-business':
+      return `wamid.HBgL${randomBase64Url(32)}==`;
+
     case 'sendgrid':
       return `SG.${randomBase64Url(22)}.${randomBase64Url(22)}`;
 

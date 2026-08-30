@@ -313,6 +313,64 @@ services:
           - api.telegram.org
           - mock-telegram
 
+  mock-whatsapp-business:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-server
+    image: convey-mock-server:latest
+    container_name: convey-mock-whatsapp-business
+    restart: unless-stopped
+    ports:
+      - "${MOCK_WHATSAPP_PORT:-4019}:4019"
+    environment:
+      PROVIDER_ID: whatsapp-business
+      PORT: 4019
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://convey-server:3000/v1/webhooks/providers}
+    networks:
+      convey-network:
+        aliases:
+          - graph.facebook.com
+          - mock-whatsapp-business
+
+  mock-twilio-whatsapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-server
+    image: convey-mock-server:latest
+    container_name: convey-mock-twilio-whatsapp
+    restart: unless-stopped
+    ports:
+      - "${MOCK_TWILIO_WHATSAPP_PORT:-4020}:4020"
+    environment:
+      PROVIDER_ID: twilio-whatsapp
+      PORT: 4020
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://convey-server:3000/v1/webhooks/providers}
+    networks:
+      convey-network:
+        aliases:
+          - mock-twilio-whatsapp
+
+  mock-cequens-whatsapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-server
+    image: convey-mock-server:latest
+    container_name: convey-mock-cequens-whatsapp
+    restart: unless-stopped
+    ports:
+      - "${MOCK_CEQUENS_WHATSAPP_PORT:-4021}:4021"
+    environment:
+      PROVIDER_ID: cequens-whatsapp
+      PORT: 4021
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://convey-server:3000/v1/webhooks/providers}
+    networks:
+      convey-network:
+        aliases:
+          - mock-cequens-whatsapp
+
   # ----------------------------------------------------------------------------
   # 4. Discrete Push Provider Containers
   # ----------------------------------------------------------------------------
