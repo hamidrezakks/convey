@@ -6,9 +6,9 @@ import { findSmsHandler, smsHandlers } from '../handlers/sms';
 import { findToolHandler, toolHandlers } from '../handlers/tool';
 import { applyChaosSimulation } from './chaos';
 import { generateProviderId } from './id-generator';
-import { mockLogger } from './logger';
 import type { ProviderMockHandler, RecordedRequest } from './types';
 import { scheduleWebhookCallback } from './webhook-client';
+import { mockWsManager } from './websocket-manager';
 
 export const recordedRequests: RecordedRequest[] = [];
 const MAX_RECORDED_REQUESTS = 500;
@@ -230,7 +230,7 @@ function recordRequestHistory(params: {
     headersObj[key] = val;
   }
 
-  recordedRequests.push({
+  const recordItem: RecordedRequest = {
     id: generateProviderId('req'),
     providerId: params.providerId,
     channel: params.channel as RecordedRequest['channel'],
@@ -242,9 +242,14 @@ function recordRequestHistory(params: {
     responseBody: params.responseBody,
     timestamp: new Date().toISOString(),
     durationMs: params.durationMs,
-  });
+  };
+
+  recordedRequests.push(recordItem);
 
   if (recordedRequests.length > MAX_RECORDED_REQUESTS) {
     recordedRequests.shift();
   }
+
+  // Live WebSocket Streaming Broadcast
+  mockWsManager.broadcastInspectorEvent('request', recordItem);
 }

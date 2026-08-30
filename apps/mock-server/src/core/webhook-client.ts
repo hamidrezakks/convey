@@ -261,6 +261,117 @@ export function buildWebhookPayload(
       };
     }
 
+    case 'cequens': {
+      const payload = {
+        message_id: options.messageId,
+        status: eventType === 'delivered' ? 'DELIVERED' : 'FAILED',
+        timestamp,
+        recipient: options.recipient,
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'cequens-whatsapp': {
+      const payload = {
+        message_id: options.messageId,
+        status: eventType === 'delivered' ? 'DELIVERED' : 'FAILED',
+        recipientPhone: options.recipient,
+        timestamp,
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'pagerduty': {
+      const payload = {
+        event: {
+          id: options.messageId,
+          event_action: eventType === 'failed' ? 'trigger' : 'resolve',
+          client: 'Convey Mock Pipeline',
+          created_at: timestamp,
+        },
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'discord': {
+      const payload = {
+        id: options.messageId,
+        type: 0,
+        content: `Webhook event: ${eventType}`,
+        timestamp,
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'slack': {
+      const payload = {
+        event: {
+          type: 'message',
+          ts: options.messageId,
+          channel: 'C12345678',
+          text: `Message event: ${eventType}`,
+        },
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'expo': {
+      const payload = {
+        data: [
+          {
+            id: options.messageId,
+            status: eventType === 'failed' ? 'error' : 'ok',
+            message: eventType === 'failed' ? 'DeviceNotRegistered' : undefined,
+          },
+        ],
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'one-signal': {
+      const payload = {
+        id: options.messageId,
+        recipients: 1,
+        external_id: options.recipient,
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
     default: {
       const payload = {
         providerId,
@@ -297,6 +408,16 @@ export function scheduleWebhookCallback(providerId: string, options: WebhookEven
         status: res.status,
         messageId: options.messageId,
         eventType: options.eventType || 'delivered',
+      });
+
+      // Broadcast live webhook event to connected WebSockets
+      const { mockWsManager } = await import('./websocket-manager');
+      mockWsManager.broadcastInspectorEvent('webhook', {
+        providerId,
+        messageId: options.messageId,
+        eventType: options.eventType || 'delivered',
+        status: res.status,
+        targetUrl,
       });
     } catch (err: unknown) {
       mockLogger.error(`[WEBHOOK-DISPATCH-ERROR] Failed to send webhook callback to ${targetUrl}`, {
