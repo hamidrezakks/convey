@@ -1,0 +1,6 @@
+{
+  "include": ["packages/sdk-py"],
+  "exclude": ["**/node_modules", "**/dist", "**/__pycache__", "apps", "docs", "scratch"],
+  "extraPaths": ["packages/sdk-py"],
+  "pythonVersion": "3.10"
+}

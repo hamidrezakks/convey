@@ -67,9 +67,9 @@ class SyncAdminResource:
         if team_id:
             query["teamId"] = team_id
         if channel:
-            query["channel"] = str(channel)
+            query["channel"] = channel.value if isinstance(channel, Channel) else channel
         if status:
-            query["status"] = str(status)
+            query["status"] = status.value if isinstance(status, MessageStatus) else status
         if search:
             query["search"] = search
         if start_date:
@@ -77,7 +77,7 @@ class SyncAdminResource:
         if end_date:
             query["endDate"] = end_date
         if is_sandbox is not None:
-            query["isSandbox"] = str(is_sandbox).lower()
+            query["isSandbox"] = "true" if is_sandbox else "false"
 
         res = self._http.request("GET", "/v1/admin/messages", query=query)
         msgs_raw = res.get("messages") or []

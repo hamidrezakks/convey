@@ -35,7 +35,7 @@ def normalize_base_url(url: str) -> str:
 
 def resolve_environment_url(env: Union[ConveyEnvironment, str]) -> str:
     """Resolve environment preset into canonical base URL."""
-    val = env.value if isinstance(env, ConveyEnvironment) else str(env)
+    val = env.value if isinstance(env, ConveyEnvironment) else env
     normalized = val.strip().upper()
 
     preset_map = {

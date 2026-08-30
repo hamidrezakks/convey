@@ -26,7 +26,7 @@ class Channel(str, Enum):
     WEBHOOK = "WEBHOOK"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class MessagePriority(str, Enum):
@@ -36,7 +36,7 @@ class MessagePriority(str, Enum):
     LOW = "LOW"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class MessageStatus(str, Enum):
@@ -49,7 +49,7 @@ class MessageStatus(str, Enum):
     REPLAYED = "REPLAYED"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class CircuitState(str, Enum):
@@ -58,7 +58,7 @@ class CircuitState(str, Enum):
     OPEN = "OPEN"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class SuppressionReason(str, Enum):
@@ -68,7 +68,7 @@ class SuppressionReason(str, Enum):
     MANUAL_BLOCK = "MANUAL_BLOCK"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class DlqFailureCategory(str, Enum):
@@ -81,7 +81,7 @@ class DlqFailureCategory(str, Enum):
     UNKNOWN = "UNKNOWN"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class UserRole(str, Enum):
@@ -91,7 +91,7 @@ class UserRole(str, Enum):
     VIEWER = "VIEWER"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 class BatchState(str, Enum):
@@ -102,7 +102,7 @@ class BatchState(str, Enum):
     CANCELLED = "CANCELLED"
 
     def __str__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
 @dataclass

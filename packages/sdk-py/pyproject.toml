@@ -56,3 +56,10 @@ Documentation = "https://github.com/hamidrezakks/convey/tree/main/packages/sdk-p
 
 [tool.hatch.build.targets.wheel]
 packages = ["convey"]
+
+[tool.pyrefly]
+search_path = ["."]
+project_includes = ["convey/**/*.py", "tests/**/*.py"]
+project_excludes = ["**/__pycache__/**", "**/dist/**", "**/build/**"]
+python_version = "3.10"
+

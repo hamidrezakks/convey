@@ -35,7 +35,7 @@ class MessageBuilder:
         return self
 
     def channel(self, channel: Union[Channel, str]) -> MessageBuilder:
-        self._channel = channel if isinstance(channel, Channel) else Channel(str(channel).upper())
+        self._channel = channel if isinstance(channel, Channel) else Channel(channel.upper())
         return self
 
     def email(
@@ -122,11 +122,11 @@ class MessageBuilder:
         return self
 
     def priority(self, priority: Union[MessagePriority, str]) -> MessageBuilder:
-        self._priority = priority if isinstance(priority, MessagePriority) else MessagePriority(str(priority).upper())
+        self._priority = priority if isinstance(priority, MessagePriority) else MessagePriority(priority.upper())
         return self
 
     def scheduled_at(self, dt: Union[datetime, str]) -> MessageBuilder:
-        self._scheduled_at = dt.isoformat() if isinstance(dt, datetime) else str(dt)
+        self._scheduled_at = dt.isoformat() if isinstance(dt, datetime) else dt
         return self
 
     def idempotency_key(self, key: str) -> MessageBuilder:
