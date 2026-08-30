@@ -778,3 +778,25 @@ The transport proxy layer exports real-time metrics scraped at `GET /metrics`:
 | `convey_provider_proxy_duration_seconds` | Histogram | `providerId`, `proxyType` | End-to-end latency distribution for proxied outbound calls |
 | `convey_provider_proxy_errors_total` | Counter | `providerId`, `proxyType`, `errorCode` | Total errors encountered during proxy transport execution |
 
+---
+
+## 9. Realistic Provider Simulation & Multi-Container Docker Mocks
+
+Convey includes a high-performance, standalone provider simulation engine (`apps/mock-server`) allowing zero-credential production testing across all 88 communication providers with authentic schemas, box-formatted container stdout logs, and delayed asynchronous delivery webhooks.
+
+### 9.1 Multi-Container Compose Setup
+Run discrete containers for each provider:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.providers.yml up -d
+```
+
+### 9.2 Container Log Inspection
+```bash
+docker compose -f docker-compose.providers.yml logs -f mock-resend mock-twilio mock-slack
+```
+
+### 9.3 Automated Production Verification
+```bash
+bun run test:prod:docker
+```
+

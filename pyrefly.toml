@@ -1,0 +1,29 @@
+# Pyrefly Configuration for Convey Monorepo
+# Configures module search paths, file inclusion/exclusion for Python SDK
+
+search_path = [
+    "packages/sdk-py",
+]
+
+extra_search_paths = [
+    "packages/sdk-py",
+]
+
+project_includes = [
+    "packages/sdk-py/**/*.py",
+]
+
+project_excludes = [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/__pyrefly_virtual__/**",
+    "**/apps/**",
+    "**/docs/**",
+    "**/scratch/**",
+]
+
+python_version = "3.10"
+check_unannotated_defs = false

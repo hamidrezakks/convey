@@ -1,0 +1,829 @@
+# ==============================================================================
+# ⚡ CONVEY DISCRETE PROVIDER MOCK SIMULATOR COMPOSE TOPOLOGY (ALL 88 PROVIDERS)
+# Complete multi-container isolated simulation stack for all 88 Convey providers
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 0. Universal Mock Gateway (Port 4000)
+  # ----------------------------------------------------------------------------
+  mock-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-server
+    image: convey-mock-server:latest
+    container_name: convey-mock-gateway
+    restart: unless-stopped
+    ports:
+      - "${MOCK_GATEWAY_PORT:-4000}:4000"
+    environment:
+      PROVIDER_ID: all
+      PORT: 4000
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://convey-server:3000/v1/webhooks/providers}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - convey-network
+
+  # ============================================================================
+  # 1. EMAIL PROVIDER CONTAINERS (20 Providers)
+  # ============================================================================
+  mock-resend:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-resend
+    restart: unless-stopped
+    ports: ["${MOCK_RESEND_PORT:-4001}:4001"]
+    environment: { PROVIDER_ID: resend, PORT: 4001, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.resend.com, mock-resend] } }
+
+  mock-sendgrid:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sendgrid
+    restart: unless-stopped
+    ports: ["${MOCK_SENDGRID_PORT:-4002}:4002"]
+    environment: { PROVIDER_ID: sendgrid, PORT: 4002, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.sendgrid.com, mock-sendgrid] } }
+
+  mock-ses:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-ses
+    restart: unless-stopped
+    ports: ["${MOCK_SES_PORT:-4006}:4006"]
+    environment: { PROVIDER_ID: ses, PORT: 4006, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [email.us-east-1.amazonaws.com, email.eu-west-1.amazonaws.com, mock-ses] } }
+
+  mock-mailgun:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mailgun
+    restart: unless-stopped
+    ports: ["${MOCK_MAILGUN_PORT:-4008}:4008"]
+    environment: { PROVIDER_ID: mailgun, PORT: 4008, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.mailgun.net, mock-mailgun] } }
+
+  mock-postmark:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-postmark
+    restart: unless-stopped
+    ports: ["${MOCK_POSTMARK_PORT:-4011}:4011"]
+    environment: { PROVIDER_ID: postmark, PORT: 4011, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.postmarkapp.com, mock-postmark] } }
+
+  mock-brevo:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-brevo
+    restart: unless-stopped
+    ports: ["${MOCK_BREVO_PORT:-4012}:4012"]
+    environment: { PROVIDER_ID: brevo, PORT: 4012, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.brevo.com, api.sendinblue.com, mock-brevo] } }
+
+  mock-mailtrap:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mailtrap
+    restart: unless-stopped
+    ports: ["${MOCK_MAILTRAP_PORT:-4022}:4022"]
+    environment: { PROVIDER_ID: mailtrap, PORT: 4022, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [send.api.mailtrap.io, mailtrap.io, mock-mailtrap] } }
+
+  mock-plunk:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-plunk
+    restart: unless-stopped
+    ports: ["${MOCK_PLUNK_PORT:-4023}:4023"]
+    environment: { PROVIDER_ID: plunk, PORT: 4023, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.useplunk.com, mock-plunk] } }
+
+  mock-sparkpost:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sparkpost
+    restart: unless-stopped
+    ports: ["${MOCK_SPARKPOST_PORT:-4024}:4024"]
+    environment: { PROVIDER_ID: sparkpost, PORT: 4024, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.sparkpost.com, mock-sparkpost] } }
+
+  mock-mailjet:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mailjet
+    restart: unless-stopped
+    ports: ["${MOCK_MAILJET_PORT:-4025}:4025"]
+    environment: { PROVIDER_ID: mailjet, PORT: 4025, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.mailjet.com, mock-mailjet] } }
+
+  mock-mandrill:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mandrill
+    restart: unless-stopped
+    ports: ["${MOCK_MANDRILL_PORT:-4026}:4026"]
+    environment: { PROVIDER_ID: mandrill, PORT: 4026, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mandrillapp.com, mock-mandrill] } }
+
+  mock-emailjs:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-emailjs
+    restart: unless-stopped
+    ports: ["${MOCK_EMAILJS_PORT:-4027}:4027"]
+    environment: { PROVIDER_ID: emailjs, PORT: 4027, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.emailjs.com, mock-emailjs] } }
+
+  mock-mailersend:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mailersend
+    restart: unless-stopped
+    ports: ["${MOCK_MAILERSEND_PORT:-4028}:4028"]
+    environment: { PROVIDER_ID: mailersend, PORT: 4028, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.mailersend.com, mock-mailersend] } }
+
+  mock-netcore:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-netcore
+    restart: unless-stopped
+    ports: ["${MOCK_NETCORE_PORT:-4029}:4029"]
+    environment: { PROVIDER_ID: netcore, PORT: 4029, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [email.netcorecloud.net, mock-netcore] } }
+
+  mock-anypost:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-anypost
+    restart: unless-stopped
+    ports: ["${MOCK_ANYPOST_PORT:-4030}:4030"]
+    environment: { PROVIDER_ID: anypost, PORT: 4030, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.anypost.io, mock-anypost] } }
+
+  mock-braze:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-braze
+    restart: unless-stopped
+    ports: ["${MOCK_BRAZE_PORT:-4031}:4031"]
+    environment: { PROVIDER_ID: braze, PORT: 4031, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [rest.iad-01.braze.com, braze.com, mock-braze] } }
+
+  mock-outlook365:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-outlook365
+    restart: unless-stopped
+    ports: ["${MOCK_OUTLOOK365_PORT:-4032}:4032"]
+    environment: { PROVIDER_ID: outlook365, PORT: 4032, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-outlook365] } }
+
+  mock-nodemailer:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-nodemailer
+    restart: unless-stopped
+    ports: ["${MOCK_NODEMAILER_PORT:-4033}:4033"]
+    environment: { PROVIDER_ID: nodemailer, PORT: 4033, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-nodemailer] } }
+
+  mock-email-webhook:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-email-webhook
+    restart: unless-stopped
+    ports: ["${MOCK_EMAIL_WEBHOOK_PORT:-4034}:4034"]
+    environment: { PROVIDER_ID: email-webhook, PORT: 4034, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-email-webhook] } }
+
+  # ============================================================================
+  # 2. SMS PROVIDER CONTAINERS (39 Providers)
+  # ============================================================================
+  mock-twilio:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-twilio
+    restart: unless-stopped
+    ports: ["${MOCK_TWILIO_PORT:-4003}:4003"]
+    environment: { PROVIDER_ID: twilio, PORT: 4003, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.twilio.com, mock-twilio] } }
+
+  mock-infobip:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-infobip
+    restart: unless-stopped
+    ports: ["${MOCK_INFOBIP_PORT:-4013}:4013"]
+    environment: { PROVIDER_ID: infobip, PORT: 4013, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.infobip.com, mock-infobip] } }
+
+  mock-plivo:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-plivo
+    restart: unless-stopped
+    ports: ["${MOCK_PLIVO_PORT:-4014}:4014"]
+    environment: { PROVIDER_ID: plivo, PORT: 4014, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.plivo.com, mock-plivo] } }
+
+  mock-telnyx:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-telnyx
+    restart: unless-stopped
+    ports: ["${MOCK_TELNYX_PORT:-4015}:4015"]
+    environment: { PROVIDER_ID: telnyx, PORT: 4015, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.telnyx.com, mock-telnyx] } }
+
+  mock-bandwidth:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-bandwidth
+    restart: unless-stopped
+    ports: ["${MOCK_BANDWIDTH_PORT:-4016}:4016"]
+    environment: { PROVIDER_ID: bandwidth, PORT: 4016, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.bandwidth.com, mock-bandwidth] } }
+
+  mock-messagebird:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-messagebird
+    restart: unless-stopped
+    ports: ["${MOCK_MESSAGEBIRD_PORT:-4036}:4036"]
+    environment: { PROVIDER_ID: messagebird, PORT: 4036, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [rest.messagebird.com, mock-messagebird] } }
+
+  mock-sinch:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sinch
+    restart: unless-stopped
+    ports: ["${MOCK_SINCH_PORT:-4037}:4037"]
+    environment: { PROVIDER_ID: sinch, PORT: 4037, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [sms.api.sinch.com, api.sinch.com, mock-sinch] } }
+
+  mock-nexmo:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-nexmo
+    restart: unless-stopped
+    ports: ["${MOCK_NEXMO_PORT:-4038}:4038"]
+    environment: { PROVIDER_ID: nexmo, PORT: 4038, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [rest.nexmo.com, api.vonage.com, mock-nexmo] } }
+
+  mock-termii:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-termii
+    restart: unless-stopped
+    ports: ["${MOCK_TERMII_PORT:-4039}:4039"]
+    environment: { PROVIDER_ID: termii, PORT: 4039, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.ng.termii.com, termii.com, mock-termii] } }
+
+  mock-afro-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-afro-sms
+    restart: unless-stopped
+    ports: ["${MOCK_AFRO_SMS_PORT:-4040}:4040"]
+    environment: { PROVIDER_ID: afro-sms, PORT: 4040, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.afrosms.com, mock-afro-sms] } }
+
+  mock-cm-telecom:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-cm-telecom
+    restart: unless-stopped
+    ports: ["${MOCK_CM_TELECOM_PORT:-4041}:4041"]
+    environment: { PROVIDER_ID: cm-telecom, PORT: 4041, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [gw.cmtelecom.com, api.cm.com, mock-cm-telecom] } }
+
+  mock-ring-central:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-ring-central
+    restart: unless-stopped
+    ports: ["${MOCK_RING_CENTRAL_PORT:-4042}:4042"]
+    environment: { PROVIDER_ID: ring-central, PORT: 4042, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [platform.ringcentral.com, mock-ring-central] } }
+
+  mock-azure-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-azure-sms
+    restart: unless-stopped
+    ports: ["${MOCK_AZURE_SMS_PORT:-4043}:4043"]
+    environment: { PROVIDER_ID: azure-sms, PORT: 4043, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [communication.azure.com, mock-azure-sms] } }
+
+  mock-gupshup:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-gupshup
+    restart: unless-stopped
+    ports: ["${MOCK_GUPSHUP_PORT:-4044}:4044"]
+    environment: { PROVIDER_ID: gupshup, PORT: 4044, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [enterprise.smsgupshup.com, gupshup.io, mock-gupshup] } }
+
+  mock-clicksend:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-clicksend
+    restart: unless-stopped
+    ports: ["${MOCK_CLICKSEND_PORT:-4045}:4045"]
+    environment: { PROVIDER_ID: clicksend, PORT: 4045, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [rest.clicksend.com, mock-clicksend] } }
+
+  mock-simpletexting:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-simpletexting
+    restart: unless-stopped
+    ports: ["${MOCK_SIMPLETEXTING_PORT:-4046}:4046"]
+    environment: { PROVIDER_ID: simpletexting, PORT: 4046, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api-app2.simpletexting.com, mock-simpletexting] } }
+
+  mock-kannel:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-kannel
+    restart: unless-stopped
+    ports: ["${MOCK_KANNEL_PORT:-4047}:4047"]
+    environment: { PROVIDER_ID: kannel, PORT: 4047, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-kannel] } }
+
+  mock-cequens:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-cequens
+    restart: unless-stopped
+    ports: ["${MOCK_CEQUENS_PORT:-4048}:4048"]
+    environment: { PROVIDER_ID: cequens, PORT: 4048, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.cequens.com, mock-cequens] } }
+
+  mock-sms77:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sms77
+    restart: unless-stopped
+    ports: ["${MOCK_SMS77_PORT:-4049}:4049"]
+    environment: { PROVIDER_ID: sms77, PORT: 4049, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [gateway.sms77.io, mock-sms77] } }
+
+  mock-maqsam:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-maqsam
+    restart: unless-stopped
+    ports: ["${MOCK_MAQSAM_PORT:-4050}:4050"]
+    environment: { PROVIDER_ID: maqsam, PORT: 4050, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.maqsam.com, mock-maqsam] } }
+
+  mock-burst-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-burst-sms
+    restart: unless-stopped
+    ports: ["${MOCK_BURST_SMS_PORT:-4051}:4051"]
+    environment: { PROVIDER_ID: burst-sms, PORT: 4051, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.transmitsms.com, burstsms.com, mock-burst-sms] } }
+
+  mock-generic-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-generic-sms
+    restart: unless-stopped
+    ports: ["${MOCK_GENERIC_SMS_PORT:-4052}:4052"]
+    environment: { PROVIDER_ID: generic-sms, PORT: 4052, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-generic-sms] } }
+
+  mock-sendchamp:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sendchamp
+    restart: unless-stopped
+    ports: ["${MOCK_SENDCHAMP_PORT:-4053}:4053"]
+    environment: { PROVIDER_ID: sendchamp, PORT: 4053, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.sendchamp.com, mock-sendchamp] } }
+
+  mock-africas-talking:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-africas-talking
+    restart: unless-stopped
+    ports: ["${MOCK_AFRICAS_TALKING_PORT:-4054}:4054"]
+    environment: { PROVIDER_ID: africas-talking, PORT: 4054, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.africastalking.com, mock-africas-talking] } }
+
+  mock-brevo-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-brevo-sms
+    restart: unless-stopped
+    ports: ["${MOCK_BREVO_SMS_PORT:-4055}:4055"]
+    environment: { PROVIDER_ID: brevo-sms, PORT: 4055, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-brevo-sms] } }
+
+  mock-bulk-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-bulk-sms
+    restart: unless-stopped
+    ports: ["${MOCK_BULK_SMS_PORT:-4056}:4056"]
+    environment: { PROVIDER_ID: bulk-sms, PORT: 4056, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.bulksms.com, mock-bulk-sms] } }
+
+  mock-clickatell:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-clickatell
+    restart: unless-stopped
+    ports: ["${MOCK_CLICKATELL_PORT:-4057}:4057"]
+    environment: { PROVIDER_ID: clickatell, PORT: 4057, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [platform.clickatell.com, mock-clickatell] } }
+
+  mock-eazy-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-eazy-sms
+    restart: unless-stopped
+    ports: ["${MOCK_EAZY_SMS_PORT:-4058}:4058"]
+    environment: { PROVIDER_ID: eazy-sms, PORT: 4058, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.eazysms.com, mock-eazy-sms] } }
+
+  mock-firetext:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-firetext
+    restart: unless-stopped
+    ports: ["${MOCK_FIRETEXT_PORT:-4059}:4059"]
+    environment: { PROVIDER_ID: firetext, PORT: 4059, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.firetext.co.uk, mock-firetext] } }
+
+  mock-forty-six-elks:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-forty-six-elks
+    restart: unless-stopped
+    ports: ["${MOCK_FORTY_SIX_ELKS_PORT:-4060}:4060"]
+    environment: { PROVIDER_ID: forty-six-elks, PORT: 4060, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.46elks.com, mock-forty-six-elks] } }
+
+  mock-imedia:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-imedia
+    restart: unless-stopped
+    ports: ["${MOCK_IMEDIA_PORT:-4061}:4061"]
+    environment: { PROVIDER_ID: imedia, PORT: 4061, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.imedia.com, mock-imedia] } }
+
+  mock-isend-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-isend-sms
+    restart: unless-stopped
+    ports: ["${MOCK_ISEND_SMS_PORT:-4062}:4062"]
+    environment: { PROVIDER_ID: isend-sms, PORT: 4062, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.isendsms.com, mock-isend-sms] } }
+
+  mock-isendpro-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-isendpro-sms
+    restart: unless-stopped
+    ports: ["${MOCK_ISENDPRO_SMS_PORT:-4063}:4063"]
+    environment: { PROVIDER_ID: isendpro-sms, PORT: 4063, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [apirx.isendpro.com, mock-isendpro-sms] } }
+
+  mock-mobishastra:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mobishastra
+    restart: unless-stopped
+    ports: ["${MOCK_MOBISHASTRA_PORT:-4064}:4064"]
+    environment: { PROVIDER_ID: mobishastra, PORT: 4064, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.mobishastra.com, mock-mobishastra] } }
+
+  mock-ruach-sms:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-ruach-sms
+    restart: unless-stopped
+    ports: ["${MOCK_RUACH_SMS_PORT:-4065}:4065"]
+    environment: { PROVIDER_ID: ruach-sms, PORT: 4065, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.ruachsms.com, mock-ruach-sms] } }
+
+  mock-sms-central:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sms-central
+    restart: unless-stopped
+    ports: ["${MOCK_SMS_CENTRAL_PORT:-4066}:4066"]
+    environment: { PROVIDER_ID: sms-central, PORT: 4066, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.smscentral.com.au, mock-sms-central] } }
+
+  mock-smsmode:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-smsmode
+    restart: unless-stopped
+    ports: ["${MOCK_SMSMODE_PORT:-4067}:4067"]
+    environment: { PROVIDER_ID: smsmode, PORT: 4067, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.smsmode.com, mock-smsmode] } }
+
+  mock-sns:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sns
+    restart: unless-stopped
+    ports: ["${MOCK_SNS_PORT:-4068}:4068"]
+    environment: { PROVIDER_ID: sns, PORT: 4068, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [sns.us-east-1.amazonaws.com, mock-sns] } }
+
+  mock-unifonic:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-unifonic
+    restart: unless-stopped
+    ports: ["${MOCK_UNIFONIC_PORT:-4069}:4069"]
+    environment: { PROVIDER_ID: unifonic, PORT: 4069, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.unifonic.com, mock-unifonic] } }
+
+  # ============================================================================
+  # 3. CHAT PROVIDER CONTAINERS (17 Providers)
+  # ============================================================================
+  mock-slack:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-slack
+    restart: unless-stopped
+    ports: ["${MOCK_SLACK_PORT:-4004}:4004"]
+    environment: { PROVIDER_ID: slack, PORT: 4004, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [slack.com, mock-slack] } }
+
+  mock-discord:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-discord
+    restart: unless-stopped
+    ports: ["${MOCK_DISCORD_PORT:-4009}:4009"]
+    environment: { PROVIDER_ID: discord, PORT: 4009 }
+    networks: { convey-network: { aliases: [discord.com, mock-discord] } }
+
+  mock-telegram:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-telegram
+    restart: unless-stopped
+    ports: ["${MOCK_TELEGRAM_PORT:-4010}:4010"]
+    environment: { PROVIDER_ID: telegram, PORT: 4010 }
+    networks: { convey-network: { aliases: [api.telegram.org, mock-telegram] } }
+
+  mock-whatsapp-business:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-whatsapp-business
+    restart: unless-stopped
+    ports: ["${MOCK_WHATSAPP_PORT:-4019}:4019"]
+    environment: { PROVIDER_ID: whatsapp-business, PORT: 4019, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [graph.facebook.com, mock-whatsapp-business] } }
+
+  mock-twilio-whatsapp:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-twilio-whatsapp
+    restart: unless-stopped
+    ports: ["${MOCK_TWILIO_WHATSAPP_PORT:-4020}:4020"]
+    environment: { PROVIDER_ID: twilio-whatsapp, PORT: 4020, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-twilio-whatsapp] } }
+
+  mock-cequens-whatsapp:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-cequens-whatsapp
+    restart: unless-stopped
+    ports: ["${MOCK_CEQUENS_WHATSAPP_PORT:-4021}:4021"]
+    environment: { PROVIDER_ID: cequens-whatsapp, PORT: 4021, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-cequens-whatsapp] } }
+
+  mock-msteams:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-msteams
+    restart: unless-stopped
+    ports: ["${MOCK_MSTEAMS_PORT:-4070}:4070"]
+    environment: { PROVIDER_ID: msteams, PORT: 4070, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [webhook.office.com, teams.microsoft.com, mock-msteams] } }
+
+  mock-line:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-line
+    restart: unless-stopped
+    ports: ["${MOCK_LINE_PORT:-4071}:4071"]
+    environment: { PROVIDER_ID: line, PORT: 4071, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.line.me, mock-line] } }
+
+  mock-zulip:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-zulip
+    restart: unless-stopped
+    ports: ["${MOCK_ZULIP_PORT:-4072}:4072"]
+    environment: { PROVIDER_ID: zulip, PORT: 4072, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.zulipchat.com, mock-zulip] } }
+
+  mock-rocket-chat:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-rocket-chat
+    restart: unless-stopped
+    ports: ["${MOCK_ROCKET_CHAT_PORT:-4073}:4073"]
+    environment: { PROVIDER_ID: rocket-chat, PORT: 4073, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-rocket-chat] } }
+
+  mock-mattermost:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-mattermost
+    restart: unless-stopped
+    ports: ["${MOCK_MATTERMOST_PORT:-4074}:4074"]
+    environment: { PROVIDER_ID: mattermost, PORT: 4074, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-mattermost] } }
+
+  mock-getstream:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-getstream
+    restart: unless-stopped
+    ports: ["${MOCK_GETSTREAM_PORT:-4075}:4075"]
+    environment: { PROVIDER_ID: getstream, PORT: 4075, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [chat.stream-io-api.com, mock-getstream] } }
+
+  mock-webex-messaging:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-webex-messaging
+    restart: unless-stopped
+    ports: ["${MOCK_WEBEX_MESSAGING_PORT:-4076}:4076"]
+    environment: { PROVIDER_ID: webex-messaging, PORT: 4076, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [webexapis.com, mock-webex-messaging] } }
+
+  mock-grafana-on-call:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-grafana-on-call
+    restart: unless-stopped
+    ports: ["${MOCK_GRAFANA_ON_CALL_PORT:-4077}:4077"]
+    environment: { PROVIDER_ID: grafana-on-call, PORT: 4077, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [oncall.grafana.net, mock-grafana-on-call] } }
+
+  mock-sendblue:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-sendblue
+    restart: unless-stopped
+    ports: ["${MOCK_SENDBLUE_PORT:-4078}:4078"]
+    environment: { PROVIDER_ID: sendblue, PORT: 4078, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.sendblue.co, mock-sendblue] } }
+
+  mock-ryver:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-ryver
+    restart: unless-stopped
+    ports: ["${MOCK_RYVER_PORT:-4079}:4079"]
+    environment: { PROVIDER_ID: ryver, PORT: 4079, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.ryver.com, mock-ryver] } }
+
+  mock-chat-webhook:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-chat-webhook
+    restart: unless-stopped
+    ports: ["${MOCK_CHAT_WEBHOOK_PORT:-4080}:4080"]
+    environment: { PROVIDER_ID: chat-webhook, PORT: 4080, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-chat-webhook] } }
+
+  # ============================================================================
+  # 4. PUSH PROVIDER CONTAINERS (8 Providers)
+  # ============================================================================
+  mock-fcm:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-fcm
+    restart: unless-stopped
+    ports: ["${MOCK_FCM_PORT:-4005}:4005"]
+    environment: { PROVIDER_ID: fcm, PORT: 4005, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [fcm.googleapis.com, mock-fcm] } }
+
+  mock-apns:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-apns
+    restart: unless-stopped
+    ports: ["${MOCK_APNS_PORT:-4017}:4017"]
+    environment: { PROVIDER_ID: apns, PORT: 4017 }
+    networks: { convey-network: { aliases: [api.push.apple.com, api.sandbox.push.apple.com, mock-apns] } }
+
+  mock-expo:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-expo
+    restart: unless-stopped
+    ports: ["${MOCK_EXPO_PORT:-4081}:4081"]
+    environment: { PROVIDER_ID: expo, PORT: 4081, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [exp.host, mock-expo] } }
+
+  mock-one-signal:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-one-signal
+    restart: unless-stopped
+    ports: ["${MOCK_ONE_SIGNAL_PORT:-4082}:4082"]
+    environment: { PROVIDER_ID: one-signal, PORT: 4082, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [onesignal.com, mock-one-signal] } }
+
+  mock-pusher-beams:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-pusher-beams
+    restart: unless-stopped
+    ports: ["${MOCK_PUSHER_BEAMS_PORT:-4083}:4083"]
+    environment: { PROVIDER_ID: pusher-beams, PORT: 4083, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [pushnotifications.pusher.com, mock-pusher-beams] } }
+
+  mock-pushpad:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-pushpad
+    restart: unless-stopped
+    ports: ["${MOCK_PUSHPAD_PORT:-4084}:4084"]
+    environment: { PROVIDER_ID: pushpad, PORT: 4084, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [pushpad.xyz, mock-pushpad] } }
+
+  mock-appio:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-appio
+    restart: unless-stopped
+    ports: ["${MOCK_APPIO_PORT:-4085}:4085"]
+    environment: { PROVIDER_ID: appio, PORT: 4085, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [api.appio.io, mock-appio] } }
+
+  mock-push-webhook:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-push-webhook
+    restart: unless-stopped
+    ports: ["${MOCK_PUSH_WEBHOOK_PORT:-4086}:4086"]
+    environment: { PROVIDER_ID: push-webhook, PORT: 4086, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [mock-push-webhook] } }
+
+  # ============================================================================
+  # 5. TOOL PROVIDER CONTAINERS (4 Providers)
+  # ============================================================================
+  mock-pagerduty:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-pagerduty
+    restart: unless-stopped
+    ports: ["${MOCK_PAGERDUTY_PORT:-4007}:4007"]
+    environment: { PROVIDER_ID: pagerduty, PORT: 4007, WEBHOOK_URL: http://convey-server:3000/v1/webhooks/providers }
+    networks: { convey-network: { aliases: [events.pagerduty.com, mock-pagerduty] } }
+
+  mock-opsgenie:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-opsgenie
+    restart: unless-stopped
+    ports: ["${MOCK_OPSGENIE_PORT:-4018}:4018"]
+    environment: { PROVIDER_ID: opsgenie, PORT: 4018 }
+    networks: { convey-network: { aliases: [api.opsgenie.com, mock-opsgenie] } }
+
+  mock-grafana:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-grafana
+    restart: unless-stopped
+    ports: ["${MOCK_GRAFANA_PORT:-4087}:4087"]
+    environment: { PROVIDER_ID: grafana, PORT: 4087 }
+    networks: { convey-network: { aliases: [mock-grafana] } }
+
+  mock-tool-webhook:
+    build: { context: ., dockerfile: Dockerfile, target: mock-server }
+    image: convey-mock-server:latest
+    container_name: convey-mock-tool-webhook
+    restart: unless-stopped
+    ports: ["${MOCK_TOOL_WEBHOOK_PORT:-4088}:4088"]
+    environment: { PROVIDER_ID: tool-webhook, PORT: 4088 }
+    networks: { convey-network: { aliases: [mock-tool-webhook] } }
+
+networks:
+  convey-network:
+    name: convey-network
+    driver: bridge

@@ -226,7 +226,7 @@ class SyncHttpClient:
                         self.pipeline.run_on_error(timeout_err, duration_ms)
                         raise timeout_err from err
                 elif attempt >= max_attempts:
-                    net_err = ConveyNetworkError(f"Network request failed: {str(err)}", err)
+                    net_err = ConveyNetworkError(f"Network request failed: {err}", err)
                     duration_ms = (time.time() - start_time) * 1000
                     self.pipeline.run_on_error(net_err, duration_ms)
                     raise net_err from err

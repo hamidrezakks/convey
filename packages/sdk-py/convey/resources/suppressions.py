@@ -28,12 +28,14 @@ class SyncSuppressionsResource:
         team: Optional[str] = None,
     ) -> SuppressionDto:
         """Add a single recipient to the suppression ledger."""
+        channel_val = channel.value if isinstance(channel, Channel) else channel
+        reason_val = reason.value if isinstance(reason, SuppressionReason) else reason
         payload: Dict[str, Any] = {
             "identifier": recipient,
-            "reason": str(reason),
+            "reason": reason_val,
         }
         if channel:
-            payload["channel"] = str(channel)
+            payload["channel"] = channel_val
         if category:
             payload["category"] = category
         if team:
@@ -45,8 +47,8 @@ class SyncSuppressionsResource:
             id=sup.get("id", ""),
             team=sup.get("team", ""),
             recipient=sup.get("recipient") or sup.get("identifier", recipient),
-            channel=sup.get("channel", str(channel)),
-            reason=sup.get("reason", str(reason)),
+            channel=sup.get("channel", channel_val),
+            reason=sup.get("reason", reason_val),
             created_at=sup.get("createdAt", ""),
             category=sup.get("category"),
         )
@@ -80,9 +82,9 @@ class SyncSuppressionsResource:
         """Query suppressions with search, filter, and pagination parameters."""
         query: Dict[str, Any] = {"limit": limit, "offset": offset}
         if channel:
-            query["channel"] = str(channel)
+            query["channel"] = channel.value if isinstance(channel, Channel) else channel
         if reason:
-            query["reason"] = str(reason)
+            query["reason"] = reason.value if isinstance(reason, SuppressionReason) else reason
         if category:
             query["category"] = category
         if search:

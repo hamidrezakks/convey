@@ -1,0 +1,16 @@
+{
+  "name": "@convey/mock-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade provider simulator and mock test engine for Convey",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

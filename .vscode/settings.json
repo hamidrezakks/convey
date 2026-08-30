@@ -1,5 +1,7 @@
 {
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
-  "less.lint.unknownAtRules": "ignore"
+  "less.lint.unknownAtRules": "ignore",
+  "python.analysis.extraPaths": ["${workspaceFolder}/packages/sdk-py"],
+  "python.autoComplete.extraPaths": ["${workspaceFolder}/packages/sdk-py"]
 }
