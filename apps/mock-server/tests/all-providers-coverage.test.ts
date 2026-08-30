@@ -107,6 +107,15 @@ describe('100% Provider Coverage Verification', () => {
     expect(ALL_88_PROVIDERS.length).toBe(88);
   });
 
+  it('defines dedicated docker-compose service for every one of the 88 providers', async () => {
+    const fs = await import('node:fs/promises');
+    const composeContent = await fs.readFile('docker-compose.providers.yml', 'utf-8');
+    for (const provider of ALL_88_PROVIDERS) {
+      expect(composeContent).toContain(`mock-${provider.id}:`);
+      expect(composeContent).toContain(`PROVIDER_ID: ${provider.id}`);
+    }
+  });
+
   for (const provider of ALL_88_PROVIDERS) {
     it(`registers and handles provider mock: ${provider.id} (${provider.channel})`, async () => {
       const handler = allHandlers[provider.id];
