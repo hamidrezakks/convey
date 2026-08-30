@@ -37,6 +37,11 @@ export class TwilioMockHandler implements ProviderMockHandler {
       accountSid = pathAccountSid;
     }
 
+    // Default to standard mock account if unauthenticated generic call
+    if (!accountSid) {
+      accountSid = 'ACmockaccount1234567890abcdef';
+    }
+
     // Official Twilio validation: Account SID must begin with AC and have valid format
     if (!accountSid.startsWith('AC')) {
       const latencyMs = performance.now() - start;

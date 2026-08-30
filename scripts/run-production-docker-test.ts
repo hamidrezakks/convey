@@ -111,7 +111,7 @@ async function main() {
     }
     const mockHealth = (await res.json()) as { providerId: string; uptime: number };
     console.log(`   ✅ Mock Simulator is live (Mode: ${mockHealth.providerId.toUpperCase()}).`);
-  } catch (err: unknown) {
+  } catch (_err: unknown) {
     console.warn(`   ⚠️ Mock server direct inspection at ${MOCK_URL} unreachable. Continuing test...`);
   }
 

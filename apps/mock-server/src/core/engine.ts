@@ -1,8 +1,8 @@
 import { mockConfig } from '../config';
-import { emailHandlers, findEmailHandler } from '../handlers/email';
-import { findSmsHandler, smsHandlers } from '../handlers/sms';
 import { chatHandlers, findChatHandler } from '../handlers/chat';
+import { emailHandlers, findEmailHandler } from '../handlers/email';
 import { findPushHandler, pushHandlers } from '../handlers/push';
+import { findSmsHandler, smsHandlers } from '../handlers/sms';
 import { findToolHandler, toolHandlers } from '../handlers/tool';
 import { applyChaosSimulation } from './chaos';
 import { generateProviderId } from './id-generator';

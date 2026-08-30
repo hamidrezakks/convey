@@ -20,7 +20,7 @@ export class BrevoMockHandler implements ProviderMockHandler {
 
     let body: {
       sender?: { email: string };
-      to?: Array<{ email: string }>;
+      to?: Array<{ email: string }> | string;
       subject?: string;
       htmlContent?: string;
     } = {};
@@ -31,7 +31,13 @@ export class BrevoMockHandler implements ProviderMockHandler {
       // empty
     }
 
-    const recipients = body.to?.map((t) => t.email).join(', ') || 'user@example.com';
+    let recipients = 'user@example.com';
+    if (Array.isArray(body.to)) {
+      recipients = body.to.map((t) => (typeof t === 'string' ? t : t.email)).join(', ');
+    } else if (typeof body.to === 'string') {
+      recipients = body.to;
+    }
+
     const from = body.sender?.email || 'sender@convey.dev';
     const subject = body.subject || '';
     const messageId = generateProviderId(this.id);
