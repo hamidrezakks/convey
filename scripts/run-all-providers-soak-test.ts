@@ -242,6 +242,30 @@ function generateRealisticPayload(provider: ProviderDef, iteration: number): {
         }),
       };
 
+    case 'cequens':
+      return {
+        url: `${MOCK_URL}/api/sms/v1/messages`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${mockKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: phone,
+          senderName: 'Convey',
+          message: `Your Cequens SMS OTP code is ${rand}`,
+        }),
+      };
+
+    case 'cequens-whatsapp':
+      return {
+        url: `${MOCK_URL}/whatsapp/v1/messages`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${mockKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientPhone: phone,
+          messageType: 'text',
+          messageText: `Your Cequens WhatsApp transaction #${iteration} is confirmed.`,
+        }),
+      };
+
     case 'pagerduty':
       return {
         url: `${MOCK_URL}/v2/enqueue`,
@@ -442,7 +466,7 @@ async function runSoakTest() {
     })),
   );
 
-  console.log('\n📋 TOP 20 PROVIDER METRICS BREAKDOWN (Out of 88 Tested):');
+  console.log('\n📋 COMPLETE 88-PROVIDER METRICS BREAKDOWN:');
   const providerRows = Array.from(statsByProvider.entries())
     .map(([id, st]) => {
       const avgLat = st.latencies.length > 0
@@ -460,9 +484,9 @@ async function runSoakTest() {
         'Success Rate': `${st.total > 0 ? ((st.success / st.total) * 100).toFixed(1) : '100'}%`,
       };
     })
-    .sort((a, b) => b.Total - a.Total);
+    .sort((a, b) => a.Provider.localeCompare(b.Provider));
 
-  console.table(providerRows.slice(0, 25));
+  console.table(providerRows);
 
   console.log(`\n✨ All 88 providers were actively stressed and validated with zero missing routes.\n`);
 }

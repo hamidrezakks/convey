@@ -130,4 +130,26 @@ describe('SMS Provider Handlers', () => {
     const data = (await res.json()) as { id: string };
     expect(data.id).toMatch(/^m-/);
   });
+
+  it('handles Cequens POST /api/sms/v1/messages', async () => {
+    const handler = smsHandlers.cequens;
+    const req = new Request('https://developer.cequens.com/api/sms/v1/messages', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer mock_cequens_key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipient: '+15550192834',
+        senderName: 'Convey',
+        message: 'Cequens test message',
+      }),
+    });
+
+    const res = await handler.handle(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { replyCode: number; data: { messageId: string } };
+    expect(data.replyCode).toBe(0);
+    expect(data.data.messageId).toBeDefined();
+  });
 });

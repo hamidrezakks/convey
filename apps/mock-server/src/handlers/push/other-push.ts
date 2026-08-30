@@ -19,7 +19,7 @@ export class GenericPushMockHandler implements ProviderMockHandler {
     const path = url.pathname.toLowerCase();
     return (
       this.domains.some((d) => host.includes(d.toLowerCase())) ||
-      this.paths.some((p) => path.includes(p.toLowerCase())) ||
+      this.paths.some((p) => path === p || path.startsWith(`${p}/`)) ||
       path.includes(this.id)
     );
   }

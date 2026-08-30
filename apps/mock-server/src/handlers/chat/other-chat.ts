@@ -19,7 +19,7 @@ export class GenericChatMockHandler implements ProviderMockHandler {
     const path = url.pathname.toLowerCase();
     return (
       this.domains.some((d) => host.includes(d.toLowerCase())) ||
-      this.paths.some((p) => path.includes(p.toLowerCase())) ||
+      this.paths.some((p) => path === p || path.startsWith(`${p}/`)) ||
       path.includes(this.id)
     );
   }
@@ -75,7 +75,6 @@ export const otherChatHandlers: Record<string, ProviderMockHandler> = {
   line: new GenericChatMockHandler('line', ['api.line.me'], ['/v2/bot/message/push']),
   zulip: new GenericChatMockHandler('zulip', ['zulipchat.com'], ['/api/v1/messages']),
   'rocket-chat': new GenericChatMockHandler('rocket-chat', ['rocket.chat'], ['/api/v1/chat.postMessage']),
-  'cequens-whatsapp': new GenericChatMockHandler('cequens-whatsapp', ['cequens.com'], ['/whatsapp/v1/messages']),
   mattermost: new GenericChatMockHandler('mattermost', ['mattermost'], ['/api/v4/posts']),
   getstream: new GenericChatMockHandler('getstream', ['stream-io-api.com'], ['/message']),
   'webex-messaging': new GenericChatMockHandler('webex-messaging', ['webexapis.com'], ['/v1/messages']),

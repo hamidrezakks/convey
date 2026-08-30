@@ -8,7 +8,11 @@ export class MailgunMockHandler implements ProviderMockHandler {
   readonly defaultPort = 4008;
 
   matchesRequest(_req: Request, url: URL): boolean {
-    return url.hostname.includes('mailgun.net') || url.pathname.includes('/messages');
+    return (
+      url.hostname.includes('mailgun.net') ||
+      url.pathname.includes('/mailgun') ||
+      /\/v[34]\/[^/]+\/messages/.test(url.pathname)
+    );
   }
 
   async handle(req: Request): Promise<Response> {

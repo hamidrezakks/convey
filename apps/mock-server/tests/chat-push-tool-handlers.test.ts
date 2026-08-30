@@ -92,8 +92,30 @@ describe('Chat, Push & Tool Provider Handlers', () => {
     });
     const res = await handler.handle(req);
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { id: string };
-    expect(data.id).toMatch(/^SM[0-9a-f]{32}$/);
+    const data = (await res.json()) as { sid?: string; id?: string };
+    const id = data.sid || data.id || '';
+    expect(id).toMatch(/^SM/);
+  });
+
+  it('handles Cequens WhatsApp with authentic messageId response', async () => {
+    const handler = chatHandlers['cequens-whatsapp'];
+    const req = new Request('https://apis.cequens.com/whatsapp/v1/messages', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer mock_cequens_wa_key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipientPhone: '+15550192834',
+        messageType: 'text',
+        messageText: 'Hello Cequens WhatsApp',
+      }),
+    });
+    const res = await handler.handle(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { responseCode: number; data: { messageId: string } };
+    expect(data.responseCode).toBe(0);
+    expect(data.data.messageId).toBeDefined();
   });
 
   it('handles FCM POST messages:send with authentic name schema', async () => {

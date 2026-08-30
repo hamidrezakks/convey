@@ -8,7 +8,11 @@ export class BandwidthMockHandler implements ProviderMockHandler {
   readonly defaultPort = 4016;
 
   matchesRequest(_req: Request, url: URL): boolean {
-    return url.hostname.includes('bandwidth.com') || url.pathname.includes('/messages');
+    return (
+      url.hostname.includes('bandwidth.com') ||
+      url.pathname.includes('/bandwidth') ||
+      /\/v2\/users\/[^/]+\/messages/.test(url.pathname)
+    );
   }
 
   async handle(req: Request): Promise<Response> {

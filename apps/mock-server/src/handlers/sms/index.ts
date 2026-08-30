@@ -1,5 +1,6 @@
 import type { ProviderMockHandler } from '../../core/types';
 import { bandwidthMockHandler } from './bandwidth';
+import { CequensSmsMockHandler } from './cequens';
 import { infobipSmsMockHandler } from './infobip';
 import { otherSmsHandlers } from './other-sms';
 import { plivoMockHandler } from './plivo';
@@ -12,6 +13,7 @@ export const smsHandlers: Record<string, ProviderMockHandler> = {
   plivo: plivoMockHandler,
   telnyx: telnyxMockHandler,
   bandwidth: bandwidthMockHandler,
+  cequens: new CequensSmsMockHandler(),
   ...otherSmsHandlers,
 };
 

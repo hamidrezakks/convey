@@ -1,4 +1,5 @@
 import type { ProviderMockHandler } from '../../core/types';
+import { CequensWhatsappMockHandler } from './cequens-whatsapp';
 import { discordMockHandler } from './discord';
 import { otherChatHandlers } from './other-chat';
 import { slackMockHandler } from './slack';
@@ -10,6 +11,7 @@ export const chatHandlers: Record<string, ProviderMockHandler> = {
   telegram: telegramMockHandler,
   discord: discordMockHandler,
   'whatsapp-business': whatsappBusinessMockHandler,
+  'cequens-whatsapp': new CequensWhatsappMockHandler(),
   ...otherChatHandlers,
 };
 

@@ -10,8 +10,8 @@ export class WhatsappBusinessMockHandler implements ProviderMockHandler {
   matchesRequest(_req: Request, url: URL): boolean {
     return (
       url.hostname.includes('graph.facebook.com') ||
-      url.pathname.includes('/messages') ||
-      url.pathname.includes('/whatsapp-business')
+      url.pathname.includes('/whatsapp-business') ||
+      /\/v\d+\.\d+\/\d+\/messages/.test(url.pathname)
     );
   }
 

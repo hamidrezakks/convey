@@ -19,7 +19,7 @@ export class GenericSmsMockHandler implements ProviderMockHandler {
     const path = url.pathname.toLowerCase();
     return (
       this.domains.some((d) => host.includes(d.toLowerCase())) ||
-      this.paths.some((p) => path.includes(p.toLowerCase())) ||
+      this.paths.some((p) => path === p || path.startsWith(`${p}/`)) ||
       path.includes(this.id)
     );
   }
@@ -83,7 +83,6 @@ export const otherSmsHandlers: Record<string, ProviderMockHandler> = {
   clicksend: new GenericSmsMockHandler('clicksend', ['clicksend.com'], ['/sms/send']),
   simpletexting: new GenericSmsMockHandler('simpletexting', ['simpletexting.com'], ['/messages']),
   kannel: new GenericSmsMockHandler('kannel', ['kannel'], ['/cgi-bin/sendsms']),
-  cequens: new GenericSmsMockHandler('cequens', ['cequens.com'], ['/api/sms/v1/messages']),
   sms77: new GenericSmsMockHandler('sms77', ['sms77.io'], ['/api/sms']),
   maqsam: new GenericSmsMockHandler('maqsam', ['maqsam.com'], ['/v1/sms/send']),
   'burst-sms': new GenericSmsMockHandler('burst-sms', ['burstsms.com'], ['/send-sms.json']),
