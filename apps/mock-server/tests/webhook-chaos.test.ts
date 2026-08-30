@@ -44,6 +44,41 @@ describe('Webhook & Chaos Engine', () => {
     expect(params.get('MessageStatus')).toBe('delivered');
   });
 
+  it('formats authentic webhook payloads for WhatsApp Business with HMAC signature', () => {
+    const webhook = buildWebhookPayload('whatsapp-business', {
+      eventType: 'delivered',
+      messageId: 'wamid.HBgL12345',
+      recipient: '+15550192834',
+    });
+    expect(webhook.headers['content-type']).toBe('application/json');
+    expect(webhook.headers['x-hub-signature-256']).toMatch(/^sha256=[0-9a-f]{64}$/);
+    const payload = webhook.payload as {
+      entry: Array<{ changes: Array<{ value: { statuses: Array<{ id: string; status: string }> } }> }>;
+    };
+    expect(payload.entry[0].changes[0].value.statuses[0].id).toBe('wamid.HBgL12345');
+    expect(payload.entry[0].changes[0].value.statuses[0].status).toBe('delivered');
+  });
+
+  it('formats authentic webhook payloads for Postmark, Brevo, SES, Infobip, Telnyx, Bandwidth', () => {
+    const postmark = buildWebhookPayload('postmark', { messageId: 'pm-123', recipient: 'user@test.com' });
+    expect((postmark.payload as { MessageID: string }).MessageID).toBe('pm-123');
+
+    const brevo = buildWebhookPayload('brevo', { messageId: 'br-123', recipient: 'user@test.com' });
+    expect((brevo.payload as { 'message-id': string })['message-id']).toBe('br-123');
+
+    const ses = buildWebhookPayload('ses', { messageId: 'ses-123', recipient: 'user@test.com' });
+    expect((ses.payload as { mail: { messageId: string } }).mail.messageId).toBe('ses-123');
+
+    const infobip = buildWebhookPayload('infobip', { messageId: 'info-123', recipient: 'user@test.com' });
+    expect((infobip.payload as { results: Array<{ messageId: string }> }).results[0].messageId).toBe('info-123');
+
+    const telnyx = buildWebhookPayload('telnyx', { messageId: 'tel-123', recipient: 'user@test.com' });
+    expect((telnyx.payload as { data: { payload: { id: string } } }).data.payload.id).toBe('tel-123');
+
+    const bandwidth = buildWebhookPayload('bandwidth', { messageId: 'bw-123', recipient: 'user@test.com' });
+    expect((bandwidth.payload as Array<{ message: { id: string } }>)[0].message.id).toBe('bw-123');
+  });
+
   it('dispatches request and records payload in inspection history', async () => {
     const req = new Request('http://localhost:4000/emails', {
       method: 'POST',

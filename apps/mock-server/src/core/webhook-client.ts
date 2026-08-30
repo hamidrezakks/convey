@@ -3,7 +3,7 @@ import { mockConfig } from '../config';
 import { mockLogger } from './logger';
 
 export interface WebhookEventOptions {
-  eventType?: 'delivered' | 'bounced' | 'failed' | 'read' | 'clicked';
+  eventType?: 'delivered' | 'bounced' | 'failed' | 'read' | 'clicked' | 'opened';
   messageId: string;
   recipient: string;
   statusCallback?: string;
@@ -134,6 +134,125 @@ export function buildWebhookPayload(
           },
         },
       };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'postmark': {
+      const payload = {
+        RecordType: eventType === 'bounced' ? 'Bounce' : eventType === 'opened' ? 'Open' : 'Delivery',
+        MessageID: options.messageId,
+        Recipient: options.recipient,
+        DeliveredAt: timestamp,
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'brevo':
+    case 'brevo-sms': {
+      const payload = {
+        event: eventType,
+        'message-id': options.messageId,
+        email: options.recipient,
+        date: timestamp,
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'ses': {
+      const payload = {
+        eventType: eventType === 'bounced' ? 'bounce' : eventType === 'failed' ? 'reject' : 'delivery',
+        mail: {
+          messageId: options.messageId,
+          destination: [options.recipient],
+          timestamp,
+        },
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'infobip': {
+      const payload = {
+        results: [
+          {
+            messageId: options.messageId,
+            to: options.recipient,
+            status: {
+              name: eventType === 'delivered' ? 'DELIVERED_TO_HANDSET' : 'UNDELIVERABLE',
+              groupName: eventType === 'delivered' ? 'DELIVERED' : 'UNDELIVERABLE',
+            },
+          },
+        ],
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'plivo': {
+      const params = new URLSearchParams({
+        MessageUUID: options.messageId,
+        Status: eventType,
+        To: options.recipient,
+      });
+      return {
+        payload: params.toString(),
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+      };
+    }
+
+    case 'telnyx': {
+      const payload = {
+        data: {
+          event_type: 'message.finalized',
+          payload: {
+            id: options.messageId,
+            to: [{ phone_number: options.recipient, status: eventType }],
+          },
+        },
+      };
+      return {
+        payload,
+        headers: {
+          'content-type': 'application/json',
+        },
+      };
+    }
+
+    case 'bandwidth': {
+      const payload = [
+        {
+          type: eventType === 'delivered' ? 'message-delivered' : 'message-failed',
+          message: {
+            id: options.messageId,
+            to: [options.recipient],
+          },
+        },
+      ];
       return {
         payload,
         headers: {
