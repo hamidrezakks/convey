@@ -1,6 +1,6 @@
 # ==============================================================================
 # ⚡ CONVEY UNIFIED DOCKER COMPOSE
-# Complete stack: PostgreSQL 18 + DragonflyDB + Convey Server + Mission Control Web
+# Complete stack: PostgreSQL 18 + DragonflyDB + Convey Server + Mission Control Web + Mock Gateway
 # ==============================================================================
 
 services:
@@ -53,7 +53,54 @@ services:
           - redis
 
   # ----------------------------------------------------------------------------
-  # 3. Convey Server (Elysia HTTP Gateway & Autonomous Worker Engine)
+  # 3. Convey Provider Mock Gateway (Universal Simulator with Domain Aliases)
+  # ----------------------------------------------------------------------------
+  mock-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-server
+    image: convey-mock-server:latest
+    container_name: convey-mock-gateway
+    restart: unless-stopped
+    ports:
+      - "${MOCK_GATEWAY_PORT:-4000}:4000"
+    environment:
+      PROVIDER_ID: all
+      PORT: 4000
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://convey-server:3000/v1/webhooks/providers}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      convey-network:
+        aliases:
+          - api.resend.com
+          - api.sendgrid.com
+          - api.twilio.com
+          - slack.com
+          - fcm.googleapis.com
+          - email.us-east-1.amazonaws.com
+          - events.pagerduty.com
+          - api.mailgun.net
+          - api.postmarkapp.com
+          - api.brevo.com
+          - api.infobip.com
+          - api.plivo.com
+          - api.telnyx.com
+          - api.bandwidth.com
+          - discord.com
+          - api.telegram.org
+          - api.push.apple.com
+          - api.opsgenie.com
+          - mock-gateway
+
+  # ----------------------------------------------------------------------------
+  # 4. Convey Server (Elysia HTTP Gateway & Autonomous Worker Engine)
   # ----------------------------------------------------------------------------
   convey-server:
     build:
@@ -67,6 +114,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mock-gateway:
         condition: service_healthy
     ports:
       - "${PORT:-3000}:3000"
@@ -82,17 +131,17 @@ services:
       BULLMQ_SCHEDULING_HORIZON_SECONDS: ${BULLMQ_SCHEDULING_HORIZON_SECONDS:-1800}
       DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-20}
       AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
-      # Optional provider configs (passed through from .env if set)
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
-      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
-      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
-      SLACK_DEFAULT_CHANNEL: ${SLACK_DEFAULT_CHANNEL:-}
-      PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
+      # Realistic Mock Provider Credentials
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_mock_prod_key_1234567890}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-onboarding@convey.dev}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-SG.mock_sendgrid_key_1234567890}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-notifications@convey.dev}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACmockaccount1234567890abcdef}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-mock_twilio_auth_token_secret}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-+15550192834}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-xoxb-mock-slack-bot-token-12345}
+      SLACK_DEFAULT_CHANNEL: ${SLACK_DEFAULT_CHANNEL:-general}
+      PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-mock_pagerduty_routing_key_123}
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/health/liveness').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 15s
@@ -103,7 +152,7 @@ services:
       - convey-network
 
   # ----------------------------------------------------------------------------
-  # 4. Mission Control Web Console (React 19 + Base UI)
+  # 5. Mission Control Web Console (React 19 + Base UI)
   # ----------------------------------------------------------------------------
   convey-web:
     build:

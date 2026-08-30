@@ -21,6 +21,7 @@ COPY packages/sdk/package.json ./packages/sdk/
 COPY apps/server/package.json ./apps/server/
 COPY apps/web/package.json ./apps/web/
 COPY apps/website/package.json ./apps/website/
+COPY apps/mock-server/package.json ./apps/mock-server/
 COPY scripts ./scripts
 
 RUN bun install --frozen-lockfile
@@ -86,3 +87,22 @@ ENV PORT=5173
 EXPOSE 5173
 
 CMD ["bun", "run", "--filter", "@convey/web", "preview", "--host", "0.0.0.0", "--port", "5173"]
+
+# ------------------------------------------------------------------------------
+# 6. Production Mock Server Runner (@convey/mock-server)
+# ------------------------------------------------------------------------------
+FROM base AS mock-server
+WORKDIR /app
+
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY package.json bun.lock tsconfig.json ./
+COPY apps/mock-server ./apps/mock-server
+
+ENV NODE_ENV=production
+ENV PORT=4000
+EXPOSE 4000
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD bun -e "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+CMD ["bun", "apps/mock-server/src/index.ts"]
