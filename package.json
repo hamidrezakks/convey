@@ -40,6 +40,7 @@
     "test:sdks": "bun run --filter @convey/sdk test && bun run test:go && bun run test:py",
     "test:e2e:sdks": "bun run scripts/run-e2e-sdks.ts",
     "test:prod:docker": "bun scripts/run-production-docker-test.ts",
+    "test:prod:soak": "bun scripts/run-all-providers-soak-test.ts",
     "test:all": "bun test",
     "test:e2e": "bun --filter @convey/server test:e2e",
     "test:bench": "bun --filter @convey/server test:bench",
