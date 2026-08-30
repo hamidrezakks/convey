@@ -86,9 +86,9 @@ export class MessagesResource {
       channelsArray.push({
         channel: 'email',
         content: {
-          subject: content.subject || 'Notification',
-          html: content.body || '',
-          text: content.body || '',
+          subject: content.subject || content.title || 'Notification',
+          html: content.body || content.text || '',
+          text: content.body || content.text || '',
           render: content.templateId
             ? {
                 template: content.templateId,
@@ -101,14 +101,14 @@ export class MessagesResource {
       channelsArray.push({
         channel: 'sms',
         content: {
-          text: content.body || '',
+          text: content.body || content.text || '',
         },
       });
     } else if (channelStr === 'whatsapp') {
       channelsArray.push({
         channel: 'whatsapp',
         content: {
-          text: content.body,
+          text: content.body || content.text || '',
           template: content.templateId,
           variables: content.variables,
         },
@@ -117,23 +117,23 @@ export class MessagesResource {
       channelsArray.push({
         channel: 'slack',
         content: {
-          text: content.body || '',
+          text: content.body || content.text || '',
         },
       });
     } else if (channelStr === 'push' || channelStr === 'fcm') {
       channelsArray.push({
         channel: 'fcm',
         content: {
-          title: content.subject || '',
-          body: content.body || '',
+          title: content.subject || content.title || 'Alert',
+          body: content.body || content.text || '',
         },
       });
     } else {
       channelsArray.push({
         channel: channelStr,
         content: {
-          text: content.body || '',
-          subject: content.subject,
+          text: content.body || content.text || '',
+          subject: content.subject || content.title,
         },
       });
     }

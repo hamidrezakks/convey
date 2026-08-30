@@ -288,7 +288,9 @@ export interface RequestOptions {
 
 export interface MessageContent<TVariables = Record<string, unknown>> {
   subject?: string;
+  title?: string;
   body?: string;
+  text?: string;
   templateId?: string;
   variables?: TVariables;
   attachments?: Array<{
