@@ -105,13 +105,19 @@ export class MessagesResource {
         },
       });
     } else if (channelStr === 'whatsapp') {
+      const waContent: Record<string, unknown> = {};
+      if (content.body || content.text) {
+        waContent.text = content.body || content.text;
+      }
+      if (content.templateId) {
+        waContent.template = content.templateId;
+      }
+      if (content.variables) {
+        waContent.variables = content.variables;
+      }
       channelsArray.push({
         channel: 'whatsapp',
-        content: {
-          text: content.body || content.text || '',
-          template: content.templateId,
-          variables: content.variables,
-        },
+        content: waContent,
       });
     } else if (channelStr === 'slack') {
       channelsArray.push({

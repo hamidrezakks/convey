@@ -181,8 +181,6 @@ export class MockWebSocketManager {
         );
         break;
 
-      case 'inspector':
-      case 'general':
       default:
         ws.send(
           JSON.stringify({

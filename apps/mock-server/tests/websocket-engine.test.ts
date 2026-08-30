@@ -73,7 +73,7 @@ describe('Mock Server WebSocket Protocols & Live Streaming', () => {
     await connectionPromise;
     const established = messages.find((m) => m.event === 'pusher:connection_established');
     expect(established).toBeDefined();
-    const connData = JSON.parse(String(established!.data));
+    const connData = JSON.parse(String(established?.data || '{}'));
     expect(connData.socket_id).toBeDefined();
     expect(connData.activity_timeout).toBe(120);
 

@@ -10,7 +10,7 @@
  * 6. Generates formatted executive summary table
  */
 
-import { Channel, Convey, MessagePriority, MessageStatus } from '../packages/sdk/src';
+import { Channel, Convey } from '../packages/sdk/src';
 
 const CONVEY_URL = (process.env.CONVEY_URL || 'http://localhost:3000').replace(/\/$/, '');
 const MOCK_URL = (process.env.MOCK_URL || 'http://localhost:4000').replace(/\/$/, '');
@@ -167,7 +167,9 @@ async function main() {
       const latencyMs = Math.round(performance.now() - start);
 
       if (response.success && response.publicId) {
-        console.log(`   ✅ [${String(scenario.channel).toUpperCase()}] ${scenario.name}: ${response.publicId} (${latencyMs}ms)`);
+        console.log(
+          `   ✅ [${String(scenario.channel).toUpperCase()}] ${scenario.name}: ${response.publicId} (${latencyMs}ms)`,
+        );
         results.push({
           name: scenario.name,
           channel: String(scenario.channel),
@@ -206,12 +208,33 @@ async function main() {
   console.log('\n⚡ Testing Direct Mock Simulator Provider Endpoints...');
   const directMockTests = [
     { provider: 'resend', url: `${MOCK_URL}/emails`, body: { to: 'user@resend.dev', subject: 'Mock Resend' } },
-    { provider: 'sendgrid', url: `${MOCK_URL}/v3/mail/send`, body: { personalizations: [{ to: [{ email: 'user@sg.dev' }] }] } },
-    { provider: 'twilio', url: `${MOCK_URL}/2010-04-01/Accounts/ACmock123/Messages.json`, body: new URLSearchParams({ To: '+15550192834', Body: 'Mock Twilio' }).toString(), isForm: true },
-    { provider: 'whatsapp-business', url: `${MOCK_URL}/v21.0/123456789/messages`, body: { messaging_product: 'whatsapp', to: '15550192834', type: 'text', text: { body: 'Mock WA' } } },
+    {
+      provider: 'sendgrid',
+      url: `${MOCK_URL}/v3/mail/send`,
+      body: { personalizations: [{ to: [{ email: 'user@sg.dev' }] }] },
+    },
+    {
+      provider: 'twilio',
+      url: `${MOCK_URL}/2010-04-01/Accounts/ACmock123/Messages.json`,
+      body: new URLSearchParams({ To: '+15550192834', Body: 'Mock Twilio' }).toString(),
+      isForm: true,
+    },
+    {
+      provider: 'whatsapp-business',
+      url: `${MOCK_URL}/v21.0/123456789/messages`,
+      body: { messaging_product: 'whatsapp', to: '15550192834', type: 'text', text: { body: 'Mock WA' } },
+    },
     { provider: 'slack', url: `${MOCK_URL}/api/chat.postMessage`, body: { channel: 'general', text: 'Mock Slack' } },
-    { provider: 'fcm', url: `${MOCK_URL}/v1/projects/my-project/messages:send`, body: { message: { token: 'device_token', notification: { title: 'FCM' } } } },
-    { provider: 'pagerduty', url: `${MOCK_URL}/v2/enqueue`, body: { routing_key: 'pd_key', event_action: 'trigger', payload: { summary: 'PD Mock' } } },
+    {
+      provider: 'fcm',
+      url: `${MOCK_URL}/v1/projects/my-project/messages:send`,
+      body: { message: { token: 'device_token', notification: { title: 'FCM' } } },
+    },
+    {
+      provider: 'pagerduty',
+      url: `${MOCK_URL}/v2/enqueue`,
+      body: { routing_key: 'pd_key', event_action: 'trigger', payload: { summary: 'PD Mock' } },
+    },
   ];
 
   for (const mockTest of directMockTests) {
@@ -237,7 +260,9 @@ async function main() {
         } catch {
           // ignore
         }
-        console.log(`   ✅ Direct ${mockTest.provider.toUpperCase()} simulation: HTTP ${res.status} (ID: ${identifier})`);
+        console.log(
+          `   ✅ Direct ${mockTest.provider.toUpperCase()} simulation: HTTP ${res.status} (ID: ${identifier})`,
+        );
       } else {
         console.log(`   ❌ Direct ${mockTest.provider.toUpperCase()} simulation: HTTP ${res.status}`);
       }
@@ -251,7 +276,12 @@ async function main() {
   try {
     const inspectRes = await fetch(`${MOCK_URL}/__inspect/requests`);
     if (inspectRes.ok) {
-      const recorded = (await inspectRes.json()) as Array<{ providerId: string; method: string; path: string; status: number }>;
+      const recorded = (await inspectRes.json()) as Array<{
+        providerId: string;
+        method: string;
+        path: string;
+        status: number;
+      }>;
       console.log(`   📊 Total Recorded Provider API Calls: ${recorded.length}`);
       for (const req of recorded.slice(0, 10)) {
         let pathname = req.url;

@@ -2,7 +2,7 @@ import { mockConfig } from './config';
 import { dispatchMockRequest } from './core/engine';
 import { generateProviderId } from './core/id-generator';
 import { mockLogger } from './core/logger';
-import { type WebSocketClientData, mockWsManager } from './core/websocket-manager';
+import { mockWsManager, type WebSocketClientData } from './core/websocket-manager';
 
 export function startMockServer(portOverride?: number) {
   const isDiscrete = mockConfig.providerId !== 'all';

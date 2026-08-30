@@ -5,10 +5,7 @@
  * channels over a 5-minute duration to emulate authentic high-scale production operations.
  */
 
-import { allHandlers } from '../apps/mock-server/src/core/engine';
-
 const MOCK_URL = (process.env.MOCK_URL || 'http://localhost:4000').replace(/\/$/, '');
-const CONVEY_URL = (process.env.CONVEY_URL || 'http://localhost:3000').replace(/\/$/, '');
 const DURATION_SECONDS = Number(process.env.SOAK_DURATION_SECONDS || 300); // 5 minutes
 const CONCURRENCY = Number(process.env.SOAK_CONCURRENCY || 8);
 const TARGET_RPS = Number(process.env.SOAK_TARGET_RPS || 20);
@@ -148,7 +145,10 @@ const recentCalls: Array<{
   messageId: string;
 }> = [];
 
-function generateRealisticPayload(provider: ProviderDef, iteration: number): {
+function generateRealisticPayload(
+  provider: ProviderDef,
+  iteration: number,
+): {
   url: string;
   method: string;
   headers: Record<string, string>;
@@ -333,51 +333,60 @@ async function runSoakTest() {
 
   const startTime = Date.now();
   const endTime = startTime + DURATION_SECONDS * 1000;
-  let totalDispatched = 0;
-  let totalSucceeded = 0;
-  let totalFailed = 0;
-  let providerIndex = 0;
-  let isRunning = true;
+  const metrics = {
+    totalDispatched: 0,
+    totalSucceeded: 0,
+    totalFailed: 0,
+    providerIndex: 0,
+    isRunning: true,
+  };
 
   // Live Metrics Reporter (Prints summary every 5 seconds)
   const reportInterval = setInterval(() => {
     const elapsedSec = (Date.now() - startTime) / 1000;
-    const remainingSec = Math.max(0, (endTime - Date.now()) / 1000);
-    const rps = elapsedSec > 0 ? (totalDispatched / elapsedSec).toFixed(1) : '0';
-    const successRate = totalDispatched > 0 ? ((totalSucceeded / totalDispatched) * 100).toFixed(1) : '100.0';
+    const rps = elapsedSec > 0 ? (metrics.totalDispatched / elapsedSec).toFixed(1) : '0';
+    const successRate =
+      metrics.totalDispatched > 0 ? ((metrics.totalSucceeded / metrics.totalDispatched) * 100).toFixed(1) : '100.0';
 
     console.log(`\n──────────────────────────────────────────────────────────────────────────────`);
     console.log(
       `⏱️  [${formatTime(elapsedSec)} / ${formatTime(DURATION_SECONDS)}] | ` +
-      `Dispatched: ${totalDispatched.toLocaleString()} | ` +
-      `Throughput: ${rps} RPS | ` +
-      `Success: ${successRate}% (${totalSucceeded.toLocaleString()} ok / ${totalFailed} err)`,
+        `Dispatched: ${metrics.totalDispatched.toLocaleString()} | ` +
+        `Throughput: ${rps} RPS | ` +
+        `Success: ${successRate}% (${metrics.totalSucceeded.toLocaleString()} ok / ${metrics.totalFailed} err)`,
     );
-    console.log(`📊 Channel Breakdown: ` +
-      `Email: ${channelStats.email.success}/${channelStats.email.total} | ` +
-      `SMS: ${channelStats.sms.success}/${channelStats.sms.total} | ` +
-      `Chat: ${channelStats.chat.success}/${channelStats.chat.total} | ` +
-      `Push: ${channelStats.push.success}/${channelStats.push.total} | ` +
-      `Tool: ${channelStats.tool.success}/${channelStats.tool.total}`
+    console.log(
+      `📊 Channel Breakdown: ` +
+        `Email: ${channelStats.email.success}/${channelStats.email.total} | ` +
+        `SMS: ${channelStats.sms.success}/${channelStats.sms.total} | ` +
+        `Chat: ${channelStats.chat.success}/${channelStats.chat.total} | ` +
+        `Push: ${channelStats.push.success}/${channelStats.push.total} | ` +
+        `Tool: ${channelStats.tool.success}/${channelStats.tool.total}`,
     );
 
     if (recentCalls.length > 0) {
       const last = recentCalls[recentCalls.length - 1];
-      console.log(`⚡ Latest: [${last.channel.toUpperCase()}] ${last.providerId} -> HTTP ${last.status} (${last.latencyMs}ms, ID: ${last.messageId})`);
+      console.log(
+        `⚡ Latest: [${last.channel.toUpperCase()}] ${last.providerId} -> HTTP ${last.status} (${last.latencyMs}ms, ID: ${last.messageId})`,
+      );
     }
   }, 5000);
 
   // Worker task function
-  async function worker(workerId: number) {
-    while (isRunning && Date.now() < endTime) {
-      const currentIdx = providerIndex++;
+  async function worker(_workerId: number) {
+    while (metrics.isRunning && Date.now() < endTime) {
+      const currentIdx = metrics.providerIndex++;
       const provider = ALL_88_PROVIDERS[currentIdx % ALL_88_PROVIDERS.length];
       const payloadInfo = generateRealisticPayload(provider, currentIdx);
 
       const start = performance.now();
-      totalDispatched++;
+      metrics.totalDispatched++;
       channelStats[provider.channel].total++;
-      const pStats = statsByProvider.get(provider.id)!;
+      let pStats = statsByProvider.get(provider.id);
+      if (!pStats) {
+        pStats = { total: 0, success: 0, failed: 0, latencies: [] };
+        statsByProvider.set(provider.id, pStats);
+      }
       pStats.total++;
 
       try {
@@ -402,11 +411,11 @@ async function runSoakTest() {
         }
 
         if (res.ok || res.status === 201 || res.status === 202) {
-          totalSucceeded++;
+          metrics.totalSucceeded++;
           channelStats[provider.channel].success++;
           pStats.success++;
         } else {
-          totalFailed++;
+          metrics.totalFailed++;
           channelStats[provider.channel].failed++;
           pStats.failed++;
         }
@@ -423,9 +432,9 @@ async function runSoakTest() {
         if (recentCalls.length > 20) {
           recentCalls.shift();
         }
-      } catch (err: unknown) {
+      } catch (_err: unknown) {
         const latencyMs = Math.round(performance.now() - start);
-        totalFailed++;
+        metrics.totalFailed++;
         channelStats[provider.channel].failed++;
         pStats.failed++;
         pStats.latencies.push(latencyMs);
@@ -440,20 +449,22 @@ async function runSoakTest() {
   const workers = Array.from({ length: CONCURRENCY }, (_, i) => worker(i + 1));
   await Promise.all(workers);
 
-  isRunning = false;
+  metrics.isRunning = false;
   clearInterval(reportInterval);
 
   const durationActual = (Date.now() - startTime) / 1000;
-  const avgRps = (totalDispatched / durationActual).toFixed(1);
+  const avgRps = (metrics.totalDispatched / durationActual).toFixed(1);
 
   // Print Final Soak Report
   console.log('\n==============================================================================');
   console.log('🏁 CONVEY 5-MINUTE ALL-PROVIDER SOAK TEST COMPLETE');
   console.log('==============================================================================');
   console.log(`Total Duration:     ${durationActual.toFixed(1)} seconds (${(durationActual / 60).toFixed(1)} minutes)`);
-  console.log(`Total Requests:     ${totalDispatched.toLocaleString()}`);
+  console.log(`Total Requests:     ${metrics.totalDispatched.toLocaleString()}`);
   console.log(`Average Throughput: ${avgRps} requests/second`);
-  console.log(`Overall Success:    ${((totalSucceeded / totalDispatched) * 100).toFixed(2)}% (${totalSucceeded.toLocaleString()} passed / ${totalFailed} failed)\n`);
+  console.log(
+    `Overall Success:    ${((metrics.totalSucceeded / metrics.totalDispatched) * 100).toFixed(2)}% (${metrics.totalSucceeded.toLocaleString()} passed / ${metrics.totalFailed} failed)\n`,
+  );
 
   console.log('📊 CHANNEL AGGREGATE RESULTS:');
   console.table(
@@ -469,9 +480,8 @@ async function runSoakTest() {
   console.log('\n📋 COMPLETE 88-PROVIDER METRICS BREAKDOWN:');
   const providerRows = Array.from(statsByProvider.entries())
     .map(([id, st]) => {
-      const avgLat = st.latencies.length > 0
-        ? Math.round(st.latencies.reduce((a, b) => a + b, 0) / st.latencies.length)
-        : 0;
+      const avgLat =
+        st.latencies.length > 0 ? Math.round(st.latencies.reduce((a, b) => a + b, 0) / st.latencies.length) : 0;
       const sorted = [...st.latencies].sort((a, b) => a - b);
       const p95 = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.95)] : 0;
       return {
