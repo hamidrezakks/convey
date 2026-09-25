@@ -89,7 +89,8 @@ export const BudgetService = {
       const currency = charge.currency.toUpperCase();
       const policyCurrency = policy?.currency ?? 'USD';
       const fx = fxEngine.convert(charge.amount, currency, policyCurrency, 8);
-      const converted = estimatedAmount(fx.convertedAmount);
+      const minimumEstimate = charge.amount > 0 ? 0.00000001 : 0;
+      const converted = estimatedAmount(Math.max(fx.convertedAmount, minimumEstimate));
       const month = getUtcMonthString(now);
       if (policy) {
         const usage = await totals(tx, policy.id, month, policyCurrency);
@@ -111,7 +112,7 @@ export const BudgetService = {
         month,
         currency,
         policyCurrency,
-        amountUsd: estimatedAmount(fx.amountUsd),
+        amountUsd: estimatedAmount(Math.max(fx.amountUsd, minimumEstimate)),
         amountInPolicyCurrency: converted,
         exchangeRate: fx.exchangeRate.toFixed(8),
         createdAt: now,

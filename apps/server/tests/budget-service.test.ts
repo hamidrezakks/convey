@@ -174,7 +174,7 @@ describe('Durable budget enforcement', () => {
   });
   it('reserves nonzero amounts for tiny foreign-currency estimates', async () => {
     const team = await policy('1', 'EUR');
-    const hold = await BudgetService.reserve(charge(team, 0.00001));
+    const hold = await BudgetService.reserve(charge(team, 0.000000001));
     expect(hold.allowed).toBe(true);
     expect((await BudgetService.get(team))?.reservedAmount).toBe(0.0001);
   });
