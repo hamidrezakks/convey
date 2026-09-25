@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { opsgenieTransformer } from './opsgenie.transformer';
-import type {
-  OpsgenieApiCreateAlertPayload,
-  OpsgenieApiResponse,
-  OpsgenieToolAdapterConfig,
-  OpsgenieWebhookPayload,
-} from './types';
+import type { OpsgenieApiCreateAlertPayload, OpsgenieApiResponse, OpsgenieToolAdapterConfig } from './types';
 
 export class OpsgenieToolAdapter
   implements ProviderAdapter<OpsgenieToolAdapterConfig, OpsgenieApiCreateAlertPayload, OpsgenieApiResponse>
@@ -25,7 +20,7 @@ export class OpsgenieToolAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -79,7 +74,7 @@ export class OpsgenieToolAdapter
         headers.Authorization = `GenieKey ${apiKey}`;
       }
 
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -103,18 +98,8 @@ export class OpsgenieToolAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as OpsgenieWebhookPayload;
-    if (!webhookData?.alert?.alertId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.alert.alertId,
-        normalizedStatus: webhookData.action === 'Create' ? NormalizedStatus.DELIVERED : NormalizedStatus.READ,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

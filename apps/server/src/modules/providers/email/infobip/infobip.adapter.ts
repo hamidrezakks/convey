@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { infobipEmailTransformer } from './infobip.transformer';
 import type {
   InfobipEmailAdapterConfig,
@@ -90,7 +92,7 @@ export class InfobipEmailAdapter
     if (reqPayload.html) formData.append('html', reqPayload.html);
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `App ${apiKey}`,
@@ -117,6 +119,17 @@ export class InfobipEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as InfobipEmailWebhookPayload;
     if (!webhookData?.results?.[0]?.messageId) return [];
 
@@ -125,7 +138,7 @@ export class InfobipEmailAdapter
       {
         providerId: this.id,
         providerMessageId: firstRes.messageId || 'infobip_email',
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

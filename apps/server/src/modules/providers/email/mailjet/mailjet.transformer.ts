@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MailjetApiRequest, MailjetApiResponse, MailjetEmailAdapterConfig } from './types';
 
 export class MailjetTransformer
@@ -50,7 +46,7 @@ export class MailjetTransformer
       error: {
         code: String(firstErr?.ErrorCode || 'MAILJET_ERROR'),
         message: firstErr?.ErrorMessage || response.ErrorMessage || 'Mailjet v3.1 API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

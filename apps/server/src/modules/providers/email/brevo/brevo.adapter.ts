@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -71,7 +72,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
     const endpoint = 'https://api.brevo.com/v3/smtp/email';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'api-key': apiKey,
@@ -100,6 +101,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as BrevoWebhookPayload;
     const msgId = webhookData?.['message-id'];
     if (!msgId) return [];
@@ -110,6 +112,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
     else if (event === 'opened') normalizedStatus = NormalizedStatus.OPENED;
     else if (event === 'bounced') normalizedStatus = NormalizedStatus.BOUNCED;
     else if (event === 'error') normalizedStatus = NormalizedStatus.FAILED;
+    else return [];
 
     return [
       {

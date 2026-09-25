@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -66,7 +67,7 @@ export class UnifonicSmsAdapter
     const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -95,13 +96,15 @@ export class UnifonicSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as UnifonicWebhookPayload;
     const msgId = webhookData.messageId || webhookData.id;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.status || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

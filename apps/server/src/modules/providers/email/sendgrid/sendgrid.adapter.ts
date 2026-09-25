@@ -1,5 +1,6 @@
 import { parseFetchResponse } from '../../../../utils/http';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -83,7 +84,7 @@ export class SendgridEmailAdapter
     const endpoint = 'https://api.sendgrid.com/v3/mail/send';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -103,6 +104,7 @@ export class SendgridEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const events = (Array.isArray(payload) ? payload : [payload]) as SendgridWebhookPayload;
     const results: NormalizedWebhookEvent[] = [];
 
@@ -114,7 +116,8 @@ export class SendgridEmailAdapter
       if (eventName === 'delivered') normalizedStatus = NormalizedStatus.DELIVERED;
       else if (eventName === 'open') normalizedStatus = NormalizedStatus.OPENED;
       else if (eventName === 'bounce') normalizedStatus = NormalizedStatus.BOUNCED;
-      else if (eventName === 'dropped' || eventName === 'deferred') normalizedStatus = NormalizedStatus.FAILED;
+      else if (eventName === 'dropped') normalizedStatus = NormalizedStatus.FAILED;
+      else continue;
 
       results.push({
         providerId: this.id,

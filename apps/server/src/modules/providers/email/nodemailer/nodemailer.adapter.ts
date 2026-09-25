@@ -1,20 +1,15 @@
+import nodemailer from 'nodemailer';
 import type { ProviderAdapter } from '../../core/provider-adapter';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { nodemailerTransformer } from './nodemailer.transformer';
-import type {
-  NodemailerEmailAdapterConfig,
-  NodemailerMailOptions,
-  NodemailerSendResult,
-  NodemailerWebhookPayload,
-} from './types';
+import type { NodemailerEmailAdapterConfig, NodemailerMailOptions, NodemailerSendResult } from './types';
 
 export class NodemailerEmailAdapter
   implements ProviderAdapter<NodemailerEmailAdapterConfig, NodemailerMailOptions, NodemailerSendResult>
@@ -40,7 +35,7 @@ export class NodemailerEmailAdapter
 
   hasSetup(configOverride?: NodemailerEmailAdapterConfig): boolean {
     const config = { ...this.config, ...configOverride };
-    return Boolean(config && Object.keys(config).length > 0);
+    return Boolean(config.host) && Boolean(config.user) === Boolean(config.pass);
   }
 
   transformRequest(options: ProviderSendOptions, config?: NodemailerEmailAdapterConfig): NodemailerMailOptions {
@@ -66,34 +61,50 @@ export class NodemailerEmailAdapter
       };
     }
 
-    try {
-      const generatedMessageId = `nodemailer_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      const result: NodemailerSendResult = {
-        messageId: generatedMessageId,
-        accepted: Array.isArray(reqPayload.to) ? reqPayload.to : [reqPayload.to],
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'SMTP host and a complete optional user/password pair are required',
+          category: ErrorCategory.PERMANENT,
+        },
       };
+    }
+    const transport = nodemailer.createTransport({
+      host: config.host,
+      port: config.port ?? (config.secure ? 465 : 587),
+      secure: config.secure ?? false,
+      auth: config.user ? { user: config.user, pass: config.pass } : undefined,
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 30_000,
+      disableFileAccess: true,
+      disableUrlAccess: true,
+    });
+    try {
+      const result = await transport.sendMail(reqPayload);
 
       return this.transformResponse(result, 200, result);
     } catch (err: unknown) {
       return {
         success: false,
-        error: { code: 'SMTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+        error: {
+          code: 'SMTP_SEND_ERROR',
+          message: (err as Error).message,
+          category:
+            (err as { responseCode?: number }).responseCode && (err as { responseCode: number }).responseCode >= 500
+              ? ErrorCategory.PERMANENT
+              : ErrorCategory.TRANSIENT,
+        },
       };
+    } finally {
+      transport.close();
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as NodemailerWebhookPayload;
-    if (!webhookData?.messageId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // Acceptance/change notifications are not evidence of recipient delivery.
+    return [];
   }
 }

@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { bulkSmsTransformer } from './bulk-sms.transformer';
 import type { BulkSmsApiRequest, BulkSmsApiResponse, BulkSmsSmsAdapterConfig, BulkSmsWebhookPayload } from './types';
 
@@ -82,7 +84,7 @@ export class BulkSmsSmsAdapter
       : `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -110,6 +112,17 @@ export class BulkSmsSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as BulkSmsWebhookPayload;
     if (!webhookData?.id) return [];
 
@@ -117,7 +130,7 @@ export class BulkSmsSmsAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.timestamp ? new Date(webhookData.timestamp) : new Date(),
       },

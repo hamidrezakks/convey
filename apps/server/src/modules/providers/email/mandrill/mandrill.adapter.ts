@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { mandrillTransformer } from './mandrill.transformer';
 import type {
   MandrillApiRequest,
@@ -83,7 +85,7 @@ export class MandrillEmailAdapter
     const endpoint = 'https://mandrillapp.com/api/1.0/messages/send.json';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,6 +112,16 @@ export class MandrillEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'event', {
+      send: NormalizedStatus.DELIVERED,
+      hard_bounce: NormalizedStatus.BOUNCED,
+      soft_bounce: NormalizedStatus.BOUNCED,
+      reject: NormalizedStatus.FAILED,
+      open: NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as MandrillWebhookPayload;
     if (!webhookData?.msg?._id) return [];
 
@@ -117,7 +129,7 @@ export class MandrillEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.msg._id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.msg.ts ? new Date(webhookData.msg.ts * 1000) : new Date(),
       },

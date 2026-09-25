@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { brazeEmailTransformer } from './braze.transformer';
 import type {
   BrazeEmailAdapterConfig,
@@ -79,7 +81,7 @@ export class BrazeEmailAdapter
     const endpoint = `${baseUrl.replace(/\/$/, '')}/messages/send`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -107,6 +109,17 @@ export class BrazeEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as BrazeEmailWebhookPayload;
     if (!webhookData?.dispatch_id) return [];
 
@@ -114,7 +127,7 @@ export class BrazeEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.dispatch_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.timestamp ? new Date(Number(webhookData.timestamp) * 1000) : new Date(),
       },

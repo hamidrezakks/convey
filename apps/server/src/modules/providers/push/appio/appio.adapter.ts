@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { appioTransformer } from './appio.transformer';
 import type { AppioApiRequest, AppioApiResponse, AppioPushAdapterConfig, AppioWebhookPayload } from './types';
 
@@ -71,7 +73,7 @@ export class AppioPushAdapter implements ProviderAdapter<AppioPushAdapterConfig,
     const endpoint = 'https://api.appio.io/v1/push/send';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -99,6 +101,17 @@ export class AppioPushAdapter implements ProviderAdapter<AppioPushAdapterConfig,
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as AppioWebhookPayload;
     if (!webhookData?.message_id) return [];
 
@@ -106,7 +119,7 @@ export class AppioPushAdapter implements ProviderAdapter<AppioPushAdapterConfig,
       {
         providerId: this.id,
         providerMessageId: webhookData.message_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

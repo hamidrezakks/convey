@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { NodemailerEmailAdapterConfig, NodemailerMailOptions, NodemailerSendResult } from './types';
 
 export class NodemailerTransformer
@@ -31,7 +27,7 @@ export class NodemailerTransformer
   }
 
   transformResponse(response: NodemailerSendResult, statusCode = 200, rawBody?: unknown): ProviderSendResult {
-    if (statusCode >= 200 && statusCode < 300 && response.messageId) {
+    if (statusCode >= 200 && statusCode < 300 && response.messageId && response.accepted?.length) {
       return {
         success: true,
         providerMessageId: response.messageId.replace(/[<>]/g, ''),
@@ -44,7 +40,7 @@ export class NodemailerTransformer
       error: {
         code: 'NODEMAILER_ERROR',
         message: 'Nodemailer transport send failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

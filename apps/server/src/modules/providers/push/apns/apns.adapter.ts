@@ -1,15 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { ProviderTokenCache, signProviderJwt } from '../../core/provider-token';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { http2Request } from '../../core/transport/http2-request';
 import { apnsTransformer } from './apns.transformer';
-import type { ApnsApiRequest, ApnsApiResponse, ApnsPushAdapterConfig, ApnsWebhookPayload } from './types';
+import type { ApnsApiRequest, ApnsApiResponse, ApnsPushAdapterConfig } from './types';
 
 export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, ApnsApiRequest, ApnsApiResponse> {
   readonly id = 'apns';
@@ -18,22 +19,27 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
-    supportsAttachments: true,
+    supportsAttachments: false,
     supportsTemplates: false,
-    supportsMedia: true,
+    supportsMedia: false,
   };
 
   private config?: ApnsPushAdapterConfig;
 
-  constructor(config?: ApnsPushAdapterConfig) {
+  private tokens = new ProviderTokenCache();
+
+  constructor(
+    config?: ApnsPushAdapterConfig,
+    private request = http2Request,
+  ) {
     this.config = config;
   }
 
   hasSetup(configOverride?: ApnsPushAdapterConfig): boolean {
     const config = { ...this.config, ...configOverride };
-    return Boolean(config.bundleId || config.key || config.production);
+    return Boolean(config.bundleId && config.key && config.keyId && config.teamId);
   }
 
   transformRequest(options: ProviderSendOptions, config?: ApnsPushAdapterConfig): ApnsApiRequest {
@@ -54,7 +60,7 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
     };
     const reqPayload = this.transformRequest(options, config);
 
-    if (!reqPayload.deviceToken) {
+    if (!reqPayload.deviceToken || (options.recipient.deviceTokens || options.recipient.fcmTokens || []).length > 1) {
       return {
         success: false,
         error: {
@@ -65,7 +71,7 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
       };
     }
 
-    if (!config.bundleId || !config.key) {
+    if (!this.hasSetup(config)) {
       return {
         success: false,
         error: {
@@ -77,24 +83,40 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
     }
 
     const host = config.production ? 'api.push.apple.com' : 'api.sandbox.push.apple.com';
-    const endpoint = `https://${host}/3/device/${reqPayload.deviceToken}`;
-
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
+      const token = await this.tokens.get(config, async () => ({
+        token: signProviderJwt(
+          { alg: 'ES256', kid: config.keyId },
+          { iss: config.teamId, iat: Math.floor(Date.now() / 1000) },
+          config.key || '',
+          'ES256',
+        ),
+        expiresIn: 3000,
+      }));
+      const body = JSON.stringify({ ...reqPayload.data, aps: reqPayload.aps });
+      if (Buffer.byteLength(body) > 4096)
+        return {
+          success: false,
+          error: {
+            code: 'PAYLOAD_TOO_LARGE',
+            message: 'APNs alert payload exceeds 4096 bytes',
+            category: ErrorCategory.PERMANENT,
+          },
+        };
+      const response = await this.request(
+        `https://${host}`,
+        `/3/device/${encodeURIComponent(reqPayload.deviceToken)}`,
+        {
+          authorization: `bearer ${token}`,
           'apns-topic': config.bundleId,
           'apns-push-type': 'alert',
-          'Content-Type': 'application/json',
+          'content-type': 'application/json',
         },
-        body: JSON.stringify({
-          aps: reqPayload.aps,
-          ...reqPayload.data,
-        }),
-      });
-
-      const apnsId = response.headers.get('apns-id') || undefined;
-      const responseText = await response.text();
+        body,
+      );
+      if (response.status === 403) this.tokens.clear();
+      const apnsId = typeof response.headers['apns-id'] === 'string' ? response.headers['apns-id'] : undefined;
+      const responseText = response.body;
       const responseJson: ApnsApiResponse = { apnsId, status: response.status };
 
       try {
@@ -115,18 +137,7 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as ApnsWebhookPayload;
-    if (!webhookData?.apnsId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.apnsId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: webhookData.timestamp ? new Date(webhookData.timestamp * 1000) : new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    return [];
   }
 }

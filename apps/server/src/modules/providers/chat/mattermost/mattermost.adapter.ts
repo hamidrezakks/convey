@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { mattermostTransformer } from './mattermost.transformer';
-import type {
-  MattermostAdapterConfig,
-  MattermostApiRequest,
-  MattermostApiResponse,
-  MattermostWebhookPayload,
-} from './types';
+import type { MattermostAdapterConfig, MattermostApiRequest, MattermostApiResponse } from './types';
 
 export class MattermostChatAdapter
   implements ProviderAdapter<MattermostAdapterConfig, MattermostApiRequest, MattermostApiResponse>
@@ -25,7 +20,7 @@ export class MattermostChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -82,7 +77,7 @@ export class MattermostChatAdapter
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -106,19 +101,8 @@ export class MattermostChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as MattermostWebhookPayload;
-    const msgId = webhookData.post_id || webhookData.id;
-    if (!msgId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: msgId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

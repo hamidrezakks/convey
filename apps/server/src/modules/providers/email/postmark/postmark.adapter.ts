@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { postmarkTransformer } from './postmark.transformer';
 import type {
   PostmarkApiRequest,
@@ -82,7 +84,7 @@ export class PostmarkEmailAdapter
     const endpoint = 'https://api.postmarkapp.com/email';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'X-Postmark-Server-Token': serverToken,
@@ -111,6 +113,14 @@ export class PostmarkEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'RecordType', {
+      delivery: NormalizedStatus.DELIVERED,
+      bounce: NormalizedStatus.BOUNCED,
+      open: NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as PostmarkWebhookPayload;
     if (!webhookData?.MessageID) return [];
 
@@ -118,7 +128,7 @@ export class PostmarkEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.MessageID,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.DeliveredAt ? new Date(webhookData.DeliveredAt) : new Date(),
       },

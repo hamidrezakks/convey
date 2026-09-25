@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { infobipSmsTransformer } from './infobip.transformer';
 import type {
   InfobipSmsAdapterConfig,
@@ -83,7 +85,7 @@ export class InfobipSmsAdapter
     const endpoint = `${baseUrl.replace(/\/$/, '')}/sms/2/text/advanced`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `App ${apiKey}`,
@@ -112,6 +114,17 @@ export class InfobipSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as InfobipSmsWebhookPayload;
     const firstResult = webhookData?.results?.[0];
     if (!firstResult?.messageId) return [];
@@ -120,7 +133,7 @@ export class InfobipSmsAdapter
       {
         providerId: this.id,
         providerMessageId: firstResult.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

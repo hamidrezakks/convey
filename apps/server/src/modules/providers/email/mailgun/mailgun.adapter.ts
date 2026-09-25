@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -92,7 +93,7 @@ export class MailgunEmailAdapter
     const authHeader = `Basic ${Buffer.from(`${username}:${apiKey}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -120,9 +121,10 @@ export class MailgunEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as MailgunWebhookPayload;
     const eventData = webhookData?.['event-data'];
-    const msgId = eventData?.id || eventData?.message?.headers?.['message-id'];
+    const msgId = eventData?.message?.headers?.['message-id'];
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
@@ -131,7 +133,9 @@ export class MailgunEmailAdapter
     if (event === 'delivered') normalizedStatus = NormalizedStatus.DELIVERED;
     else if (event === 'opened') normalizedStatus = NormalizedStatus.OPENED;
     else if (event === 'bounced') normalizedStatus = NormalizedStatus.BOUNCED;
-    else if (event === 'failed') normalizedStatus = NormalizedStatus.FAILED;
+    else if (event === 'failed' && (eventData as { severity?: string }).severity === 'permanent')
+      normalizedStatus = NormalizedStatus.FAILED;
+    else return [];
 
     return [
       {

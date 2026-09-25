@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { sparkpostTransformer } from './sparkpost.transformer';
 import type {
   SparkpostApiRequest,
@@ -82,7 +84,7 @@ export class SparkpostEmailAdapter
     const endpoint = config.endpoint || 'https://api.sparkpost.com/api/v1/transmissions';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: apiKey,
@@ -110,6 +112,14 @@ export class SparkpostEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'msys.message_event.type', {
+      delivery: NormalizedStatus.DELIVERED,
+      bounce: NormalizedStatus.BOUNCED,
+      policy_rejection: NormalizedStatus.FAILED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as SparkpostWebhookPayload;
     const msgEvent = webhookData?.msys?.message_event;
     if (!msgEvent?.message_id) return [];
@@ -118,7 +128,7 @@ export class SparkpostEmailAdapter
       {
         providerId: this.id,
         providerMessageId: msgEvent.message_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: msgEvent.timestamp ? new Date(Number(msgEvent.timestamp) * 1000) : new Date(),
       },

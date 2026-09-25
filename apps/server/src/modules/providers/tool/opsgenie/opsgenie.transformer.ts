@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { OpsgenieApiCreateAlertPayload, OpsgenieApiResponse, OpsgenieToolAdapterConfig } from './types';
 
 export class OpsgenieTransformer
@@ -41,7 +37,7 @@ export class OpsgenieTransformer
       error: {
         code: response.code || 'OPSGENIE_ERROR',
         message: response.message || 'Opsgenie API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

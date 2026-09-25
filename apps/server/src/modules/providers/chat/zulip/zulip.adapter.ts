@@ -1,14 +1,14 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
-import type { ZulipAdapterConfig, ZulipApiRequest, ZulipApiResponse, ZulipWebhookPayload } from './types';
+import type { ZulipAdapterConfig, ZulipApiRequest, ZulipApiResponse } from './types';
 import { zulipTransformer } from './zulip.transformer';
 
 export class ZulipChatAdapter implements ProviderAdapter<ZulipAdapterConfig, ZulipApiRequest, ZulipApiResponse> {
@@ -18,8 +18,8 @@ export class ZulipChatAdapter implements ProviderAdapter<ZulipAdapterConfig, Zul
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
-    supportsReadReceipts: true,
+    supportsDeliveryReceipts: false,
+    supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
     supportsMedia: false,
@@ -87,7 +87,7 @@ export class ZulipChatAdapter implements ProviderAdapter<ZulipAdapterConfig, Zul
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Basic ${credentials}`,
@@ -115,19 +115,8 @@ export class ZulipChatAdapter implements ProviderAdapter<ZulipAdapterConfig, Zul
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as ZulipWebhookPayload;
-    const msgId = webhookData.message?.id;
-    if (msgId === undefined) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: String(msgId),
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: webhookData.message?.timestamp ? new Date(webhookData.message.timestamp * 1000) : new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

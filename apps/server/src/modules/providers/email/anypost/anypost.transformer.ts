@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { AnypostApiRequest, AnypostApiResponse, AnypostEmailAdapterConfig } from './types';
 
 export class AnypostTransformer
@@ -42,7 +38,7 @@ export class AnypostTransformer
       error: {
         code: 'ANYPOST_ERROR',
         message: response.error || 'Anypost Email API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import {
   CequensMessageType,
   type CequensWhatsappAdapterConfig,
@@ -97,7 +93,7 @@ export class CequensWhatsappTransformer
       error: {
         code: response.replyCode ? `ERR_${response.replyCode}` : 'CEQUENS_WHATSAPP_ERROR',
         message: response.replyMessage || 'Cequens WhatsApp API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

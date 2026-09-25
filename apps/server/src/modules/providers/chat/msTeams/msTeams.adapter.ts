@@ -1,15 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { msTeamsTransformer } from './msTeams.transformer';
-import type { MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse, MsTeamsWebhookPayload } from './types';
+import type { MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse } from './types';
 
 export class MsTeamsChatAdapter
   implements ProviderAdapter<MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse>
@@ -20,7 +20,7 @@ export class MsTeamsChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -66,7 +66,7 @@ export class MsTeamsChatAdapter
     const endpoint = Array.isArray(webhookUrl) ? webhookUrl[0] : webhookUrl;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,18 +93,8 @@ export class MsTeamsChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as MsTeamsWebhookPayload;
-    if (!webhookData?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

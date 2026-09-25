@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MailgunApiRequest, MailgunApiResponse, MailgunEmailAdapterConfig } from './types';
 
 export class MailgunTransformer
@@ -43,7 +39,7 @@ export class MailgunTransformer
       error: {
         code: 'MAILGUN_ERROR',
         message: response.message || 'Mailgun API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

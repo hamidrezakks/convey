@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { EmailWebhookAdapterConfig, EmailWebhookApiRequest, EmailWebhookApiResponse } from './types';
 
 export class EmailWebhookTransformer
@@ -39,7 +35,7 @@ export class EmailWebhookTransformer
       error: {
         code: 'WEBHOOK_EMAIL_ERROR',
         message: response.error || 'Email Webhook endpoint returned error',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

@@ -1,4 +1,6 @@
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { httpErrorCategory } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -20,8 +22,8 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
     supportsBulk: true,
     supportsDeliveryReceipts: true,
     supportsReadReceipts: false,
-    supportsAttachments: true,
-    supportsTemplates: true,
+    supportsAttachments: false,
+    supportsTemplates: false,
     supportsMedia: false,
   };
 
@@ -33,7 +35,7 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
 
   hasSetup(configOverride?: SesEmailAdapterConfig): boolean {
     const config = { ...this.config, ...configOverride };
-    return Boolean(config.region || config.accessKeyId);
+    return Boolean(config.region && config.accessKeyId && config.secretAccessKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: SesEmailAdapterConfig): SesApiRequest {
@@ -46,7 +48,6 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
 
   async send(options: ProviderSendOptions, configOverride?: SesEmailAdapterConfig): Promise<ProviderSendResult> {
     const config = { ...this.config, ...configOverride };
-    const region = config.region || 'us-east-1';
 
     const reqPayload = this.transformRequest(options, config);
 
@@ -61,36 +62,46 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
       };
     }
 
-    const endpoint = `https://email.${region}.amazonaws.com/v2/email/outbound-emails`;
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reqPayload),
-      });
-
-      const responseText = await response.text();
-      let responseJson: SesApiResponse = {};
-
-      try {
-        responseJson = JSON.parse(responseText) as SesApiResponse;
-      } catch {
-        responseJson = { message: responseText };
-      }
-
-      return this.transformResponse(responseJson, response.status, responseText);
-    } catch (err: unknown) {
+    if (!this.hasSetup(config)) {
       return {
         success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'AWS region, accessKeyId and secretAccessKey are required',
+          category: ErrorCategory.PERMANENT,
+        },
       };
+    }
+    const client = new SESv2Client({
+      region: config.region,
+      maxAttempts: 1,
+      credentials: {
+        accessKeyId: config.accessKeyId || '',
+        secretAccessKey: config.secretAccessKey || '',
+        sessionToken: config.sessionToken,
+      },
+      requestHandler: { connectionTimeout: 15_000, requestTimeout: 30_000 },
+    });
+    try {
+      const result = await client.send(new SendEmailCommand(reqPayload));
+      return this.transformResponse(result, result.$metadata.httpStatusCode ?? 200);
+    } catch (err: unknown) {
+      const error = err as Error & { $metadata?: { httpStatusCode?: number } };
+      return {
+        success: false,
+        error: {
+          code: error.name,
+          message: error.message,
+          category: httpErrorCategory(error.$metadata?.httpStatusCode ?? 503),
+        },
+      };
+    } finally {
+      client.destroy();
     }
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as SesWebhookPayload;
     if (!webhookData?.mail?.messageId) return [];
 
@@ -99,6 +110,7 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
     if (type === 'delivery') normalizedStatus = NormalizedStatus.DELIVERED;
     else if (type === 'bounce') normalizedStatus = NormalizedStatus.BOUNCED;
     else if (type === 'reject') normalizedStatus = NormalizedStatus.FAILED;
+    else return [];
 
     return [
       {

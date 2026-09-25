@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { bandwidthTransformer } from './bandwidth.transformer';
 import type {
   BandwidthApiRequest,
@@ -86,7 +88,7 @@ export class BandwidthSmsAdapter
     const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -114,6 +116,13 @@ export class BandwidthSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'type', {
+      'message-delivered': NormalizedStatus.DELIVERED,
+      'message-failed': NormalizedStatus.FAILED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as BandwidthWebhookPayload;
     if (!webhookData?.message?.id) return [];
 
@@ -121,7 +130,7 @@ export class BandwidthSmsAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.message.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.message.time ? new Date(webhookData.message.time) : new Date(),
       },

@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { plivoTransformer } from './plivo.transformer';
 import type { PlivoApiRequest, PlivoApiResponse, PlivoSmsAdapterConfig, PlivoWebhookPayload } from './types';
 
@@ -77,7 +79,7 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
     const authHeader = `Basic ${Buffer.from(`${authId}:${authToken}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -105,6 +107,17 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as PlivoWebhookPayload;
     if (!webhookData?.MessageUUID) return [];
 
@@ -112,7 +125,7 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
       {
         providerId: this.id,
         providerMessageId: webhookData.MessageUUID,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

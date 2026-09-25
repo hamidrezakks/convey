@@ -1,15 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { expoTransformer } from './expo.transformer';
-import type { ExpoApiRequest, ExpoApiResponse, ExpoPushAdapterConfig, ExpoWebhookPayload } from './types';
+import type { ExpoApiRequest, ExpoApiResponse, ExpoPushAdapterConfig } from './types';
 
 export class ExpoPushAdapter implements ProviderAdapter<ExpoPushAdapterConfig, ExpoApiRequest, ExpoApiResponse> {
   readonly id = 'expo';
@@ -18,7 +18,7 @@ export class ExpoPushAdapter implements ProviderAdapter<ExpoPushAdapterConfig, E
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: true,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -71,7 +71,7 @@ export class ExpoPushAdapter implements ProviderAdapter<ExpoPushAdapterConfig, E
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -95,18 +95,8 @@ export class ExpoPushAdapter implements ProviderAdapter<ExpoPushAdapterConfig, E
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as ExpoWebhookPayload;
-    if (!webhookData?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

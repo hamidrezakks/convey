@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -85,7 +86,7 @@ export class GetstreamChatAdapter
     const endpoint = `https://chat.stream-io-api.com/channels/${channelType}/${channelId}/message?api_key=${apiKey}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,12 +115,14 @@ export class GetstreamChatAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as GetstreamWebhookPayload;
     if (!webhookData?.message?.id) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const evtType = (webhookData.type || '').toLowerCase();
-    if (evtType.includes('read')) normalizedStatus = NormalizedStatus.READ;
+    if (evtType === 'message.read') normalizedStatus = NormalizedStatus.READ;
+    else return [];
 
     return [
       {

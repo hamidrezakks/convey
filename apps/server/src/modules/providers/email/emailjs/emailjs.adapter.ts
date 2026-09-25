@@ -1,15 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { emailjsTransformer } from './emailjs.transformer';
-import type { EmailjsApiRequest, EmailjsApiResponse, EmailjsEmailAdapterConfig, EmailjsWebhookPayload } from './types';
+import type { EmailjsApiRequest, EmailjsApiResponse, EmailjsEmailAdapterConfig } from './types';
 
 export class EmailjsEmailAdapter
   implements ProviderAdapter<EmailjsEmailAdapterConfig, EmailjsApiRequest, EmailjsApiResponse>
@@ -35,7 +35,7 @@ export class EmailjsEmailAdapter
 
   hasSetup(configOverride?: EmailjsEmailAdapterConfig): boolean {
     const config = { ...this.config, ...configOverride };
-    return Boolean(config && Object.keys(config).length > 0);
+    return Boolean(config.serviceId && config.templateId && config.publicKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: EmailjsEmailAdapterConfig): EmailjsApiRequest {
@@ -76,7 +76,7 @@ export class EmailjsEmailAdapter
     const endpoint = 'https://api.emailjs.com/api/v1.0/email/send';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,18 +96,8 @@ export class EmailjsEmailAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as EmailjsWebhookPayload;
-    if (!webhookData?.messageId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

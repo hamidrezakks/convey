@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { grafanaOnCallTransformer } from './grafana-on-call.transformer';
-import type {
-  GrafanaOnCallAdapterConfig,
-  GrafanaOnCallApiRequest,
-  GrafanaOnCallApiResponse,
-  GrafanaOnCallWebhookPayload,
-} from './types';
+import type { GrafanaOnCallAdapterConfig, GrafanaOnCallApiRequest, GrafanaOnCallApiResponse } from './types';
 
 export class GrafanaOnCallChatAdapter
   implements ProviderAdapter<GrafanaOnCallAdapterConfig, GrafanaOnCallApiRequest, GrafanaOnCallApiResponse>
@@ -25,7 +20,7 @@ export class GrafanaOnCallChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -71,7 +66,7 @@ export class GrafanaOnCallChatAdapter
     const endpoint = Array.isArray(webhookUrl) ? webhookUrl[0] : webhookUrl;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,19 +93,8 @@ export class GrafanaOnCallChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as GrafanaOnCallWebhookPayload;
-    const msgId = webhookData.alert_id || webhookData.id;
-    if (!msgId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: msgId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

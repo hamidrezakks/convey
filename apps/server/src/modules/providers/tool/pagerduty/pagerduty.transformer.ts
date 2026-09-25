@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { PagerdutyApiRequest, PagerdutyApiResponse, PagerdutyToolAdapterConfig } from './types';
 
 export class PagerdutyTransformer
@@ -49,7 +45,7 @@ export class PagerdutyTransformer
       error: {
         code: 'PAGERDUTY_ERROR',
         message: response.message || response.errors?.join(', ') || 'PagerDuty Event API call failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: {
         rawPayload: rawBody || response,

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SmsmodeAdapterConfig, SmsmodeApiRequest, SmsmodeApiResponse } from './types';
 
 export class SmsmodeTransformer
@@ -44,7 +40,7 @@ export class SmsmodeTransformer
       error: {
         code: `SMSMODE_ERROR_${statusCode}`,
         message: response.message || response.error || 'Smsmode SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

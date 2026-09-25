@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SendchampAdapterConfig, SendchampApiRequest, SendchampApiResponse } from './types';
 
 export class SendchampTransformer
@@ -44,7 +40,7 @@ export class SendchampTransformer
       error: {
         code: `SENDCHAMP_ERROR_${statusCode}`,
         message: response.message || response.error || 'Sendchamp SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

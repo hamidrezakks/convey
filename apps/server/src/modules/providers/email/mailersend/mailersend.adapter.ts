@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { mailersendTransformer } from './mailersend.transformer';
 import type {
   MailersendApiRequest,
@@ -86,7 +88,7 @@ export class MailersendEmailAdapter
     const endpoint = 'https://api.mailersend.com/v1/email';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -122,6 +124,15 @@ export class MailersendEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'type', {
+      'activity.delivered': NormalizedStatus.DELIVERED,
+      'activity.hard_bounced': NormalizedStatus.BOUNCED,
+      'activity.soft_bounced': NormalizedStatus.BOUNCED,
+      'activity.opened': NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as MailersendWebhookPayload;
     const msgId = webhookData?.data?.email?.id || webhookData?.data?.id;
     if (!msgId) return [];
@@ -130,7 +141,7 @@ export class MailersendEmailAdapter
       {
         providerId: this.id,
         providerMessageId: msgId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.data?.created_at ? new Date(webhookData.data.created_at) : new Date(),
       },

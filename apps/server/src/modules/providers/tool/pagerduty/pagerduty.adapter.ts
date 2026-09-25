@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { pagerdutyTransformer } from './pagerduty.transformer';
-import type {
-  PagerdutyApiRequest,
-  PagerdutyApiResponse,
-  PagerdutyToolAdapterConfig,
-  PagerdutyWebhookPayload,
-} from './types';
+import type { PagerdutyApiRequest, PagerdutyApiResponse, PagerdutyToolAdapterConfig } from './types';
 
 export class PagerdutyToolAdapter
   implements ProviderAdapter<PagerdutyToolAdapterConfig, PagerdutyApiRequest, PagerdutyApiResponse>
@@ -25,7 +20,7 @@ export class PagerdutyToolAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -40,7 +35,7 @@ export class PagerdutyToolAdapter
 
   hasSetup(configOverride?: PagerdutyToolAdapterConfig): boolean {
     const config = { ...this.config, ...configOverride };
-    return Boolean(config && Object.keys(config).length > 0);
+    return Boolean(config.routingKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PagerdutyToolAdapterConfig): PagerdutyApiRequest {
@@ -80,7 +75,7 @@ export class PagerdutyToolAdapter
     const endpoint = 'https://events.pagerduty.com/v2/enqueue';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,18 +101,8 @@ export class PagerdutyToolAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as PagerdutyWebhookPayload;
-    if (!webhookData?.event?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.event.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: webhookData.event.occurred_at ? new Date(webhookData.event.occurred_at) : new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { GrafanaApiAlertPayload, GrafanaApiResponse, GrafanaToolAdapterConfig } from './types';
 
 export class GrafanaTransformer
@@ -50,7 +46,7 @@ export class GrafanaTransformer
       error: {
         code: 'GRAFANA_ERROR',
         message: response.error || response.message || 'Grafana alert API call failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

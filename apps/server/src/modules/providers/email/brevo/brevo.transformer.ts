@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { BrevoApiRequest, BrevoApiResponse, BrevoEmailAdapterConfig } from './types';
 
 export class BrevoTransformer
@@ -43,7 +39,7 @@ export class BrevoTransformer
       error: {
         code: response.code || 'BREVO_ERROR',
         message: response.message || 'Brevo SMTP API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

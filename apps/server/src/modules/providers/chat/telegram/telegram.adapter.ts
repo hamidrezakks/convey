@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { telegramTransformer } from './telegram.transformer';
-import type {
-  TelegramApiRequest,
-  TelegramApiResponse,
-  TelegramChatAdapterConfig,
-  TelegramWebhookPayload,
-} from './types';
+import type { TelegramApiRequest, TelegramApiResponse, TelegramChatAdapterConfig } from './types';
 
 export class TelegramChatAdapter
   implements ProviderAdapter<TelegramChatAdapterConfig, TelegramApiRequest, TelegramApiResponse>
@@ -25,7 +20,7 @@ export class TelegramChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -89,7 +84,7 @@ export class TelegramChatAdapter
     const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,18 +110,8 @@ export class TelegramChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as TelegramWebhookPayload;
-    if (!webhookData?.message?.message_id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: String(webhookData.message.message_id),
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: webhookData.message.date ? new Date(webhookData.message.date * 1000) : new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

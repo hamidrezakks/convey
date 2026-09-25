@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { Sms77AdapterConfig, Sms77ApiRequest, Sms77ApiResponse } from './types';
 
 export class Sms77Transformer implements ProviderTransformer<Sms77AdapterConfig, Sms77ApiRequest, Sms77ApiResponse> {
@@ -42,7 +38,7 @@ export class Sms77Transformer implements ProviderTransformer<Sms77AdapterConfig,
       error: {
         code: `SMS77_ERROR_${statusCode}`,
         message: response.message || response.error || 'Sms77 SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

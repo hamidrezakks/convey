@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -64,7 +65,7 @@ export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, Te
     const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -93,13 +94,15 @@ export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, Te
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as TelnyxWebhookPayload;
     const msgId = webhookData.data?.payload?.id || webhookData.data?.id;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.data?.event_type || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

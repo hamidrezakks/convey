@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SmsCentralAdapterConfig, SmsCentralApiRequest, SmsCentralApiResponse } from './types';
 
 export class SmsCentralTransformer
@@ -44,7 +40,7 @@ export class SmsCentralTransformer
       error: {
         code: `SMS_CENTRAL_ERROR_${statusCode}`,
         message: response.message || response.error || 'SmsCentral SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

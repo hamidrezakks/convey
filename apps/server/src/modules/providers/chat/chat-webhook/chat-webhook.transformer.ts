@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ChatWebhookAdapterConfig, ChatWebhookApiRequest, ChatWebhookApiResponse } from './types';
 
 export class ChatWebhookTransformer
@@ -36,7 +32,7 @@ export class ChatWebhookTransformer
       error: {
         code: 'CHAT_WEBHOOK_ERROR',
         message: response.error || 'Chat Webhook API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

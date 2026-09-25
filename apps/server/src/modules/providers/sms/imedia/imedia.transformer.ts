@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ImediaAdapterConfig, ImediaApiRequest, ImediaApiResponse } from './types';
 
 export class ImediaTransformer
@@ -44,7 +40,7 @@ export class ImediaTransformer
       error: {
         code: `IMEDIA_ERROR_${statusCode}`,
         message: response.message || response.error || 'Imedia SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

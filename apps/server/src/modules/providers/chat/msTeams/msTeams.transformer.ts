@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse } from './types';
 
 export class MsTeamsTransformer
@@ -51,7 +47,7 @@ export class MsTeamsTransformer
       error: {
         code: response.error?.code || `MSTEAMS_ERROR_${statusCode}`,
         message: response.error?.message || 'Microsoft Teams API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

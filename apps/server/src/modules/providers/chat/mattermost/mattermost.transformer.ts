@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MattermostAdapterConfig, MattermostApiRequest, MattermostApiResponse } from './types';
 
 export class MattermostTransformer
@@ -36,7 +32,7 @@ export class MattermostTransformer
       error: {
         code: `MATTERMOST_ERROR_${statusCode}`,
         message: response.message || response.error || response.detailed_error || 'Mattermost API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

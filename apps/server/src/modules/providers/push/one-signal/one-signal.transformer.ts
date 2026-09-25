@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { OneSignalApiRequest, OneSignalApiResponse, OneSignalPushAdapterConfig } from './types';
 
 export class OneSignalTransformer
@@ -58,7 +54,7 @@ export class OneSignalTransformer
       error: {
         code: 'ONESIGNAL_ERROR',
         message: errStr,
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

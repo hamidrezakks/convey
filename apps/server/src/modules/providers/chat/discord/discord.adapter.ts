@@ -1,15 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { discordTransformer } from './discord.transformer';
-import type { DiscordApiRequest, DiscordApiResponse, DiscordChatAdapterConfig, DiscordWebhookPayload } from './types';
+import type { DiscordApiRequest, DiscordApiResponse, DiscordChatAdapterConfig } from './types';
 
 export class DiscordChatAdapter
   implements ProviderAdapter<DiscordChatAdapterConfig, DiscordApiRequest, DiscordApiResponse>
@@ -20,7 +20,7 @@ export class DiscordChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -64,7 +64,7 @@ export class DiscordChatAdapter
     }
 
     try {
-      const response = await fetch(webhookUrl, {
+      const response = await providerFetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,18 +92,8 @@ export class DiscordChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as DiscordWebhookPayload;
-    if (!webhookData?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

@@ -8,6 +8,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { createTransportFetch } from '../../core/transport';
 import { resendTransformer } from './resend.transformer';
 import type { ResendApiRequest, ResendApiResponse, ResendEmailAdapterConfig, ResendWebhookPayload } from './types';
@@ -103,6 +104,15 @@ export class ResendEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'type', {
+      'email.delivered': NormalizedStatus.DELIVERED,
+      'email.bounced': NormalizedStatus.BOUNCED,
+      'email.failed': NormalizedStatus.FAILED,
+      'email.opened': NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as ResendWebhookPayload;
     if (!webhookData?.data?.email_id) return [];
 
@@ -110,7 +120,7 @@ export class ResendEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.data.email_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.data.created_at ? new Date(webhookData.data.created_at) : new Date(),
       },

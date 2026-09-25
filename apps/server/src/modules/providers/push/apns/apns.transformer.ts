@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ApnsApiRequest, ApnsApiResponse, ApnsPushAdapterConfig } from './types';
 
 export class ApnsTransformer implements ProviderTransformer<ApnsPushAdapterConfig, ApnsApiRequest, ApnsApiResponse> {
@@ -30,7 +26,7 @@ export class ApnsTransformer implements ProviderTransformer<ApnsPushAdapterConfi
     if (statusCode >= 200 && statusCode < 300 && (response.apnsId || statusCode === 200)) {
       return {
         success: true,
-        providerMessageId: response.apnsId || `apns_${Date.now()}`,
+        providerMessageId: response.apnsId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -40,7 +36,7 @@ export class ApnsTransformer implements ProviderTransformer<ApnsPushAdapterConfi
       error: {
         code: response.reason || 'APNS_ERROR',
         message: response.reason || 'APNs HTTP/2 request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

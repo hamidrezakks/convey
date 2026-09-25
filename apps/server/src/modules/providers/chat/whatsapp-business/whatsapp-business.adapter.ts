@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -110,7 +111,7 @@ export class WhatsappBusinessChatAdapter
     const endpoint = `${baseUrl}/${apiVersion}/${phoneNumberId}/messages`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -141,6 +142,7 @@ export class WhatsappBusinessChatAdapter
    * Parse incoming webhook payloads, supporting batch statuses and inbound customer messages.
    */
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const events: NormalizedWebhookEvent[] = [];
     const webhookData = payload as WhatsappWebhookPayload;
     const entries = webhookData?.entry || [];
@@ -163,6 +165,7 @@ export class WhatsappBusinessChatAdapter
             normalizedStatus = NormalizedStatus.FAILED;
           }
 
+          if (!['delivered', 'read', 'failed'].includes(statusObj.status || '')) continue;
           events.push({
             providerId: this.id,
             providerMessageId: statusObj.id,

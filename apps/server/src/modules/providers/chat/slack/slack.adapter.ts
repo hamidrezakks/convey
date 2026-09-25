@@ -1,15 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { slackTransformer } from './slack.transformer';
-import type { SlackApiRequest, SlackApiResponse, SlackChatAdapterConfig, SlackWebhookPayload } from './types';
+import type { SlackApiRequest, SlackApiResponse, SlackChatAdapterConfig } from './types';
 
 export class SlackChatAdapter implements ProviderAdapter<SlackChatAdapterConfig, SlackApiRequest, SlackApiResponse> {
   readonly id = 'slack';
@@ -18,7 +18,7 @@ export class SlackChatAdapter implements ProviderAdapter<SlackChatAdapterConfig,
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -71,7 +71,7 @@ export class SlackChatAdapter implements ProviderAdapter<SlackChatAdapterConfig,
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -95,18 +95,8 @@ export class SlackChatAdapter implements ProviderAdapter<SlackChatAdapterConfig,
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as SlackWebhookPayload;
-    if (!webhookData?.ts) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.ts,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

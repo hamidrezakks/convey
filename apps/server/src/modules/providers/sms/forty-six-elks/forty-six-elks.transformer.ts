@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { FortySixElksAdapterConfig, FortySixElksApiRequest, FortySixElksApiResponse } from './types';
 
 export class FortySixElksTransformer
@@ -44,7 +40,7 @@ export class FortySixElksTransformer
       error: {
         code: `FORTY_SIX_ELKS_ERROR_${statusCode}`,
         message: response.message || response.error || 'FortySixElks SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

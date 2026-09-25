@@ -1,19 +1,14 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
-import type {
-  WebexMessagingAdapterConfig,
-  WebexMessagingApiRequest,
-  WebexMessagingApiResponse,
-  WebexMessagingWebhookPayload,
-} from './types';
+import type { WebexMessagingAdapterConfig, WebexMessagingApiRequest, WebexMessagingApiResponse } from './types';
 import { webexMessagingTransformer } from './webex-messaging.transformer';
 
 export class WebexMessagingChatAdapter
@@ -25,8 +20,8 @@ export class WebexMessagingChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
-    supportsReadReceipts: true,
+    supportsDeliveryReceipts: false,
+    supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
     supportsMedia: true,
@@ -82,7 +77,7 @@ export class WebexMessagingChatAdapter
     const endpoint = 'https://webexapis.com/v1/messages';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${bearerToken}`,
@@ -110,24 +105,8 @@ export class WebexMessagingChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as WebexMessagingWebhookPayload;
-    const msgId = webhookData.data?.id || webhookData.id;
-    if (!msgId) return [];
-
-    let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
-    const event = (webhookData.event || webhookData.name || '').toLowerCase();
-    if (event.includes('read') || event.includes('seen')) normalizedStatus = NormalizedStatus.READ;
-    else if (event.includes('failed') || event.includes('error')) normalizedStatus = NormalizedStatus.FAILED;
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: msgId,
-        normalizedStatus,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

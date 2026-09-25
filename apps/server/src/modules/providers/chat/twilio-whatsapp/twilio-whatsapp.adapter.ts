@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -101,7 +102,7 @@ export class TwilioWhatsappChatAdapter
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -129,6 +130,7 @@ export class TwilioWhatsappChatAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as TwilioWhatsappWebhookPayload;
     const msgId = webhookData?.MessageSid || webhookData?.SmsSid;
     if (!msgId) return [];
@@ -139,6 +141,7 @@ export class TwilioWhatsappChatAdapter
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     if (status === 'read') normalizedStatus = NormalizedStatus.READ;
     else if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (!isInbound && status !== 'delivered') return [];
 
     const rawPayloadObj =
       typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : { raw: payload };

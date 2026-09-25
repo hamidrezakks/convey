@@ -1,5 +1,6 @@
 import { parseFetchResponse } from '../../../../utils/http';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -127,7 +128,7 @@ export class CequensWhatsappChatAdapter
     const endpoint = 'https://apis.cequens.com/whatsapp/v1/messages';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -149,6 +150,7 @@ export class CequensWhatsappChatAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const rawPayloadObj =
       typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : { raw: payload };
     const webhookData = payload as CequensWhatsappWebhookPayload;
@@ -170,6 +172,22 @@ export class CequensWhatsappChatAdapter
 
     const isInbound = Boolean(direction === 'inbound' || senderPhone);
     const normalizedStatus = normalizeCequensStatus(webhookData?.status || (rawPayloadObj.status as string));
+    if (
+      !isInbound &&
+      ![
+        'delivered',
+        'read',
+        'seen',
+        'failed',
+        'undelivered',
+        'rejected',
+        'expired',
+        'error',
+        'bounced',
+        'opened',
+      ].includes(String(webhookData?.status || rawPayloadObj.status || '').toLowerCase())
+    )
+      return [];
     const bodyText = extractCequensMessageBody(webhookData || {}, rawPayloadObj);
 
     return [

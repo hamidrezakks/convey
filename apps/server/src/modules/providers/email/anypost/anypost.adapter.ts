@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -78,7 +79,7 @@ export class AnypostEmailAdapter
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/email/send`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -106,6 +107,7 @@ export class AnypostEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as AnypostWebhookPayload;
     if (!webhookData?.messageId) return [];
 
@@ -113,6 +115,7 @@ export class AnypostEmailAdapter
     if (webhookData.status === 'opened') normalizedStatus = NormalizedStatus.OPENED;
     else if (webhookData.status === 'read') normalizedStatus = NormalizedStatus.READ;
     else if (webhookData.status === 'failed') normalizedStatus = NormalizedStatus.FAILED;
+    else if (webhookData.status !== 'delivered') return [];
 
     return [
       {

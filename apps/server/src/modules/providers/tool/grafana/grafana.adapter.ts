@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { grafanaTransformer } from './grafana.transformer';
-import type {
-  GrafanaApiAlertPayload,
-  GrafanaApiResponse,
-  GrafanaToolAdapterConfig,
-  GrafanaWebhookPayload,
-} from './types';
+import type { GrafanaApiAlertPayload, GrafanaApiResponse, GrafanaToolAdapterConfig } from './types';
 
 export class GrafanaToolAdapter
   implements ProviderAdapter<GrafanaToolAdapterConfig, GrafanaApiAlertPayload, GrafanaApiResponse>
@@ -25,7 +20,7 @@ export class GrafanaToolAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -74,7 +69,7 @@ export class GrafanaToolAdapter
         headers.Authorization = `Bearer ${config.apiToken}`;
       }
 
-      const response = await fetch(webhookUrl, {
+      const response = await providerFetch(webhookUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -98,18 +93,8 @@ export class GrafanaToolAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as GrafanaWebhookPayload;
-    if (!webhookData?.messageId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

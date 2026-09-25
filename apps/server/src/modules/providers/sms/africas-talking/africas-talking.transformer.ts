@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { AfricasTalkingApiRequest, AfricasTalkingApiResponse, AfricasTalkingSmsAdapterConfig } from './types';
 
 export class AfricasTalkingTransformer
@@ -40,7 +36,7 @@ export class AfricasTalkingTransformer
       error: {
         code: recipient?.status || 'AFRICAS_TALKING_ERROR',
         message: response.SMSMessageData?.Message || "Africa's Talking SMS request failed",
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

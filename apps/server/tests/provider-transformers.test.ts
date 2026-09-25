@@ -381,9 +381,9 @@ describe('Global to Provider Transformers & Lifecycle Standard', () => {
         content: { title: 'New Message', body: 'You have received a message' },
       });
 
-      expect(req.to).toBe('token_abc_123');
-      expect(req.notification?.title).toBe('New Message');
-      expect(req.notification?.body).toBe('You have received a message');
+      expect(req.message.token).toBe('token_abc_123');
+      expect(req.message.notification?.title).toBe('New Message');
+      expect(req.message.notification?.body).toBe('You have received a message');
     });
   });
 

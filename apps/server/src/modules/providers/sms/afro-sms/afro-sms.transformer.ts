@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { AfroSmsApiRequest, AfroSmsApiResponse, AfroSmsSmsAdapterConfig } from './types';
 
 export class AfroSmsTransformer
@@ -38,7 +34,7 @@ export class AfroSmsTransformer
       error: {
         code: 'AFRO_SMS_ERROR',
         message: response.error || response.status || 'Afro SMS request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

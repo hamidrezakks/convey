@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -89,7 +90,7 @@ export class CequensSmsAdapter
     const endpoint = `${baseUrl.replace(/\/$/, '')}/api/sms/v1/messages`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -122,6 +123,7 @@ export class CequensSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as CequensWebhookPayload;
     if (!webhookData?.message_id) return [];
 
@@ -131,7 +133,7 @@ export class CequensSmsAdapter
       normalizedStatus = NormalizedStatus.FAILED;
     } else if (rawStatus.includes('bounce') || rawStatus.includes('rejected')) {
       normalizedStatus = NormalizedStatus.BOUNCED;
-    }
+    } else if (rawStatus !== 'delivered') return [];
 
     return [
       {

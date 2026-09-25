@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SlackApiRequest, SlackApiResponse, SlackChatAdapterConfig } from './types';
 
 export class SlackTransformer
@@ -33,7 +29,7 @@ export class SlackTransformer
       error: {
         code: 'SLACK_ERROR',
         message: response.error || 'Slack Webhook / API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

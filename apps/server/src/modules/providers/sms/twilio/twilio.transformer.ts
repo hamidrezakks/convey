@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { TwilioApiRequest, TwilioApiResponse, TwilioSmsAdapterConfig } from './types';
 
 export class TwilioTransformer
@@ -44,7 +40,7 @@ export class TwilioTransformer
       error: {
         code: response.code || response.error_code ? String(response.code || response.error_code) : 'TWILIO_ERROR',
         message: response.message || response.error_message || 'Twilio SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: {
         rawPayload: rawBody || response,

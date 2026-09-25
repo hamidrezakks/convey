@@ -1,15 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { ryverTransformer } from './ryver.transformer';
-import type { RyverAdapterConfig, RyverApiRequest, RyverApiResponse, RyverWebhookPayload } from './types';
+import type { RyverAdapterConfig, RyverApiRequest, RyverApiResponse } from './types';
 
 export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, RyverApiRequest, RyverApiResponse> {
   readonly id = 'ryver';
@@ -18,7 +18,7 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -64,7 +64,7 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
     const endpoint = Array.isArray(webhookUrl) ? webhookUrl[0] : webhookUrl;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,18 +91,8 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as RyverWebhookPayload;
-    if (!webhookData?.messageId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

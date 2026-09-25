@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { PlunkApiRequest, PlunkApiResponse, PlunkEmailAdapterConfig } from './types';
 
 export class PlunkTransformer
@@ -35,7 +31,7 @@ export class PlunkTransformer
       error: {
         code: 'PLUNK_ERROR',
         message: response.error || 'Plunk Email API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

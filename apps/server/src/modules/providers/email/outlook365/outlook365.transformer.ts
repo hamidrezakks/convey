@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { Outlook365ApiRequest, Outlook365ApiResponse, Outlook365EmailAdapterConfig } from './types';
 
 export class Outlook365Transformer
@@ -24,16 +20,24 @@ export class Outlook365Transformer
           content,
         },
         toRecipients: toList.map((address) => ({ emailAddress: { address } })),
+        replyTo: options.replyTo ? [{ emailAddress: { address: options.replyTo } }] : undefined,
+        attachments: options.content.attachments?.map((attachment) => ({
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: attachment.filename,
+          contentType: attachment.contentType || 'application/octet-stream',
+          contentBytes: Buffer.isBuffer(attachment.content)
+            ? attachment.content.toString('base64')
+            : Buffer.from(attachment.content).toString('base64'),
+        })),
       },
       saveToSentItems: false,
     };
   }
 
   transformResponse(response: Outlook365ApiResponse, statusCode = 202, rawBody?: unknown): ProviderSendResult {
-    if (statusCode >= 200 && statusCode < 300) {
+    if (statusCode === 202 && !response.error) {
       return {
         success: true,
-        providerMessageId: `outlook_${Date.now()}`,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -43,7 +47,7 @@ export class Outlook365Transformer
       error: {
         code: response.error?.code || 'OUTLOOK365_ERROR',
         message: response.error?.message || 'Microsoft Graph API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

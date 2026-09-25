@@ -1,20 +1,15 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { pusherBeamsTransformer } from './pusher-beams.transformer';
-import type {
-  PusherBeamsApiRequest,
-  PusherBeamsApiResponse,
-  PusherBeamsPushAdapterConfig,
-  PusherBeamsWebhookPayload,
-} from './types';
+import type { PusherBeamsApiRequest, PusherBeamsApiResponse, PusherBeamsPushAdapterConfig } from './types';
 
 export class PusherBeamsPushAdapter
   implements ProviderAdapter<PusherBeamsPushAdapterConfig, PusherBeamsApiRequest, PusherBeamsApiResponse>
@@ -25,7 +20,7 @@ export class PusherBeamsPushAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: true,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -84,7 +79,7 @@ export class PusherBeamsPushAdapter
     const endpoint = `https://${instanceId}.pushnotifications.pusher.com/customer_api/v1/instances/${instanceId}/${publishType}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secretKey}`,
@@ -111,18 +106,8 @@ export class PusherBeamsPushAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as PusherBeamsWebhookPayload;
-    if (!webhookData?.publishId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.publishId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }
