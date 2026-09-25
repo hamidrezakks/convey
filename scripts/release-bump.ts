@@ -46,6 +46,15 @@ function parseCliArgs(): ParsedArgs {
     }
   }
 
+  if (!['auto', 'major', 'minor', 'patch', 'prerelease'].includes(result.bump || 'auto'))
+    throw new Error('Invalid bump type');
+  if (
+    result.version &&
+    !/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(result.version)
+  )
+    throw new Error('Invalid release version');
+  if (result.prereleaseTag && !/^[A-Za-z][A-Za-z0-9-]*$/.test(result.prereleaseTag))
+    throw new Error('Invalid prerelease tag');
   return result;
 }
 

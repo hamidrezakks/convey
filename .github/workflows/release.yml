@@ -48,8 +48,33 @@ jobs:
   # 1. Version Analysis, Tagging & GitHub Release
   # --------------------------------------------------------------------------
   prepare-release:
-    name: Evaluate SemVer & Create Release Tag
+    name: Validate release candidate and create tag
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: convey_test
+          POSTGRES_PASSWORD: convey_test
+          POSTGRES_DB: convey_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U convey_test -d convey_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      CONVEY_REQUIRE_AUTH: 'false'
+      POSTGRES_DB: convey_test
+      DATABASE_URL: postgres://convey_test:convey_test@localhost:5432/convey_test
+      REDIS_URL: redis://localhost:6379
+      REDIS_KEY_PREFIX: convey
     outputs:
       should_release: ${{ steps.bump.outputs.should_release }}
       version: ${{ steps.bump.outputs.version }}
@@ -67,7 +92,7 @@ jobs:
       - name: Setup Bun Runtime
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       - name: Evaluate Dry Run Flag
         id: evaluate-dryrun
@@ -75,37 +100,41 @@ jobs:
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
           echo "dry_run=$DRY_RUN" >> $GITHUB_OUTPUT
 
-      - name: Compute Next SemVer & Update Monorepo
+      - name: Compute release candidate
         id: bump
+        env:
+          BUMP_TYPE: ${{ inputs.bump_type || 'auto' }}
+          CUSTOM_VERSION: ${{ inputs.custom_version }}
+          PRERELEASE_TAG: ${{ inputs.prerelease_tag || 'beta' }}
         run: |
-          ARGS="--github-output"
-          if [ "${{ github.event.inputs.bump_type }}" != "" ] && [ "${{ github.event.inputs.bump_type }}" != "auto" ]; then
-            ARGS="$ARGS --bump=${{ github.event.inputs.bump_type }}"
-          fi
-          if [ "${{ github.event.inputs.custom_version }}" != "" ]; then
-            ARGS="$ARGS --version=${{ github.event.inputs.custom_version }}"
-          fi
-          if [ "${{ github.event.inputs.prerelease_tag }}" != "" ]; then
-            ARGS="$ARGS --prerelease-tag=${{ github.event.inputs.prerelease_tag }}"
-          fi
-          if [ "${{ steps.evaluate-dryrun.outputs.dry_run }}" == "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          
-          bun run scripts/release-bump.ts $ARGS
+          args=(--github-output "--bump=$BUMP_TYPE" "--prerelease-tag=$PRERELEASE_TAG")
+          if [ -n "$CUSTOM_VERSION" ]; then args+=("--version=$CUSTOM_VERSION"); fi
+          bun run scripts/release-bump.ts "${args[@]}"
 
-      - name: Commit Version Bump & Create Git Tag
-        if: steps.bump.outputs.should_release == 'true' && steps.evaluate-dryrun.outputs.dry_run == 'false'
+      - name: Prepare exact candidate revision locally
+        if: steps.bump.outputs.should_release == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
         run: |
+          bun install --lockfile-only
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add package.json packages/*/package.json apps/*/package.json packages/sdk-py/pyproject.toml packages/sdk-py/convey/__init__.py packages/sdk-py/convey/http.py packages/sdk-go/client_options.go CHANGELOG.md
-          git commit -m "chore(release): bump version to ${{ steps.bump.outputs.tag }} [skip ci]" || echo "No changes to commit"
-          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
-          
-          git push origin main --follow-tags
-          git push origin "${{ steps.bump.outputs.tag }}"
+          git add package.json bun.lock packages/*/package.json apps/*/package.json packages/sdk-py/pyproject.toml packages/sdk-py/convey/__init__.py packages/sdk-py/convey/http.py packages/sdk-go/client_options.go CHANGELOG.md
+          git commit -m "chore(release): bump version to $RELEASE_TAG [skip ci]"
+
+      - name: Validate the exact candidate, including dry runs
+        if: steps.bump.outputs.should_release == 'true'
+        uses: ./.github/actions/validate
+
+      - name: Tag and publish the validated revision
+        if: steps.bump.outputs.should_release == 'true' && steps.evaluate-dryrun.outputs.dry_run == 'false'
+        env:
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git diff --exit-code
+          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+          git tag -a "packages/sdk-go/$RELEASE_TAG" -m "Go SDK $RELEASE_TAG"
+          git push --atomic origin HEAD:main "refs/tags/$RELEASE_TAG" "refs/tags/packages/sdk-go/$RELEASE_TAG"
 
       - name: Publish Official GitHub Release
         if: steps.bump.outputs.should_release == 'true' && steps.evaluate-dryrun.outputs.dry_run == 'false'
@@ -139,7 +168,7 @@ jobs:
       - name: Setup Bun Runtime
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       - name: Setup Node.js & NPM Registry
         uses: actions/setup-node@v4
@@ -185,7 +214,7 @@ jobs:
       - name: Setup Python Runtime
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12.9'
 
       - name: Install Build Tooling
         run: python3 -m pip install --upgrade build hatchling twine
@@ -220,7 +249,7 @@ jobs:
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.22.12'
 
       - name: Verify Go Module Build & Tests
         run: |
@@ -252,6 +281,9 @@ jobs:
           - image: convey-server
             target: server
             description: "Convey Core Planetary Communication Service Engine & Workers"
+          - image: convey-plugins
+            target: plugins
+            description: "Convey preferences and inbox service"
           - image: convey-web
             target: web
             description: "Convey Admin Mission Control & Real-time Telemetry Dashboard"

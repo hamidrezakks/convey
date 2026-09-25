@@ -1,0 +1,57 @@
+name: Validate Convey
+description: Shared release and CI checks; callers must provision isolated PostgreSQL and Redis services.
+inputs:
+  phase:
+    description: quality, integration, build, or all
+    default: all
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: .bun-version
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.22.12'
+        cache-dependency-path: packages/sdk-go/go.sum
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12.9'
+    - shell: bash
+      run: bun install --frozen-lockfile
+    - name: Quality and unit checks
+      if: inputs.phase == 'all' || inputs.phase == 'quality'
+      shell: bash
+      run: |
+        bun run biome:check
+        bun run typecheck
+        bun test apps/server/tests/access-policy.test.ts apps/server/tests/tenant-scope.test.ts apps/server/tests/env-config.test.ts apps/server/tests/full-jitter-retry.test.ts apps/server/tests/trace-context.test.ts
+        bun run test:web
+        bun run test:sdks
+    - name: Integration checks on canonical schema
+      if: inputs.phase == 'all' || inputs.phase == 'integration'
+      shell: bash
+      run: |
+        bun run db:migrate
+        bun run test:server:ci
+        bun run test:plugins
+    - name: Build distributable applications and SDKs
+      if: inputs.phase == 'all' || inputs.phase == 'build'
+      shell: bash
+      run: |
+        bun run build:sdk
+        bun run --filter @convey/web build
+        bun run build:website
+        python3 -m pip install build==1.2.2.post1 hatchling==1.27.0
+        (cd packages/sdk-py && python3 -m build)
+        test -f packages/sdk/dist/index.js
+        test -f packages/sdk/dist/index.cjs
+        test -f packages/sdk/dist/index.d.ts
+        test -f packages/sdk/dist/index.d.cts
+    - name: Verify container targets
+      if: inputs.phase == 'all' || inputs.phase == 'build'
+      shell: bash
+      run: |
+        for target in server web plugins; do
+          docker build --target "$target" -t "convey-validation:$target" .
+        done
