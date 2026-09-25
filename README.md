@@ -4,7 +4,7 @@ Convey is a standalone communication service built with Bun, Elysia, PostgreSQL 
 
 ## Current status
 
-The production-hardening branch adds authenticated administration, database-backed roles, team ownership, scoped message access, signed webhook ingestion, recoverable outbox claims and release validation. It is **not a production-readiness certification**: the existing server regression suite still has failures. See [verification results and remaining work](docs/operations/hardening-verification.md) before releasing.
+The production-hardening branch adds authenticated administration, database-backed roles, team ownership, scoped message access, signed webhook ingestion, recoverable outbox claims and release validation. The review fixes pass the canonical-schema server, security, console, plugin and SDK checks. This is **not a production-readiness certification**; see [verification results and rollout requirements](docs/operations/hardening-verification.md) before deploying.
 
 Implemented paths include message acceptance and scheduling, team-scoped idempotency, provider dispatch, message history, failed-message replay, and the authenticated console. Public message identifiers are opaque `msg_<ULID>` values.
 

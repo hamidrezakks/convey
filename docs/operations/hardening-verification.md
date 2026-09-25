@@ -1,6 +1,6 @@
 # Hardening verification and remaining work
 
-Reviewed 2026-09-25 on branch `feat/convey-production-hardening`, against original revision `1069f09`. Results are local execution evidence, not a hosted CI run or a live provider certification. Tests used disposable PostgreSQL 18 and Redis 7.4 services; no real provider messages were sent.
+Reviewed 2026-09-25 on branch `feat/convey-production-hardening`, against original revision `1069f09`. Initial results were local; the PR review also exercised hosted CI and exposed the clean-checkout website generation failure. The subsequent fixes were validated locally against a fresh archive and a newly migrated database. This is not live provider certification. Tests used disposable PostgreSQL 18 and Redis 7.4 services; no real provider messages were sent.
 
 ## Completed steps
 
@@ -18,12 +18,12 @@ Reviewed 2026-09-25 on branch `feat/convey-production-hardening`, against origin
 
 | Check | Result |
 | --- | --- |
-| Canonical migrations | Fresh test schema created; rerun through 0022 successful |
+| Canonical migrations | Fresh test schema created; rerun through 0023 successful |
 | Workspace TypeScript checks | All six pass |
 | Biome | Pass, with three existing static-only class warnings |
-| Console suite | 134 pass, 0 fail |
-| Strict-auth hardening suite | 14 pass, 57 assertions |
-| Combined hardening/auth/scope/env/signature tests | 35 pass, 101 assertions |
+| Console suite | 141 pass, 0 fail |
+| Strict-auth hardening suite | 16 pass, 91 assertions |
+| Additional auth/scope/env/signature tests | Initial 21 tests passed; hosted quality gate also runs auth/scope/env checks |
 | SDK integration on authenticated API | 4 pass |
 | TypeScript SDK unit tests | 100 pass |
 | Go SDK suite | Pass, including race detection |
@@ -33,18 +33,27 @@ Reviewed 2026-09-25 on branch `feat/convey-production-hardening`, against origin
 | Production images | Server, web and plugins targets build successfully |
 | Console browser smoke | Built web image: sign-in, authenticated inbox access, sign-out and reload verified |
 | Release tooling | YAML parses; version dry run succeeds; malformed input rejected |
+| Plugin suite | 7 pass |
+| Canonical-schema legacy server suite | 632 pass, 0 fail, on a fresh database |
+| Fresh archive | Frozen install, generated website sources, six typechecks and 141 UI tests pass |
 | Hosted release / actual publication | Not executed |
 | External provider delivery and performance SLA | Not tested |
 
 The strict suite exercises missing credentials across route families, role-header forgery, cross-team single/bulk dispatch and message reads, sandbox boundaries, database ownership enforcement, team idempotency, concurrent replay, expiry/revocation, webhook body tampering/staleness/duplicates, structured log redaction, queue-failure recovery, templates/batches and authenticated plugin access. This is targeted coverage, not proof that every route or storage path is secure.
 
-## Known release blockers
+## PR review fixes
 
-The current non-performance legacy server run reports **481 passing and 24 failing tests**. The original revision was separately run against its canonical migrations and reports **899 passing and 28 failing tests**, including performance cases excluded from the current default CI selection. The current failure names also occur on the baseline. These totals are not directly comparable coverage counts.
+| Finding | Resolution | Commit |
+| --- | --- | --- |
+| Sandbox/production idempotency collision | Environment-scoped v2 keys across reserve, complete, release and bulk paths; tests cover both orders and retries | `edfe9fb` |
+| Clean-checkout website type failure | Generate Fumadocs source before workspace typechecks | `425ac52` |
+| Ignored Meta challenge setting | Read documented deployment variable, preserving existing aliases; positive/negative token tests | `fa76e01` |
+| Invalid generic push/chat payloads | Explicit FCM/APNs/Slack/Telegram options with matching recipient/content fields; all seven selections checked against API schema | `c8a52a6` |
+| Legacy integration failures | Add missing suppression columns, remove ad hoc schema mutation from fixtures, correct country/month/state/credential/receipt fixtures | `067cdd0` |
 
-Examples include fixtures inserting `providers.tenant_id` despite the canonical schema, invalid country lengths, missing audit actor fields, and a Redis-prefix expectation tied to the default prefix. Suites affected include cascades, suppression/inbound replies, admin/sandbox, tracing, quiet hours, budget ledger and broad E2E fixtures. Existing assertions and tests remain in the required release gate; they have not been converted to passes or silently skipped.
+The original hosted run had 482 passing / 23 failing legacy tests. After the repairs, the full default server selection executes 632 tests successfully; previously failing setup hooks had prevented some tests from running. No failing tests were skipped or removed. Plugin tests now also run after the server gate. Production migrations define the tested schema.
 
-A clean typecheck, container build and new passing security tests do not override these failures. Do not publish this branch as fully validated until the legacy fixtures and any resulting application defects are resolved.
+The new idempotency namespace needs a controlled transition for existing reservations; follow the migration runbook before rollout. Production provider verification, restore rehearsal and actual release publication remain deployment work, not completed test evidence.
 
 ## Prioritized follow-up plan
 
@@ -52,11 +61,11 @@ Estimates are engineering effort ranges, not delivery commitments. One engineer 
 
 | Priority | Work package | Depends on | Estimate | Exit criterion |
 | --- | --- | --- | --- | --- |
-| P0 | Repair canonical-schema test fixtures and isolated cleanup | Current branch | 2–4 days | All required server/plugin tests pass repeatedly on a fresh schema; no blanket skips or schema alterations hiding defects |
+| Done | Repair canonical-schema test fixtures and isolated cleanup | PR review | Completed | 632 server and 7 plugin tests pass on a fresh canonical schema |
 | P0 | Validate upgrade with representative historical data | Fixture repair | 1–2 days | Ownership collisions/orphans resolved; migrations and restore/reconciliation rehearsed; old workers excluded during rollout |
 | P0 | Deploy and test trusted callback signing gateway | Provider inventory | 1–3 days per provider family | Valid native callbacks accepted, invalid native signatures rejected before signing, retries and queue outage recovery verified |
 | P1 | Replace illustrative console telemetry | Operational metric contract | 2–3 days | Overview values derive from measured data or explicitly display unavailable; no synthetic latency/throughput labels |
-| P1 | Exercise real provider test accounts and all dispatch channel forms | P0 validation | 2–4 days | Acceptance-to-delivery/retry/callback paths verified with designated test recipients; UI wire schemas match API |
+| P1 | Exercise real provider test accounts | P0 validation | 2–4 days | Acceptance-to-delivery/retry/callback paths verified with designated test recipients; all UI wire schemas are already tested |
 | P1 | Audit encryption and credential lifecycle | Storage inventory | 2–4 days | No production fallback encryption key, documented rotation/recovery and tested coverage of sensitive storage paths |
 | P1 | Rehearse release candidate in hosted CI | All release blockers | 1 day | Dry run validates exact candidate and all distributions; registry permissions separately verified before an authorized publication |
 | P2 | Establish reproducible performance envelope | Correctness gates pass | 2–3 days | Dataset, machine limits, concurrency, p95/p99 and outbox drain rate recorded; no universal throughput claims |

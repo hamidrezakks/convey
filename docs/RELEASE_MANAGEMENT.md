@@ -10,7 +10,7 @@ The release workflow runs on `main` updates and manual dispatch from `main`. It 
 4. Require a clean tracked working tree after validation.
 5. Push the validated candidate and tags atomically, then create the GitHub release. Downstream jobs publish SDKs and container images from the tag.
 
-A failed check prevents tagging and publishing. The existing legacy regression failures are therefore release blockers, not skipped checks. See [verification](operations/hardening-verification.md).
+A failed check prevents tagging and publishing. The legacy regression failures identified during review have been repaired; those checks remain mandatory. See [verification](operations/hardening-verification.md).
 
 ## Dry runs
 

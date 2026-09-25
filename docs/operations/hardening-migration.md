@@ -2,7 +2,7 @@
 
 ## Release prerequisites
 
-Do not promote this branch while the required legacy regression checks fail. Resolve the failures listed in [verification](hardening-verification.md), then run a release dry run against isolated services. Assign a deployment owner and a rollback owner; record the image digests, database snapshot, key identifiers and signing-gateway configuration.
+Require green checks for the exact deployment revision and run a release dry run against isolated services. See the latest [verification](hardening-verification.md) results. Assign a deployment owner and a rollback owner; record the image digests, database snapshot, key identifiers and signing-gateway configuration.
 
 This changes access behavior: authentication becomes the default, platform operations require explicit scope, teams cannot be shared between tenants, sandbox keys lose shared configuration access, and unsigned callbacks are rejected.
 
@@ -29,7 +29,7 @@ Environment-scoped reservations use a new `idem:v2` namespace with an encoded te
 
 1. Enter a maintenance window. Pause producers and stop old API/worker processes; mixed versions retain old authorization and outbox semantics. Keep durable stores intact.
 2. Run `bun run db:migrate` with the intended database configuration. The runner applies canonical migrations; do not recreate tables from ad hoc test setup.
-3. Confirm migrations 0020 (key role/scope/sandbox), 0021 (team ownership) and 0022 (outbox claim index) completed. Migration 0021 rejects ambiguous teams. Existing keys default to DEVELOPER and tenant scope.
+3. Confirm migrations 0020 (key role/scope/sandbox), 0021 (team ownership) 0022 (outbox claim index) and 0023 (suppression metadata columns) completed. Migration 0021 rejects ambiguous teams. Existing keys default to DEVELOPER and tenant scope.
 4. Reserve verified historical team ownership in `team_owners` before allowing new key creation. Ownership rows survive key deletion. Review these rows as privileged database configuration.
 5. Create replacement/operator credentials through `bun apps/server/scripts/create-api-key.ts TENANT_ID TEAM NAME ROLE SCOPE ENVIRONMENT`. The tenant must already exist and be active. Use `ORG_ADMIN platform production` for a write-capable operator; use tenant scope for applications. Save the one-time secret securely and record only key IDs in the rollout log.
 6. Set `CONVEY_REQUIRE_AUTH=true`, independent infrastructure credentials and `PAYLOAD_ENCRYPTION_KEY`. Production refuses the auth bypass. Pass provider-specific webhook secrets explicitly through your deployment when using them.
