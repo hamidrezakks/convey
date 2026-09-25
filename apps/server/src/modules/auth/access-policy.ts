@@ -12,6 +12,8 @@ export interface AuthIdentity {
   role: UserRole;
   scope: 'tenant' | 'platform';
   isSandbox: boolean;
+  sandboxOnly?: boolean;
+  developmentBypass?: boolean;
 }
 
 export function authError(status: number, message: string): Response {
@@ -19,6 +21,7 @@ export function authError(status: number, message: string): Response {
 }
 
 export function authorizeRequest(identity: AuthIdentity, method: string, platform = false): Response | undefined {
+  if (platform && identity.sandboxOnly) return authError(403, 'Sandbox keys cannot access platform administration');
   if (platform && identity.scope !== 'platform') return authError(403, 'Platform credentials required');
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(method);
   if (

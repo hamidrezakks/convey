@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, eq, inArray, lte, or, sql } from 'drizzle-orm';
 import { db, type Transaction } from '../../db';
 import { type OutboxPayload, type OutboxRecord, outbox } from '../../db/schema';
 import { JobName, MessagePriority, OutboxState } from '../../modules/messaging/messaging.types';
@@ -86,9 +86,10 @@ async function dispatchToBullMQQueues(batches: {
  *    so multiple worker processes never stall each other.
  * 3. Two-Phase Decoupling:
  *    - Phase 1 (PostgreSQL Tx): Atomically locks and transitions records to `PROCESSED` in $< 3\text{ms}$.
- *      Transactions commit immediately without holding external network I/O locks.
+ *      A 60-second recoverable claim commits without holding external network I/O locks.
  *    - Phase 2 (BullMQ Dispatch): Batched jobs are enqueued to Redis BullMQ outside the DB lock.
- *      Deterministic job IDs (`outbox_<id>`) enforce idempotent deduplication in Redis.
+ *      Records become processed only after enqueue succeeds; expired claims are retried.
+ *      Deterministic job IDs (`outbox_<id>`) deduplicate queue retries.
  *
  * @param shardId Target virtual shard index (0 to OUTBOX_SHARD_COUNT - 1).
  * @param batchSize Maximum number of outbox records to process in a single batch.
@@ -106,7 +107,16 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
     const records = await tx
       .select()
       .from(outbox)
-      .where(and(eq(outbox.shardId, shardId), eq(outbox.state, OutboxState.PENDING), lte(outbox.availableAt, now)))
+      .where(
+        and(
+          eq(outbox.shardId, shardId),
+          or(
+            eq(outbox.state, OutboxState.PENDING),
+            and(eq(outbox.state, 'processing'), lte(outbox.lockedAt, new Date(now.getTime() - 60_000))),
+          ),
+          lte(outbox.availableAt, now),
+        ),
+      )
       .limit(batchSize)
       .for('update', { skipLocked: true });
 
@@ -118,8 +128,8 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
     await tx
       .update(outbox)
       .set({
-        state: OutboxState.PROCESSED,
-        processedAt: now,
+        state: 'processing',
+        lockedAt: now,
       })
       .where(inArray(outbox.id, recordIds));
 
@@ -132,7 +142,20 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
 
   // Phase 2: Asynchronous BullMQ Dispatch outside DB Transaction
   const batches = buildJobBatches(pendingRecords);
-  await dispatchToBullMQQueues(batches);
+  const claimedIds = pendingRecords.map((record) => record.id);
+  try {
+    await dispatchToBullMQQueues(batches);
+    await db
+      .update(outbox)
+      .set({ state: OutboxState.PROCESSED, processedAt: new Date(), lockedAt: null })
+      .where(and(inArray(outbox.id, claimedIds), eq(outbox.state, 'processing'), eq(outbox.lockedAt, now)));
+  } catch (error) {
+    await db
+      .update(outbox)
+      .set({ state: OutboxState.PENDING, lockedAt: null })
+      .where(and(inArray(outbox.id, claimedIds), eq(outbox.state, 'processing'), eq(outbox.lockedAt, now)));
+    throw error;
+  }
 
   return pendingRecords.length;
 }
@@ -152,7 +175,15 @@ export async function processOutboxBatch(batchSize = 500): Promise<number> {
     const records = await tx
       .select()
       .from(outbox)
-      .where(and(eq(outbox.state, OutboxState.PENDING), lte(outbox.availableAt, now)))
+      .where(
+        and(
+          or(
+            eq(outbox.state, OutboxState.PENDING),
+            and(eq(outbox.state, 'processing'), lte(outbox.lockedAt, new Date(now.getTime() - 60_000))),
+          ),
+          lte(outbox.availableAt, now),
+        ),
+      )
       .limit(batchSize)
       .for('update', { skipLocked: true });
 
@@ -164,8 +195,8 @@ export async function processOutboxBatch(batchSize = 500): Promise<number> {
     await tx
       .update(outbox)
       .set({
-        state: OutboxState.PROCESSED,
-        processedAt: now,
+        state: 'processing',
+        lockedAt: now,
       })
       .where(inArray(outbox.id, recordIds));
 
@@ -178,7 +209,20 @@ export async function processOutboxBatch(batchSize = 500): Promise<number> {
 
   // Phase 2: Asynchronous BullMQ Dispatch outside DB Transaction
   const batches = buildJobBatches(pendingRecords);
-  await dispatchToBullMQQueues(batches);
+  const claimedIds = pendingRecords.map((record) => record.id);
+  try {
+    await dispatchToBullMQQueues(batches);
+    await db
+      .update(outbox)
+      .set({ state: OutboxState.PROCESSED, processedAt: new Date(), lockedAt: null })
+      .where(and(inArray(outbox.id, claimedIds), eq(outbox.state, 'processing'), eq(outbox.lockedAt, now)));
+  } catch (error) {
+    await db
+      .update(outbox)
+      .set({ state: OutboxState.PENDING, lockedAt: null })
+      .where(and(inArray(outbox.id, claimedIds), eq(outbox.state, 'processing'), eq(outbox.lockedAt, now)));
+    throw error;
+  }
 
   return pendingRecords.length;
 }

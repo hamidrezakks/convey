@@ -33,7 +33,9 @@ runs:
       shell: bash
       run: |
         bun run db:migrate
-        bun run test:server:ci
+        CONVEY_REQUIRE_AUTH=true CONVEY_ALLOW_UNSIGNED_WEBHOOKS=false bun test apps/server/tests/hardening
+        CONVEY_REQUIRE_AUTH=true bun test packages/sdk/tests/integration.test.ts
+        CONVEY_ALLOW_UNSIGNED_WEBHOOKS=true bun run test:server:ci
         bun run test:plugins
     - name: Build distributable applications and SDKs
       if: inputs.phase == 'all' || inputs.phase == 'build'

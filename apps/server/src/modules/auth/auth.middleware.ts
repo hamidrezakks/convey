@@ -44,6 +44,7 @@ export async function validateApiKey(
     role: row.role as UserRole,
     scope: row.scope as AuthIdentity['scope'],
     isSandbox: row.sandboxOnly,
+    sandboxOnly: row.sandboxOnly,
   };
 }
 
@@ -75,7 +76,8 @@ export function createAuthVerifier(lookup: typeof validateApiKey) {
         keyName: 'local-development',
         role: UserRole.ORG_ADMIN,
         scope: 'platform',
-        isSandbox: true,
+        isSandbox: requestedSandbox,
+        developmentBypass: true,
       };
     }
     const result = await lookup(key);
@@ -83,6 +85,7 @@ export function createAuthVerifier(lookup: typeof validateApiKey) {
     return {
       ...result,
       authenticated: true,
+      sandboxOnly: result.sandboxOnly || key.startsWith('sk_test_'),
       isSandbox: result.isSandbox || key.startsWith('sk_test_') || requestedSandbox,
     };
   };
@@ -105,5 +108,10 @@ export async function guardApiRequest(headers: Record<string, string | undefined
 export function authMiddleware(app: Elysia) {
   return app
     .derive(async ({ headers }) => ({ auth: (await verifyApiAuth(headers)) as AuthResult & AuthIdentity }))
-    .beforeHandle(({ auth, request }) => auth.errorResponse || authorizeRequest(auth, request.method));
+    .beforeHandle(({ auth, request, path }) => {
+      if (auth.errorResponse) return auth.errorResponse;
+      if (auth.sandboxOnly && !path.startsWith('/v1/sandbox/'))
+        return authError(403, 'Sandbox keys cannot access shared configuration resources');
+      return authorizeRequest(auth, request.method);
+    });
 }

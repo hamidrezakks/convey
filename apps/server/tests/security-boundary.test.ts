@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { createHmac } from 'node:crypto';
 import { IdempotencyService } from '../src/modules/messaging/idempotency.service';
 import { MessagingService, validateChannelRecipients } from '../src/modules/messaging/messaging.service';
 import {
@@ -7,7 +8,7 @@ import {
   ReservationStatus,
   type SendMessageRequest,
 } from '../src/modules/messaging/messaging.types';
-import { hashString } from '../src/utils/crypto';
+import { verifyIngressSignature } from '../src/modules/webhooks/signature';
 import { containsInternalProviderMessageId, redactSensitiveConfig } from './helpers/provider-interceptor-harness';
 
 describe('Security & Boundary Hardening Suite', () => {
@@ -102,17 +103,16 @@ describe('Security & Boundary Hardening Suite', () => {
     expect(reservation2.messageId).toBe('msg_completed_001');
   });
 
-  it('rejects tampered webhook payloads with invalid HMAC signatures', () => {
-    const secret = 'webhook_hmac_secret_key_32_bytes';
-    const payload = JSON.stringify({ event: 'delivery.delivered', messageId: 'msg_01' });
-
-    const validSignature = hashString(`${payload}${secret}`);
-    const tamperedSignature = hashString(`${payload}_tampered${secret}`);
-
-    // Verify signature check algorithm
-    const isValidSignature = (sig: string) => sig === validSignature;
-
-    expect(isValidSignature(validSignature)).toBeTrue();
-    expect(isValidSignature(tamperedSignature)).toBeFalse();
+  it('rejects tampered webhook payloads using the production verifier', () => {
+    const secret = 'test-webhook-secret';
+    const payload = '{"event":"delivered"}';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = createHmac('sha256', secret).update(`${timestamp}.${payload}`).digest('hex');
+    const request = new Request('http://localhost/v1/webhooks/resend', {
+      headers: { 'x-convey-webhook-timestamp': timestamp, 'x-convey-webhook-signature': signature },
+    });
+    expect(verifyIngressSignature(request, payload, secret)).toBe(true);
+    expect(verifyIngressSignature(request, `${payload} `, secret)).toBe(false);
+    expect(verifyIngressSignature(request, payload, undefined)).toBe(false);
   });
 });

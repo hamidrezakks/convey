@@ -13,9 +13,9 @@ export const ScopedMessagingService = {
     return MessagingService.acceptBulkMessages(requests, scope.isSandbox);
   },
   getMessageStatus(scope: TenantScope, id: string, timeline = false) {
-    return MessagingService.getMessageStatus(id, timeline, scope);
+    return MessagingService.getMessageStatus(id, timeline, scope.developmentBypass ? undefined : scope);
   },
   getMessageDeliveryTrace(scope: TenantScope, id: string) {
-    return MessagingService.getMessageDeliveryTrace(id, scope);
+    return MessagingService.getMessageDeliveryTrace(id, scope.developmentBypass ? undefined : scope);
   },
 };

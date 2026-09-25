@@ -47,10 +47,10 @@ export function dlqController(app: Elysia) {
           const { limit, offset } = parsed.data;
           const scope = (await verifyApiAuth(headers)) as TenantScope;
           const result = await DlqService.listFailedMessages({
-            team: scope.team,
+            team: scope.developmentBypass ? parsed.data.team : scope.team,
             limit,
             offset,
-            isSandbox: scope.isSandbox,
+            isSandbox: scope.developmentBypass ? undefined : scope.isSandbox,
           });
           return new Response(JSON.stringify(result), {
             status: 200,

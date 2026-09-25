@@ -1,11 +1,31 @@
-import { beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { queryClient } from '../../../apps/server/src/db';
 import { app } from '../../../apps/server/src/index';
-import { SEEDED_API_KEY_RAW, seedDatabaseWithRealisticData } from '../../../apps/server/tests/helpers/db-seeder';
+import { hashString } from '../../../apps/server/src/utils/crypto';
 import { Channel, Convey, MessagePriority, MessageStatus } from '../src';
+
+const tenantId = crypto.randomUUID();
+const team = `sdk_${crypto.randomUUID()}`;
+const apiKey = `sdk_test_${crypto.randomUUID()}`;
+const adminKey = `sdk_admin_${crypto.randomUUID()}`;
 
 describe('SDK Live Integration with Convey Server Routes', () => {
   beforeAll(async () => {
-    await seedDatabaseWithRealisticData();
+    await queryClient`INSERT INTO tenants(id,name,slug) VALUES(${tenantId},'SDK integration',${team})`;
+    for (const [key, role, scope] of [
+      [apiKey, 'DEVELOPER', 'tenant'],
+      [adminKey, 'ORG_ADMIN', 'platform'],
+    ]) {
+      await queryClient`INSERT INTO api_keys(id,tenant_id,team,key_hash,name,role,scope) VALUES(${key},${tenantId},${team},${hashString(key)},'SDK fixture',${role},${scope})`;
+    }
+  });
+
+  afterAll(async () => {
+    await queryClient`DELETE FROM outbox WHERE message_id IN (SELECT public_id FROM messages WHERE team=${team})`;
+    await queryClient`DELETE FROM messages WHERE team=${team}`;
+    await queryClient`DELETE FROM api_keys WHERE tenant_id=${tenantId}`;
+    await queryClient`DELETE FROM team_owners WHERE tenant_id=${tenantId}`;
+    await queryClient`DELETE FROM tenants WHERE id=${tenantId}`;
   });
 
   // Custom fetch delegating directly to Elysia in-memory app handler
@@ -15,9 +35,16 @@ describe('SDK Live Integration with Convey Server Routes', () => {
   };
 
   const client = new Convey({
-    apiKey: SEEDED_API_KEY_RAW,
+    apiKey,
+    teamId: team,
     baseUrl: 'http://localhost:3000',
     isSandbox: true,
+    fetch: elysiaFetch as unknown as typeof fetch,
+  });
+
+  const operator = new Convey({
+    apiKey: adminKey,
+    baseUrl: 'http://localhost:3000',
     fetch: elysiaFetch as unknown as typeof fetch,
   });
 
@@ -51,12 +78,12 @@ describe('SDK Live Integration with Convey Server Routes', () => {
   });
 
   it('should list configured providers from admin route', async () => {
-    const providers = await client.admin.listConfiguredProviders();
+    const providers = await operator.admin.listConfiguredProviders();
     expect(Array.isArray(providers)).toBe(true);
   });
 
   it('should fetch real-time live telemetry snapshot', async () => {
-    const telemetry = await client.admin.getLiveTelemetry();
+    const telemetry = await operator.admin.getLiveTelemetry();
     expect(telemetry.throughputRps).toBeDefined();
     expect(telemetry.queues).toBeDefined();
     expect(telemetry.runtimeGuard).toBeDefined();

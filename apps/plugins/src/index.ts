@@ -11,7 +11,14 @@ export const pluginsApp = new Elysia()
     cors({
       origin: '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'traceparent'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-api-key',
+        'traceparent',
+        'x-convey-sandbox',
+        'x-convey-environment',
+      ],
     }),
   )
   .get('/health', () => ({

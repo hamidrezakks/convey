@@ -107,6 +107,7 @@ export const DlqService = {
   },
 
   async replayFailedMessages(publicIds: string[], scope?: TenantScope): Promise<DlqReplayResult> {
+    if (scope?.developmentBypass) scope = undefined;
     if (!publicIds.length) {
       return { replayedCount: 0, messageIds: [] };
     }
@@ -211,6 +212,7 @@ export const DlqService = {
       mutatedChannels: ChannelRequest[];
     }>;
   }> {
+    if (scope?.developmentBypass) scope = undefined;
     if (!params.messageIds.length) {
       return { replayedCount: 0, messageIds: [] };
     }

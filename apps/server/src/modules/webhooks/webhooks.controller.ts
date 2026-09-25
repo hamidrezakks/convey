@@ -2,8 +2,11 @@ import type { Elysia } from 'elysia';
 import { WebhooksDocs } from '../../openapi';
 import { normalizeHeaders } from '../../utils/http';
 import { TraceContext } from '../../utils/trace-context';
+import { guardApiRequest, verifyApiAuth } from '../auth/auth.middleware';
+import type { TenantScope } from '../auth/tenant-scope';
 import { jsonErrorResponse, jsonResponse } from '../messaging/messaging.controller';
 import { ClientReceiptSchema, ErrorCode, WebhookStatus } from '../messaging/messaging.types';
+import { ScopedMessagingService } from '../messaging/scoped-messaging.service';
 import { WebhookFlowType, WebhooksService } from './webhooks.service';
 
 const TRANSPARENT_GIF_BUFFER = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
@@ -71,7 +74,7 @@ export function webhooksController(app: Elysia) {
       // --- Dedicated WhatsApp Status Webhook (Delivery / Read / Failure Receipts) ---
       .post(
         '/v1/webhooks/:provider/status',
-        { detail: WebhooksDocs.ingestStatus },
+        { parse: 'text', detail: WebhooksDocs.ingestStatus },
         async ({
           params,
           body,
@@ -98,7 +101,7 @@ export function webhooksController(app: Elysia) {
       // --- Dedicated WhatsApp Incoming Messages (2-Way Session Customer Replies) ---
       .post(
         '/v1/webhooks/:provider/incoming',
-        { detail: WebhooksDocs.ingestIncoming },
+        { parse: 'text', detail: WebhooksDocs.ingestIncoming },
         async ({
           params,
           body,
@@ -125,7 +128,7 @@ export function webhooksController(app: Elysia) {
       // Inbound alias for WhatsApp incoming
       .post(
         '/v1/webhooks/:provider/inbound',
-        { detail: WebhooksDocs.ingestInboundAlias },
+        { parse: 'text', detail: WebhooksDocs.ingestInboundAlias },
         async ({
           params,
           body,
@@ -152,7 +155,7 @@ export function webhooksController(app: Elysia) {
       // --- Unified Inbound Provider Webhook (SendGrid, Twilio, Resend, Cequens, Infobip, etc.) ---
       .post(
         '/v1/webhooks/:provider',
-        { detail: WebhooksDocs.ingestProviderWebhook },
+        { parse: 'text', detail: WebhooksDocs.ingestProviderWebhook },
         async ({
           params,
           body,
@@ -185,6 +188,8 @@ export function webhooksController(app: Elysia) {
         '/v1/receipts',
         { detail: WebhooksDocs.clientReceipt },
         async ({ body, headers }: { body: unknown; headers?: Record<string, string | undefined> }) => {
+          const denied = await guardApiRequest(headers || {}, 'POST');
+          if (denied) return denied;
           const incomingTrace = headers?.traceparent;
           const traceCtx = TraceContext.extractOrCreate({ traceparent: incomingTrace });
 
@@ -199,6 +204,9 @@ export function webhooksController(app: Elysia) {
             );
           }
 
+          const scope = (await verifyApiAuth(headers || {})) as TenantScope;
+          if (!(await ScopedMessagingService.getMessageStatus(scope, parseResult.data.messageId)))
+            return jsonErrorResponse('NOT_FOUND', 'Message not found', 404);
           await WebhooksService.ingestClientReceipt(parseResult.data);
           return jsonResponse(
             { status: WebhookStatus.ACCEPTED, received: true },
