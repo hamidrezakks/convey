@@ -12,7 +12,8 @@
     "dev": "next dev --port 5174",
     "build": "next build",
     "start": "next start --port 5174",
-    "preview": "next start --port 5174"
+    "preview": "next start --port 5174",
+    "generate": "fumadocs-mdx"
   },
   "dependencies": {
     "@convey/shared": "workspace:*",
