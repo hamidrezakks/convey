@@ -6,6 +6,7 @@ import { env } from '../../src/config/env';
 import { queryClient } from '../../src/db';
 import { app } from '../../src/index';
 import { verifyIngressSignature } from '../../src/modules/webhooks/signature';
+import { verifyHubChallenge } from '../../src/modules/webhooks/webhooks.service';
 import { dispatchNormalQueue } from '../../src/queues/queue-definitions';
 import { processOutboxBatchForShard } from '../../src/queues/workers/outbox-relay.worker';
 import { hashString } from '../../src/utils/crypto';
@@ -328,5 +329,18 @@ test('single and bulk idempotency isolate sandbox and production in either order
         await queryClient`SELECT is_sandbox FROM messages WHERE public_id IN (${ids[0]},${ids[1]}) AND created_at >= now() - interval '1 hour'`;
       expect(rows.map((row: { is_sandbox: boolean }) => row.is_sandbox).sort()).toEqual([false, true]);
     }
+  }
+});
+
+test('Meta verification uses the deployment-configured token', () => {
+  const previous = process.env.META_WEBHOOK_VERIFY_TOKEN;
+  process.env.META_WEBHOOK_VERIFY_TOKEN = 'test-meta-challenge';
+  try {
+    const query = { 'hub.mode': 'subscribe', 'hub.verify_token': 'test-meta-challenge', 'hub.challenge': '123' };
+    expect(verifyHubChallenge('whatsapp', query)).toEqual({ verified: true, challenge: '123' });
+    expect(verifyHubChallenge('whatsapp', { ...query, 'hub.verify_token': 'wrong' }).verified).toBe(false);
+  } finally {
+    if (previous === undefined) delete process.env.META_WEBHOOK_VERIFY_TOKEN;
+    else process.env.META_WEBHOOK_VERIFY_TOKEN = previous;
   }
 });

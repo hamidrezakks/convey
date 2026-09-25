@@ -48,6 +48,7 @@ export function verifyHubChallenge(
   }
 
   const expectedToken =
+    process.env.META_WEBHOOK_VERIFY_TOKEN ||
     process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
     process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
     process.env.WHATSAPP_VERIFY_TOKEN ||
