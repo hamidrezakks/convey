@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
+import type { BudgetPolicyDto } from '@convey/shared';
 import { initializePluginTables } from '../../../plugins/src/db';
 import { pluginsApp } from '../../../plugins/src/index';
 import { env } from '../../src/config/env';
@@ -90,12 +91,34 @@ afterAll(async () => {
   ]) {
     await queryClient.unsafe(`DELETE FROM ${table} WHERE tenant_id IN ($1, $2)`, [tenantA, tenantB]);
   }
+  await queryClient`DELETE FROM budget_policies WHERE team IN (${teamA},${teamB})`;
   await queryClient`DELETE FROM api_keys WHERE tenant_id IN (${tenantA},${tenantB})`;
   await queryClient`DELETE FROM team_owners WHERE tenant_id IN (${tenantA},${tenantB})`;
   await queryClient`DELETE FROM tenants WHERE id IN (${tenantA},${tenantB})`;
 });
 
 describe('Real API security boundaries', () => {
+  test('budget policies persist only through authorized platform administrators', async () => {
+    const path = `/v1/admin/budgets/${teamA}`;
+    const body = { monthlyBudget: 125.75, currency: 'eur', hardStop: true };
+    expect((await call(path)).status).toBe(401);
+    expect((await call(path, 'a')).status).toBe(403);
+    expect((await call(path, 'auditor', 'PUT', body)).status).toBe(403);
+    expect((await call(path, 'sandbox', 'PUT', body)).status).toBe(403);
+    expect((await call(path, 'admin', 'PUT', { ...body, monthlyBudget: -1 })).status).toBe(400);
+    expect((await call(path, 'admin', 'PUT', { ...body, currency: 'NOPE' })).status).toBe(400);
+    expect((await call('/v1/admin/budgets/unregistered-budget-team', 'admin', 'PUT', body)).status).toBe(400);
+    expect((await call(path, 'admin', 'PUT', body)).status).toBe(200);
+    const response = await call(path, 'auditor');
+    expect(response.status).toBe(200);
+    const saved = (await response.json()) as BudgetPolicyDto;
+    expect(saved.monthlyBudget).toBe(125.75);
+    expect(saved.currency).toBe('EUR');
+    expect(saved.hardStop).toBe(true);
+    expect(saved.usedAmount).toBe(0);
+    expect(saved.reservedAmount).toBe(0);
+    expect((await call(path, 'admin', 'PUT', { ...body, monthlyBudget: 0, hardStop: false })).status).toBe(200);
+  });
   test('all protected route families reject absent credentials', async () => {
     for (const path of [
       '/v1/admin/overview',

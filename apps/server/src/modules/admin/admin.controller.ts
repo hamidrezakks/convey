@@ -3,8 +3,10 @@ import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
 import { guardApiRequest } from '../auth/auth.middleware';
 import { jsonResponse } from '../messaging/messaging.controller';
+import { BudgetError, BudgetService } from '../policies/budget.service';
 import { CarrierCostMatrix } from '../policies/carrier-cost-matrix';
 import { fxEngine } from '../policies/fx-engine';
+import { clearPolicyCache } from '../policies/policy-engine';
 import { QuotaManager } from '../policies/quota-manager';
 import { ReportingService } from '../reports/reporting.service';
 import { ReportingDoctorService } from '../reports/reporting-doctor.service';
@@ -200,6 +202,37 @@ export function adminController(app: Elysia) {
       .get('/policies', { detail: AdminDocs.policiesList }, async () => {
         const policies = await adminService.listPolicies();
         return jsonResponse(policies, 200);
+      })
+
+      .get('/budgets/:team', async ({ params }: { params: { team: string } }) => {
+        try {
+          return jsonResponse(await BudgetService.get(params.team), 200);
+        } catch (error) {
+          if (error instanceof BudgetError) return jsonResponse({ error: error.message }, 409);
+          throw error;
+        }
+      })
+      .put('/budgets/:team', async ({ params, body }: { params: { team: string }; body: unknown }) => {
+        const input = body as { monthlyBudget?: unknown; currency?: unknown; hardStop?: unknown } | null;
+        if (
+          !input ||
+          typeof input.monthlyBudget !== 'number' ||
+          typeof input.currency !== 'string' ||
+          typeof input.hardStop !== 'boolean'
+        )
+          return jsonResponse({ error: 'monthlyBudget, currency and hardStop are required' }, 400);
+        try {
+          await BudgetService.save(params.team, {
+            monthlyBudget: input.monthlyBudget,
+            currency: input.currency,
+            hardStop: input.hardStop,
+          });
+          clearPolicyCache(params.team);
+          return jsonResponse(await BudgetService.get(params.team), 200);
+        } catch (error) {
+          if (error instanceof BudgetError) return jsonResponse({ error: error.message }, 400);
+          throw error;
+        }
       })
 
       // Omnichannel composer sandbox test send

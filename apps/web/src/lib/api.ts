@@ -1,5 +1,6 @@
 import type {
   AuditLogDto,
+  BudgetPolicyDto,
   CampaignDetailDto,
   CampaignsReportResponse,
   CarrierCostEvaluationResult,
@@ -218,6 +219,16 @@ export const api = {
 
   async removeSuppression(id: string): Promise<{ success: boolean; id: string }> {
     return httpClient.delete(`suppressions/${id}`).json<{ success: boolean; id: string }>();
+  },
+
+  async getBudget(team: string): Promise<BudgetPolicyDto | null> {
+    return httpClient.get(`budgets/${encodeURIComponent(team)}`).json<BudgetPolicyDto | null>();
+  },
+  async saveBudget(
+    team: string,
+    input: { monthlyBudget: number; currency: string; hardStop: boolean },
+  ): Promise<BudgetPolicyDto> {
+    return httpClient.put(`budgets/${encodeURIComponent(team)}`, { json: input }).json<BudgetPolicyDto>();
   },
 
   async getPolicies(): Promise<PolicyDto[]> {
