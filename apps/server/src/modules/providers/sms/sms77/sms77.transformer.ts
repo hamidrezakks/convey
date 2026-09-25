@@ -28,7 +28,7 @@ export class Sms77Transformer implements ProviderTransformer<Sms77AdapterConfig,
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `sms77_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

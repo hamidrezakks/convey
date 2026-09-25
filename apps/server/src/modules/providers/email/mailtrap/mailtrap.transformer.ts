@@ -28,7 +28,7 @@ export class MailtrapTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.success !== false || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `mailtrap_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

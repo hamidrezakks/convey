@@ -30,7 +30,7 @@ export class UnifonicTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `unifonic_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

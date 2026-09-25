@@ -30,7 +30,7 @@ export class BurstSmsTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `burst-sms_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

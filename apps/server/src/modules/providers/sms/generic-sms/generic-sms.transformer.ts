@@ -30,7 +30,7 @@ export class GenericSmsTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `generic-sms_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

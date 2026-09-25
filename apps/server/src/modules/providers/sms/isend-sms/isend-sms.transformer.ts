@@ -30,7 +30,7 @@ export class IsendSmsTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `isend-sms_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

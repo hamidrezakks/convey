@@ -30,7 +30,7 @@ export class EazySmsTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `eazy-sms_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

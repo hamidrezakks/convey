@@ -30,7 +30,7 @@ export class KannelTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `kannel_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

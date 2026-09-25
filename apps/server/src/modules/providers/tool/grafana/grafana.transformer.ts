@@ -36,7 +36,6 @@ export class GrafanaTransformer
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: `grafana_${Date.now()}`,
         metadata: { rawPayload: rawBody || response },
       };
     }

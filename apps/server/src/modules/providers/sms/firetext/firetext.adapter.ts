@@ -91,12 +91,6 @@ export class FiretextSmsAdapter
         }),
       });
       const responseText = await response.text();
-      let responseJson: Record<string, unknown> = {};
-      try {
-        responseJson = JSON.parse(responseText) || {};
-      } catch {
-        /* Some providers return a documented text acknowledgement. */
-      }
 
       if (response.ok && responseText.startsWith('0:'))
         return { success: true, providerMessageId: response.headers.get('X-Message') || undefined };

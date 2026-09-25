@@ -27,7 +27,7 @@ export class OpsgenieTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.requestId || response.result)) {
       return {
         success: true,
-        providerMessageId: response.requestId || `opsgenie_${Date.now()}`,
+        providerMessageId: response.requestId,
         metadata: { rawPayload: rawBody || response },
       };
     }

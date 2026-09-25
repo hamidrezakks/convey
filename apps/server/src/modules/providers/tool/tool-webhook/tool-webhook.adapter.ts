@@ -99,7 +99,7 @@ export class ToolWebhookToolAdapter
       try {
         responseJson = JSON.parse(responseText) as ToolWebhookApiResponse;
       } catch {
-        responseJson = { messageId: `wh_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);

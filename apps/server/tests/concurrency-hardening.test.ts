@@ -301,7 +301,7 @@ describe('Concurrency Hardening & Planetary-Scale Resilience Test Suite', () => 
       const seededRows = await db.select().from(messages).where(eq(messages.publicId, multiMsgId));
       const seededMsg = seededRows[0];
 
-      // 1. First channel (Email) succeeds -> marks DELIVERED
+      // 1. Provider acceptance remains dispatched until a delivery receipt arrives.
       await handleSendSuccess({
         data: {
           publicId: multiMsgId,
@@ -318,7 +318,8 @@ describe('Concurrency Hardening & Planetary-Scale Resilience Test Suite', () => 
       });
 
       const deliveredCheck = await db.select().from(messages).where(eq(messages.publicId, multiMsgId));
-      expect(deliveredCheck[0].state).toBe(MessageState.DELIVERED);
+      expect(deliveredCheck[0].state).toBe(MessageState.DISPATCHED);
+      await db.update(messages).set({ state: MessageState.DELIVERED }).where(eq(messages.publicId, multiMsgId));
 
       // 2. Second channel (SMS) fails permanently -> must NOT overwrite DELIVERED
       await handlePermanentFailure({

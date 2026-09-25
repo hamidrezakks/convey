@@ -40,7 +40,7 @@ export class NetcoreTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.status === 'success' || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `netcore_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

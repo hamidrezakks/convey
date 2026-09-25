@@ -5,9 +5,9 @@ import type { SlackApiRequest, SlackApiResponse, SlackChatAdapterConfig } from '
 export class SlackTransformer
   implements ProviderTransformer<SlackChatAdapterConfig, SlackApiRequest, SlackApiResponse>
 {
-  transformRequest(options: ProviderSendOptions, _config?: SlackChatAdapterConfig): SlackApiRequest {
+  transformRequest(options: ProviderSendOptions, config?: SlackChatAdapterConfig): SlackApiRequest {
     const text = (options.content.text || options.content.body || options.content.title || '') as string;
-    const channel = options.recipient.channel;
+    const channel = options.recipient.channel || config?.channel;
 
     return {
       channel,
@@ -16,10 +16,10 @@ export class SlackTransformer
   }
 
   transformResponse(response: SlackApiResponse, statusCode = 200, rawBody?: unknown): ProviderSendResult {
-    if (statusCode >= 200 && statusCode < 300 && (response.ok !== false || response.ts)) {
+    if (statusCode >= 200 && statusCode < 300 && response.ok === true && response.ts) {
       return {
         success: true,
-        providerMessageId: response.ts || `slack_${Date.now()}`,
+        providerMessageId: response.ts,
         metadata: { rawPayload: rawBody || response },
       };
     }

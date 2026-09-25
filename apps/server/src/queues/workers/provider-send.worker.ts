@@ -1,6 +1,6 @@
 import type { MessagePriority } from '@convey/shared';
 import { type Job, Worker } from 'bullmq';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages, providers } from '../../db/schema';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
@@ -14,7 +14,6 @@ import {
 } from '../../modules/messaging/messaging.types';
 import { LeakyBucketGovernor } from '../../modules/policies/leaky-bucket';
 import { PolicyEngine } from '../../modules/policies/policy-engine';
-import { tenantSlaManager } from '../../modules/policies/tenant-sla';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import type { UnifiedRecipient } from '../../modules/providers/core/provider-types';
@@ -136,15 +135,8 @@ export async function handleSendSuccess(params: {
   adaptiveConcurrency.recordExecution(latencyMs);
   statisticalAnomalyDetector.recordLatency(adapterId, latencyMs);
   statisticalAnomalyDetector.analyze(adapterId, latencyMs);
-  tenantSlaManager.recordDeliveryLatency(msg.team, latencyMs);
 
-  // Populate O(1) Redis Reverse Index for instant Webhook ingestion without DB partition scans
-  if (providerMessageId) {
-    const redisKey = formatRedisKey(`provmsg:${adapterId}:${providerMessageId}`);
-    const payload = `${data.publicId}|${attemptId}|${now.toISOString()}|${data.channel}`;
-    redisClient.set(redisKey, payload, 'EX', 86400 * 7).catch(() => {});
-  }
-
+  // A successful send confirms provider acceptance, not recipient delivery.
   await db.insert(messageAttempts).values({
     id: attemptId,
     messageId: data.publicId,
@@ -152,9 +144,8 @@ export async function handleSendSuccess(params: {
     providerId: adapterId,
     attemptNo: data.attemptNo,
     origin: data.origin,
-    state: MessageState.DELIVERED,
+    state: MessageState.DISPATCHED,
     providerMessageId,
-    deliveredAt: now,
     latencyMs,
     queuedAt: now,
     startedAt: now,
@@ -168,7 +159,7 @@ export async function handleSendSuccess(params: {
     attemptId,
     channel: data.channel,
     providerId: adapterId,
-    type: EventType.DELIVERY_DELIVERED,
+    type: EventType.DELIVERY_ACCEPTED,
     source: EventSource.WORKER,
     metadata: { providerMessageId },
     occurredAt: now,
@@ -178,10 +169,22 @@ export async function handleSendSuccess(params: {
   const { startDate, endDate } = computePartitionWindow(data.publicId);
   await db
     .update(messages)
-    .set({ state: MessageState.DELIVERED, completedAt: now, updatedAt: now })
+    .set({ state: MessageState.DISPATCHED, updatedAt: now })
     .where(
-      and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+      and(
+        eq(messages.publicId, data.publicId),
+        gte(messages.createdAt, startDate),
+        lte(messages.createdAt, endDate),
+        inArray(messages.state, [MessageState.ACCEPTED, MessageState.DISPATCHED]),
+      ),
     );
+
+  // Populate O(1) Redis Reverse Index for instant Webhook ingestion without DB partition scans
+  if (providerMessageId) {
+    const redisKey = formatRedisKey(`provmsg:${adapterId}:${providerMessageId}`);
+    const payload = `${data.publicId}|${attemptId}|${now.toISOString()}|${data.channel}`;
+    redisClient.set(redisKey, payload, 'EX', 86400 * 7).catch(() => {});
+  }
 
   if (!msg.isSandbox) {
     const rateInfo = getProviderRate(adapterId);
@@ -207,13 +210,13 @@ export async function handleSendSuccess(params: {
     category: msg.category,
     country: msg.country,
     channel: data.channel,
-    metric: MetricType.DELIVERED,
+    metric: MetricType.SENT,
     timestamp: now,
   }).catch((err) => {
     logger.warn('ProviderSend', `Metric recording dropped for message '${data.publicId}': ${(err as Error).message}`);
   });
 
-  await WebhookSubscriptionsService.triggerEventForTenant(msg.team, msg.team, 'message.delivered', {
+  await WebhookSubscriptionsService.triggerEventForTenant(msg.team, msg.team, 'message.sent', {
     messageId: msg.publicId,
     channel: data.channel,
     providerId: adapterId,

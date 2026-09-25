@@ -30,7 +30,7 @@ export class MessagebirdTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `messagebird_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

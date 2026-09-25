@@ -31,7 +31,6 @@ export class EmailjsTransformer
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: `emailjs_${Date.now()}`,
         metadata: { rawPayload: rawBody || response },
       };
     }

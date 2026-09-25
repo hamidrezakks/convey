@@ -30,7 +30,7 @@ export class MobishastraTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `mobishastra_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

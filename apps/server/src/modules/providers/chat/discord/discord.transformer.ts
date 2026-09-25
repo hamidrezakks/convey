@@ -30,7 +30,7 @@ export class DiscordTransformer
     if ((statusCode >= 200 && statusCode < 300) || statusCode === 204) {
       return {
         success: true,
-        providerMessageId: response.id || `discord_${Date.now()}`,
+        providerMessageId: response.id,
         metadata: { rawPayload: rawBody || response },
       };
     }

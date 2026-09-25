@@ -30,7 +30,7 @@ export class RingCentralTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `ring-central_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

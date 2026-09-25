@@ -21,7 +21,7 @@ export class PlunkTransformer
     if (statusCode >= 200 && statusCode < 300 && response.success !== false) {
       return {
         success: true,
-        providerMessageId: response.id || `plunk_${Date.now()}`,
+        providerMessageId: response.id,
         metadata: { rawPayload: rawBody || response },
       };
     }

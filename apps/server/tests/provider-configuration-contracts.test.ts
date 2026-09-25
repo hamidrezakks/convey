@@ -171,3 +171,26 @@ describe('additional native SMS wire contracts', () => {
     });
   }
 });
+
+it('Slack and Mattermost webhooks accept their documented text acknowledgements without invented IDs', async () => {
+  const fetch = spyOn(globalThis, 'fetch').mockImplementation((async (_input: unknown, init?: RequestInit) => {
+    expect(JSON.parse(String(init?.body)).text).toBe('Hello');
+    return new Response('ok');
+  }) as typeof globalThis.fetch);
+  try {
+    for (const id of ['slack', 'mattermost']) {
+      const adapter = ProviderRegistry.getModuleByChannel(Channel.CHAT, id)?.adapter;
+      const result = await adapter?.send(
+        { recipient: {}, content: { text: 'Hello' } },
+        { webhookUrl: 'https://example.test/hook' },
+      );
+      expect(result?.success).toBe(true);
+      expect(result?.providerMessageId).toBeUndefined();
+    }
+    expect(
+      ProviderRegistry.getModuleByChannel(Channel.CHAT, 'slack')?.adapter.transformResponse?.({}, 200).success,
+    ).toBe(false);
+  } finally {
+    fetch.mockRestore();
+  }
+});

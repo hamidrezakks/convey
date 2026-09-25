@@ -30,7 +30,7 @@ export class MaqsamTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `maqsam_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

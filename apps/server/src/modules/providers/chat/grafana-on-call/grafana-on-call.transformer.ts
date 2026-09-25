@@ -25,7 +25,7 @@ export class GrafanaOnCallTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.status === 'ok' || alertId)) {
       return {
         success: true,
-        providerMessageId: alertId || `grafana_oncall_${Date.now()}`,
+        providerMessageId: alertId,
         metadata: { rawPayload: rawBody || response },
       };
     }

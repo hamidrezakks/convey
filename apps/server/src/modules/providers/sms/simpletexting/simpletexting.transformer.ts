@@ -30,7 +30,7 @@ export class SimpletextingTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `simpletexting_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

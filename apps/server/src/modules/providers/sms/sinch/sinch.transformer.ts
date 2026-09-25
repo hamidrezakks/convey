@@ -28,7 +28,7 @@ export class SinchTransformer implements ProviderTransformer<SinchAdapterConfig,
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `sinch_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

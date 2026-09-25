@@ -25,7 +25,7 @@ export class AppioTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.success !== false || response.message_id)) {
       return {
         success: true,
-        providerMessageId: response.message_id || `appio_${Date.now()}`,
+        providerMessageId: response.message_id,
         metadata: { rawPayload: rawBody || response },
       };
     }

@@ -41,7 +41,7 @@ export class RocketChatTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.success || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `rocketchat_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

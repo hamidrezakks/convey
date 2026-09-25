@@ -30,7 +30,7 @@ export class GupshupTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `gupshup_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

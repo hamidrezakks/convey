@@ -30,7 +30,7 @@ export class TermiiTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `termii_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

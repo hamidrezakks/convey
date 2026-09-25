@@ -200,6 +200,9 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         now,
       });
 
+      const accepted = (await db.select().from(messages).where(eq(messages.publicId, publicId)))[0];
+      expect(accepted.state).toBe(MessageState.DISPATCHED);
+      expect(accepted.completedAt).toBeNull();
       // Verify reverse Redis key was created
       const redisKey = formatRedisKey(`provmsg:ses:${providerMessageId}`);
       const cached = await redisClient.get(redisKey);

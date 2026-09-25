@@ -37,7 +37,7 @@ export class MsTeamsTransformer
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: response.id || `msteams_${Date.now()}`,
+        providerMessageId: response.id,
         metadata: { rawPayload: rawBody || response },
       };
     }

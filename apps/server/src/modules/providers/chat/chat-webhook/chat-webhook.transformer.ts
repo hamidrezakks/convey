@@ -22,7 +22,7 @@ export class ChatWebhookTransformer
     if (statusCode >= 200 && statusCode < 300 && response.success !== false) {
       return {
         success: true,
-        providerMessageId: msgId || `chat_webhook_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

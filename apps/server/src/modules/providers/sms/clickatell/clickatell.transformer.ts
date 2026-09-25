@@ -30,7 +30,7 @@ export class ClickatellTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `clickatell_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

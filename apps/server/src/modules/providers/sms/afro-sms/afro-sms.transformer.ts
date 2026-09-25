@@ -24,7 +24,7 @@ export class AfroSmsTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.acknowledge === 'success' || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `afro_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

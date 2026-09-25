@@ -30,7 +30,7 @@ export class CmTelecomTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `cm-telecom_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

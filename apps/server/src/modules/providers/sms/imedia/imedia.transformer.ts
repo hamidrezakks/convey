@@ -30,7 +30,7 @@ export class ImediaTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `imedia_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

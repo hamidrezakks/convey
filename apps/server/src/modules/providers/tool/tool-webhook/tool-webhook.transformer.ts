@@ -21,7 +21,7 @@ export class ToolWebhookTransformer
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: response.messageId || `webhook_${Date.now()}`,
+        providerMessageId: response.messageId,
         metadata: { rawPayload: rawBody || response },
       };
     }

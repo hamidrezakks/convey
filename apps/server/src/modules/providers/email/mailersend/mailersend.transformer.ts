@@ -25,14 +25,14 @@ export class MailersendTransformer
 
   transformResponse(
     response: MailersendApiResponse,
-    statusCode = 222,
+    statusCode = 202,
     headers?: Record<string, string>,
   ): ProviderSendResult {
     if (statusCode >= 200 && statusCode < 300) {
       const msgId = headers?.['x-message-id'] || headers?.['X-Message-Id'];
       return {
         success: true,
-        providerMessageId: msgId || `mailersend_${Date.now()}`,
+        providerMessageId: msgId,
       };
     }
 

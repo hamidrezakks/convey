@@ -46,7 +46,7 @@ export class LineTransformer implements ProviderTransformer<LineAdapterConfig, L
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: msgId || `line_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

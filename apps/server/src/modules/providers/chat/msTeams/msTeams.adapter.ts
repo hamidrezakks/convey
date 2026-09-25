@@ -15,7 +15,7 @@ import type { MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse } from
 export class MsTeamsChatAdapter
   implements ProviderAdapter<MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse>
 {
-  readonly id = 'msTeams';
+  readonly id = 'msteams';
   readonly name = 'Microsoft Teams';
   readonly channel = Channel.CHAT;
 
@@ -92,7 +92,7 @@ export class MsTeamsChatAdapter
       try {
         responseJson = JSON.parse(responseText) as MsTeamsApiResponse;
       } catch {
-        responseJson = { id: `msteams_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);

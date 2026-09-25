@@ -89,6 +89,7 @@ export class SlackChatAdapter implements ProviderAdapter<SlackChatAdapterConfig,
       });
 
       const responseText = await response.text();
+      if (!botToken && response.ok && responseText.trim() === 'ok') return { success: true };
       let responseJson: SlackApiResponse = {};
 
       try {

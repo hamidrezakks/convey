@@ -1,6 +1,7 @@
 export interface SlackChatAdapterConfig {
   webhookUrl?: string;
   botToken?: string;
+  channel?: string;
 }
 
 export interface SlackBlock {

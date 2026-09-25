@@ -30,7 +30,7 @@ export class SmsCentralTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `sms-central_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

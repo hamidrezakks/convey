@@ -85,12 +85,13 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
       });
 
       const responseText = await response.text();
+      if (response.status === 204) return { success: true };
       let responseJson: RyverApiResponse = {};
 
       try {
         responseJson = JSON.parse(responseText) as RyverApiResponse;
       } catch {
-        responseJson = { id: `ryver_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);

@@ -189,13 +189,13 @@ export class WhatsappBusinessChatAdapter
         // 2. Process Inbound Customer Messages
         const messages = value.messages || [];
         for (const incomingMsg of messages) {
-          if (!incomingMsg?.from) continue;
+          if (!incomingMsg?.from || !incomingMsg.id) continue;
 
           const messageBody = extractWhatsappMessageBody(incomingMsg);
 
           events.push({
             providerId: this.id,
-            providerMessageId: incomingMsg.id || `inbound_${Date.now()}`,
+            providerMessageId: incomingMsg.id,
             normalizedStatus: NormalizedStatus.DELIVERED,
             rawPayload: {
               ...(typeof payload === 'object' && payload !== null ? payload : { raw: payload }),

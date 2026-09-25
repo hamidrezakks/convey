@@ -91,16 +91,17 @@ export class MattermostChatAdapter
       const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify(reqPayload),
+        body: JSON.stringify(webhookUrl ? { text: reqPayload.message } : reqPayload),
       });
 
       const responseText = await response.text();
+      if (webhookUrl && response.ok && responseText.trim() === 'ok') return { success: true };
       let responseJson: MattermostApiResponse = {};
 
       try {
         responseJson = JSON.parse(responseText) as MattermostApiResponse;
       } catch {
-        responseJson = { id: `mattermost_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);

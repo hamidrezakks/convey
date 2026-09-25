@@ -30,7 +30,7 @@ export class FortySixElksTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `forty-six-elks_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

@@ -28,7 +28,7 @@ export class AnypostTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.status === 'success' || messageId)) {
       return {
         success: true,
-        providerMessageId: messageId || `anypost_${Date.now()}`,
+        providerMessageId: messageId,
         metadata: { rawPayload: rawBody || response },
       };
     }

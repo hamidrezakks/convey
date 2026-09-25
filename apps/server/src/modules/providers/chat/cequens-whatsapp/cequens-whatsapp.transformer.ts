@@ -83,7 +83,7 @@ export class CequensWhatsappTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.replyCode === 0 || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `cequens_wa_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

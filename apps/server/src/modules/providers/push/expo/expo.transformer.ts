@@ -28,7 +28,7 @@ export class ExpoTransformer implements ProviderTransformer<ExpoPushAdapterConfi
     if (statusCode >= 200 && statusCode < 300 && firstTicket?.status === 'ok') {
       return {
         success: true,
-        providerMessageId: firstTicket.id || `expo_${Date.now()}`,
+        providerMessageId: firstTicket.id,
         metadata: { rawPayload: rawBody || response },
       };
     }

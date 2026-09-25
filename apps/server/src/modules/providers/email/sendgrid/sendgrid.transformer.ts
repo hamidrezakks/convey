@@ -45,7 +45,7 @@ export class SendgridTransformer
       const msgIdHeader = headers?.['x-message-id'] || headers?.['X-Message-Id'];
       return {
         success: true,
-        providerMessageId: msgIdHeader || `sg_${Date.now()}`,
+        providerMessageId: msgIdHeader,
       };
     }
 

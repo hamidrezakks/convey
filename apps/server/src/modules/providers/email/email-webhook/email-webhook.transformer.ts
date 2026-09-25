@@ -25,7 +25,7 @@ export class EmailWebhookTransformer
     if (statusCode >= 200 && statusCode < 300 && response.success !== false) {
       return {
         success: true,
-        providerMessageId: msgId || `webhook_email_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

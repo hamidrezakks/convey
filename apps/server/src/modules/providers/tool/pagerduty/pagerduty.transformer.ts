@@ -33,7 +33,7 @@ export class PagerdutyTransformer
     if (statusCode >= 200 && statusCode < 300 && response.status === 'success') {
       return {
         success: true,
-        providerMessageId: response.dedup_key || `pd_${Date.now()}`,
+        providerMessageId: response.dedup_key,
         metadata: {
           rawPayload: rawBody || response,
         },

@@ -30,7 +30,7 @@ export class SendchampTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `sendchamp_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

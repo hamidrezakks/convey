@@ -30,7 +30,7 @@ export class RuachSmsTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `ruach-sms_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }

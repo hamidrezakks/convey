@@ -30,7 +30,7 @@ export class FiretextTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `firetext_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
