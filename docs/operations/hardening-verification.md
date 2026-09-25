@@ -86,3 +86,7 @@ The [provider audit](../provider-porting-matrix.md) replaces the earlier blanket
 Current local evidence after these changes: 1,004 server tests pass (7,410 assertions), all six workspace typechecks pass, 16 strict-auth tests pass, and 141 console tests pass. Biome passes with the same three existing warnings. SMTP and APNs HTTP/2 are exercised against local peers; cloud requests use mocked HTTP or SDK responses. No live delivery or native callback-signature certification was performed.
 
 Provider acceptance now records DISPATCHED and emits message.sent; only confirmed delivery receipts may record delivery. Consumers relying on the old immediate message.delivered event must migrate. APIs that do not supply a message ID no longer receive a fabricated one. Consult the audit for credential changes, disabled integrations, callback limitations and live-verification exit criteria.
+
+## Budget audit follow-up (2026-09-25)
+
+See [budget enforcement and accounting](budget-enforcement.md) for the reservation/settlement design, tested cases, migration 0024 and reconciliation procedure. The console now saves real policies; estimates are reserved before provider calls; accepted charges and usage settle atomically. Duplicate jobs, replay generations, currency mismatches and month boundaries have regression coverage. The limits apply to configured estimates, not verified vendor invoices.

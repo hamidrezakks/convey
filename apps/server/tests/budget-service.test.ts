@@ -20,6 +20,7 @@ import { estimateBudgetUnits } from '../src/modules/policies/budget-estimate';
 import { PolicyEngine } from '../src/modules/policies/policy-engine';
 import { providerCircuitBreaker } from '../src/modules/providers/core/circuit-breaker';
 import { ProviderRegistry } from '../src/modules/providers/core/provider-registry';
+import { ErrorCategory } from '../src/modules/providers/core/provider-types';
 import { twilioSmsModule } from '../src/modules/providers/sms/twilio';
 import { ReportingService } from '../src/modules/reports/reporting.service';
 import { processProviderSendJob } from '../src/queues/workers/provider-send.worker';
@@ -58,13 +59,61 @@ afterAll(async () => {
     await db
       .delete(messages)
       .where(and(eq(messages.team, team), sql`${messages.createdAt} >= date_trunc('month', now())`));
-    await db.delete(budgetLedger).where(eq(budgetLedger.team, team));
+    await db
+      .delete(budgetLedger)
+      .where(
+        and(
+          eq(budgetLedger.team, team),
+          sql`${budgetLedger.createdAt} >= date_trunc('month', now()) - interval '1 month'`,
+          sql`${budgetLedger.createdAt} < date_trunc('month', now()) + interval '1 month'`,
+        ),
+      );
     await db.delete(budgetReservations).where(eq(budgetReservations.team, team));
     await db.delete(budgetUsage).where(eq(budgetUsage.policyId, team));
     await db.delete(budgetPolicies).where(eq(budgetPolicies.team, team));
   }
 });
 describe('Durable budget enforcement', () => {
+  it('worker releases single rejections, retains possible bulk acceptance and bypasses sandbox charging', async () => {
+    ProviderRegistry.registerModule(twilioSmsModule);
+    const send = spyOn(twilioSmsModule.adapter, 'send').mockResolvedValue({
+      success: false,
+      error: { code: 'REJECTED', message: 'Rejected', category: ErrorCategory.PERMANENT },
+    });
+    try {
+      for (const mode of ['single', 'bulk', 'sandbox']) {
+        const team = await policy('1');
+        const id = generateMessageId();
+        await db.insert(messages).values({
+          id,
+          publicId: id,
+          team,
+          userId: 'budget-test',
+          category: 'transactional',
+          country: 'US',
+          priority: MessagePriority.NORMAL,
+          state: MessageState.DISPATCHED,
+          isSandbox: mode === 'sandbox',
+          recipients: { phone: '+15550000001' },
+          channels: [{ channel: Channel.SMS, content: { text: 'test' } }],
+        });
+        await processProviderSendJob({
+          publicId: id,
+          recipient: { phone: mode === 'bulk' ? ['+15550000001', '+15550000002'] : '+15550000001' },
+          channel: Channel.SMS,
+          providerId: 'twilio',
+          origin: AttemptOrigin.INITIAL,
+          attemptNo: 1,
+        });
+        const state = await BudgetService.get(team);
+        expect(state?.usedAmount).toBe(0);
+        expect(state?.reservedAmount).toBe(mode === 'bulk' ? 0.0158 : 0);
+      }
+      expect(send).toHaveBeenCalledTimes(2);
+    } finally {
+      send.mockRestore();
+    }
+  });
   it('reports foreign budgets in USD while including holds in utilization', async () => {
     const team = await policy('92.4', 'EUR');
     const paid = await BudgetService.reserve(charge(team, 10));
