@@ -6,6 +6,7 @@ import { bootstrapService } from './bootstrap';
 import { env } from './config/env';
 import { queryClient } from './db';
 import { adminController } from './modules/admin/admin.controller';
+import { verifyApiAuth } from './modules/auth/auth.middleware';
 import { batchesController } from './modules/messaging/batches.controller';
 import { dlqController } from './modules/messaging/dlq.controller';
 import { messagingController } from './modules/messaging/messaging.controller';
@@ -216,6 +217,20 @@ const app = new Elysia()
       status: 200,
       headers: { 'Content-Type': metricsRegistry.contentType },
     });
+  })
+  .get('/v1/auth/session', async ({ headers }) => {
+    const auth = await verifyApiAuth(headers);
+    return (
+      auth.errorResponse ||
+      Response.json({
+        tenantId: auth.tenantId,
+        team: auth.team,
+        keyName: auth.keyName,
+        role: auth.role,
+        scope: auth.scope,
+        isSandbox: auth.isSandbox,
+      })
+    );
   })
   .use(messagingController)
   .use(adminController)

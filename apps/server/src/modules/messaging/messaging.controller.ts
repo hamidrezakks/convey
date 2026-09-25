@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import { env } from '../../config/env';
 import { MessagingDocs } from '../../openapi';
 import { TraceContext } from '../../utils/trace-context';
-import { verifyApiAuth } from '../auth/auth.middleware';
+import { guardApiRequest, verifyApiAuth } from '../auth/auth.middleware';
 import { IdempotencyConflictError } from './idempotency.service';
 import { MessagingService } from './messaging.service';
 import {
@@ -58,12 +58,7 @@ export function formatZodValidationDetails(issues: z.ZodIssue[]) {
 export function messagingController(app: Elysia) {
   return app.group('/v1/messages', (app) =>
     app
-      .beforeHandle(async ({ headers }: { headers: Record<string, string | undefined> }) => {
-        const auth = await verifyApiAuth(headers, env.CONVEY_REQUIRE_AUTH);
-        if (auth.errorResponse) {
-          return auth.errorResponse;
-        }
-      })
+      .beforeHandle(({ headers, request }) => guardApiRequest(headers, request.method))
       .post(
         '/bulk',
         { detail: MessagingDocs.bulkSendMessage },

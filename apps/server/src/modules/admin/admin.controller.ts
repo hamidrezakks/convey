@@ -1,18 +1,19 @@
 import { Channel, type MessageStatus, type SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
+import { guardApiRequest } from '../auth/auth.middleware';
 import { jsonResponse } from '../messaging/messaging.controller';
 import { CarrierCostMatrix } from '../policies/carrier-cost-matrix';
 import { fxEngine } from '../policies/fx-engine';
 import { QuotaManager } from '../policies/quota-manager';
 import { ReportingService } from '../reports/reporting.service';
 import { ReportingDoctorService } from '../reports/reporting-doctor.service';
-
 import { adminService } from './admin.service';
 
 export function adminController(app: Elysia) {
   return app.group('/v1/admin', (app) =>
     app
+      .beforeHandle(({ headers, request }) => guardApiRequest(headers, request.method, true))
 
       // Overview metrics
       .get(
