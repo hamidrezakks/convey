@@ -191,7 +191,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
         team: 'qa_dlq_team',
         userId: 'usr_dlq',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.NORMAL,
         state: MessageState.FAILED,
         recipients: { email: 'dlq@example.com' },

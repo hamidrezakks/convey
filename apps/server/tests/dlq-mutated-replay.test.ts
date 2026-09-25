@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { queryClient } from '../src/db';
 import { app } from '../src/index';
 import { Channel, MessagePriority } from '../src/modules/messaging/messaging.types';
 import { createFreshTestDb } from './helpers/fresh-db-runner';
@@ -27,6 +28,9 @@ describe('DLQ Mutated Replay & Sandbox Station API', () => {
 
     const sendBody = (await sendRes.json()) as { messageId: string };
     const messageId = sendBody.messageId;
+
+    expect(sendRes.status).toBe(202);
+    await queryClient`UPDATE messages SET state = 'failed', completed_at = now() WHERE public_id = ${messageId} AND created_at >= now() - interval '1 hour'`;
 
     // 2. Perform dry-run mutated replay
     const dryRunRes = await app.handle(

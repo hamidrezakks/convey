@@ -22,7 +22,7 @@ describe('Concurrency Hardening & Planetary-Scale Resilience Test Suite', () => 
   const testPrefix = `harden_${Date.now()}`;
   const testPolicyId = `pol_${testPrefix}`;
   const testTeam = `team_${testPrefix}`;
-  const testMonth = '2026-08';
+  const testMonth = new Date().toISOString().slice(0, 7);
 
   beforeAll(async () => {
     // Seed test budget policy
