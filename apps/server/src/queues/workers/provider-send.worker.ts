@@ -517,10 +517,17 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
       if (result.success) await BudgetService.settle(reservationId, 'committed');
       else if (
         estimateBudgetRecipients(sendOptions) === 1 &&
-        (result.error?.category === ErrorCategory.PERMANENT || result.error?.category === ErrorCategory.RATE_LIMITED)
+        (result.error?.category === ErrorCategory.RATE_LIMITED ||
+          [
+            'MISSING_CREDENTIALS',
+            'INVALID_RECIPIENT',
+            'INVALID_PAYLOAD',
+            'PAYLOAD_TOO_LARGE',
+            'PROVIDER_NOT_IMPLEMENTED',
+          ].includes(result.error?.code ?? ''))
       )
         await BudgetService.settle(reservationId, 'released');
-      // Timeouts and partial bulk failures can have been accepted remotely. Retain their hold for reconciliation.
+      // Unclassified failures (including malformed success responses) may have been accepted. Retain their hold.
     }
 
     const latencyMs = Math.round(performance.now() - startTime);

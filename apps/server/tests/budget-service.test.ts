@@ -78,10 +78,19 @@ describe('Durable budget enforcement', () => {
     ProviderRegistry.registerModule(twilioSmsModule);
     const send = spyOn(twilioSmsModule.adapter, 'send').mockResolvedValue({
       success: false,
-      error: { code: 'REJECTED', message: 'Rejected', category: ErrorCategory.PERMANENT },
+      error: { code: 'MISSING_CREDENTIALS', message: 'Rejected', category: ErrorCategory.PERMANENT },
     });
     try {
-      for (const mode of ['single', 'bulk', 'sandbox']) {
+      for (const mode of ['single', 'bulk', 'sandbox', 'uncertain']) {
+        if (mode === 'uncertain')
+          send.mockResolvedValue({
+            success: false,
+            error: {
+              code: 'UNRECOGNIZED_RESPONSE',
+              message: 'Unrecognized response',
+              category: ErrorCategory.PERMANENT,
+            },
+          });
         const team = await policy('1');
         const id = generateMessageId();
         await db.insert(messages).values({
@@ -107,9 +116,9 @@ describe('Durable budget enforcement', () => {
         });
         const state = await BudgetService.get(team);
         expect(state?.usedAmount).toBe(0);
-        expect(state?.reservedAmount).toBe(mode === 'bulk' ? 0.0158 : 0);
+        expect(state?.reservedAmount).toBe(mode === 'bulk' ? 0.0158 : mode === 'uncertain' ? 0.0079 : 0);
       }
-      expect(send).toHaveBeenCalledTimes(2);
+      expect(send).toHaveBeenCalledTimes(3);
     } finally {
       send.mockRestore();
     }

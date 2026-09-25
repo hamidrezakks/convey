@@ -6,7 +6,7 @@ Reviewed 2026-09-25. Budgets now protect **configured cost estimates**, not exac
 
 1. The provider worker reserves the estimated cost before calling the provider. A short PostgreSQL transaction serializes changes for the team and compares committed usage plus outstanding reservations plus the new estimate against the monthly cap. Policy reads are fresh, not taken from the five-second cache. Network delivery happens after the transaction closes.
 2. Acceptance settles the reservation into the ledger and monthly usage in one transaction. Retrying settlement cannot double-charge. A duplicated job cannot call the provider again.
-3. A permanent or rate-limit rejection for a single recipient releases the reservation. Transient failures, thrown exceptions and failed multi-recipient requests retain the hold because acceptance may be uncertain or partial. These holds need operator reconciliation; they never expire automatically.
+3. A recognized preflight validation error or rate-limit rejection for a single recipient releases the reservation. Unclassified failures (even when labeled permanent), transient failures, thrown exceptions and failed multi-recipient requests retain the hold because acceptance may be uncertain or partial. A malformed success response is not proof of rejection. These holds need operator reconciliation; they never expire automatically.
 4. An intentional failed-message replay gets a new execution ID. Its jobs reserve separately; jobs from the previous execution are ignored. Retries, fallback targets and cascade steps retain distinct accounting identities.
 5. Sandbox dispatch bypasses production budget checks, reservations and charges.
 
