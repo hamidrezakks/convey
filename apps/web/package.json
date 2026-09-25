@@ -12,7 +12,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "bun test"
+    "test": "bun test --preload ./tests/setup.ts"
   },
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-alpha.5",
