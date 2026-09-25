@@ -1,5 +1,10 @@
 import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
+export const teamOwners = pgTable('team_owners', {
+  team: text('team').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+});
+
 export const apiKeys = pgTable('api_keys', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull(),

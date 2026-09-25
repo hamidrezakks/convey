@@ -50,6 +50,10 @@ export async function initializePluginTables() {
       CONSTRAINT uq_recipient_preferences_tenant_recipient UNIQUE (tenant_id, recipient_id)
     );
 
+    ALTER TABLE recipient_preferences DROP CONSTRAINT IF EXISTS uq_recipient_preferences_tenant_recipient;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_recipient_preferences_tenant_team_recipient
+      ON recipient_preferences (tenant_id, team, recipient_id);
+
     CREATE INDEX IF NOT EXISTS idx_recipient_preferences_recipient ON recipient_preferences (tenant_id, recipient_id);
 
     CREATE TABLE IF NOT EXISTS in_app_notifications (

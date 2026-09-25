@@ -2,7 +2,8 @@ import type { Elysia } from 'elysia';
 import { z } from 'zod';
 import { DlqDocs } from '../../openapi';
 import { TraceContext } from '../../utils/trace-context';
-import { guardApiRequest } from '../auth/auth.middleware';
+import { guardApiRequest, verifyApiAuth } from '../auth/auth.middleware';
+import type { TenantScope } from '../auth/tenant-scope';
 import { DlqService } from './dlq.service';
 import { DlqMutatedReplaySchema } from './messaging.types';
 
@@ -43,8 +44,14 @@ export function dlqController(app: Elysia) {
             );
           }
 
-          const { team, limit, offset } = parsed.data;
-          const result = await DlqService.listFailedMessages({ team, limit, offset });
+          const { limit, offset } = parsed.data;
+          const scope = (await verifyApiAuth(headers)) as TenantScope;
+          const result = await DlqService.listFailedMessages({
+            team: scope.team,
+            limit,
+            offset,
+            isSandbox: scope.isSandbox,
+          });
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { 'Content-Type': 'application/json', traceparent: traceHeader },
@@ -72,7 +79,10 @@ export function dlqController(app: Elysia) {
             );
           }
 
-          const result = await DlqService.replayFailedMessages(parsed.data.messageIds);
+          const result = await DlqService.replayFailedMessages(
+            parsed.data.messageIds,
+            (await verifyApiAuth(headers)) as TenantScope,
+          );
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { 'Content-Type': 'application/json', traceparent: traceHeader },
@@ -100,7 +110,10 @@ export function dlqController(app: Elysia) {
             );
           }
 
-          const result = await DlqService.replayMutatedMessages(parsed.data);
+          const result = await DlqService.replayMutatedMessages(
+            parsed.data,
+            (await verifyApiAuth(headers)) as TenantScope,
+          );
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { 'Content-Type': 'application/json', traceparent: traceHeader },

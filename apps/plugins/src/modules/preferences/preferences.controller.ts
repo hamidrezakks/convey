@@ -1,8 +1,10 @@
 import type { Channel } from '@convey/shared';
 import { Elysia, t } from 'elysia';
+import { pluginAuth } from '../../auth';
 import { PreferencesService } from './preferences.service';
 
 export const preferencesController = new Elysia({ prefix: '/api/v1/plugins/preferences' })
+  .use(pluginAuth)
   .post(
     '/topics',
     {
@@ -59,8 +61,12 @@ export const preferencesController = new Elysia({ prefix: '/api/v1/plugins/prefe
         tenantId: t.String(),
       }),
     },
-    async ({ params, query, set }) => {
-      const pref = await PreferencesService.getPreferences(query.tenantId, params.recipientId);
+    async ({ pluginIdentity, params, query, set }) => {
+      const pref = await PreferencesService.getPreferences(
+        query.tenantId,
+        params.recipientId,
+        (pluginIdentity as { team: string }).team,
+      );
       if (!pref) {
         set.status = 404;
         return { success: false, error: 'Recipient preferences not found' };
@@ -113,10 +119,11 @@ export const preferencesController = new Elysia({ prefix: '/api/v1/plugins/prefe
         topicKey: t.Optional(t.String()),
       }),
     },
-    async ({ body }) => {
+    async ({ pluginIdentity, body }) => {
       const result = await PreferencesService.checkDispatchAllowed({
         tenantId: body.tenantId,
         recipientId: body.recipientId,
+        team: (pluginIdentity as { team: string }).team,
         channel: body.channel as Channel,
         topicKey: body.topicKey,
       });

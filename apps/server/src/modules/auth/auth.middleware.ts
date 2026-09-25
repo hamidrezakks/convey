@@ -2,7 +2,7 @@ import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import type { Elysia } from 'elysia';
 import { env } from '../../config/env';
 import { db } from '../../db';
-import { apiKeys, tenants } from '../../db/schema';
+import { apiKeys, teamOwners, tenants } from '../../db/schema';
 import { hashString } from '../../utils/crypto';
 import { type AuthIdentity, authError, authorizeRequest, UserRole } from './access-policy';
 
@@ -24,6 +24,7 @@ export async function validateApiKey(
     })
     .from(apiKeys)
     .innerJoin(tenants, eq(apiKeys.tenantId, tenants.id))
+    .innerJoin(teamOwners, and(eq(apiKeys.team, teamOwners.team), eq(apiKeys.tenantId, teamOwners.tenantId)))
     .where(
       and(
         eq(apiKeys.keyHash, hashString(apiKeyRaw)),

@@ -10,6 +10,7 @@ import { payloadEncryptionManager } from '../../utils/payload-encryption';
 import { shardRouter } from '../../utils/shard-router';
 import { TraceContext } from '../../utils/trace-context';
 import { trafficGovernor } from '../../utils/traffic-governor';
+import type { TenantScope } from '../auth/tenant-scope';
 import { tenantSlaManager } from '../policies/tenant-sla';
 import { RateCardRegistry, smartProviderRouter } from '../providers/core/smart-router';
 import { IdempotencyService } from './idempotency.service';
@@ -261,11 +262,18 @@ export function buildMessageStatusResponse(
   };
 }
 
-export async function fetchMessageByPublicId(publicId: string, startDate: Date, endDate: Date) {
+export async function fetchMessageByPublicId(publicId: string, startDate: Date, endDate: Date, scope?: TenantScope) {
   const msgList = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)));
+    .where(
+      and(
+        eq(messages.publicId, publicId),
+        gte(messages.createdAt, startDate),
+        lte(messages.createdAt, endDate),
+        ...(scope ? [eq(messages.team, scope.team), eq(messages.isSandbox, scope.isSandbox)] : []),
+      ),
+    );
   return msgList[0] ?? null;
 }
 
@@ -519,10 +527,10 @@ export const MessagingService = {
     return finalResults;
   },
 
-  async getMessageStatus(publicId: string, includeTimeline = false) {
+  async getMessageStatus(publicId: string, includeTimeline = false, scope?: TenantScope) {
     const { startDate, endDate } = computePartitionWindow(publicId);
 
-    const msg = await fetchMessageByPublicId(publicId, startDate, endDate);
+    const msg = await fetchMessageByPublicId(publicId, startDate, endDate, scope);
     if (!msg) {
       return null;
     }
@@ -538,9 +546,9 @@ export const MessagingService = {
     return buildMessageStatusResponse(msg, channelStates, timeline);
   },
 
-  async getMessageDeliveryTrace(publicId: string): Promise<DeliveryTraceResponse | null> {
+  async getMessageDeliveryTrace(publicId: string, scope?: TenantScope): Promise<DeliveryTraceResponse | null> {
     const { startDate, endDate } = computePartitionWindow(publicId);
-    const msg = await fetchMessageByPublicId(publicId, startDate, endDate);
+    const msg = await fetchMessageByPublicId(publicId, startDate, endDate, scope);
     if (!msg) {
       return null;
     }

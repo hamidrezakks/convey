@@ -4,8 +4,8 @@ import { env } from '../../config/env';
 import { MessagingDocs } from '../../openapi';
 import { TraceContext } from '../../utils/trace-context';
 import { guardApiRequest, verifyApiAuth } from '../auth/auth.middleware';
+import { type TenantScope, TenantScopeError } from '../auth/tenant-scope';
 import { IdempotencyConflictError } from './idempotency.service';
-import { MessagingService } from './messaging.service';
 import {
   BulkSendMessageRequestSchema,
   DomainValidationError,
@@ -14,6 +14,7 @@ import {
   SystemOverloadError,
   TemplatePreviewRequestSchema,
 } from './messaging.types';
+import { ScopedMessagingService } from './scoped-messaging.service';
 import { TemplateEngine } from './template-engine';
 
 export function jsonResponse(body: unknown, status = 200, traceHeader?: string): Response {
@@ -80,8 +81,13 @@ export function messagingController(app: Elysia) {
             );
           }
 
-          const results = await MessagingService.acceptBulkMessages(parsed.data.messages, auth.isSandbox);
-          return jsonResponse({ total: results.length, items: results }, 202, traceHeader);
+          try {
+            const results = await ScopedMessagingService.acceptBulkMessages(auth as TenantScope, parsed.data.messages);
+            return jsonResponse({ total: results.length, items: results }, 202, traceHeader);
+          } catch (error) {
+            if (error instanceof TenantScopeError) return jsonErrorResponse('FORBIDDEN', error.message, 403);
+            throw error;
+          }
         },
       )
       .post(
@@ -99,9 +105,10 @@ export function messagingController(app: Elysia) {
           }
 
           try {
-            const result = await MessagingService.acceptMessage(parsed.data, auth.isSandbox);
+            const result = await ScopedMessagingService.acceptMessage(auth as TenantScope, parsed.data);
             return jsonResponse(result.body, result.statusCode, traceHeader);
           } catch (err: unknown) {
+            if (err instanceof TenantScopeError) return jsonErrorResponse('FORBIDDEN', err.message, 403);
             if (err instanceof IdempotencyConflictError) {
               return jsonErrorResponse(ErrorCode.IDEMPOTENCY_CONFLICT, err.message, 409, undefined, traceHeader);
             }
@@ -139,7 +146,11 @@ export function messagingController(app: Elysia) {
           const traceHeader = TraceContext.formatHeader(trace);
 
           const includeTimeline = query?.include === 'timeline';
-          const status = await MessagingService.getMessageStatus(messageId, includeTimeline);
+          const status = await ScopedMessagingService.getMessageStatus(
+            (await verifyApiAuth(headers)) as TenantScope,
+            messageId,
+            includeTimeline,
+          );
 
           if (!status) {
             return jsonErrorResponse(
@@ -167,7 +178,11 @@ export function messagingController(app: Elysia) {
           const trace = TraceContext.extractOrCreate(headers);
           const traceHeader = TraceContext.formatHeader(trace);
 
-          const status = await MessagingService.getMessageStatus(messageId, true);
+          const status = await ScopedMessagingService.getMessageStatus(
+            (await verifyApiAuth(headers)) as TenantScope,
+            messageId,
+            true,
+          );
           if (!status) {
             return jsonErrorResponse(
               ErrorCode.NOT_FOUND,
@@ -194,7 +209,10 @@ export function messagingController(app: Elysia) {
           const trace = TraceContext.extractOrCreate(headers);
           const traceHeader = TraceContext.formatHeader(trace);
 
-          const traceReport = await MessagingService.getMessageDeliveryTrace(messageId);
+          const traceReport = await ScopedMessagingService.getMessageDeliveryTrace(
+            (await verifyApiAuth(headers)) as TenantScope,
+            messageId,
+          );
           if (!traceReport) {
             return jsonErrorResponse(
               ErrorCode.NOT_FOUND,
