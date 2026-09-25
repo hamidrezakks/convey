@@ -35,8 +35,8 @@ export class IdempotencyConflictError extends Error {
 
 export const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 86_400; // 24 hours
 
-export function getIdempotencyKey(team: string, idempotencyKey: string): string {
-  return formatRedisKey(`idem:${team}:${idempotencyKey}`);
+export function getIdempotencyKey(team: string, idempotencyKey: string, isSandbox = false): string {
+  return formatRedisKey(`idem:v2:${JSON.stringify([team, isSandbox ? 'sandbox' : 'production', idempotencyKey])}`);
 }
 
 export function generateOwnerToken(): string {
@@ -139,12 +139,13 @@ export async function executeBulkCompletionPipeline(
     responsePayload: Record<string, unknown>;
   }>,
   nowIso = new Date().toISOString(),
+  isSandbox = false,
 ): Promise<void> {
   if (!items.length) return;
   const pipeline = redisClient.pipeline();
 
   for (const item of items) {
-    const key = getIdempotencyKey(item.team, item.idempotencyKey);
+    const key = getIdempotencyKey(item.team, item.idempotencyKey, isSandbox);
     const requestHash = hashCanonicalObject(item.requestPayload);
     const value = buildCompletedIdempotencyPayload(requestHash, item.messageId, item.responsePayload, nowIso);
     pipeline.set(key, value, 'EX', DEFAULT_IDEMPOTENCY_TTL_SECONDS);
@@ -181,8 +182,9 @@ export const IdempotencyService = {
     idempotencyKey: string,
     requestPayload: unknown,
     maxAttempts = 3,
+    isSandbox = false,
   ): Promise<IdempotencyReservationResult> {
-    const key = getIdempotencyKey(team, idempotencyKey);
+    const key = getIdempotencyKey(team, idempotencyKey, isSandbox);
     const requestHash = hashCanonicalObject(requestPayload);
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -243,8 +245,9 @@ export const IdempotencyService = {
     messageId: string,
     responsePayload: Record<string, unknown>,
     ownerToken = '',
+    isSandbox = false,
   ): Promise<void> {
-    const key = getIdempotencyKey(team, idempotencyKey);
+    const key = getIdempotencyKey(team, idempotencyKey, isSandbox);
     const requestHash = hashCanonicalObject(requestPayload);
     const value = buildCompletedIdempotencyPayload(requestHash, messageId, responsePayload);
 
@@ -267,8 +270,8 @@ export const IdempotencyService = {
     await redisClient.eval(luaScript, 1, key, ownerToken, value, DEFAULT_IDEMPOTENCY_TTL_SECONDS);
   },
 
-  async release(team: string, idempotencyKey: string, ownerToken = ''): Promise<void> {
-    const key = getIdempotencyKey(team, idempotencyKey);
+  async release(team: string, idempotencyKey: string, ownerToken = '', isSandbox = false): Promise<void> {
+    const key = getIdempotencyKey(team, idempotencyKey, isSandbox);
     const luaScript = `
       local current = redis.call('GET', KEYS[1])
       if not current then return 1 end
@@ -286,10 +289,11 @@ export const IdempotencyService = {
 
   async reserveBulk(
     items: ReadonlyArray<{ team: string; idempotencyKey: string; requestPayload: unknown }>,
+    isSandbox = false,
   ): Promise<Array<{ index: number; result?: IdempotencyReservationResult; error?: Error }>> {
     if (!items.length) return [];
 
-    const keys = items.map((item) => getIdempotencyKey(item.team, item.idempotencyKey));
+    const keys = items.map((item) => getIdempotencyKey(item.team, item.idempotencyKey, isSandbox));
     const existingValues = await redisClient.mget(...keys);
     const nowIso = new Date().toISOString();
 
@@ -330,12 +334,13 @@ export const IdempotencyService = {
       messageId: string;
       responsePayload: Record<string, unknown>;
     }>,
+    isSandbox = false,
   ): Promise<void> {
-    await executeBulkCompletionPipeline(items);
+    await executeBulkCompletionPipeline(items, undefined, isSandbox);
   },
 
-  async releaseBulk(items: ReadonlyArray<{ team: string; idempotencyKey: string }>): Promise<void> {
-    const keys = items.map((item) => getIdempotencyKey(item.team, item.idempotencyKey));
+  async releaseBulk(items: ReadonlyArray<{ team: string; idempotencyKey: string }>, isSandbox = false): Promise<void> {
+    const keys = items.map((item) => getIdempotencyKey(item.team, item.idempotencyKey, isSandbox));
     await deleteIdempotencyKeys(keys);
   },
 };

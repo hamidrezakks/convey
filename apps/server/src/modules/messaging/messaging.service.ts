@@ -303,7 +303,7 @@ export async function fetchMessageEvents(publicId: string, startDate: Date, endD
     );
 }
 
-export async function buildBulkReservations(requests: SendMessageRequest[]) {
+export async function buildBulkReservations(requests: SendMessageRequest[], isSandbox = false) {
   const itemsToReserve = requests
     .map((req, index) => ({ index, req }))
     .filter(({ req }) => !!req.idempotencyKey)
@@ -322,6 +322,7 @@ export async function buildBulkReservations(requests: SendMessageRequest[]) {
         idempotencyKey: item.idempotencyKey,
         requestPayload: item.requestPayload,
       })),
+      isSandbox,
     );
     for (let i = 0; i < itemsToReserve.length; i++) {
       const item = itemsToReserve[i];
@@ -340,6 +341,7 @@ export async function commitBulkMessagesTransaction(
   messagesToInsert: Array<typeof messages.$inferInsert>,
   outboxToInsert: Array<typeof outbox.$inferInsert>,
   idempotencyToComplete: Array<{ team: string; idempotencyKey: string }>,
+  isSandbox = false,
 ) {
   try {
     await db.transaction(async (tx) => {
@@ -350,6 +352,7 @@ export async function commitBulkMessagesTransaction(
     if (idempotencyToComplete.length > 0) {
       await IdempotencyService.releaseBulk(
         idempotencyToComplete.map((item) => ({ team: item.team, idempotencyKey: item.idempotencyKey })),
+        isSandbox,
       );
     }
     throw err;
@@ -425,7 +428,7 @@ export const MessagingService = {
       );
     }
 
-    const reservation = await IdempotencyService.reserve(request.team, request.idempotencyKey, request);
+    const reservation = await IdempotencyService.reserve(request.team, request.idempotencyKey, request, 3, isSandbox);
 
     if (reservation.status === ReservationStatus.COMPLETED && reservation.responsePayload) {
       return {
@@ -438,7 +441,7 @@ export const MessagingService = {
 
     const validationError = validateChannelRecipients(request.channels, request.recipients);
     if (validationError) {
-      await IdempotencyService.release(request.team, request.idempotencyKey);
+      await IdempotencyService.release(request.team, request.idempotencyKey, reservation.ownerToken, isSandbox);
       throw new DomainValidationError(validationError);
     }
 
@@ -456,11 +459,19 @@ export const MessagingService = {
       // Non-blocking fast-path signal to wake outbox workers immediately (<2ms)
       redisClient.publish('convey:outbox:pending', String(outboxRecord.shardId ?? 0)).catch(() => {});
     } catch (err) {
-      await IdempotencyService.release(request.team, request.idempotencyKey);
+      await IdempotencyService.release(request.team, request.idempotencyKey, reservation.ownerToken, isSandbox);
       throw err;
     }
 
-    await IdempotencyService.complete(request.team, request.idempotencyKey, request, publicId, responsePayload);
+    await IdempotencyService.complete(
+      request.team,
+      request.idempotencyKey,
+      request,
+      publicId,
+      responsePayload,
+      reservation.ownerToken,
+      isSandbox,
+    );
 
     return {
       statusCode: 202,
@@ -472,7 +483,7 @@ export const MessagingService = {
     if (!requests.length) return [];
 
     const now = new Date();
-    const reservationMap = await buildBulkReservations(requests);
+    const reservationMap = await buildBulkReservations(requests, isSandbox);
 
     const finalResults = new Array<{ index: number; statusCode: number; body: unknown }>(requests.length);
     const messagesToInsert: Array<typeof messages.$inferInsert> = [];
@@ -512,16 +523,16 @@ export const MessagingService = {
     }
 
     if (idempotencyToRelease.length > 0) {
-      await IdempotencyService.releaseBulk(idempotencyToRelease);
+      await IdempotencyService.releaseBulk(idempotencyToRelease, isSandbox);
     }
 
     if (messagesToInsert.length > 0) {
-      await commitBulkMessagesTransaction(messagesToInsert, outboxToInsert, idempotencyToComplete);
+      await commitBulkMessagesTransaction(messagesToInsert, outboxToInsert, idempotencyToComplete, isSandbox);
       redisClient.publish('convey:outbox:pending', '0').catch(() => {});
     }
 
     if (idempotencyToComplete.length > 0) {
-      await IdempotencyService.completeBulk(idempotencyToComplete);
+      await IdempotencyService.completeBulk(idempotencyToComplete, isSandbox);
     }
 
     return finalResults;

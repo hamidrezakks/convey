@@ -21,6 +21,10 @@ This changes access behavior: authentication becomes the default, platform opera
 4. Configure a trusted webhook gateway and test native vendor verification plus Convey signing. Set `CONVEY_WEBHOOK_SECRET` or provider-specific secrets on the server. Direct unsigned callbacks will stop working after deployment.
 5. Check subscribers and plugin preference duplicates before startup. Preferences now use `(tenant_id, team, recipient_id)` uniqueness; validate existing rows and consumers against team-scoped behavior.
 
+## Idempotency namespace upgrade
+
+Environment-scoped reservations use a new `idem:v2` namespace with an encoded team/environment/key tuple. Existing unscoped reservations cannot be safely assigned to sandbox or production. Before this upgrade, pause producers for the 24-hour reservation TTL or reconcile outstanding client retries explicitly; otherwise resubmitting an old accepted request can create another send. Never blindly copy legacy entries into both environments. Keep this migration boundary in the rollout record.
+
 ## Apply and verify
 
 1. Enter a maintenance window. Pause producers and stop old API/worker processes; mixed versions retain old authorization and outbox semantics. Keep durable stores intact.

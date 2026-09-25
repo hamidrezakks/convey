@@ -302,3 +302,31 @@ test('plugins authenticate through core and reject forged tenant parameters', as
     else process.env.CONVEY_API_INTERNAL_URL = previousUrl;
   }
 });
+
+test('single and bulk idempotency isolate sandbox and production in either order', async () => {
+  for (const bulk of [false, true]) {
+    for (const order of [
+      ['a', 'sandbox'],
+      ['sandbox', 'a'],
+    ]) {
+      const request = payload(teamA);
+      const path = bulk ? '/v1/messages/bulk' : '/v1/messages';
+      const body = bulk ? { messages: [request] } : request;
+      const ids: string[] = [];
+      for (const key of order) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const response = await call(path, key, 'POST', body);
+          expect(response.status).toBe(202);
+          const data = (await response.json()) as { messageId: string; items: Array<{ body: { messageId: string } }> };
+          const id = bulk ? data.items[0].body.messageId : data.messageId;
+          if (attempt === 0) ids.push(id);
+          else expect(id).toBe(ids[ids.length - 1]);
+        }
+      }
+      expect(ids[0]).not.toBe(ids[1]);
+      const rows =
+        await queryClient`SELECT is_sandbox FROM messages WHERE public_id IN (${ids[0]},${ids[1]}) AND created_at >= now() - interval '1 hour'`;
+      expect(rows.map((row: { is_sandbox: boolean }) => row.is_sandbox).sort()).toEqual([false, true]);
+    }
+  }
+});
