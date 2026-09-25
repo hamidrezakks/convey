@@ -25,7 +25,9 @@ import {
   OpenAPITags,
 } from './openapi';
 import { redisClient } from './queues/connection';
+import { createHttpMetrics } from './utils/http-metrics';
 import { logger } from './utils/logger';
+import { createOperationalMetrics } from './utils/operational-metrics';
 import { appReadiness } from './utils/readiness';
 import { shutdownOrchestrator } from './utils/shutdown';
 import { TraceContext } from './utils/trace-context';
@@ -33,20 +35,10 @@ import { TraceContext } from './utils/trace-context';
 // Prometheus Metrics Registry
 export const metricsRegistry = new Registry();
 
-export const httpRequestsTotal = new Counter({
-  name: 'convey_http_requests_total',
-  help: 'Total HTTP requests processed by Convey',
-  labelNames: ['method', 'path', 'status'],
-  registers: [metricsRegistry],
-});
-
-export const httpRequestDuration = new Histogram({
-  name: 'convey_http_request_duration_seconds',
-  help: 'HTTP request duration in seconds',
-  labelNames: ['method', 'path'],
-  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
-  registers: [metricsRegistry],
-});
+const httpMetrics = createHttpMetrics(metricsRegistry);
+const refreshOperationalMetrics = createOperationalMetrics(metricsRegistry);
+export const httpRequestsTotal = httpMetrics.requests;
+export const httpRequestDuration = httpMetrics.duration;
 
 export const messagesAcceptedTotal = new Counter({
   name: 'convey_messages_accepted_total',
@@ -120,21 +112,10 @@ const app = new Elysia()
       allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'traceparent'],
     }),
   )
-  .derive(({ request, path }) => {
-    const pathname =
-      path || (request.url.indexOf('/', 8) !== -1 ? request.url.slice(request.url.indexOf('/', 8)) : request.url);
-    httpRequestsTotal.inc({ method: request.method, path: pathname });
-    const traceCtx = TraceContext.extractOrCreate({ traceparent: request.headers.get('traceparent') || undefined });
-    return {
-      startTime: performance.now(),
-      traceCtx,
-      pathname,
-    };
-  })
-  .afterResponse(({ request, startTime, pathname }: { request: Request; startTime?: number; pathname?: string }) => {
-    const durationSeconds = (performance.now() - (startTime || performance.now())) / 1000;
-    httpRequestDuration.observe({ method: request.method, path: pathname || request.url }, durationSeconds);
-  })
+  .use(httpMetrics.instrument)
+  .derive(({ request }) => ({
+    traceCtx: TraceContext.extractOrCreate({ traceparent: request.headers.get('traceparent') || undefined }),
+  }))
   .get('/health', { detail: ObservabilityDocs.health }, async () => {
     let dbStatus = 'disconnected';
     let redisStatus = 'disconnected';
@@ -212,6 +193,7 @@ const app = new Elysia()
     );
   })
   .get('/metrics', { detail: ObservabilityDocs.metrics }, async () => {
+    await refreshOperationalMetrics();
     const metrics = await metricsRegistry.metrics();
     return new Response(metrics, {
       status: 200,

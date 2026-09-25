@@ -1,0 +1,45 @@
+groups:
+  - name: convey-http
+    rules:
+      - alert: ConveyApiErrors
+        expr: sum(rate(convey_http_requests_total{status=~"5..",path!="/metrics"}[5m])) / clamp_min(sum(rate(convey_http_requests_total{path!="/metrics"}[5m])), 0.01) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Convey API errors exceed 5 percent
+      - alert: ConveyAcceptanceLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(convey_http_request_duration_seconds_bucket{path=~"/v1/messages/?|/v1/messages/bulk",method="POST"}[5m]))) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Convey message acceptance p95 exceeds 500ms
+      - alert: ConveyRelayBacklog
+        expr: convey_outbox_oldest_due_seconds > 60 and convey_operational_metrics_available == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Convey relay has messages overdue by more than a minute
+      - alert: ConveyDeliveryFailures
+        expr: convey_messages_failed_last_hour / clamp_min(convey_messages_failed_last_hour + convey_messages_delivered_last_hour, 1) > 0.05 and convey_messages_failed_last_hour > 10 and convey_operational_metrics_available == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Delivery failures are elevated for messages created in the last hour
+      - alert: ConveyProviderCircuitOpen
+        expr: convey_provider_circuits_open > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: A provider circuit remains open
+      - alert: ConveyMetricsUnavailable
+        expr: convey_operational_metrics_available == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Convey cannot refresh database-backed operational metrics
