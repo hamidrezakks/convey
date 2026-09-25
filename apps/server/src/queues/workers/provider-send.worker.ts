@@ -12,6 +12,8 @@ import {
   MessageState,
   MetricType,
 } from '../../modules/messaging/messaging.types';
+import { BudgetService } from '../../modules/policies/budget.service';
+import { estimateBudgetUnits } from '../../modules/policies/budget-estimate';
 import { LeakyBucketGovernor } from '../../modules/policies/leaky-bucket';
 import { PolicyEngine } from '../../modules/policies/policy-engine';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
@@ -128,6 +130,7 @@ export async function handleSendSuccess(params: {
   msg: typeof messages.$inferSelect;
   attemptId: string;
   now: Date;
+  budgetSettled?: boolean;
 }): Promise<void> {
   const { data, adapterId, providerMessageId, latencyMs, msg, attemptId, now } = params;
   providerCircuitBreaker.recordSuccess(adapterId);
@@ -186,7 +189,7 @@ export async function handleSendSuccess(params: {
     redisClient.set(redisKey, payload, 'EX', 86400 * 7).catch(() => {});
   }
 
-  if (!msg.isSandbox) {
+  if (!msg.isSandbox && !params.budgetSettled) {
     const rateInfo = getProviderRate(adapterId);
     await PolicyEngine.recordLedger({
       messageId: data.publicId,
@@ -304,7 +307,7 @@ export async function handlePermanentFailure(params: {
   now: Date;
 }): Promise<void> {
   const { data, adapterId, error, errorCategory, isTransient, latencyMs, msg, attemptId, now } = params;
-  providerCircuitBreaker.recordFailure(adapterId, true);
+  if (error?.code !== 'BUDGET_EXCEEDED') providerCircuitBreaker.recordFailure(adapterId, true);
 
   await db.insert(messageAttempts).values({
     id: attemptId,
@@ -331,7 +334,7 @@ export async function handlePermanentFailure(params: {
     attemptId,
     channel: data.channel,
     providerId: adapterId,
-    type: EventType.ATTEMPT_FAILED,
+    type: error?.code === 'BUDGET_EXCEEDED' ? EventType.POLICY_BUDGET_EXCEEDED : EventType.ATTEMPT_FAILED,
     source: EventSource.WORKER,
     metadata: { error, attemptsExhausted: isTransient },
     occurredAt: now,
@@ -464,7 +467,46 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
       providerConfig,
     );
 
+    let reservationId: string | undefined;
+    if (!msg.isSandbox) {
+      const rate = getProviderRate(adapter.id);
+      const reservation = await BudgetService.reserve({
+        key: JSON.stringify([data.publicId, data.channel, adapter.id, data.attemptNo, data.origin]),
+        messageId: data.publicId,
+        team: msg.team,
+        channel: data.channel,
+        providerId: adapter.id,
+        amount: rate.cost * estimateBudgetUnits(sendOptions),
+        currency: rate.currency,
+      });
+      if (!reservation.allowed) {
+        if (reservation.reason === 'duplicate') return;
+        await handlePermanentFailure({
+          data,
+          adapterId: adapter.id,
+          error: { code: 'BUDGET_EXCEEDED', message: 'Insufficient remaining budget' },
+          errorCategory: ErrorCategory.PERMANENT,
+          isTransient: false,
+          latencyMs: 0,
+          msg,
+          attemptId,
+          now,
+        });
+        return;
+      }
+      reservationId = reservation.id;
+    }
+    // No SQL transaction or lock is held while calling the external provider.
     const result = await adapter.send(sendOptions, providerConfig);
+    if (reservationId) {
+      if (result.success) await BudgetService.settle(reservationId, 'committed');
+      else if (
+        result.error?.category === ErrorCategory.PERMANENT ||
+        result.error?.category === ErrorCategory.RATE_LIMITED
+      )
+        await BudgetService.settle(reservationId, 'released');
+      // Timeouts/transient failures can have been accepted remotely. Retain their hold for reconciliation.
+    }
 
     const latencyMs = Math.round(performance.now() - startTime);
 
@@ -473,6 +515,7 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
         data,
         adapterId: adapter.id,
         providerMessageId: result.providerMessageId,
+        budgetSettled: Boolean(reservationId),
         latencyMs,
         msg,
         attemptId,

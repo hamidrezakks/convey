@@ -4,6 +4,7 @@ import {
   apiKeys,
   auditLogs,
   budgetPolicies,
+  budgetReservations,
   budgetUsage,
   campaigns,
   messageAttempts,
@@ -44,6 +45,7 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
   await db.delete(messages);
   await db.delete(reportHourly);
   await db.delete(suppressions);
+  await db.delete(budgetReservations);
   await db.delete(budgetUsage);
   await db.delete(budgetPolicies);
   await db.delete(rateLimitPolicies);

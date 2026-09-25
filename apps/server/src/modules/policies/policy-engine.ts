@@ -1,13 +1,12 @@
 import { formatCurrencyAmount } from '@convey/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { budgetLedger, budgetPolicies, budgetUsage, rateLimitPolicies } from '../../db/schema';
+import { budgetPolicies, budgetUsage, rateLimitPolicies } from '../../db/schema';
 import { redisClient } from '../../queues/connection';
-import { getUtcMonthString } from '../../utils/date';
-import { generateMessageId } from '../../utils/id';
 import { BoundedLruCache } from '../../utils/lru-cache';
 import { formatRedisKey } from '../../utils/redis-keys';
 import type { MessagePriority } from '../messaging/messaging.types';
+import { BudgetService } from './budget.service';
 import { fxEngine } from './fx-engine';
 import { QuietHoursEngine } from './quiet-hours';
 import { TokenBucketLimiter, type TokenBucketResult } from './token-bucket';
@@ -91,17 +90,30 @@ export async function updateMonthlyBudgetUsage(
   currency = 'USD',
   now = new Date(),
 ): Promise<void> {
+  if (!Number.isFinite(amountInPolicyCurrency) || amountInPolicyCurrency < 0)
+    throw new Error('Invalid budget usage increment');
   const usageId = `${policyId}_${month}`;
   const amountStr = amountInPolicyCurrency.toFixed(4);
 
-  await db.execute(sql`
-    INSERT INTO budget_usage (id, policy_id, month, currency, used_usd, updated_at)
-    VALUES (${usageId}, ${policyId}, ${month}, ${currency}, ${amountStr}::numeric, ${now})
-    ON CONFLICT (id) DO UPDATE SET
-      currency = EXCLUDED.currency,
-      used_usd = (budget_usage.used_usd + EXCLUDED.used_usd)::numeric(12, 4),
-      updated_at = EXCLUDED.updated_at;
-  `);
+  await db.transaction(async (tx) => {
+    const [policy] = await tx.select().from(budgetPolicies).where(eq(budgetPolicies.id, policyId));
+    if (!policy || policy.currency !== currency || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+      throw new Error('Invalid budget policy, currency or month');
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${policy.team}, 24001))`);
+    const rows = await tx
+      .select()
+      .from(budgetUsage)
+      .where(and(eq(budgetUsage.policyId, policyId), eq(budgetUsage.month, month)));
+    if (rows.some((row) => row.currency !== currency || row.id !== usageId))
+      throw new Error('Budget usage currency or identity mismatch');
+    await tx.execute(sql`
+      INSERT INTO budget_usage (id, policy_id, month, currency, used_usd, updated_at)
+      VALUES (${usageId}, ${policyId}, ${month}, ${currency}, ${amountStr}::numeric, ${now})
+      ON CONFLICT (id) DO UPDATE SET
+        used_usd = (budget_usage.used_usd + EXCLUDED.used_usd)::numeric(12, 4),
+        updated_at = EXCLUDED.updated_at;
+    `);
+  });
 }
 
 export const PolicyEngine = {
@@ -189,51 +201,20 @@ export const PolicyEngine = {
     usedUsd?: number;
     limitUsd?: number;
   }> {
-    const policies = await getBudgetPoliciesForTeam(team);
-
-    if (!policies.length) {
-      return { allowed: true };
-    }
-
-    const policy = policies[0];
-    const month = getUtcMonthString();
-    const policyCurrency = (policy.currency || 'USD').toUpperCase();
-
-    const usageRecords = await db
-      .select()
-      .from(budgetUsage)
-      .where(and(eq(budgetUsage.policyId, policy.id), eq(budgetUsage.month, month)));
-
-    const usedAmount = usageRecords.length ? Number.parseFloat(usageRecords[0].usedUsd) : 0;
-    const limitAmount = Number.parseFloat(policy.monthlyBudgetUsd);
-
-    const usedUsd = fxEngine.toUsd(usedAmount, policyCurrency);
-    const limitUsd = fxEngine.toUsd(limitAmount, policyCurrency);
-
-    if (usedAmount >= limitAmount && policy.hardStop === 'true') {
-      return {
-        allowed: false,
-        policyId: policy.id,
-        currency: policyCurrency,
-        usedAmount,
-        limitAmount,
-        formattedUsed: formatCurrencyAmount(usedAmount, policyCurrency),
-        formattedLimit: formatCurrencyAmount(limitAmount, policyCurrency),
-        usedUsd,
-        limitUsd,
-      };
-    }
-
+    const policy = await BudgetService.get(team);
+    if (!policy) return { allowed: true };
+    const usedAmount = policy.usedAmount + (policy.reservedAmount ?? 0);
+    const limitAmount = policy.monthlyBudget;
     return {
-      allowed: true,
+      allowed: !policy.hardStop || usedAmount < limitAmount,
       policyId: policy.id,
-      currency: policyCurrency,
+      currency: policy.currency,
       usedAmount,
       limitAmount,
-      formattedUsed: formatCurrencyAmount(usedAmount, policyCurrency),
-      formattedLimit: formatCurrencyAmount(limitAmount, policyCurrency),
-      usedUsd,
-      limitUsd,
+      formattedUsed: formatCurrencyAmount(usedAmount, policy.currency),
+      formattedLimit: formatCurrencyAmount(limitAmount, policy.currency),
+      usedUsd: fxEngine.toUsd(usedAmount, policy.currency),
+      limitUsd: fxEngine.toUsd(limitAmount, policy.currency),
     };
   },
 
@@ -246,39 +227,18 @@ export const PolicyEngine = {
     channel: string;
     providerId: string;
   }): Promise<void> {
-    const now = new Date();
-    const month = getUtcMonthString(now);
-    const ledgerId = generateMessageId();
-
-    const providerCurrency = (params.currency || 'USD').toUpperCase();
-    const originalAmount = params.amount ?? params.amountUsd ?? 0.005;
-
-    // Resolve team policy to determine policy currency
-    const policies = await getBudgetPoliciesForTeam(params.team);
-    const policyCurrency = policies.length ? (policies[0].currency || 'USD').toUpperCase() : 'USD';
-
-    // High-precision FX conversion
-    const fxResult = fxEngine.convert(originalAmount, providerCurrency, policyCurrency);
-    const exchangeRate = fxResult.exchangeRate;
-    const amountInPolicyCurrency = fxResult.convertedAmount;
-    const amountUsd = fxResult.amountUsd;
-
-    await db.insert(budgetLedger).values({
-      id: ledgerId,
-      messageId: params.messageId,
-      team: params.team,
-      amountUsd: amountUsd.toFixed(4),
-      currency: providerCurrency,
-      exchangeRate: exchangeRate.toFixed(8),
-      amountInPolicyCurrency: amountInPolicyCurrency.toFixed(4),
-      channel: params.channel,
-      providerId: params.providerId,
-      createdAt: now,
-    });
-
-    if (policies.length) {
-      await updateMonthlyBudgetUsage(policies[0].id, month, amountInPolicyCurrency, policyCurrency, now);
-    }
+    const charge = await BudgetService.reserve(
+      {
+        ...params,
+        key: JSON.stringify([params.messageId, params.channel, params.providerId, 'accepted']),
+        amount: params.amount ?? params.amountUsd ?? Number.NaN,
+        currency: params.currency ?? 'USD',
+      },
+      new Date(),
+      false,
+    );
+    // Settlement is idempotent and can finish a previously interrupted accounting transaction.
+    await BudgetService.settle(charge.id, 'committed');
   },
 
   checkQuietHours(params: {

@@ -251,7 +251,7 @@ export async function processDispatchJob(publicId: string): Promise<void> {
   }
 
   // 2. Policy check: Financial Budget
-  const budgetCheck = await PolicyEngine.checkBudget(msg.team);
+  const budgetCheck = msg.isSandbox ? { allowed: true } : await PolicyEngine.checkBudget(msg.team);
   if (!budgetCheck.allowed) {
     await db
       .update(messages)

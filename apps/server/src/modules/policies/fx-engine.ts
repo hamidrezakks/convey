@@ -55,11 +55,13 @@ export class FxEngine {
 
   /**
    * Retrieves the rate to 1 USD for a given currency code.
-   * If unknown, defaults gracefully to 1.0 USD.
+   * Unknown currencies fail closed instead of silently being valued as USD.
    */
   public getRateToUsd(currency: string): number {
     const code = (currency || 'USD').toUpperCase();
-    return this.rates.get(code) ?? 1.0;
+    const rate = this.rates.get(code);
+    if (rate === undefined || !Number.isFinite(rate) || rate <= 0) throw new Error(`No valid FX rate for ${code}`);
+    return rate;
   }
 
   /**
@@ -71,6 +73,8 @@ export class FxEngine {
     const from = (fromCurrency || 'USD').toUpperCase();
     const to = (toCurrency || 'USD').toUpperCase();
 
+    this.getRateToUsd(from);
+    this.getRateToUsd(to);
     if (from === to) {
       return 1.0;
     }
@@ -90,6 +94,7 @@ export class FxEngine {
     toCurrency: string = 'USD',
     precision: number = 4,
   ): FxConversionResult {
+    if (!Number.isFinite(amount) || amount < 0) throw new Error('Invalid currency amount');
     const from = (fromCurrency || 'USD').toUpperCase();
     const to = (toCurrency || 'USD').toUpperCase();
     const rate = this.getExchangeRate(from, to);
@@ -126,7 +131,7 @@ export class FxEngine {
    * Overrides or registers a dynamic FX rate for a currency against USD base.
    */
   public setRate(currency: string, rateToUsd: number): void {
-    if (rateToUsd <= 0) {
+    if (!Number.isFinite(rateToUsd) || rateToUsd <= 0) {
       throw new Error(`Invalid exchange rate: ${rateToUsd} for currency ${currency}`);
     }
     const code = currency.toUpperCase();
@@ -171,7 +176,7 @@ export class FxEngine {
       if (customRates && Object.keys(customRates).length > 0) {
         for (const [curr, rateStr] of Object.entries(customRates)) {
           const parsed = Number.parseFloat(rateStr);
-          if (!Number.isNaN(parsed) && parsed > 0) {
+          if (Number.isFinite(parsed) && parsed > 0) {
             this.rates.set(curr.toUpperCase(), parsed);
           }
         }

@@ -425,6 +425,7 @@ export interface BudgetPolicyDto {
   monthlyBudget: number;
   currency: string;
   usedAmount: number;
+  reservedAmount?: number;
   remainingAmount: number;
   currencySymbol: string;
   hardStop: boolean;
