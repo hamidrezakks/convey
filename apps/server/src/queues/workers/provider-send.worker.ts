@@ -13,7 +13,7 @@ import {
   MetricType,
 } from '../../modules/messaging/messaging.types';
 import { BudgetService } from '../../modules/policies/budget.service';
-import { estimateBudgetUnits } from '../../modules/policies/budget-estimate';
+import { estimateBudgetRecipients, estimateBudgetUnits } from '../../modules/policies/budget-estimate';
 import { LeakyBucketGovernor } from '../../modules/policies/leaky-bucket';
 import { PolicyEngine } from '../../modules/policies/policy-engine';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
@@ -42,6 +42,8 @@ import { fallbackRetryQueue } from '../queue-definitions';
 
 export interface SendJobData {
   attemptId?: string;
+  budgetExecutionId?: string;
+  budgetStep?: string;
   publicId: string;
   channel: Channel;
   tenantId?: string;
@@ -288,6 +290,8 @@ export async function handleTransientFailure(params: {
       providerId: adapterId,
       content: data.content,
       recipient: data.recipient,
+      budgetExecutionId: data.budgetExecutionId,
+      budgetStep: data.budgetStep,
       origin: AttemptOrigin.RETRY,
       attemptNo: nextAttemptNo,
     },
@@ -373,6 +377,7 @@ export async function handlePermanentFailure(params: {
           'trigger-fallback',
           {
             publicId: data.publicId,
+            budgetExecutionId: data.budgetExecutionId,
             triggerChannel: data.channel,
             triggerEvent: 'failed',
             targetChannels: rule.send,
@@ -424,6 +429,8 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
   if (!msgList.length) return;
   const msg = msgList[0];
 
+  if ((data.budgetExecutionId ?? '') !== (msg.metadata?._budgetExecutionId ?? '')) return;
+
   if (msg.cancelledAt || (msg.expiresAt && now >= msg.expiresAt)) {
     return;
   }
@@ -471,7 +478,15 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
     if (!msg.isSandbox) {
       const rate = getProviderRate(adapter.id);
       const reservation = await BudgetService.reserve({
-        key: JSON.stringify([data.publicId, data.channel, adapter.id, data.attemptNo, data.origin]),
+        key: JSON.stringify([
+          data.publicId,
+          data.budgetExecutionId,
+          data.budgetStep,
+          data.channel,
+          adapter.id,
+          data.attemptNo,
+          data.origin,
+        ]),
         messageId: data.publicId,
         team: msg.team,
         channel: data.channel,
@@ -501,11 +516,11 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
     if (reservationId) {
       if (result.success) await BudgetService.settle(reservationId, 'committed');
       else if (
-        result.error?.category === ErrorCategory.PERMANENT ||
-        result.error?.category === ErrorCategory.RATE_LIMITED
+        estimateBudgetRecipients(sendOptions) === 1 &&
+        (result.error?.category === ErrorCategory.PERMANENT || result.error?.category === ErrorCategory.RATE_LIMITED)
       )
         await BudgetService.settle(reservationId, 'released');
-      // Timeouts/transient failures can have been accepted remotely. Retain their hold for reconciliation.
+      // Timeouts and partial bulk failures can have been accepted remotely. Retain their hold for reconciliation.
     }
 
     const latencyMs = Math.round(performance.now() - startTime);

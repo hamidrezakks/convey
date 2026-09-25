@@ -9,9 +9,11 @@ import {
   messageAttempts,
   messageEvents,
   messages,
+  outbox,
   teamOwners,
   tenants,
 } from '../src/db/schema';
+import { DlqService } from '../src/modules/messaging/dlq.service';
 import { AttemptOrigin, Channel, MessagePriority, MessageState } from '../src/modules/messaging/messaging.types';
 import { BudgetService } from '../src/modules/policies/budget.service';
 import { estimateBudgetUnits } from '../src/modules/policies/budget-estimate';
@@ -43,6 +45,7 @@ afterAll(async () => {
       .from(messages)
       .where(and(eq(messages.team, team), sql`${messages.createdAt} >= date_trunc('month', now())`));
     for (const row of seeded) {
+      await db.delete(outbox).where(eq(outbox.messageId, row.id));
       await db
         .delete(messageAttempts)
         .where(
@@ -110,7 +113,13 @@ describe('Durable budget enforcement', () => {
     expect(estimateBudgetUnits(options)).toBe(4);
     expect(estimateBudgetUnits({ ...options, content: { text: '^'.repeat(81) } })).toBe(4);
     expect(estimateBudgetUnits({ ...options, content: { text: '😀'.repeat(36) } })).toBe(4);
-    expect(estimateBudgetUnits({ ...options, channel: Channel.EMAIL })).toBe(2);
+    expect(
+      estimateBudgetUnits({
+        ...options,
+        channel: Channel.EMAIL,
+        recipient: { ...options.recipient, email: ['a', 'b', 'c'] },
+      }),
+    ).toBe(3);
     expect(estimateBudgetUnits({ ...options, content: { text: '^'.repeat(153) } })).toBe(6);
     expect(estimateBudgetUnits({ ...options, content: { text: '😀'.repeat(67) } })).toBe(6);
   });
@@ -162,6 +171,23 @@ describe('Durable budget enforcement', () => {
       if (!job) throw new Error('Missing accepted job');
       await processProviderSendJob(job);
       expect(send).toHaveBeenCalledTimes(1);
+      await db.update(budgetPolicies).set({ monthlyBudgetUsd: '0.0158' }).where(eq(budgetPolicies.team, team));
+      await db
+        .update(messages)
+        .set({ state: MessageState.FAILED })
+        .where(and(eq(messages.publicId, job.publicId), sql`${messages.createdAt} >= date_trunc('month', now())`));
+      expect((await DlqService.replayFailedMessages([job.publicId])).replayedCount).toBe(1);
+      const [replayed] = await db
+        .select()
+        .from(messages)
+        .where(and(eq(messages.publicId, job.publicId), sql`${messages.createdAt} >= date_trunc('month', now())`));
+      await processProviderSendJob(job);
+      expect(send).toHaveBeenCalledTimes(1);
+      const execution = replayed.metadata?._budgetExecutionId;
+      if (typeof execution !== 'string') throw new Error('Missing replay generation');
+      await processProviderSendJob({ ...job, budgetExecutionId: execution });
+      expect(send).toHaveBeenCalledTimes(2);
+      expect((await BudgetService.get(team))?.usedAmount).toBe(0.0158);
       expect(failure).not.toHaveBeenCalled();
     } finally {
       send.mockRestore();

@@ -20,16 +20,18 @@ function segments(widths: number[], single: number, multipart: number): number {
   }
   return count;
 }
-export function estimateBudgetUnits(options: ProviderSendOptions): number {
+export function estimateBudgetRecipients(options: ProviderSendOptions): number {
   const recipient = options.recipient;
   const targets =
-    recipient.phone ??
-    recipient.email ??
-    recipient.to ??
-    recipient.fcmTokens ??
-    recipient.apnsTokens ??
-    recipient.deviceTokens;
-  const recipients = Array.isArray(targets) ? Math.max(1, targets.length) : 1;
+    options.channel === 'email'
+      ? [recipient.email ?? recipient.to]
+      : options.channel === 'sms' || options.channel === 'whatsapp'
+        ? [recipient.phone ?? recipient.to]
+        : [recipient.fcmTokens, recipient.apnsTokens, recipient.deviceTokens, recipient.to];
+  return Math.max(1, ...targets.map((target) => (Array.isArray(target) ? target.length : 1)));
+}
+export function estimateBudgetUnits(options: ProviderSendOptions): number {
+  const recipients = estimateBudgetRecipients(options);
   if (options.channel !== 'sms') return recipients;
   const text = String(options.content.text ?? options.content.body ?? options.content.title ?? '');
   const characters = Array.from(text);

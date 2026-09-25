@@ -232,7 +232,7 @@ export const PolicyEngine = {
         ...params,
         key: JSON.stringify([params.messageId, params.channel, params.providerId, 'accepted']),
         amount: params.amount ?? params.amountUsd ?? Number.NaN,
-        currency: params.currency ?? 'USD',
+        currency: params.amount === undefined ? 'USD' : (params.currency ?? 'USD'),
       },
       new Date(),
       false,

@@ -119,6 +119,8 @@ import { CascadeManager } from '../../modules/messaging/cascade-manager';
 import type { CascadeConfig } from '../../modules/messaging/messaging.types';
 
 export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, publicId: string): Promise<void> {
+  const budgetExecutionId =
+    typeof msg.metadata?._budgetExecutionId === 'string' ? msg.metadata._budgetExecutionId : undefined;
   let channels = msg.channels;
   let recipient = msg.recipients;
 
@@ -155,6 +157,8 @@ export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, 
         channel,
         content: stepData.content || {},
         recipient,
+        budgetExecutionId,
+        budgetStep: 'cascade-0',
         origin: AttemptOrigin.INITIAL,
         attemptNo: 1,
       };
@@ -170,7 +174,7 @@ export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, 
     return;
   }
 
-  for (const channelReq of channels) {
+  for (const [channelIndex, channelReq] of channels.entries()) {
     const channel = channelReq.channel as Channel;
     const channelReqProviderId =
       'providerId' in channelReq && typeof channelReq.providerId === 'string' ? channelReq.providerId : undefined;
@@ -190,6 +194,8 @@ export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, 
       channel,
       content: ('content' in channelReq ? channelReq.content : {}) || {},
       recipient,
+      budgetExecutionId,
+      budgetStep: `channel-${channelIndex}`,
       origin: AttemptOrigin.INITIAL,
       attemptNo: 1,
     };

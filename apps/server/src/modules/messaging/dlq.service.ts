@@ -153,6 +153,7 @@ export const DlqService = {
             .set({
               state: MessageState.ACCEPTED,
               completedAt: null,
+              metadata: { ...msg.metadata, _budgetExecutionId: outboxId },
               updatedAt: now,
             })
             .where(
@@ -279,7 +280,7 @@ export const DlqService = {
           .set({
             recipients: mergedRecipients,
             channels: mergedChannels,
-            metadata: mergedMetadata,
+            metadata: { ...mergedMetadata, _budgetExecutionId: outboxId },
             isSandbox: scope?.isSandbox ?? params.isSandbox ?? msg.isSandbox,
             state: MessageState.ACCEPTED,
             completedAt: null,
