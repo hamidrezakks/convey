@@ -84,6 +84,7 @@ The legacy suite requires `NODE_ENV=test` in addition to its explicit developmen
 ## Operational references
 
 - [Migration and rollback](docs/operations/hardening-migration.md)
+- [Provider implementation audit and unavailable integrations](docs/provider-porting-matrix.md)
 - [Verified behavior and remaining work](docs/operations/hardening-verification.md)
 - [Security boundaries](docs/security.md)
 - [Metrics and alert rules](docs/operations/metrics.md)

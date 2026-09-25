@@ -1,8 +1,8 @@
 # Convey Provider Capabilities & Integration Matrix
 
-Convey integrates **88 external communication providers** across 5 channels (Email, SMS, Push, Chat, Tool).
+The catalog contains 88 module entries. Native implementation and verification status vary; 20 incomplete SMS implementations are disabled. See the authoritative [provider audit matrix](provider-porting-matrix.md) before enabling a provider.
 
-Every provider is implemented as a 100% standalone TypeScript module under `src/modules/providers/` conforming to the unified `ProviderAdapter` interface, with dedicated payload transformers, mock harnesses for unit/E2E testing, and cryptographic webhook signature verification.
+Modules implement the shared TypeScript adapter interface. Mock fixtures test local behavior only. Webhook ingestion uses the trusted gateway signature contract in [security.md](security.md); native cryptographic verification is not implemented for every vendor.
 
 ---
 
@@ -36,7 +36,7 @@ Every provider is implemented as a 100% standalone TypeScript module under `src/
 
 ---
 
-## 2. Complete Provider Matrix (88 Turnkey Providers)
+## 2. Provider Catalog (implementation status varies)
 
 ### 📧 Email Providers (20 Adapters)
 

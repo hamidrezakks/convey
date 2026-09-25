@@ -1,6 +1,6 @@
 ---
-title: Provider Ecosystem & Turnkey Adapters
-description: Setup guides for 88+ turnkey provider integrations across Email, SMS, WhatsApp, Push, Chat, and Webhooks with dynamic fallback and smart scorecard routing.
+title: Provider Ecosystem & Implementation Status
+description: Configuration references and implementation limits for provider integrations.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
@@ -8,11 +8,11 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 # Provider Ecosystem
 
-Convey provides **88+ built-in provider adapters** across 5 primary communication channels. All adapters include automatic circuit breakers, retry backoffs, and scorecards.
+Convey contains **88 provider module entries**. Twenty incomplete native SMS adapters are disabled. Module presence and mock tests do not certify live delivery or optional-feature parity. See `docs/provider-porting-matrix.md` in the repository for the per-provider audit and remaining work.
 
 ---
 
-## Supported Channels & Turnkey Providers
+## Provider Catalog
 
 ### 1. Email (20 Adapters)
 - **AWS SES v2**: IAM SigV4 authentication, dedicated IP pools, SNS event destinations.

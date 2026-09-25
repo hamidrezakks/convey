@@ -1,13 +1,13 @@
 # Convey Comprehensive Provider Reference & Integration Manual
 
-Convey provides first-class native integration with **88 external communication providers** across 5 distinct channels:
-- 📧 **Email Channel** (20 Turnkey Adapters)
-- 📱 **SMS Channel** (39 Turnkey Adapters)
-- 🔔 **Push Notifications Channel** (8 Turnkey Adapters)
-- 💬 **Chat & Instant Messaging Channel** (17 Turnkey Adapters)
-- 🛠️ **Tool & Infrastructure Alerting Channel** (4 Turnkey Adapters)
+The catalog contains **88 module entries** across five channels. **20 incomplete SMS integrations are disabled.** Consult the [provider audit matrix](provider-porting-matrix.md) for implementation status and remaining verification; the entries below are configuration references, not certification.
+- 📧 **Email Channel** (20 Module Entries)
+- 📱 **SMS Channel** (39 Module Entries)
+- 🔔 **Push Notifications Channel** (8 Module Entries)
+- 💬 **Chat & Instant Messaging Channel** (17 Module Entries)
+- 🛠️ **Tool & Infrastructure Alerting Channel** (4 Module Entries)
 
-Every provider is implemented as a 100% standalone, zero-dependency TypeScript module under `apps/server/src/modules/providers/<channel>/<provider-id>/` conforming to the unified `ProviderAdapter` and `ProviderModule` contracts.
+Providers are standalone TypeScript modules and may use vendor SDK dependencies. They live under `apps/server/src/modules/providers/<channel>/<provider-id>/` conforming to the unified `ProviderAdapter` and `ProviderModule` contracts.
 
 ---
 
@@ -648,7 +648,7 @@ For any provider integration, credentials and parameters are resolved using the 
 
 ## 8. Outbound Transport Proxy Layer (HTTP, HTTPS, SOCKS5)
 
-Convey features an enterprise-grade outbound transport proxy layer that allows any of the **88 provider adapters** to route outbound API and webhook traffic through an intermediate proxy gateway. This enables compliance with zero-trust networks, strict DMZ egress policies, static IP whitelisting requirements, and air-gapped corporate topologies.
+Convey features an enterprise-grade outbound transport proxy layer that supports configured outbound HTTP proxying in the Resend and Twilio adapters; proxy parity across the catalog remains pending. This enables compliance with zero-trust networks, strict DMZ egress policies, static IP whitelisting requirements, and air-gapped corporate topologies.
 
 ### 8.1 Supported Proxy Protocols
 
@@ -782,7 +782,7 @@ The transport proxy layer exports real-time metrics scraped at `GET /metrics`:
 
 ## 9. Realistic Provider Simulation & Multi-Container Docker Mocks
 
-Convey includes a high-performance, standalone provider simulation engine (`apps/mock-server`) allowing zero-credential production testing across all 88 communication providers with authentic schemas, box-formatted container stdout logs, and delayed asynchronous delivery webhooks.
+Convey includes a high-performance, standalone provider simulation engine (`apps/mock-server`) allowing credential-free simulation of provider flows; this is not production or live-provider certification, box-formatted container stdout logs, and delayed asynchronous delivery webhooks.
 
 ### 9.1 Multi-Container Compose Setup
 Run discrete containers for each provider:
