@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -33,8 +34,8 @@ export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, Te
   }
 
   hasSetup(configOverride?: TelnyxAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: TelnyxAdapterConfig): TelnyxApiRequest {
@@ -46,7 +47,17 @@ export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, Te
   }
 
   async send(options: ProviderSendOptions, configOverride?: TelnyxAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -62,7 +73,7 @@ export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, Te
       };
     }
 
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+    const endpoint = config.baseUrl || 'https://api.telnyx.com/v2/messages';
 
     try {
       const response = await providerFetch(endpoint, {
@@ -100,7 +111,8 @@ export class TelnyxSmsAdapter implements ProviderAdapter<TelnyxAdapterConfig, Te
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
-    const status = (webhookData.data?.event_type || '').toLowerCase();
+    if (webhookData.data?.event_type !== 'message.finalized') return [];
+    const status = (webhookData.data?.payload?.to?.[0]?.status || '').toLowerCase();
     if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
     else if (status !== 'delivered') return [];
 

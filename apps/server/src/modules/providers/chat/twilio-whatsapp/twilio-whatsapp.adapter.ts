@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -40,8 +41,8 @@ export class TwilioWhatsappChatAdapter
   }
 
   hasSetup(configOverride?: TwilioWhatsappAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.accountSid || config.authToken);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.accountSid && config.authToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: TwilioWhatsappAdapterConfig): TwilioWhatsappApiRequest {
@@ -53,7 +54,17 @@ export class TwilioWhatsappChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: TwilioWhatsappAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const accountSid = config.accountSid || '';
     const authToken = config.authToken || '';
 

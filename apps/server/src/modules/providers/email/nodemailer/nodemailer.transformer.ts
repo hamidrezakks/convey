@@ -27,7 +27,13 @@ export class NodemailerTransformer
   }
 
   transformResponse(response: NodemailerSendResult, statusCode = 200, rawBody?: unknown): ProviderSendResult {
-    if (statusCode >= 200 && statusCode < 300 && response.messageId && response.accepted?.length) {
+    if (
+      statusCode >= 200 &&
+      statusCode < 300 &&
+      response.messageId &&
+      response.accepted?.length &&
+      !response.rejected?.length
+    ) {
       return {
         success: true,
         providerMessageId: response.messageId.replace(/[<>]/g, ''),

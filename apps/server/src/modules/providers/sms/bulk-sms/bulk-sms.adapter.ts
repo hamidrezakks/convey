@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -36,8 +37,8 @@ export class BulkSmsSmsAdapter
   }
 
   hasSetup(configOverride?: BulkSmsSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.username || config.password || config.apiKey);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.username && config.password);
   }
 
   transformRequest(options: ProviderSendOptions, config?: BulkSmsSmsAdapterConfig): BulkSmsApiRequest {
@@ -49,7 +50,17 @@ export class BulkSmsSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: BulkSmsSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const username = config.username || '';
     const password = config.password || '';
     const apiKey = config.apiKey || '';

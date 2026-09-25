@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -35,8 +36,8 @@ export class MailgunEmailAdapter
   }
 
   hasSetup(configOverride?: MailgunEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.domain || config.username || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.domain);
   }
 
   transformRequest(options: ProviderSendOptions, config?: MailgunEmailAdapterConfig): MailgunApiRequest {
@@ -48,7 +49,17 @@ export class MailgunEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MailgunEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
     const domain = config.domain || '';
     const username = config.username || 'api';

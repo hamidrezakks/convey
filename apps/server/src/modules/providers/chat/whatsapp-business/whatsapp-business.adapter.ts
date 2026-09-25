@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -62,8 +63,8 @@ export class WhatsappBusinessChatAdapter
   }
 
   hasSetup(configOverride?: WhatsappBusinessChatAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.phoneNumberId || config.accessToken);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.phoneNumberId && config.accessToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: WhatsappBusinessChatAdapterConfig): WhatsappApiRequest {
@@ -78,7 +79,17 @@ export class WhatsappBusinessChatAdapter
     options: ProviderSendOptions,
     configOverride?: WhatsappBusinessChatAdapterConfig,
   ): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const phoneNumberId = config.phoneNumberId || '';
     const accessToken = config.accessToken || '';
     const baseUrl = config.baseUrl || 'https://graph.facebook.com';

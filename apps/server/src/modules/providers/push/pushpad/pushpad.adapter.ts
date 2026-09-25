@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -34,8 +35,8 @@ export class PushpadPushAdapter
   }
 
   hasSetup(configOverride?: PushpadPushAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.authToken || config.projectId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.authToken && config.projectId);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PushpadPushAdapterConfig): PushpadApiRequest {
@@ -47,7 +48,17 @@ export class PushpadPushAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: PushpadPushAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const authToken = config.authToken || '';
     const projectId = config.projectId || '';
 

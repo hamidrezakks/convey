@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import {
   Channel,
   ErrorCategory,
@@ -34,7 +35,7 @@ export class NodemailerEmailAdapter
   }
 
   hasSetup(configOverride?: NodemailerEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.host) && Boolean(config.user) === Boolean(config.pass);
   }
 
@@ -47,7 +48,17 @@ export class NodemailerEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: NodemailerEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const reqPayload = this.transformRequest(options, config);
 
     if (!reqPayload.to || (Array.isArray(reqPayload.to) && reqPayload.to.length === 0)) {

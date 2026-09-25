@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -32,8 +33,8 @@ export class ZulipChatAdapter implements ProviderAdapter<ZulipAdapterConfig, Zul
   }
 
   hasSetup(configOverride?: ZulipAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.domain || config.email || config.username || config.apiKey);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.domain && (config.email || config.username) && config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: ZulipAdapterConfig): ZulipApiRequest {
@@ -45,7 +46,17 @@ export class ZulipChatAdapter implements ProviderAdapter<ZulipAdapterConfig, Zul
   }
 
   async send(options: ProviderSendOptions, configOverride?: ZulipAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const domain = config.domain || '';
     const email = config.email || config.username || '';
     const apiKey = config.apiKey || '';

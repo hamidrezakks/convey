@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -34,8 +35,8 @@ export class RocketChatChatAdapter
   }
 
   hasSetup(configOverride?: RocketChatAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.token || config.user || config.userId || config.serverUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.serverUrl && config.token && (config.userId || config.user));
   }
 
   transformRequest(options: ProviderSendOptions, config?: RocketChatAdapterConfig): RocketChatApiRequest {
@@ -47,7 +48,17 @@ export class RocketChatChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: RocketChatAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const token = config.token || '';
     const user = config.user || config.userId || '';
     const serverUrl = config.serverUrl || '';

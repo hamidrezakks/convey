@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -34,8 +35,8 @@ export class OpsgenieToolAdapter
   }
 
   hasSetup(configOverride?: OpsgenieToolAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.webhookUrl || config.region);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: OpsgenieToolAdapterConfig): OpsgenieApiCreateAlertPayload {
@@ -47,7 +48,17 @@ export class OpsgenieToolAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: OpsgenieToolAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = (options.recipient.to as string) || (options.recipient.channel as string) || config.apiKey;
 
     if (!apiKey && !config.webhookUrl) {

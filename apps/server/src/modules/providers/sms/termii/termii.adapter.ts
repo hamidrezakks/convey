@@ -1,5 +1,4 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
-import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -32,9 +31,8 @@ export class TermiiSmsAdapter implements ProviderAdapter<TermiiAdapterConfig, Te
     this.config = config;
   }
 
-  hasSetup(configOverride?: TermiiAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+  hasSetup(_configOverride?: TermiiAdapterConfig): boolean {
+    return false;
   }
 
   transformRequest(options: ProviderSendOptions, config?: TermiiAdapterConfig): TermiiApiRequest {
@@ -45,52 +43,15 @@ export class TermiiSmsAdapter implements ProviderAdapter<TermiiAdapterConfig, Te
     return termiiTransformer.transformResponse(response, statusCode, rawBody);
   }
 
-  async send(options: ProviderSendOptions, configOverride?: TermiiAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.apiKey || '';
-
-    const reqPayload = this.transformRequest(options, config);
-
-    if (!reqPayload.to) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_RECIPIENT',
-          message: 'Recipient phone number is required for Termii',
-          category: ErrorCategory.PERMANENT,
-        },
-      };
-    }
-
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
-
-    try {
-      const response = await providerFetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(reqPayload),
-      });
-
-      const responseText = await response.text();
-      let responseJson: TermiiApiResponse = {};
-
-      try {
-        responseJson = JSON.parse(responseText) as TermiiApiResponse;
-      } catch {
-        responseJson = { message: responseText };
-      }
-
-      return this.transformResponse(responseJson, response.status, responseText);
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
-      };
-    }
+  async send(_options: ProviderSendOptions, _configOverride?: TermiiAdapterConfig): Promise<ProviderSendResult> {
+    return {
+      success: false,
+      error: {
+        code: 'PROVIDER_NOT_IMPLEMENTED',
+        message: 'Native vendor protocol is not implemented for this adapter. See docs/provider-porting-matrix.md.',
+        category: ErrorCategory.PERMANENT,
+      },
+    };
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {

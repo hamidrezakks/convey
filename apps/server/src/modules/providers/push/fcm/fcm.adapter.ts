@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { httpErrorCategory, providerFetch } from '../../core/provider-http';
 import { ProviderTokenCache, signProviderJwt } from '../../core/provider-token';
 import {
@@ -27,7 +28,7 @@ export class FcmPushAdapter implements ProviderAdapter<FcmPushAdapterConfig, Fcm
   private tokens = new ProviderTokenCache();
   constructor(private config?: FcmPushAdapterConfig) {}
   hasSetup(override?: FcmPushAdapterConfig): boolean {
-    const config = { ...this.config, ...override };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...override });
     return Boolean(config.projectId && config.email && config.privateKey);
   }
   transformRequest(options: ProviderSendOptions, _config?: FcmPushAdapterConfig): FcmApiRequest {
@@ -37,7 +38,7 @@ export class FcmPushAdapter implements ProviderAdapter<FcmPushAdapterConfig, Fcm
     return fcmTransformer.transformResponse(response, status, rawBody);
   }
   async send(options: ProviderSendOptions, override?: FcmPushAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...override };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...override });
     const payload = this.transformRequest(options);
     const tokens = options.recipient.fcmTokens || options.recipient.deviceTokens || [];
     if (!payload.message.token || tokens.length > 1)

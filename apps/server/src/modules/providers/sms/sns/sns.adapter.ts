@@ -1,5 +1,6 @@
 import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { httpErrorCategory } from '../../core/provider-http';
 import {
   Channel,
@@ -34,7 +35,7 @@ export class SnsSmsAdapter implements ProviderAdapter<SnsAdapterConfig, SnsApiRe
   }
 
   hasSetup(configOverride?: SnsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.region && config.accessKeyId && config.secretAccessKey);
   }
 
@@ -47,7 +48,17 @@ export class SnsSmsAdapter implements ProviderAdapter<SnsAdapterConfig, SnsApiRe
   }
 
   async send(options: ProviderSendOptions, configOverride?: SnsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
 
     const reqPayload = this.transformRequest(options, config);
 

@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -32,7 +33,7 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
   }
 
   hasSetup(configOverride?: LineAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.channelAccessToken);
   }
 
@@ -45,7 +46,17 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
   }
 
   async send(options: ProviderSendOptions, configOverride?: LineAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const channelAccessToken = config.channelAccessToken || '';
 
     const reqPayload = this.transformRequest(options, config);

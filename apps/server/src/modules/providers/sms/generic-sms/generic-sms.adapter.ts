@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -29,7 +30,7 @@ export class GenericSmsSmsAdapter
     supportsDeliveryReceipts: true,
     supportsReadReceipts: false,
     supportsAttachments: false,
-    supportsTemplates: true,
+    supportsTemplates: false,
     supportsMedia: true,
   };
 
@@ -40,8 +41,8 @@ export class GenericSmsSmsAdapter
   }
 
   hasSetup(configOverride?: GenericSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.baseUrl);
   }
 
   transformRequest(options: ProviderSendOptions, config?: GenericSmsAdapterConfig): GenericSmsApiRequest {
@@ -53,7 +54,17 @@ export class GenericSmsSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: GenericSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -69,7 +80,7 @@ export class GenericSmsSmsAdapter
       };
     }
 
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+    const endpoint = config.baseUrl || '';
 
     try {
       const response = await providerFetch(endpoint, {

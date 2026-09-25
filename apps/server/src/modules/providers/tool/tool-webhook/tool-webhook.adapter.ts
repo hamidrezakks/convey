@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -41,8 +42,8 @@ export class ToolWebhookToolAdapter
   }
 
   hasSetup(configOverride?: ToolWebhookToolAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.webhookUrl || config.headers);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.webhookUrl);
   }
 
   transformRequest(options: ProviderSendOptions, config?: ToolWebhookToolAdapterConfig): ToolWebhookApiRequest {
@@ -54,7 +55,17 @@ export class ToolWebhookToolAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: ToolWebhookToolAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const webhookUrl = (options.recipient.to as string) || (options.recipient.channel as string) || config.webhookUrl;
 
     if (!webhookUrl) {

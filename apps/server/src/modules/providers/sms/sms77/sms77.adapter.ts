@@ -1,5 +1,4 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
-import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -32,9 +31,8 @@ export class Sms77SmsAdapter implements ProviderAdapter<Sms77AdapterConfig, Sms7
     this.config = config;
   }
 
-  hasSetup(configOverride?: Sms77AdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+  hasSetup(_configOverride?: Sms77AdapterConfig): boolean {
+    return false;
   }
 
   transformRequest(options: ProviderSendOptions, config?: Sms77AdapterConfig): Sms77ApiRequest {
@@ -45,52 +43,15 @@ export class Sms77SmsAdapter implements ProviderAdapter<Sms77AdapterConfig, Sms7
     return sms77Transformer.transformResponse(response, statusCode, rawBody);
   }
 
-  async send(options: ProviderSendOptions, configOverride?: Sms77AdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.apiKey || '';
-
-    const reqPayload = this.transformRequest(options, config);
-
-    if (!reqPayload.to) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_RECIPIENT',
-          message: 'Recipient phone number is required for Sms77',
-          category: ErrorCategory.PERMANENT,
-        },
-      };
-    }
-
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
-
-    try {
-      const response = await providerFetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(reqPayload),
-      });
-
-      const responseText = await response.text();
-      let responseJson: Sms77ApiResponse = {};
-
-      try {
-        responseJson = JSON.parse(responseText) as Sms77ApiResponse;
-      } catch {
-        responseJson = { message: responseText };
-      }
-
-      return this.transformResponse(responseJson, response.status, responseText);
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
-      };
-    }
+  async send(_options: ProviderSendOptions, _configOverride?: Sms77AdapterConfig): Promise<ProviderSendResult> {
+    return {
+      success: false,
+      error: {
+        code: 'PROVIDER_NOT_IMPLEMENTED',
+        message: 'Native vendor protocol is not implemented for this adapter. See docs/provider-porting-matrix.md.',
+        category: ErrorCategory.PERMANENT,
+      },
+    };
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {

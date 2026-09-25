@@ -4,7 +4,7 @@ import type { ApnsApiRequest, ApnsApiResponse, ApnsPushAdapterConfig } from './t
 
 export class ApnsTransformer implements ProviderTransformer<ApnsPushAdapterConfig, ApnsApiRequest, ApnsApiResponse> {
   transformRequest(options: ProviderSendOptions, _config?: ApnsPushAdapterConfig): ApnsApiRequest {
-    const tokens = options.recipient.deviceTokens || options.recipient.fcmTokens;
+    const tokens = options.recipient.apnsTokens || options.recipient.deviceTokens || options.recipient.fcmTokens;
     const token = Array.isArray(tokens) ? tokens[0] : (options.recipient.to as string) || '';
 
     const title = (options.content.title || options.content.subject || '') as string;

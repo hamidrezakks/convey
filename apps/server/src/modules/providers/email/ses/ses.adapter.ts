@@ -1,5 +1,6 @@
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { httpErrorCategory } from '../../core/provider-http';
 import {
   Channel,
@@ -34,7 +35,7 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
   }
 
   hasSetup(configOverride?: SesEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.region && config.accessKeyId && config.secretAccessKey);
   }
 
@@ -47,7 +48,17 @@ export class SesEmailAdapter implements ProviderAdapter<SesEmailAdapterConfig, S
   }
 
   async send(options: ProviderSendOptions, configOverride?: SesEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
 
     const reqPayload = this.transformRequest(options, config);
 

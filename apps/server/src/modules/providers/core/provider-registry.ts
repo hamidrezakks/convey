@@ -5,6 +5,14 @@ import type { ProviderAdapter } from './provider-adapter';
 import type { ProviderModule } from './provider-module';
 import { ProviderState } from './provider-types';
 
+const CHANNEL_PROVIDER_ALIASES: Partial<Record<Channel, { category: Channel; ids: string[] }>> = {
+  [Channel.FCM]: { category: Channel.PUSH, ids: ['fcm'] },
+  [Channel.APNS]: { category: Channel.PUSH, ids: ['apns'] },
+  [Channel.SLACK]: { category: Channel.CHAT, ids: ['slack'] },
+  [Channel.TELEGRAM]: { category: Channel.CHAT, ids: ['telegram'] },
+  [Channel.WHATSAPP]: { category: Channel.CHAT, ids: ['whatsapp-business', 'twilio-whatsapp', 'cequens-whatsapp'] },
+};
+
 type GenericProviderAdapter = ProviderAdapter;
 type GenericProviderModule = ProviderModule;
 
@@ -84,6 +92,7 @@ class ProviderRegistryStore {
   registerManifest(manifest: ProviderManifest): void {
     const key = `${manifest.channel}:${manifest.id}`;
     this.manifestRegistry.set(key, manifest);
+    this.channelAdaptersCache.delete(manifest.channel);
     // Secondary lookup by id (if no collision)
     if (!this.manifestRegistry.has(manifest.id)) {
       this.manifestRegistry.set(manifest.id, manifest);
@@ -104,13 +113,15 @@ class ProviderRegistryStore {
   registerModule(module: ProviderModule): void {
     const key = `${module.channel}:${module.id}`;
     this.moduleRegistry.set(key, module);
-    this.moduleRegistry.set(module.id, module);
+    if (!this.moduleRegistry.has(module.id)) this.moduleRegistry.set(module.id, module);
     this.register(module.adapter);
   }
 
   /** Resolves and loads a provider module lazily if not already loaded */
   private resolveModule(providerId: string, channel?: Channel): GenericProviderModule | undefined {
     if (channel) {
+      const alias = CHANNEL_PROVIDER_ALIASES[channel];
+      if (alias) return alias.ids.includes(providerId) ? this.resolveModule(providerId, alias.category) : undefined;
       const channelKey = `${channel}:${providerId}`;
       let mod = this.moduleRegistry.get(channelKey);
       if (mod) return mod;
@@ -131,6 +142,7 @@ class ProviderRegistryStore {
           });
         }
       }
+      return undefined;
     }
 
     let mod = this.moduleRegistry.get(providerId);
@@ -502,6 +514,8 @@ class ProviderRegistryStore {
   }
 
   getByChannel(channel: Channel): GenericProviderAdapter[] {
+    const alias = CHANNEL_PROVIDER_ALIASES[channel];
+    if (alias) return this.getByChannel(alias.category).filter((adapter) => alias.ids.includes(adapter.id));
     const cached = this.channelAdaptersCache.get(channel);
     if (cached) return cached;
 

@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -34,8 +35,8 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
   }
 
   hasSetup(configOverride?: PlivoSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.authId || config.authToken);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.authId && config.authToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PlivoSmsAdapterConfig): PlivoApiRequest {
@@ -47,7 +48,17 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
   }
 
   async send(options: ProviderSendOptions, configOverride?: PlivoSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const authId = config.authId || '';
     const authToken = config.authToken || '';
 

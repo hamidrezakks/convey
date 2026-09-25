@@ -1048,3 +1048,5 @@ export interface InAppFeedResponse {
   totalCount: number;
   items: InAppNotificationDto[];
 }
+
+export * from './provider-readiness';

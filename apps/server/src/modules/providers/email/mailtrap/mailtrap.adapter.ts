@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -41,8 +42,8 @@ export class MailtrapEmailAdapter
   }
 
   hasSetup(configOverride?: MailtrapEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiToken || config.inboxId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: MailtrapEmailAdapterConfig): MailtrapApiRequest {
@@ -54,7 +55,17 @@ export class MailtrapEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MailtrapEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiToken = config.apiToken || '';
 
     const reqPayload = this.transformRequest(options, config);

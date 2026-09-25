@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -41,8 +42,8 @@ export class BandwidthSmsAdapter
   }
 
   hasSetup(configOverride?: BandwidthSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.accountId || config.username || config.password || config.applicationId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.accountId && config.username && config.password);
   }
 
   transformRequest(options: ProviderSendOptions, config?: BandwidthSmsAdapterConfig): BandwidthApiRequest {
@@ -54,7 +55,17 @@ export class BandwidthSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: BandwidthSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const accountId = config.accountId || '';
     const username = config.username || '';
     const password = config.password || '';

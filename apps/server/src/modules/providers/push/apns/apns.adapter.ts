@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { ProviderTokenCache, signProviderJwt } from '../../core/provider-token';
 import {
   Channel,
@@ -34,11 +35,11 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
     config?: ApnsPushAdapterConfig,
     private request = http2Request,
   ) {
-    this.config = config;
+    this.config = normalizeProviderConfig(this.id, config || {});
   }
 
   hasSetup(configOverride?: ApnsPushAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.bundleId && config.key && config.keyId && config.teamId);
   }
 
@@ -51,6 +52,7 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
   }
 
   async send(options: ProviderSendOptions, configOverride?: ApnsPushAdapterConfig): Promise<ProviderSendResult> {
+    configOverride = normalizeProviderConfig(this.id, configOverride || {});
     const config: ApnsPushAdapterConfig = {
       key: configOverride?.key || this.config?.key || '',
       keyId: configOverride?.keyId || this.config?.keyId || '',
@@ -60,7 +62,10 @@ export class ApnsPushAdapter implements ProviderAdapter<ApnsPushAdapterConfig, A
     };
     const reqPayload = this.transformRequest(options, config);
 
-    if (!reqPayload.deviceToken || (options.recipient.deviceTokens || options.recipient.fcmTokens || []).length > 1) {
+    if (
+      !reqPayload.deviceToken ||
+      (options.recipient.apnsTokens || options.recipient.deviceTokens || options.recipient.fcmTokens || []).length > 1
+    ) {
       return {
         success: false,
         error: {

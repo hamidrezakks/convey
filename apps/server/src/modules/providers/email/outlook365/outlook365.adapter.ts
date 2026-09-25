@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import { httpErrorCategory, providerFetch } from '../../core/provider-http';
 import {
   Channel,
@@ -34,7 +35,7 @@ export class Outlook365EmailAdapter
   }
 
   hasSetup(configOverride?: Outlook365EmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.clientId && config.clientSecret && config.tenantId && config.fromUser);
   }
 
@@ -47,7 +48,17 @@ export class Outlook365EmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: Outlook365EmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup({ ...config, fromUser: options.from || config.fromUser })) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const clientId = config.clientId || '';
     const clientSecret = config.clientSecret || '';
     const tenantId = config.tenantId || '';
