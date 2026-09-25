@@ -1,271 +1,93 @@
-<div align="center">
+# Convey
 
-# ⚡ CONVEY
+Convey is a standalone communication service built with Bun, Elysia, PostgreSQL and BullMQ. It accepts messages, records them with a transactional outbox, and dispatches through provider adapters. The repository includes an operator console, optional inbox/preferences plugins, and TypeScript, Go and Python SDKs.
 
-### **Planetary-Scale, Multi-Tenant Communication Infrastructure & Message Gateway**
+## Current status
 
-[![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.4-f472b6?style=for-the-badge&logo=bun)](https://bun.sh)
-[![Framework: Elysia.js](https://img.shields.io/badge/Framework-Elysia.js-8b5cf6?style=for-the-badge&logo=fastapi)](https://elysiajs.com)
-[![Web Console: React 19 + Base UI](https://img.shields.io/badge/Web_UI-React%2019%20%2B%20Base%20UI-38bdf8?style=for-the-badge&logo=react)](./docs/web-ui-mission-control.md)
-[![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.4-f472b6?style=for-the-badge&logo=bun)](https://bun.sh)
-[![Framework: Elysia.js](https://img.shields.io/badge/Framework-Elysia.js-8b5cf6?style=for-the-badge&logo=fastapi)](https://elysiajs.com)
-[![Web Console: React 19 + Base UI](https://img.shields.io/badge/Web_UI-React%2019%20%2B%20Base%20UI-38bdf8?style=for-the-badge&logo=react)](./docs/web-ui-mission-control.md)
-[![Database: PostgreSQL 18](https://img.shields.io/badge/Database-PostgreSQL%2018%20(Partitioned)-336791?style=for-the-badge&logo=postgresql)](https://www.postgresql.org)
-[![In-Memory: DragonflyDB](https://img.shields.io/badge/In--Memory-DragonflyDB%20%2B%20BullMQ-dc2626?style=for-the-badge&logo=redis)](https://dragonflydb.io)
-[![Security: AES-256-GCM](https://img.shields.io/badge/Security-AES--256--GCM%20Zero--Trust-059669?style=for-the-badge&logo=shield)](./docs/security.md)
-[![Adapters: 88 Providers](https://img.shields.io/badge/Ecosystem-88%20Providers%20%2F%205%20Channels-2563eb?style=for-the-badge)](./docs/provider-capabilities.md)
-[![Code Quality: Biome](https://img.shields.io/badge/Code_Style-Biome%20Strict-6366f1?style=for-the-badge&logo=biome)](https://biomejs.dev)
+The production-hardening branch adds authenticated administration, database-backed roles, team ownership, scoped message access, signed webhook ingestion, recoverable outbox claims and release validation. It is **not a production-readiness certification**: the existing server regression suite still has failures. See [verification results and remaining work](docs/operations/hardening-verification.md) before releasing.
 
-<p align="center">
-  <b>Convey</b> is a high-throughput, fault-tolerant notification engine and planetary telemetry mission control console engineered for mission-critical enterprise workloads.<br/>
-  Featuring <b>sub-15ms synchronous hot-path acceptance</b>, <b>zero-trust envelope encryption at rest</b>, <b>autonomous WhatsApp session cost optimization</b>, <b>dual-layer hybrid scheduling</b>, <b>React 19 + Base UI Mission Control</b>, and <b>88 turnkey provider integrations</b> across 5 channels.
-</p>
+Implemented paths include message acceptance and scheduling, team-scoped idempotency, provider dispatch, message history, failed-message replay, and the authenticated console. Public message identifiers are opaque `msg_<ULID>` values.
 
----
+Experimental resilience utilities, benchmark results and provider catalog entries are not evidence of tested multi-region failover, guaranteed throughput, or delivery support for every vendor. Some overview tiles still use illustrative values. Use the documented [operational metrics](docs/operations/metrics.md) for alerting.
 
-[Executive Overview](#-executive-overview) •
-[Mission Control Web-UI](#-planetary-mission-control-web-ui) •
-[System Architecture](#-system-architecture--topology) •
-[Engineering Guarantees](#-core-architectural-guarantees) •
-[WhatsApp Cost Autopilot](#-autonomous-whatsapp-24h-session-cost-optimization) •
-[Provider Ecosystem](#-supported-provider-ecosystem-88-turnkey-adapters) •
-[Quickstart](#-quickstart--developer-experience) •
-[API Showcase](#-api-specification--showcase) •
-[Documentation Index](#-deep-dive-documentation-index)
+## Repository
 
----
+| Directory | Purpose |
+| --- | --- |
+| `apps/server` | HTTP API, workers, database migrations and provider modules |
+| `apps/web` | React operator console and same-origin production proxy |
+| `apps/plugins` | Optional inbox and preference APIs |
+| `apps/mock-server` | Local provider simulator |
+| `apps/website` | Documentation website |
+| `packages/sdk`, `packages/sdk-go`, `packages/sdk-py` | Client SDKs |
 
-</div>
+## Local setup
 
-## 🌟 Executive Overview
+Use the Bun version in `.bun-version`, PostgreSQL 18 and a compatible Redis service. Use a disposable database for tests; several legacy tests create or remove fixtures.
 
-Modern notification infrastructure frequently breaks down under production stress: slow synchronous HTTP requests block client callers, provider outages cause silent message loss, recipient PII is stored unencrypted in application databases, and vendor messaging bills escalate due to unoptimized channel routing.
-
-**Convey** solves these challenges from first principles with a completely **100% standalone**, zero-dependency architecture:
-
-| Capability / SLA | Traditional Monoliths | Cloud Gateways / Novu | **Convey Engine** |
-| :--- | :--- | :--- | :--- |
-| **Hot-Path Send Latency** | 150ms – 600ms (blocking provider HTTP) | 50ms – 120ms | **`p50 < 4ms` / `p99 < 15ms`** (1 DragonflyDB `SET NX` + 1 Postgres 18 Tx) |
-| **Admin & Telemetry Console** | Basic static tables | Commercial Cloud SaaS only | **React 19 + Base UI Mission Control (`@convey/web`)** |
-| **Data Privacy at Rest** | Plaintext PII stored in SQL | Database-level disk encryption only | **Zero-Trust Field-Level AES-256-GCM Envelope** (`_encryptedEnvelope`) |
-| **Provider ID Privacy** | Leaks upstream vendor IDs (`SM_...`, `sg_...`) | Mixed ID surfaces | **Strict Zero-Leak Boundary** (`msg_<ULID>`) |
-| **WhatsApp Delivery Cost** | 100% full Meta/BSP template rates ($$$) | Manual template switches | **Autonomous 24h Session Tracker ($0.00 Text Transform)** |
-| **Scheduling Precision** | Cron jobs / Full DB table scans | In-memory timers / BullMQ only | **Dual-Layer Hybrid** (BullMQ `≤ 30m` + Partitioned Postgres `> 30m`) |
-| **Multi-Tenant Fairness** | Global FIFO queue starvation | Coarse token bucket rate limits | **Deficit Round Robin (DRR) Multi-Tenant Quantum Scheduler** |
-| **Tail-Latency Elimination** | Linear timeouts & retries | Basic exponential backoff | **Dynamic Hedged Concurrent Requests + Full-Jitter Backoff** |
-| **Database Scalability** | Monolithic tables with B-Tree bloat | Unpartitioned event logs | **Monthly PostgreSQL 18 Range Partitioning + Auto Pruning Windows** |
-
----
-
-## 🎛️ Planetary Mission Control Web-UI
-
-Convey includes a **Staff-level React 19 + Base UI Mission Control Console** (`apps/web`):
-
-- 🛰️ **Planetary Telemetry Ops Center**: Real-time RPS throughput, P95 latency sparklines, BullMQ queue depths, and V8 Heap Memory Guard.
-- 🔬 **Universal Message Explorer & W3C Tracing**: Interactive Gantt trace waterfall (`TraceWaterfall`) visualizer from HTTP ingestion to provider wire delivery.
-- 🎚️ **Provider Matrix & Circuit Breaker Cockpit**: Live circuit states (`CLOSED`, `HALF-OPEN`, `OPEN`), stepped half-open traffic ramps (5% ➔ 20% ➔ 50% ➔ 100%), and 1-click synthetic canary probes.
-- 💣 **Dead-Letter Queue & Blast-Radius Simulator**: Failure cluster breakdown, dry-run simulation of cost and risk, and zero-data-loss batch replay.
-- 🛡️ **Deliverability Autopilot & Suppression Guard**: SPF/DKIM/DMARC alignment scorecards, IP warmup curves, and suppression management.
-- ⚖️ **DRR Policy Studio**: Deficit Weighted Round Robin SLA weights (`Enterprise: 200`, `Pro: 50`, `Free: 10`) and distributed token-bucket ingress controls.
-- ✍️ **Omnichannel Composer**: Side-by-side WYSIWYG studio with realistic frames for Email (Desktop/Mobile), SMS (GSM-7 counter), WhatsApp (Action CTAs), Slack, Push, and Webhook dispatch.
-- ⚡ **Global Search (`⌘K`)**: Instant modal navigation across messages, providers, queues, and settings.
-
-📖 **[Read the complete Web-UI Console Guide](./docs/web-ui-mission-control.md)**.
-
----
-
-## 🏛️ System Architecture & Topology
-
-```text
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   CLIENT APPLICATIONS & MICROSERVICES                           │
-│                      W3C Distributed TraceContext Propagation (traceparent headers)              │
-└────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
-                                                 │ HTTP / HTTPS (REST API)
-                                                 ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 ELYSIA.JS HIGH-THROUGHPUT GATEWAY                                │
-│   POST /v1/messages    POST /v1/messages/bulk    POST /v1/admin/...     GET /health/readiness    │
-│   • Schema Validation (TypeBox / Zod)             • Sensitive Data Redaction (DLP Regex)         │
-│   • 1-RTT DragonflyDB Idempotency Lock (SET NX)   • Zero-Trust AES-256-GCM Envelope Encryption   │
-│   • L1 In-Memory Policy Cache (5,000ms TTL)       • Adaptive Event-Loop Traffic Governor         │
-└────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
-                                                 │ Single ACID Transaction (< 15ms Hot Path)
-                                                 ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                            POSTGRESQL 18 MONTHLY RANGE-PARTITIONED LEDGER                        │
-│   INSERT INTO messages (AES-256-GCM) ───────────────────────► INSERT INTO outbox (Status: Pending)│
-└────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
-                                                 │
-                        ┌────────────────────────┴────────────────────────┐
-                        │ (<= 30 Min Window)                              │ (> 30 Min Scheduled)
-                        ▼                                                 ▼
-┌───────────────────────────────────────────────────┐ ┌────────────────────────────────────────────┐
-│         OUTBOX RELAY WORKER (FOR UPDATE SKIP)     │ │        SCHEDULED PROMOTER WORKER LOOP        │
-│   • Consistent Hash Virtual Shard Routing         │ │   • Scans partition bounds for due items   │
-│   • Dispatches to BullMQ Orchestration Queue      │ │   • Promotes to BullMQ at T-30 minutes     │
-└───────────────────────┬───────────────────────────┘ └─────────────────────┬──────────────────────┘
-                        │                                                   │
-                        └─────────────────────────┬─────────────────────────┘
-                                                  ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                         BULLMQ ADAPTIVE MULTI-TENANT WORKER ORCHESTRATION                        │
-│   • Deficit Round Robin (DRR) Fair Queueing       • Adaptive Concurrency Scaler (Backlog-driven) │
-│   • Deliverability Autopilot & Quiet-Hours STO    • Smart Latency Scorecard Router (EMA scoring) │
-└────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
-                                                 │ Routes to Per-Provider Queues
-                                                 ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                    PROVIDER EXECUTION ENGINE                                     │
-│   • Isolated In-Memory Payload Decryption         • Provider Circuit Breakers (Stepped Half-Open)│
-│   • Dynamic Hedged Requests (Tail-Latency Drop)   • Leaky-Bucket Per-Provider Rate Governor      │
-│                                                                                                  │
-│   ┌───────────────────┬───────────────────┬───────────────────┬──────────────────┬───────────┐   │
-│   │    📧 Email       │     📱 SMS        │     🔔 Push       │     💬 Chat      │  🛠️ Tool  │   │
-│   │   (20 Adapters)   │   (39 Adapters)   │   (8 Adapters)    │  (17 Adapters)   │(4 Adapters│   │
-│   └───────────────────┴───────────────────┴───────────────────┴──────────────────┴───────────┘   │
-└────────────────────────────────────────────────┬─────────────────────────────────────────────────┘
-                                                 │ Inbound Webhooks & Delivery Receipts
-                                                 ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                  INBOUND INTELLIGENCE & TELEMETRY                                │
-│   • Micro-Batch Webhook Ingestion (52,000/sec)   • Autonomous 24h WhatsApp Session Tracker      │
-│   • Cross-Channel Waterfall Cascade Engine        • Dead-Letter Queue (DLQ) & Mutated Replay     │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🚀 Quickstart & Developer Experience
-
-### Prerequisites
-- **Bun** `>= 1.1.0` (Recommended: `Bun 1.4+`)
-- **PostgreSQL** `>= 18.0`
-- **DragonflyDB** `latest` (or Redis `>= 7.0`)
-
-### 1. Installation & Environment Configuration
-```bash
-# Clone the repository
-git clone https://github.com/hamidrezakks/convey.git
-cd convey
-
-# Install dependencies across all monorepo packages (ultra-fast via Bun)
-bun install
-
-# Initialize local environment configuration
+```sh
+bun install --frozen-lockfile
 cp .env.example .env
-```
-
-### 2. Database Migration & Range Partitioning
-```bash
-# Run Drizzle migrations & auto-generate monthly PostgreSQL 18 partitions
+# Configure DATABASE_URL and REDIS_URL for your local services.
 bun run db:migrate
+bun run dev:server
 ```
 
-### 3. Launch Development Monorepo
-```bash
-# Concurrently launches @convey/server (port 3000) and @convey/web (port 5173)
-bun run dev
+Authentication is enabled by default. Provision an active tenant through your database administration process, then create a credential for its globally unique team:
+
+```sh
+bun apps/server/scripts/create-api-key.ts TENANT_ID TEAM application DEVELOPER tenant production
 ```
 
-- 🎛️ **Web-UI Mission Control**: `http://localhost:5173`
-- 📖 **Interactive OpenAPI Spec**: `http://localhost:3000/swagger`
-- 🩺 **Kubernetes Health Probes**: `http://localhost:3000/health/readiness`
-- 📊 **Prometheus Metrics**: `http://localhost:3000/metrics`
+The command prints the secret once and stores its hash. Keep the secret outside source control. Send it as `Authorization: Bearer <key>` or `x-api-key`. The message's `team` must match the key's team; SDK configuration must use the same team.
 
-### 4. 🐳 Docker Deployment
+For the operator console, explicitly provision a platform credential:
 
-#### Option A: Modular Dual Compose (Resources & Services Separate)
-```bash
-# 1. Start stateful resources (PostgreSQL 18 + DragonflyDB)
-docker compose -f docker-compose.resources.yml up -d
-
-# 2. Start Convey API server and Mission Control UI (auto-runs migrations)
-docker compose -f docker-compose.service.yml up -d
+```sh
+bun apps/server/scripts/create-api-key.ts TENANT_ID TEAM operator ORG_ADMIN platform production
+bun run dev:plugins
+bun run dev:web
 ```
 
-#### Option B: Unified Single-Command Deployment
-```bash
-# Launch entire stack in one command
-docker compose up -d
-```
+Sign in with that platform key. It remains in tab memory and is cleared on reload or sign-out. Platform administration is privileged and may expose cross-team operations; do not use its key in client applications.
 
-### 5. Running Test Suites & Quality Verification
-```bash
-# Run all tests across the entire monorepo
-bun test
+For an isolated local experiment only, `CONVEY_REQUIRE_AUTH=false` enables a development bypass. Production rejects this setting. Prefer authenticated development for realistic testing.
 
-# Run Web-UI test suite only
-bun run test:web
+## Containers and deployment
 
-# Run Biome strict code quality and formatting
+The Dockerfile has `server`, `web`, `plugins` and `mock-server` targets. The console forwards requests to `CONVEY_API_INTERNAL_URL` and `CONVEY_PLUGINS_INTERNAL_URL`; these are runtime internal service addresses, not public browser addresses. The development console uses Vite proxies; optional `VITE_API_URL` and `VITE_PLUGINS_URL` configure browser-visible API origins at build time.
+
+`docker-compose.yml` includes provider simulation and development credentials. Review it before use; it is not a turnkey production deployment. `docker-compose.service.yml` connects applications to an existing service network. Terminate HTTPS, restrict infrastructure and monitoring ports, configure backups and set independent secrets before exposing a deployment.
+
+Existing installations must follow the [hardening migration runbook](docs/operations/hardening-migration.md). In particular, resolve ambiguous team ownership and arrange signed webhook ingress before switching versions.
+
+## Webhooks
+
+Webhook ingestion fails closed. Providers without a native verifier require a trusted ingress gateway which validates the vendor's signature and adds Convey's timestamped HMAC signature over the exact request body. Do not point unsigned vendor callbacks directly at the hardened API. Configuration, replay behavior and the signing protocol are in the [security contract](docs/security.md).
+
+## Validation
+
+```sh
 bun run biome:check
-bun run biome:format
+bun run typecheck
+bun run test:web
+bun run test:sdks
+# Only against an isolated test database and Redis instance:
+bun run db:migrate
+CONVEY_REQUIRE_AUTH=true bun test apps/server/tests/hardening
+CONVEY_REQUIRE_AUTH=true bun test packages/sdk/tests/integration.test.ts
+CONVEY_REQUIRE_AUTH=false CONVEY_ALLOW_UNSIGNED_WEBHOOKS=true bun run test:server:ci
 ```
 
----
+The legacy suite requires `NODE_ENV=test` in addition to its explicit development bypass. Performance tests are separate (`bun run test:server:performance`); they must not run against production services. CI and release use the shared validation action. Release candidates are tested and built before tags or publishing; see [release management](docs/RELEASE_MANAGEMENT.md).
 
-## 🗂️ Monorepo Structure
+## Operational references
 
-```text
-convey/
-├── apps/
-│   ├── server/                 # @convey/server (Elysia API, BullMQ Workers, 88 Adapters)
-│   │   ├── src/
-│   │   │   ├── modules/admin/  # Admin REST & telemetry endpoints
-│   │   │   ├── modules/messaging/
-│   │   │   ├── modules/providers/
-│   │   │   └── ...
-│   │   └── tests/              # Tests (Unit, Integration, E2E, Benchmarks)
-│   │
-│   └── web/                    # @convey/web (React 19, Base UI, Tailwind, Obsidian Theme)
-│       ├── src/
-│       │   ├── components/     # UI primitives, layout, waterfall, omnichannel preview
-│       │   ├── pages/          # 10 Mission Control Views
-│       │   └── lib/            # API client & formatting utilities
-│       └── tests/              # Web tests (Happy-DOM, testing-library)
-│
-├── packages/
-│   └── shared/                 # @convey/shared (Domain types, enums, DTOs)
-│       └── src/index.ts
-│
-├── Dockerfile                  # Multi-stage container definition (server + web targets)
-├── docker-entrypoint.sh        # Startup script with automated DB migration & partition prep
-├── docker-compose.resources.yml# Dedicated stateful resources compose (Postgres + Redis)
-├── docker-compose.service.yml  # Dedicated application services compose (Server + Web)
-├── docker-compose.yml          # Unified convenience compose
-├── ADRs/                       # Architecture Decision Records (ADR 001 - 005)
-├── docs/                       # Comprehensive documentation & architecture specs
-│   ├── deployment-docker.md    # Complete Docker & container deployment manual
-│   ├── web-ui-mission-control.md # Complete manual for the Web-UI Console
-│   ├── api.md
-│   ├── architecture.md
-│   ├── database-schema.md
-│   ├── queue-topology.md
-│   └── ...
-```
+- [Migration and rollback](docs/operations/hardening-migration.md)
+- [Verified behavior and remaining work](docs/operations/hardening-verification.md)
+- [Security boundaries](docs/security.md)
+- [Metrics and alert rules](docs/operations/metrics.md)
+- [Queue topology](docs/queue-topology.md)
+- [Provider catalog](docs/providers-reference.md)
 
----
-
-## 📚 Deep-Dive Documentation Index
-
-- 🐳 **[Docker Deployment Guide](./docs/deployment-docker.md)** — Modular resources & service container deployment instructions.
-- 🎛️ **[Web-UI Mission Control Manual](./docs/web-ui-mission-control.md)** — Complete guide for the React 19 + Base UI console.
-- 📘 **[REST API Specification](./docs/api.md)** — Complete endpoint schemas, query parameters, error matrices, and curl examples.
-- 🔌 **[Provider Integration & Reference Manual](./docs/providers-reference.md)** — Exhaustive guide covering all 88 provider integrations, required env vars, schemas, and webhooks.
-- ⚙️ **[Configuration & Environment Variables Guide](./docs/configuration-env.md)** — Comprehensive reference for core runtime, database pooling, queues, and provider env mappings.
-- 🏛️ **[System Architecture](./docs/architecture.md)** — In-depth breakdown of the 4-stage pipeline, fast path, and graceful shutdown.
-- 💾 **[Database Schema & Partitioning](./docs/database-schema.md)** — 16 Drizzle table schemas, foreign keys, and monthly range partitioning.
-- 🚦 **[Queue Topology & Schedulers](./docs/queue-topology.md)** — BullMQ queue definitions, worker loops, and dual-layer scheduler.
-- 🔌 **[Provider Capabilities Matrix](./docs/provider-capabilities.md)** — Detailed capability breakdown and circuit breaker settings for all 88 providers.
-- 💬 **[WhatsApp Session Optimization](./docs/whatsapp-session-optimization.md)** — 24-hour customer conversation window tracking and cost savings.
-- 🔒 **[Zero-Trust Security & Encryption](./docs/security.md)** — AES-256-GCM envelope encryption and threat model.
-- 📊 **[Observability & Health Probes](./docs/observability.md)** — Prometheus metrics registry, W3C tracing, and Kubernetes probes.
-- ⚡ **[Performance Benchmarks & SLAs](./docs/benchmarks.md)** — Micro-engine benchmarks, HTTP API ingestion throughput, and high-concurrency verification.
-- 📈 **[Horizontal Scaling Guide](./docs/scaling.md)** — High availability, micro-batching pipelines, and capacity planning.
-
----
-
-<div align="center">
-  <sub>Engineered with precision for planetary scale. Built with Bun, Elysia, React 19, Base UI, PostgreSQL, and Redis.</sub>
-</div>
+Older architecture and benchmark documents describe design intent as well as implemented behavior. The security contract and verification report describe the checks performed on this branch; no throughput or availability guarantee is implied.
