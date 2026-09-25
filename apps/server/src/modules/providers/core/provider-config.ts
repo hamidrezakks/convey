@@ -41,6 +41,9 @@ const aliases: Record<string, string> = {
 };
 const overrides: Record<string, Record<string, string>> = {
   nodemailer: { PASSWORD: 'pass' },
+  sinch: { API_TOKEN: 'apiKey' },
+  messagebird: { ORIGINATOR: 'from' },
+  'forty-six-elks': { API_USER: 'username', API_PASSWORD: 'password' },
   'bulk-sms': { TOKEN_ID: 'username', TOKEN_SECRET: 'password' },
   bandwidth: { API_USER: 'username', API_PASSWORD: 'password' },
   'generic-sms': { AUTH_TOKEN: 'apiKey' },

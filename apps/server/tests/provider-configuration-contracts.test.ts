@@ -3,6 +3,7 @@ import { COMPLETE_88_PROVIDER_CATALOG, isNativeProviderIncomplete } from '@conve
 import { Channel } from '../src/modules/messaging/messaging.types';
 import { normalizeProviderConfig } from '../src/modules/providers/core/provider-config';
 import { ProviderRegistry } from '../src/modules/providers/core/provider-registry';
+import { ErrorCategory } from '../src/modules/providers/core/provider-types';
 import { BrevoSmsSmsAdapter } from '../src/modules/providers/sms/brevo-sms/brevo-sms.adapter';
 import { NexmoSmsAdapter } from '../src/modules/providers/sms/nexmo/nexmo.adapter';
 import { TelnyxSmsAdapter } from '../src/modules/providers/sms/telnyx/telnyx.adapter';
@@ -91,4 +92,82 @@ describe('provider configuration and routing', () => {
       fetch.mockRestore();
     }
   });
+});
+
+describe('additional native SMS wire contracts', () => {
+  const cases = [
+    {
+      id: 'messagebird',
+      config: { apiKey: 'key' },
+      url: 'https://rest.messagebird.com/messages',
+      header: ['authorization', 'AccessKey key'],
+      bodyField: 'body',
+      response: { id: 'bird-id' },
+    },
+    {
+      id: 'sinch',
+      config: { apiKey: 'key', servicePlanId: 'plan' },
+      url: 'https://us.sms.api.sinch.com/xms/v1/plan/batches',
+      header: ['authorization', 'Bearer key'],
+      bodyField: 'body',
+      response: { id: 'sinch-id' },
+    },
+    {
+      id: 'forty-six-elks',
+      config: { username: 'user', password: 'pass' },
+      url: 'https://api.46elks.com/a1/sms',
+      header: ['authorization', `Basic ${Buffer.from('user:pass').toString('base64')}`],
+      bodyField: 'message',
+      response: { id: 'elks-id', status: 'created' },
+    },
+    {
+      id: 'sms77',
+      config: { apiKey: 'key' },
+      url: 'https://gateway.seven.io/api/sms',
+      header: ['x-api-key', 'key'],
+      bodyField: 'text',
+      response: { success: '100', messages: [{ id: 'seven-id', success: true }] },
+    },
+    {
+      id: 'firetext',
+      config: { apiKey: 'key' },
+      url: 'https://www.firetext.co.uk/api/sendsms',
+      header: [],
+      bodyField: 'message',
+      response: '0:1 SMS successfully queued',
+    },
+  ];
+  for (const fixture of cases) {
+    it(`${fixture.id}: authenticates and handles native success, errors and malformed acknowledgements`, async () => {
+      const adapter = ProviderRegistry.getModuleByChannel(Channel.SMS, fixture.id)?.adapter;
+      expect(adapter).toBeDefined();
+      let status = 200;
+      let response: unknown = fixture.response;
+      const fetch = spyOn(globalThis, 'fetch').mockImplementation((async (
+        input: string | URL | Request,
+        init?: RequestInit,
+      ) => {
+        expect(String(input)).toBe(fixture.url);
+        if (fixture.header[0]) expect(new Headers(init?.headers).get(fixture.header[0])).toBe(fixture.header[1]);
+        const body =
+          init?.body instanceof URLSearchParams ? Object.fromEntries(init.body) : JSON.parse(String(init?.body));
+        expect(body[fixture.bodyField]).toBe('Hello');
+        return typeof response === 'string'
+          ? new Response(response, { status, headers: { 'X-Message': 'firetext-id' } })
+          : Response.json(response, { status });
+      }) as typeof globalThis.fetch);
+      try {
+        expect((await adapter?.send(sms, fixture.config))?.success).toBe(true);
+        status = 429;
+        expect((await adapter?.send(sms, fixture.config))?.error?.category).toBe(ErrorCategory.RATE_LIMITED);
+        status = 503;
+        expect((await adapter?.send(sms, fixture.config))?.error?.category).toBe(ErrorCategory.TRANSIENT);
+        status = 200;
+        response = {};
+        expect((await adapter?.send(sms, fixture.config))?.success).toBe(false);
+      } finally {
+        fetch.mockRestore();
+      }
+    });
+  }
 });

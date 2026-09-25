@@ -8,7 +8,7 @@ export class SinchTransformer implements ProviderTransformer<SinchAdapterConfig,
     const recipientPhone = Array.isArray(rawTo) ? rawTo[0] : (rawTo as string) || '';
 
     const text = (options.content.text || options.content.body || options.content.title || '') as string;
-    const from = options.senderName || config?.from || config?.senderId;
+    const from = options.from || options.senderName || config?.from || config?.senderId;
 
     return {
       to: recipientPhone,

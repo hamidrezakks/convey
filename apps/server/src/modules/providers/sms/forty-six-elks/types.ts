@@ -1,5 +1,7 @@
 export interface FortySixElksAdapterConfig {
   apiKey?: string;
+  username?: string;
+  password?: string;
   apiSecret?: string;
   senderId?: string;
   from?: string;
