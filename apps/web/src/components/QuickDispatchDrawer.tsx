@@ -1,6 +1,8 @@
 import { CheckCircle2, Copy, Loader2, Send, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { coreClient } from '../lib/http';
+import { requireSession } from '../lib/session';
 
 export interface QuickDispatchDrawerProps {
   open: boolean;
@@ -34,18 +36,24 @@ export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerP
   const handleSend = async () => {
     setIsSending(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel,
-          recipient,
-          content: {
-            subject: channel === 'email' ? subject : undefined,
-            body,
-          },
-          priority: 'HIGH',
-        }),
+      const response = await coreClient.post('messages', {
+        json: {
+          team: requireSession().team,
+          userId: 'console-operator',
+          category: 'transactional',
+          country: 'US',
+          idempotencyKey: crypto.randomUUID(),
+          priority: 'normal',
+          recipients:
+            channel === 'email'
+              ? { email: recipient }
+              : channel === 'sms'
+                ? { phone: recipient }
+                : channel === 'whatsapp'
+                  ? { whatsapp: recipient }
+                  : { userId: recipient },
+          channels: [{ channel, content: { subject: channel === 'email' ? subject : undefined, text: body } }],
+        },
       });
 
       const data = (await response.json()) as { messageId?: string; error?: { message: string } };

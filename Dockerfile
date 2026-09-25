@@ -19,6 +19,7 @@ COPY package.json bun.lock bunfig.toml tsconfig.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/sdk/package.json ./packages/sdk/
 COPY apps/server/package.json ./apps/server/
+COPY apps/plugins/package.json ./apps/plugins/
 COPY apps/web/package.json ./apps/web/
 COPY apps/website/package.json ./apps/website/
 COPY apps/mock-server/package.json ./apps/mock-server/
@@ -80,13 +81,13 @@ WORKDIR /app
 COPY --from=web-builder /app/apps/web/dist ./apps/web/dist
 COPY --from=dependencies /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY apps/web/package.json apps/web/vite.config.ts ./apps/web/
+COPY apps/web/package.json apps/web/server.ts ./apps/web/
 COPY package.json ./
 
 ENV PORT=5173
 EXPOSE 5173
 
-CMD ["bun", "run", "--filter", "@convey/web", "preview", "--host", "0.0.0.0", "--port", "5173"]
+CMD ["bun", "apps/web/server.ts"]
 
 # ------------------------------------------------------------------------------
 # 6. Production Mock Server Runner (@convey/mock-server)
@@ -106,3 +107,15 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
   CMD bun -e "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["bun", "apps/mock-server/src/index.ts"]
+
+FROM base AS plugins
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /app/apps/plugins/node_modules ./apps/plugins/node_modules
+COPY --from=dependencies /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY package.json ./
+COPY packages/shared ./packages/shared
+COPY apps/plugins ./apps/plugins
+ENV NODE_ENV=production
+ENV PLUGINS_PORT=3001
+EXPOSE 3001
+CMD ["bun", "apps/plugins/src/index.ts"]

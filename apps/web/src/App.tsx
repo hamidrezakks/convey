@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
+import { ConsoleAccess } from './components/ConsoleAccess';
 import { I18nProvider } from './i18n';
 import { queryClient } from './lib/queryClient';
 import { EnvironmentProvider, UiModeProvider } from './mode';
@@ -13,7 +14,9 @@ export function App() {
         <UiModeProvider>
           <I18nProvider>
             <QueryClientProvider client={queryClient}>
-              <RouterProvider router={router} />
+              <ConsoleAccess>
+                <RouterProvider router={router} />
+              </ConsoleAccess>
             </QueryClientProvider>
           </I18nProvider>
         </UiModeProvider>

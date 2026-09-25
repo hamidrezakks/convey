@@ -15,20 +15,24 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      '/api/v1/plugins': {
+        target: process.env.CONVEY_PLUGINS_INTERNAL_URL || 'http://localhost:3001',
+        changeOrigin: true,
+      },
       '/v1': {
-        target: 'http://localhost:3000',
+        target: process.env.CONVEY_API_INTERNAL_URL || 'http://localhost:3000',
         changeOrigin: true,
       },
       '/swagger': {
-        target: 'http://localhost:3000',
+        target: process.env.CONVEY_API_INTERNAL_URL || 'http://localhost:3000',
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:3000',
+        target: process.env.CONVEY_API_INTERNAL_URL || 'http://localhost:3000',
         changeOrigin: true,
       },
       '/metrics': {
-        target: 'http://localhost:3000',
+        target: process.env.CONVEY_API_INTERNAL_URL || 'http://localhost:3000',
         changeOrigin: true,
       },
     },

@@ -123,7 +123,7 @@ services:
       PORT: ${PORT:-3000}
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      CONVEY_REQUIRE_AUTH: ${CONVEY_REQUIRE_AUTH:-false}
+      CONVEY_REQUIRE_AUTH: ${CONVEY_REQUIRE_AUTH:-true}
       POSTGRES_DB: ${POSTGRES_DB:-db-convey}
       DATABASE_URL: ${DATABASE_URL:-postgres://convey:convey@postgres:5432/db-convey}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -154,6 +154,20 @@ services:
   # ----------------------------------------------------------------------------
   # 5. Mission Control Web Console (React 19 + Base UI)
   # ----------------------------------------------------------------------------
+  convey-plugins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: plugins
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgres://convey:convey@postgres:5432/db-convey}
+      CONVEY_API_INTERNAL_URL: http://convey-server:3000
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    networks:
+      - convey-network
+
   convey-web:
     build:
       context: .
@@ -168,7 +182,8 @@ services:
     ports:
       - "${WEB_PORT:-5173}:5173"
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://convey-server:3000}
+      CONVEY_API_INTERNAL_URL: http://convey-server:3000
+      CONVEY_PLUGINS_INTERNAL_URL: http://convey-plugins:3001
     networks:
       - convey-network
 
