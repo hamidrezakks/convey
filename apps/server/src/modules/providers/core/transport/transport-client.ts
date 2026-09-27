@@ -1,5 +1,6 @@
 import dns from 'node:dns/promises';
 import { logger } from '../../../../utils/logger';
+import { observeProviderResponse } from '../../../../utils/provider-retry-context';
 import { ErrorCategory } from '../provider-types';
 import { createHttpProxyFetch } from './http-proxy-tunnel';
 import { isProxyBypassed } from './proxy-matcher';
@@ -11,6 +12,13 @@ import { createSocks5Fetch } from './socks5-tunnel';
  * Automatically falls back to native direct fetch if proxy is disabled or destination is in noProxy.
  */
 export function createTransportFetch(proxyConfig?: ProviderProxyConfig): typeof globalThis.fetch {
+  const transport = createRawTransportFetch(proxyConfig);
+  const observed = async (input: string | URL | Request, init?: RequestInit) =>
+    observeProviderResponse(await transport(input, init));
+  return observed as typeof globalThis.fetch;
+}
+
+function createRawTransportFetch(proxyConfig?: ProviderProxyConfig): typeof globalThis.fetch {
   if (!proxyConfig?.enabled || !proxyConfig?.host) {
     return globalThis.fetch;
   }

@@ -85,7 +85,7 @@ export class AdminService {
       const [msgStats] = await db
         .select({
           total: count(),
-          delivered: count(sql`CASE WHEN ${messages.state} IN ('delivered', 'provider_accepted') THEN 1 END`),
+          delivered: count(sql`CASE WHEN ${messages.state} IN ('delivered', 'opened', 'read') THEN 1 END`),
           failed: count(sql`CASE WHEN ${messages.state} = 'failed' THEN 1 END`),
         })
         .from(messages)
@@ -1275,7 +1275,8 @@ export class AdminService {
           const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
           const rate = getProviderRate(p.id);
           const baseCurrency = p.baseCurrency || rate.currency || 'USD';
-          const unitCost = rate.cost;
+          const storedPrice = (p.config as { pricing?: unknown } | null)?.pricing;
+          const unitCost = storedPrice ? validateProviderPrice(storedPrice).cost : rate.cost;
 
           const rawConfig = (p.config as Record<string, unknown>) || {};
           const configMasked = { ...rawConfig };
@@ -1395,6 +1396,7 @@ export class AdminService {
 
     // Merge Proxy Credentials if proxy.auth is provided with masked password
     let incomingConfig = (data.config ??
+      existingRows[0]?.config ??
       (existingIndex >= 0 ? this.configuredProviders[existingIndex].config : {})) as Record<string, unknown>;
     if (incomingConfig?.proxy) {
       const incomingProxy = { ...(incomingConfig.proxy as ProviderProxyConfig) };
@@ -1444,20 +1446,6 @@ export class AdminService {
       updatedAt: now,
     };
 
-    if (existingIndex >= 0) {
-      this.configuredProviders[existingIndex] = newConfig;
-    } else {
-      this.configuredProviders.push(newConfig);
-    }
-
-    // Invalidate local in-memory cache and notify cluster
-    invalidateProviderConfigCache(data.providerId);
-    try {
-      await redisClient.publish(formatPubSubChannel('provider-config-updated'), data.providerId);
-    } catch {
-      // non-blocking
-    }
-
     // Persist into database providers table with encrypted credentials
     try {
       await db
@@ -1499,6 +1487,20 @@ export class AdminService {
         `Failed to persist configured provider ${data.providerId} to database: ${(err as Error).message}`,
       );
       throw err;
+    }
+
+    if (existingIndex >= 0) {
+      this.configuredProviders[existingIndex] = newConfig;
+    } else {
+      this.configuredProviders.push(newConfig);
+    }
+
+    // Invalidate local in-memory cache and notify cluster
+    invalidateProviderConfigCache(data.providerId);
+    try {
+      await redisClient.publish(formatPubSubChannel('provider-config-updated'), data.providerId);
+    } catch {
+      // non-blocking
     }
 
     const credentialsMasked = maskProviderCredentials(mergedCredentials);

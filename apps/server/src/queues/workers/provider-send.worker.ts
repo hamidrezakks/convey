@@ -1,6 +1,6 @@
 import type { MessagePriority } from '@convey/shared';
 import { type Job, Worker } from 'bullmq';
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages, providers } from '../../db/schema';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
@@ -33,6 +33,7 @@ import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
 import { decryptProviderCredentials } from '../../utils/payload-encryption';
 import { providerRetryDelay } from '../../utils/provider-retry';
+import { captureProviderRetryAfter } from '../../utils/provider-retry-context';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
 
 export const adaptiveConcurrency = new AdaptiveConcurrencyController();
@@ -361,6 +362,7 @@ export async function handlePermanentFailure(params: {
         gte(messages.createdAt, startDate),
         lte(messages.createdAt, endDate),
         inArray(messages.state, [MessageState.ACCEPTED, MessageState.DISPATCHED, MessageState.SCHEDULED]),
+        sql`NOT EXISTS (SELECT 1 FROM message_attempts sibling WHERE sibling.message_id = ${data.publicId} AND sibling.created_at >= ${startDate.toISOString()} AND sibling.created_at <= ${endDate.toISOString()} AND sibling.state NOT IN ('failed', 'bounced', 'cancelled', 'expired'))`,
       ),
     );
 
@@ -517,7 +519,8 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
       reservationId = reservation.id;
     }
     // No SQL transaction or lock is held while calling the external provider.
-    const result = await adapter.send(sendOptions, providerConfig);
+    const { result, retryAfterMs } = await captureProviderRetryAfter(() => adapter.send(sendOptions, providerConfig));
+    if (result.error?.category === ErrorCategory.RATE_LIMITED && retryAfterMs) result.error.retryAfterMs = retryAfterMs;
     if (reservationId) {
       if (result.success) await BudgetService.settle(reservationId, 'committed');
       else if (

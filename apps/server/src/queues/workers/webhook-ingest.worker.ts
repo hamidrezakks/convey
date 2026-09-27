@@ -134,7 +134,7 @@ export function buildWebhookMessageEventRecord(
     messageId: attempt.messageId,
     attemptId: attempt.id,
     channel: attempt.channel,
-    providerId: ev.providerId || attempt.providerId,
+    providerId: attempt.providerId,
     type: `delivery.${ev.normalizedStatus}`,
     source: EventSource.WORKER,
     metadata: { raw: ev.rawPayload },
@@ -268,6 +268,7 @@ export async function findCorrelatedAttempt(
       .from(messageAttempts)
       .where(
         and(
+          eq(messageAttempts.messageId, cMsgId),
           eq(messageAttempts.providerId, effectiveProviderId),
           eq(messageAttempts.providerMessageId, providerMessageId),
           cAttemptId ? eq(messageAttempts.id, cAttemptId) : eq(messageAttempts.messageId, cMsgId),
@@ -419,7 +420,8 @@ export async function processSingleWebhookEvent(
   defaultProviderId: string,
   now: Date,
 ): Promise<void> {
-  const effectiveProviderId = ev.providerId || defaultProviderId;
+  // The verified ingress provider owns correlation; payload fields cannot select another provider.
+  const effectiveProviderId = defaultProviderId;
   const rawPayloadObj =
     typeof ev.rawPayload === 'object' && ev.rawPayload !== null
       ? (ev.rawPayload as Record<string, unknown>)

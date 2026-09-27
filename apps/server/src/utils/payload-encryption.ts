@@ -159,6 +159,8 @@ export class PayloadEncryptionManager {
     if (!this.keyProviders.has(providerName)) {
       throw new Error(`KeyManagementProvider '${providerName}' is not registered.`);
     }
+    if (process.env.NODE_ENV === 'production' && providerName !== 'local')
+      throw new Error('External tenant KMS encryption is not implemented');
     this.tenantKeyProviders.set(tenantId, providerName);
   }
 
@@ -199,7 +201,9 @@ export class PayloadEncryptionManager {
       this.pubSubClient.on('message', (_chan: string, recipientId: string) => {
         if (recipientId) {
           this.revokedRecipientKeys.add(recipientId);
-          this.derivedKeyCache.delete(recipientId);
+          for (const cacheKey of this.derivedKeyCache.keys()) {
+            if (cacheKey.slice(cacheKey.indexOf(':') + 1) === recipientId) this.derivedKeyCache.delete(cacheKey);
+          }
         }
       });
     } catch {
@@ -237,7 +241,9 @@ export class PayloadEncryptionManager {
   async shredRecipientKey(recipientId: string): Promise<void> {
     await this.revocations.revoke(recipientId);
     this.revokedRecipientKeys.add(recipientId);
-    this.derivedKeyCache.delete(recipientId);
+    for (const cacheKey of this.derivedKeyCache.keys()) {
+      if (cacheKey.slice(cacheKey.indexOf(':') + 1) === recipientId) this.derivedKeyCache.delete(cacheKey);
+    }
 
     this.publishShredEvent(recipientId).catch(() => {});
   }
