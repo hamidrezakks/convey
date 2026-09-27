@@ -1,3 +1,4 @@
+import { isNativeProviderIncomplete } from '@convey/shared';
 import { logger } from '../../../utils/logger';
 import { Channel } from '../../messaging/messaging.types';
 import { providerCircuitBreaker } from './circuit-breaker';
@@ -169,6 +170,7 @@ class ProviderRegistryStore {
 
   /** Checks whether required provider setup / configuration exists */
   hasSetup(providerId: string, config?: Record<string, unknown>, channel?: Channel): boolean {
+    if (isNativeProviderIncomplete(providerId)) return false;
     const mod = this.resolveModule(providerId, channel);
     if (!mod) return false;
 
@@ -194,6 +196,7 @@ class ProviderRegistryStore {
 
   /** Validates whether a provider is workable with memoization caching */
   isWorkable(providerId: string, config?: Record<string, unknown>, channel?: Channel): boolean {
+    if (isNativeProviderIncomplete(providerId)) return false;
     const checksum = config ? this.computeChecksum(config) : 'empty';
     const cacheKey = `${channel || ''}:${providerId}:${checksum}`;
     const cached = this.workableCache.get(cacheKey);
