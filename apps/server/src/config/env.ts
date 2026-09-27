@@ -51,6 +51,7 @@ export function resolvePostgresConfig(rawEnv: Record<string, string | undefined>
 }
 
 export const envSchema = z.object({
+  PAYLOAD_ENCRYPTION_KEY: z.string().optional(),
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   POSTGRES_DB: z.string().min(1).default(DEFAULT_POSTGRES_DB),
@@ -85,6 +86,14 @@ export function parseEnv(rawEnv: Record<string, string | undefined> = process.en
 
   if (result.data.NODE_ENV === 'production' && !result.data.CONVEY_REQUIRE_AUTH) {
     throw new Error('CONVEY_REQUIRE_AUTH cannot be disabled in production');
+  }
+  if (
+    result.data.NODE_ENV === 'production' &&
+    (!result.data.PAYLOAD_ENCRYPTION_KEY ||
+      result.data.PAYLOAD_ENCRYPTION_KEY.length < 32 ||
+      result.data.PAYLOAD_ENCRYPTION_KEY === 'default_secret_key_32_bytes_len_!')
+  ) {
+    throw new Error('Production requires a unique PAYLOAD_ENCRYPTION_KEY of at least 32 characters');
   }
   return result.data;
 }

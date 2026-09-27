@@ -53,3 +53,13 @@ describe('Environment Configuration - PostgreSQL Database Name Selection', () =>
     expect(res.databaseUrl).toBe(nonStandardUrl);
   });
 });
+
+test('production rejects missing, short and legacy default encryption keys', () => {
+  for (const key of [undefined, 'short', 'default_secret_key_32_bytes_len_!']) {
+    expect(() => parseEnv({ NODE_ENV: 'production', PAYLOAD_ENCRYPTION_KEY: key })).toThrow('PAYLOAD_ENCRYPTION_KEY');
+  }
+  expect(
+    parseEnv({ NODE_ENV: 'production', PAYLOAD_ENCRYPTION_KEY: 'test-only-configured-key-of-at-least-32-characters' })
+      .NODE_ENV,
+  ).toBe('production');
+});

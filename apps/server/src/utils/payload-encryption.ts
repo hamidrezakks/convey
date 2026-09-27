@@ -86,14 +86,21 @@ export class PayloadEncryptionManager {
   private pubSubClient: BunNativeRedis | null = null;
 
   constructor(secretKeyStr?: string) {
-    const rawKey = secretKeyStr || process.env.PAYLOAD_ENCRYPTION_KEY || 'default_secret_key_32_bytes_len_!';
+    const configuredKey = secretKeyStr || process.env.PAYLOAD_ENCRYPTION_KEY;
+    if (
+      process.env.NODE_ENV === 'production' &&
+      (!configuredKey || configuredKey.length < 32 || configuredKey === 'default_secret_key_32_bytes_len_!')
+    ) {
+      throw new Error('Production requires a unique PAYLOAD_ENCRYPTION_KEY of at least 32 characters');
+    }
+    const rawKey = configuredKey || 'default_secret_key_32_bytes_len_!';
     // Bun native CryptoHasher (C++ fast path) guarantees exactly 32 bytes (256 bits) for AES-256-GCM
     const hasher = new Bun.CryptoHasher('sha256');
     hasher.update(rawKey);
     this.masterKey = Buffer.from(hasher.digest());
 
     this.registerKeyProvider(new LocalKeyProvider(this.masterKey));
-    this.registerKeyProvider(new MockKmsKeyProvider());
+    if (process.env.NODE_ENV !== 'production') this.registerKeyProvider(new MockKmsKeyProvider());
 
     if (process.env.NODE_ENV !== 'test') {
       this.initRedisPubSub();
@@ -101,6 +108,12 @@ export class PayloadEncryptionManager {
   }
 
   registerKeyProvider(provider: KeyManagementProvider): void {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      (provider instanceof MockKmsKeyProvider || provider.name === 'mock-kms')
+    ) {
+      throw new Error('Mock KMS is prohibited in production');
+    }
     this.keyProviders.set(provider.name, provider);
   }
 
