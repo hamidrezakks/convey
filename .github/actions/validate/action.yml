@@ -25,6 +25,7 @@ runs:
       run: |
         bun run biome:check
         bun run typecheck
+        bun run db:check
         bun test apps/server/tests/access-policy.test.ts apps/server/tests/tenant-scope.test.ts apps/server/tests/env-config.test.ts apps/server/tests/full-jitter-retry.test.ts apps/server/tests/trace-context.test.ts
         bun run test:web
         bun run test:sdks

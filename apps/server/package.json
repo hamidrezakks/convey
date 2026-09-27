@@ -22,7 +22,7 @@
     "bench:pipeline": "bun run bench/index.ts --pipeline",
     "bench:stress": "bun run bench/index.ts --stress",
     "bench:all": "bun run bench/index.ts --all",
-    "db:generate": "drizzle-kit generate",
+    "db:check": "bun scripts/check-schema.ts",
     "db:migrate": "bun src/db/migrate.ts",
     "db:seed:million": "bun scripts/seed-production-million.ts",
     "jobs:dump": "bun scripts/get-job-consumption.ts",

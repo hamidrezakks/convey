@@ -11,7 +11,7 @@ This repository (`convey/`) contains the complete source code, tests, documentat
 - **Run Tests**: `bun test`
 - **Biome Check**: `bun run biome:check`
 - **Biome Format**: `bun run biome:format`
-- **Generate Migrations**: `bun run db:generate`
+- **Validate Canonical Schema**: `bun run db:check`
 - **Run Migrations**: `bun run db:migrate`
 
 ## Architectural Rules
