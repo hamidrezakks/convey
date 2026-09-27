@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { Worker } from 'bullmq';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages, outbox, providers } from '../../db/schema';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
@@ -184,15 +185,13 @@ export async function handleComplianceKeywords(team: string, senderPhone: string
       identifierType: senderPhone.includes('@') ? IdentifierType.EMAIL : IdentifierType.PHONE,
       reason: 'inbound_opt_out',
       channel: 'ALL',
-    }).catch((err) => logger.warn('WebhookIngest', `Suppression add warning: ${(err as Error).message}`));
+    });
 
     logger.info('WebhookIngest', `Recipient '${senderPhone}' auto-suppressed via keyword '${normalizedKeyword}'`);
   } else if (OPT_IN_KEYWORDS.has(normalizedKeyword)) {
     const existingSupp = await SuppressionsService.findSuppressionByIdentifier(team, senderPhone);
     if (existingSupp) {
-      await SuppressionsService.deleteSuppression(team, existingSupp.id).catch((err) =>
-        logger.warn('WebhookIngest', `Suppression delete warning: ${(err as Error).message}`),
-      );
+      await SuppressionsService.deleteSuppression(team, existingSupp.id);
       logger.info('WebhookIngest', `Recipient '${senderPhone}' un-suppressed via keyword '${normalizedKeyword}'`);
     }
   }
@@ -203,6 +202,7 @@ export async function handleInboundMessage(params: {
   ev: IngestedWebhookEvent;
   inboundData: InboundMessageData;
   now: Date;
+  messageId?: string;
 }): Promise<void> {
   const { effectiveProviderId, ev, inboundData, now } = params;
   const { senderPhone, inboundText, team } = inboundData;
@@ -213,12 +213,17 @@ export async function handleInboundMessage(params: {
   // 2. Handle compliance opt-in/opt-out keywords
   await handleComplianceKeywords(team, senderPhone, inboundText);
 
-  // 3. Record inbound audit event in messageEvents table
-  await db
-    .insert(messageEvents)
-    .values({
+  const receiptId = createHash('sha256')
+    .update(JSON.stringify([effectiveProviderId, team, ev.providerMessageId, ev.rawPayload]))
+    .digest('hex');
+  await db.transaction(async (tx) => {
+    const inserted = await tx.execute(
+      sql`INSERT INTO webhook_event_receipts (id) VALUES (${receiptId}) ON CONFLICT DO NOTHING RETURNING id`,
+    );
+    if (!inserted.length) return;
+    await tx.insert(messageEvents).values({
       id: generateMessageId(),
-      messageId: ev.providerMessageId.startsWith('msg_') ? ev.providerMessageId : `inbound_${Date.now()}`,
+      messageId: params.messageId || `inbound_${receiptId}`,
       channel: Channel.CHAT,
       providerId: effectiveProviderId,
       type: 'inbound.message',
@@ -226,14 +231,18 @@ export async function handleInboundMessage(params: {
       metadata: { raw: ev.rawPayload, sender: senderPhone, text: inboundText },
       occurredAt: ev.timestamp,
       createdAt: now,
-    })
-    .catch((err) => logger.warn('WebhookIngest', `Inbound event insert warning: ${(err as Error).message}`));
-
-  await WebhookSubscriptionsService.triggerEventForTeam(team, 'inbound.message_received', {
-    from: senderPhone,
-    body: inboundText,
-    channel: Channel.CHAT,
-    receivedAt: ev.timestamp.toISOString(),
+    });
+    await WebhookSubscriptionsService.triggerEventForTeam(
+      team,
+      'inbound.message_received',
+      {
+        from: senderPhone,
+        body: inboundText,
+        channel: Channel.CHAT,
+        receivedAt: ev.timestamp.toISOString(),
+      },
+      tx,
+    );
   });
 }
 
@@ -438,6 +447,23 @@ export async function processSingleWebhookEvent(
     // 2. STATUS UPDATE / DELIVERY RECEIPT FLOW
     const attempt = await findCorrelatedAttempt(effectiveProviderId, ev.providerMessageId, now);
     if (!attempt) throw new Error('Receipt arrived before its attempt is available');
+    const inboundData = parseInboundMessageData(rawPayloadObj);
+    if (inboundData?.inboundText) {
+      const { startDate, endDate } = computePartitionWindow(attempt.messageId);
+      const [msg] = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.publicId, attempt.messageId),
+            gte(messages.createdAt, startDate),
+            lte(messages.createdAt, endDate),
+          ),
+        );
+      if (!msg) throw new Error('Inbound message owner is not available');
+      inboundData.team = msg.team;
+      await handleInboundMessage({ effectiveProviderId, ev, inboundData, now, messageId: msg.publicId });
+    }
     await handleStatusUpdate(attempt, ev, now);
   } catch (err) {
     logger.error(

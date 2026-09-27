@@ -12,7 +12,7 @@ import {
   webhookSubscriptions,
 } from '../src/db/schema';
 import { buildMessageAndOutboxRecords } from '../src/modules/messaging/messaging.service';
-import { Channel } from '../src/modules/messaging/messaging.types';
+import { Channel, MessagePriority } from '../src/modules/messaging/messaging.types';
 import {
   findCorrelatedAttempt,
   handleStatusUpdate,
@@ -50,6 +50,7 @@ test('provider collision isolation and concurrent receipts produce one notificat
   const { messageRecord, publicId } = buildMessageAndOutboxRecords(
     {
       team,
+      priority: MessagePriority.NORMAL,
       userId: 'receipt-user',
       category: 'test',
       country: 'US',
