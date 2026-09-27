@@ -40,7 +40,7 @@ test('reconciliation enforces team scope and atomically records a single audit',
   const rows = await db.execute(sql`SELECT * FROM budget_reconciliations WHERE reservation_id = ${hold.id}`);
   expect(rows).toHaveLength(1);
   expect(rows[0].actor_id).toBe('operator');
-  await expect(BudgetService.settle(hold.id, 'committed', audit)).rejects.toThrow();
+  await expect(BudgetService.settle(hold.id, 'committed', audit)).rejects.toThrow('already settled differently');
   await db.execute(sql`DELETE FROM budget_reconciliations WHERE reservation_id = ${hold.id}`);
   await db.execute(sql`DELETE FROM budget_reservations WHERE id = ${hold.id}`);
 });

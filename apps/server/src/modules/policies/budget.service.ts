@@ -136,11 +136,11 @@ export const BudgetService = {
       await lockTeam(tx, reference.team);
       const [hold] = await tx.select().from(budgetReservations).where(eq(budgetReservations.id, id));
       if (hold.state === outcome) return;
+      if (hold.state !== 'reserved') throw new BudgetError('Budget reservation already settled differently');
       if (audit)
         await tx.execute(
           sql`INSERT INTO budget_reconciliations (reservation_id, team, actor_id, outcome, reason) VALUES (${id}, ${audit.team}, ${audit.actorId}, ${outcome}, ${audit.reason.trim()})`,
         );
-      if (hold.state !== 'reserved') throw new BudgetError('Budget reservation already settled differently');
       if (outcome === 'committed') {
         if (hold.policyId) {
           await totals(tx, hold.policyId, hold.month, hold.policyCurrency);
