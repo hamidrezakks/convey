@@ -1,6 +1,7 @@
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { Menu, RefreshCw, Search, Terminal } from 'lucide-react';
 import { LanguageSwitcher, useI18n } from '../../i18n';
+import { getSession, setSession } from '../../lib/session';
 import { useUiMode } from '../../mode';
 import { ThemeSwitcher } from '../../theme';
 import { Button } from '../ui/button';
@@ -60,6 +61,16 @@ export function Navbar({ onOpenCommandPalette, onToggleSidebar }: NavbarProps) {
 
       {/* Right Controls: Theme, Lang, Telemetry, Actions */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <button
+          type="button"
+          className="text-xs px-2 py-1"
+          onClick={() => {
+            queryClient.clear();
+            setSession('', null);
+          }}
+        >
+          Sign out ({getSession()?.keyName})
+        </button>
         <ThemeSwitcher variant="navbar" />
         <LanguageSwitcher variant="navbar" />
 

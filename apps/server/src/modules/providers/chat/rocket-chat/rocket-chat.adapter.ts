@@ -1,20 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { rocketChatTransformer } from './rocket-chat.transformer';
-import type {
-  RocketChatAdapterConfig,
-  RocketChatApiRequest,
-  RocketChatApiResponse,
-  RocketChatWebhookPayload,
-} from './types';
+import type { RocketChatAdapterConfig, RocketChatApiRequest, RocketChatApiResponse } from './types';
 
 export class RocketChatChatAdapter
   implements ProviderAdapter<RocketChatAdapterConfig, RocketChatApiRequest, RocketChatApiResponse>
@@ -25,7 +21,7 @@ export class RocketChatChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -39,8 +35,8 @@ export class RocketChatChatAdapter
   }
 
   hasSetup(configOverride?: RocketChatAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.token || config.user || config.userId || config.serverUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.serverUrl && config.token && (config.userId || config.user));
   }
 
   transformRequest(options: ProviderSendOptions, config?: RocketChatAdapterConfig): RocketChatApiRequest {
@@ -52,7 +48,17 @@ export class RocketChatChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: RocketChatAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const token = config.token || '';
     const user = config.user || config.userId || '';
     const serverUrl = config.serverUrl || '';
@@ -85,7 +91,7 @@ export class RocketChatChatAdapter
     const endpoint = `${host.replace(/\/$/, '')}/api/v1/chat.postMessage`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'X-Auth-Token': token,
@@ -114,19 +120,8 @@ export class RocketChatChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as RocketChatWebhookPayload;
-    const msgId = webhookData.message_id || webhookData._id;
-    if (!msgId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: msgId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

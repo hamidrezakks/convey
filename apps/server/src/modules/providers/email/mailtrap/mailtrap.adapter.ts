@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { mailtrapTransformer } from './mailtrap.transformer';
 import type {
   MailtrapApiRequest,
@@ -39,8 +42,8 @@ export class MailtrapEmailAdapter
   }
 
   hasSetup(configOverride?: MailtrapEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiToken || config.inboxId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: MailtrapEmailAdapterConfig): MailtrapApiRequest {
@@ -52,7 +55,17 @@ export class MailtrapEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MailtrapEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiToken = config.apiToken || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -84,7 +97,7 @@ export class MailtrapEmailAdapter
       : 'https://send.api.mailtrap.io/api/send';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiToken}`,
@@ -113,6 +126,14 @@ export class MailtrapEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'event', {
+      delivery: NormalizedStatus.DELIVERED,
+      bounce: NormalizedStatus.BOUNCED,
+      open: NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as MailtrapWebhookPayload;
     if (!webhookData?.message_id) return [];
 
@@ -120,7 +141,7 @@ export class MailtrapEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.message_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.timestamp ? new Date(Number(webhookData.timestamp) * 1000) : new Date(),
       },

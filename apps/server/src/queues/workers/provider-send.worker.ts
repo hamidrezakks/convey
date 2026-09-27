@@ -1,6 +1,6 @@
 import type { MessagePriority } from '@convey/shared';
 import { type Job, Worker } from 'bullmq';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messageEvents, messages, providers } from '../../db/schema';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
@@ -12,9 +12,10 @@ import {
   MessageState,
   MetricType,
 } from '../../modules/messaging/messaging.types';
+import { BudgetService } from '../../modules/policies/budget.service';
+import { estimateBudgetRecipients, estimateBudgetUnits } from '../../modules/policies/budget-estimate';
 import { LeakyBucketGovernor } from '../../modules/policies/leaky-bucket';
 import { PolicyEngine } from '../../modules/policies/policy-engine';
-import { tenantSlaManager } from '../../modules/policies/tenant-sla';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import type { UnifiedRecipient } from '../../modules/providers/core/provider-types';
@@ -41,6 +42,8 @@ import { fallbackRetryQueue } from '../queue-definitions';
 
 export interface SendJobData {
   attemptId?: string;
+  budgetExecutionId?: string;
+  budgetStep?: string;
   publicId: string;
   channel: Channel;
   tenantId?: string;
@@ -129,6 +132,7 @@ export async function handleSendSuccess(params: {
   msg: typeof messages.$inferSelect;
   attemptId: string;
   now: Date;
+  budgetSettled?: boolean;
 }): Promise<void> {
   const { data, adapterId, providerMessageId, latencyMs, msg, attemptId, now } = params;
   providerCircuitBreaker.recordSuccess(adapterId);
@@ -136,15 +140,8 @@ export async function handleSendSuccess(params: {
   adaptiveConcurrency.recordExecution(latencyMs);
   statisticalAnomalyDetector.recordLatency(adapterId, latencyMs);
   statisticalAnomalyDetector.analyze(adapterId, latencyMs);
-  tenantSlaManager.recordDeliveryLatency(msg.team, latencyMs);
 
-  // Populate O(1) Redis Reverse Index for instant Webhook ingestion without DB partition scans
-  if (providerMessageId) {
-    const redisKey = formatRedisKey(`provmsg:${adapterId}:${providerMessageId}`);
-    const payload = `${data.publicId}|${attemptId}|${now.toISOString()}|${data.channel}`;
-    redisClient.set(redisKey, payload, 'EX', 86400 * 7).catch(() => {});
-  }
-
+  // A successful send confirms provider acceptance, not recipient delivery.
   await db.insert(messageAttempts).values({
     id: attemptId,
     messageId: data.publicId,
@@ -152,9 +149,8 @@ export async function handleSendSuccess(params: {
     providerId: adapterId,
     attemptNo: data.attemptNo,
     origin: data.origin,
-    state: MessageState.DELIVERED,
+    state: MessageState.DISPATCHED,
     providerMessageId,
-    deliveredAt: now,
     latencyMs,
     queuedAt: now,
     startedAt: now,
@@ -168,7 +164,7 @@ export async function handleSendSuccess(params: {
     attemptId,
     channel: data.channel,
     providerId: adapterId,
-    type: EventType.DELIVERY_DELIVERED,
+    type: EventType.DELIVERY_ACCEPTED,
     source: EventSource.WORKER,
     metadata: { providerMessageId },
     occurredAt: now,
@@ -178,12 +174,24 @@ export async function handleSendSuccess(params: {
   const { startDate, endDate } = computePartitionWindow(data.publicId);
   await db
     .update(messages)
-    .set({ state: MessageState.DELIVERED, completedAt: now, updatedAt: now })
+    .set({ state: MessageState.DISPATCHED, updatedAt: now })
     .where(
-      and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+      and(
+        eq(messages.publicId, data.publicId),
+        gte(messages.createdAt, startDate),
+        lte(messages.createdAt, endDate),
+        inArray(messages.state, [MessageState.ACCEPTED, MessageState.DISPATCHED]),
+      ),
     );
 
-  if (!msg.isSandbox) {
+  // Populate O(1) Redis Reverse Index for instant Webhook ingestion without DB partition scans
+  if (providerMessageId) {
+    const redisKey = formatRedisKey(`provmsg:${adapterId}:${providerMessageId}`);
+    const payload = `${data.publicId}|${attemptId}|${now.toISOString()}|${data.channel}`;
+    redisClient.set(redisKey, payload, 'EX', 86400 * 7).catch(() => {});
+  }
+
+  if (!msg.isSandbox && !params.budgetSettled) {
     const rateInfo = getProviderRate(adapterId);
     await PolicyEngine.recordLedger({
       messageId: data.publicId,
@@ -207,13 +215,13 @@ export async function handleSendSuccess(params: {
     category: msg.category,
     country: msg.country,
     channel: data.channel,
-    metric: MetricType.DELIVERED,
+    metric: MetricType.SENT,
     timestamp: now,
   }).catch((err) => {
     logger.warn('ProviderSend', `Metric recording dropped for message '${data.publicId}': ${(err as Error).message}`);
   });
 
-  await WebhookSubscriptionsService.triggerEventForTenant(msg.team, msg.team, 'message.delivered', {
+  await WebhookSubscriptionsService.triggerEventForTenant(msg.team, msg.team, 'message.sent', {
     messageId: msg.publicId,
     channel: data.channel,
     providerId: adapterId,
@@ -282,6 +290,8 @@ export async function handleTransientFailure(params: {
       providerId: adapterId,
       content: data.content,
       recipient: data.recipient,
+      budgetExecutionId: data.budgetExecutionId,
+      budgetStep: data.budgetStep,
       origin: AttemptOrigin.RETRY,
       attemptNo: nextAttemptNo,
     },
@@ -301,7 +311,7 @@ export async function handlePermanentFailure(params: {
   now: Date;
 }): Promise<void> {
   const { data, adapterId, error, errorCategory, isTransient, latencyMs, msg, attemptId, now } = params;
-  providerCircuitBreaker.recordFailure(adapterId, true);
+  if (error?.code !== 'BUDGET_EXCEEDED') providerCircuitBreaker.recordFailure(adapterId, true);
 
   await db.insert(messageAttempts).values({
     id: attemptId,
@@ -328,7 +338,7 @@ export async function handlePermanentFailure(params: {
     attemptId,
     channel: data.channel,
     providerId: adapterId,
-    type: EventType.ATTEMPT_FAILED,
+    type: error?.code === 'BUDGET_EXCEEDED' ? EventType.POLICY_BUDGET_EXCEEDED : EventType.ATTEMPT_FAILED,
     source: EventSource.WORKER,
     metadata: { error, attemptsExhausted: isTransient },
     occurredAt: now,
@@ -367,6 +377,7 @@ export async function handlePermanentFailure(params: {
           'trigger-fallback',
           {
             publicId: data.publicId,
+            budgetExecutionId: data.budgetExecutionId,
             triggerChannel: data.channel,
             triggerEvent: 'failed',
             targetChannels: rule.send,
@@ -418,6 +429,8 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
   if (!msgList.length) return;
   const msg = msgList[0];
 
+  if ((data.budgetExecutionId ?? '') !== (msg.metadata?._budgetExecutionId ?? '')) return;
+
   if (msg.cancelledAt || (msg.expiresAt && now >= msg.expiresAt)) {
     return;
   }
@@ -461,7 +474,61 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
       providerConfig,
     );
 
+    let reservationId: string | undefined;
+    if (!msg.isSandbox) {
+      const rate = getProviderRate(adapter.id);
+      const reservation = await BudgetService.reserve({
+        key: JSON.stringify([
+          data.publicId,
+          data.budgetExecutionId,
+          data.budgetStep,
+          data.channel,
+          adapter.id,
+          data.attemptNo,
+          data.origin,
+        ]),
+        messageId: data.publicId,
+        team: msg.team,
+        channel: data.channel,
+        providerId: adapter.id,
+        amount: rate.cost * estimateBudgetUnits(sendOptions),
+        currency: rate.currency,
+      });
+      if (!reservation.allowed) {
+        if (reservation.reason === 'duplicate') return;
+        await handlePermanentFailure({
+          data,
+          adapterId: adapter.id,
+          error: { code: 'BUDGET_EXCEEDED', message: 'Insufficient remaining budget' },
+          errorCategory: ErrorCategory.PERMANENT,
+          isTransient: false,
+          latencyMs: 0,
+          msg,
+          attemptId,
+          now,
+        });
+        return;
+      }
+      reservationId = reservation.id;
+    }
+    // No SQL transaction or lock is held while calling the external provider.
     const result = await adapter.send(sendOptions, providerConfig);
+    if (reservationId) {
+      if (result.success) await BudgetService.settle(reservationId, 'committed');
+      else if (
+        estimateBudgetRecipients(sendOptions) === 1 &&
+        (result.error?.category === ErrorCategory.RATE_LIMITED ||
+          [
+            'MISSING_CREDENTIALS',
+            'INVALID_RECIPIENT',
+            'INVALID_PAYLOAD',
+            'PAYLOAD_TOO_LARGE',
+            'PROVIDER_NOT_IMPLEMENTED',
+          ].includes(result.error?.code ?? ''))
+      )
+        await BudgetService.settle(reservationId, 'released');
+      // Unclassified failures (including malformed success responses) may have been accepted. Retain their hold.
+    }
 
     const latencyMs = Math.round(performance.now() - startTime);
 
@@ -470,6 +537,7 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
         data,
         adapterId: adapter.id,
         providerMessageId: result.providerMessageId,
+        budgetSettled: Boolean(reservationId),
         latencyMs,
         msg,
         attemptId,

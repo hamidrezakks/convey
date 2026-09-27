@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ZulipAdapterConfig, ZulipApiRequest, ZulipApiResponse } from './types';
 
 export class ZulipTransformer implements ProviderTransformer<ZulipAdapterConfig, ZulipApiRequest, ZulipApiResponse> {
@@ -46,7 +42,7 @@ export class ZulipTransformer implements ProviderTransformer<ZulipAdapterConfig,
       error: {
         code: response.code ? `ERR_${response.code}` : `ZULIP_ERROR_${statusCode}`,
         message: response.msg || 'Zulip API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

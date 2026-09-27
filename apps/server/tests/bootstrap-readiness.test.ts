@@ -23,7 +23,7 @@ describe('Bootstrap, Provider Setup & Readiness Suite', () => {
 
     const testConfig = {
       discord: { webhookUrl: 'https://discord.com/api/webhooks/123/abc' },
-      ses: { region: 'us-east-1' },
+      ses: { region: 'us-east-1', accessKeyId: 'test-access', secretAccessKey: 'test-secret' },
     };
 
     const configuredProviders = ProviderRegistry.getConfiguredProviders(testConfig);

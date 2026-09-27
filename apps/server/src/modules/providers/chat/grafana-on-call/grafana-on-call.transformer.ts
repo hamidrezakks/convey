@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { GrafanaOnCallAdapterConfig, GrafanaOnCallApiRequest, GrafanaOnCallApiResponse } from './types';
 
 export class GrafanaOnCallTransformer
@@ -29,7 +25,7 @@ export class GrafanaOnCallTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.status === 'ok' || alertId)) {
       return {
         success: true,
-        providerMessageId: alertId || `grafana_oncall_${Date.now()}`,
+        providerMessageId: alertId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -39,7 +35,7 @@ export class GrafanaOnCallTransformer
       error: {
         code: `GRAFANA_ONCALL_ERROR_${statusCode}`,
         message: response.message || response.error || 'Grafana On-Call API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

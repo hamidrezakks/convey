@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { bandwidthTransformer } from './bandwidth.transformer';
 import type {
   BandwidthApiRequest,
@@ -39,8 +42,8 @@ export class BandwidthSmsAdapter
   }
 
   hasSetup(configOverride?: BandwidthSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.accountId || config.username || config.password || config.applicationId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.accountId && config.username && config.password);
   }
 
   transformRequest(options: ProviderSendOptions, config?: BandwidthSmsAdapterConfig): BandwidthApiRequest {
@@ -52,7 +55,17 @@ export class BandwidthSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: BandwidthSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const accountId = config.accountId || '';
     const username = config.username || '';
     const password = config.password || '';
@@ -86,7 +99,7 @@ export class BandwidthSmsAdapter
     const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -114,6 +127,13 @@ export class BandwidthSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'type', {
+      'message-delivered': NormalizedStatus.DELIVERED,
+      'message-failed': NormalizedStatus.FAILED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as BandwidthWebhookPayload;
     if (!webhookData?.message?.id) return [];
 
@@ -121,7 +141,7 @@ export class BandwidthSmsAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.message.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.message.time ? new Date(webhookData.message.time) : new Date(),
       },

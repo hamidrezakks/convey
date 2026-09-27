@@ -5,12 +5,9 @@ import { type AuditLog, auditLogs } from '../../db/schema';
 import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
 
-export enum UserRole {
-  ORG_ADMIN = 'ORG_ADMIN',
-  DEVELOPER = 'DEVELOPER',
-  SUPPORT_AGENT = 'SUPPORT_AGENT',
-  AUDITOR = 'AUDITOR',
-}
+import type { UserRole } from './access-policy';
+
+export { UserRole } from './access-policy';
 
 export interface RecordAuditLogParams {
   tenantId: string;

@@ -1,15 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { discordTransformer } from './discord.transformer';
-import type { DiscordApiRequest, DiscordApiResponse, DiscordChatAdapterConfig, DiscordWebhookPayload } from './types';
+import type { DiscordApiRequest, DiscordApiResponse, DiscordChatAdapterConfig } from './types';
 
 export class DiscordChatAdapter
   implements ProviderAdapter<DiscordChatAdapterConfig, DiscordApiRequest, DiscordApiResponse>
@@ -20,7 +21,7 @@ export class DiscordChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -34,7 +35,7 @@ export class DiscordChatAdapter
   }
 
   hasSetup(configOverride?: DiscordChatAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.webhookUrl);
   }
 
@@ -47,7 +48,17 @@ export class DiscordChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: DiscordChatAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const webhookUrl = config.webhookUrl || (options.recipient.webhookUrl as string) || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -64,7 +75,7 @@ export class DiscordChatAdapter
     }
 
     try {
-      const response = await fetch(webhookUrl, {
+      const response = await providerFetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,18 +103,8 @@ export class DiscordChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as DiscordWebhookPayload;
-    if (!webhookData?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

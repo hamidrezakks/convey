@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { LineAdapterConfig, LineApiRequest, LineApiResponse, LineMessageItem } from './types';
 
 export class LineTransformer implements ProviderTransformer<LineAdapterConfig, LineApiRequest, LineApiResponse> {
@@ -50,7 +46,7 @@ export class LineTransformer implements ProviderTransformer<LineAdapterConfig, L
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: msgId || `line_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -60,7 +56,7 @@ export class LineTransformer implements ProviderTransformer<LineAdapterConfig, L
       error: {
         code: `LINE_ERROR_${statusCode}`,
         message: response.message || response.details?.[0]?.message || 'LINE API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

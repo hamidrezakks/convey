@@ -74,9 +74,11 @@ describe('FxEngine & Multi-Currency Standards', () => {
     expect(conv.convertedAmount).toBe(25.0);
   });
 
-  it('handles unknown currencies gracefully by defaulting rate to 1.0', () => {
-    const conv = fxEngine.convert(50, 'UNKNOWN_CURR', 'USD');
-    expect(conv.exchangeRate).toBe(1.0);
-    expect(conv.convertedAmount).toBe(50.0);
+  it('rejects unknown currencies and invalid amounts/rates', () => {
+    expect(() => fxEngine.convert(50, 'UNKNOWN_CURR', 'USD')).toThrow();
+    for (const value of [NaN, Infinity, -1]) {
+      expect(() => new FxEngine().setRate('EUR', value)).toThrow();
+      expect(() => fxEngine.convert(value, 'USD', 'EUR')).toThrow();
+    }
   });
 });

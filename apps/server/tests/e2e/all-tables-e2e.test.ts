@@ -145,7 +145,7 @@ describe('Convey Comprehensive All-Tables & All-Features E2E Verification Suite'
       const res1 = await app.fetch(
         new Request('http://localhost/v1/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SEEDED_API_KEY_RAW },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': 'test_key_restricted_team' },
           body: JSON.stringify(payload1),
         }),
       );
@@ -158,7 +158,7 @@ describe('Convey Comprehensive All-Tables & All-Features E2E Verification Suite'
       const res2 = await app.fetch(
         new Request('http://localhost/v1/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SEEDED_API_KEY_RAW },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': 'test_key_restricted_team' },
           body: JSON.stringify(payload2),
         }),
       );
@@ -187,7 +187,7 @@ describe('Convey Comprehensive All-Tables & All-Features E2E Verification Suite'
       const res = await app.fetch(
         new Request('http://localhost/v1/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SEEDED_API_KEY_RAW },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': 'test_key_budget_exceeded_team' },
           body: JSON.stringify(payload),
         }),
       );

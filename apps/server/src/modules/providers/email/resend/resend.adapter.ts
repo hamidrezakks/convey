@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +9,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { createTransportFetch } from '../../core/transport';
 import { resendTransformer } from './resend.transformer';
 import type { ResendApiRequest, ResendApiResponse, ResendEmailAdapterConfig, ResendWebhookPayload } from './types';
@@ -35,7 +37,7 @@ export class ResendEmailAdapter
   }
 
   hasSetup(configOverride?: ResendEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.apiKey);
   }
 
@@ -48,7 +50,17 @@ export class ResendEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: ResendEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -103,6 +115,15 @@ export class ResendEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'type', {
+      'email.delivered': NormalizedStatus.DELIVERED,
+      'email.bounced': NormalizedStatus.BOUNCED,
+      'email.failed': NormalizedStatus.FAILED,
+      'email.opened': NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as ResendWebhookPayload;
     if (!webhookData?.data?.email_id) return [];
 
@@ -110,7 +131,7 @@ export class ResendEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.data.email_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.data.created_at ? new Date(webhookData.data.created_at) : new Date(),
       },

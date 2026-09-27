@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { BulkSmsApiRequest, BulkSmsApiResponse, BulkSmsSmsAdapterConfig } from './types';
 
 export class BulkSmsTransformer
@@ -39,7 +35,7 @@ export class BulkSmsTransformer
       error: {
         code: firstItem?.status?.type || 'BULKSMS_ERROR',
         message: firstItem?.status?.message || 'BulkSMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

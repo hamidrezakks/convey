@@ -139,7 +139,13 @@ export class PreferencesService {
     const [existing] = await db
       .select()
       .from(recipientPreferences)
-      .where(and(eq(recipientPreferences.tenantId, tenantId), eq(recipientPreferences.recipientId, recipientId)))
+      .where(
+        and(
+          eq(recipientPreferences.tenantId, tenantId),
+          eq(recipientPreferences.recipientId, recipientId),
+          ...(team ? [eq(recipientPreferences.team, team)] : []),
+        ),
+      )
       .limit(1);
 
     const rawChannels = (existing ? (existing.channelPreferences as Record<string, boolean>) : {}) || {};
@@ -242,11 +248,21 @@ export class PreferencesService {
   /**
    * Retrieves preferences by recipient ID.
    */
-  static async getPreferences(tenantId: string, recipientId: string): Promise<RecipientPreferencesDto | null> {
+  static async getPreferences(
+    tenantId: string,
+    recipientId: string,
+    team?: string,
+  ): Promise<RecipientPreferencesDto | null> {
     const [record] = await db
       .select()
       .from(recipientPreferences)
-      .where(and(eq(recipientPreferences.tenantId, tenantId), eq(recipientPreferences.recipientId, recipientId)))
+      .where(
+        and(
+          eq(recipientPreferences.tenantId, tenantId),
+          eq(recipientPreferences.recipientId, recipientId),
+          ...(team ? [eq(recipientPreferences.team, team)] : []),
+        ),
+      )
       .limit(1);
 
     if (!record) return null;
@@ -332,13 +348,14 @@ export class PreferencesService {
    */
   static async checkDispatchAllowed(params: {
     tenantId: string;
+    team?: string;
     recipientId: string;
     channel: Channel;
     topicKey?: string;
   }): Promise<PreferenceCheckResult> {
-    const { tenantId, recipientId, channel, topicKey } = params;
+    const { tenantId, team, recipientId, channel, topicKey } = params;
 
-    const pref = await PreferencesService.getPreferences(tenantId, recipientId);
+    const pref = await PreferencesService.getPreferences(tenantId, recipientId, team);
     if (!pref) {
       return { allowed: true };
     }
@@ -363,7 +380,13 @@ export class PreferencesService {
         const [topic] = await db
           .select()
           .from(subscriptionTopics)
-          .where(and(eq(subscriptionTopics.tenantId, tenantId), eq(subscriptionTopics.key, topicKey)))
+          .where(
+            and(
+              eq(subscriptionTopics.tenantId, tenantId),
+              eq(subscriptionTopics.key, topicKey),
+              ...(team ? [eq(subscriptionTopics.team, team)] : []),
+            ),
+          )
           .limit(1);
 
         if (!topic?.isMandatory) {

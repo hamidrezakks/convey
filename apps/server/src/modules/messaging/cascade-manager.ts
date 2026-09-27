@@ -21,6 +21,7 @@ import {
 export interface CascadeJobData {
   publicId: string;
   stepIndex: number;
+  budgetExecutionId?: string;
 }
 
 const CANCEL_KEY_PREFIX = 'cascade:cancel:';
@@ -82,15 +83,21 @@ export const CascadeManager = {
   /**
    * Schedules execution of Step N in BullMQ with a delay (waitForReceiptMs).
    */
-  async scheduleNextStep(publicId: string, nextStepIndex: number, delayMs: number): Promise<void> {
+  async scheduleNextStep(
+    publicId: string,
+    nextStepIndex: number,
+    delayMs: number,
+    budgetExecutionId?: string,
+  ): Promise<void> {
     const jobData: CascadeJobData = {
       publicId,
       stepIndex: nextStepIndex,
+      budgetExecutionId,
     };
 
     await fallbackRetryQueue.add(JobName.PROCESS_CASCADE_STEP, jobData, {
       delay: delayMs,
-      jobId: `cascade_${publicId}_step_${nextStepIndex}`,
+      jobId: `cascade_${publicId}${budgetExecutionId ? `_${budgetExecutionId}` : ''}_step_${nextStepIndex}`,
       removeOnComplete: true,
       removeOnFail: false,
     });
@@ -248,7 +255,12 @@ export const CascadeManager = {
     const nextStepIndex = stepIndex + 1;
     if (nextStepIndex < cascade.steps.length) {
       const waitMs = step.waitForReceiptMs || 30000;
-      await this.scheduleNextStep(publicId, nextStepIndex, waitMs);
+      await this.scheduleNextStep(
+        publicId,
+        nextStepIndex,
+        waitMs,
+        typeof msg.metadata?._budgetExecutionId === 'string' ? msg.metadata._budgetExecutionId : undefined,
+      );
     }
 
     logger.info('CascadeManager', `Dispatched cascade Step ${stepIndex} (${step.channel}) for message '${publicId}'`);

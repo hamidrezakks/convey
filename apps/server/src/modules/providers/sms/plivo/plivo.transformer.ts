@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { PlivoApiRequest, PlivoApiResponse, PlivoSmsAdapterConfig } from './types';
 
 export class PlivoTransformer implements ProviderTransformer<PlivoSmsAdapterConfig, PlivoApiRequest, PlivoApiResponse> {
@@ -37,7 +33,7 @@ export class PlivoTransformer implements ProviderTransformer<PlivoSmsAdapterConf
       error: {
         code: 'PLIVO_ERROR',
         message: response.message || response.error || 'Plivo SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

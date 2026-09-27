@@ -1,5 +1,7 @@
 export interface SinchAdapterConfig {
   apiKey?: string;
+  servicePlanId?: string;
+  region?: 'us' | 'eu' | 'au' | 'br' | 'ca';
   apiSecret?: string;
   senderId?: string;
   from?: string;

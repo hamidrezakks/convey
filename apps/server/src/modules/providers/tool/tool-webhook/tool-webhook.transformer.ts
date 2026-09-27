@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ToolWebhookApiRequest, ToolWebhookApiResponse, ToolWebhookToolAdapterConfig } from './types';
 
 export class ToolWebhookTransformer
@@ -25,7 +21,7 @@ export class ToolWebhookTransformer
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: response.messageId || `webhook_${Date.now()}`,
+        providerMessageId: response.messageId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -35,7 +31,7 @@ export class ToolWebhookTransformer
       error: {
         code: 'TOOL_WEBHOOK_ERROR',
         message: response.error || `Tool Webhook HTTP POST failed with status ${statusCode}`,
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { CequensApiRequest, CequensApiResponse, CequensSmsAdapterConfig } from './types';
 
 export class CequensSmsTransformer
@@ -50,7 +46,7 @@ export class CequensSmsTransformer
       error: {
         code: response.replyCode ? String(response.replyCode) : 'CEQUENS_SEND_FAILED',
         message: response.replyMessage || response.status || 'Failed to send SMS via Cequens API',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: {
         rawPayload: rawBody || response,

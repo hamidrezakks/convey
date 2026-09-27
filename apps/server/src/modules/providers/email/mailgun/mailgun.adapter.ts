@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -34,8 +36,8 @@ export class MailgunEmailAdapter
   }
 
   hasSetup(configOverride?: MailgunEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.domain || config.username || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.domain);
   }
 
   transformRequest(options: ProviderSendOptions, config?: MailgunEmailAdapterConfig): MailgunApiRequest {
@@ -47,7 +49,17 @@ export class MailgunEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MailgunEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
     const domain = config.domain || '';
     const username = config.username || 'api';
@@ -92,7 +104,7 @@ export class MailgunEmailAdapter
     const authHeader = `Basic ${Buffer.from(`${username}:${apiKey}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -120,9 +132,10 @@ export class MailgunEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as MailgunWebhookPayload;
     const eventData = webhookData?.['event-data'];
-    const msgId = eventData?.id || eventData?.message?.headers?.['message-id'];
+    const msgId = eventData?.message?.headers?.['message-id'];
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
@@ -131,7 +144,9 @@ export class MailgunEmailAdapter
     if (event === 'delivered') normalizedStatus = NormalizedStatus.DELIVERED;
     else if (event === 'opened') normalizedStatus = NormalizedStatus.OPENED;
     else if (event === 'bounced') normalizedStatus = NormalizedStatus.BOUNCED;
-    else if (event === 'failed') normalizedStatus = NormalizedStatus.FAILED;
+    else if (event === 'failed' && (eventData as { severity?: string }).severity === 'permanent')
+      normalizedStatus = NormalizedStatus.FAILED;
+    else return [];
 
     return [
       {

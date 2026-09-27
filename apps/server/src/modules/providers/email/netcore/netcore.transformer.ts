@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { NetcoreApiRequest, NetcoreApiResponse, NetcoreEmailAdapterConfig } from './types';
 
 export class NetcoreTransformer
@@ -44,7 +40,7 @@ export class NetcoreTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.status === 'success' || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `netcore_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -54,7 +50,7 @@ export class NetcoreTransformer
       error: {
         code: 'NETCORE_ERROR',
         message: response.message || 'Netcore Email API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

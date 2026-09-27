@@ -1,8 +1,9 @@
+import { env } from '../../config/env';
 import { db } from '../../db';
 import { messageEvents } from '../../db/schema';
 import { redisClient } from '../../queues/connection';
 import { webhookIngestQueue } from '../../queues/queue-definitions';
-import { safeTimingCompare } from '../../utils/crypto';
+import { hashString, safeTimingCompare } from '../../utils/crypto';
 import { generateMessageId } from '../../utils/id';
 import { formatRedisKey } from '../../utils/redis-keys';
 import { CascadeManager } from '../messaging/cascade-manager';
@@ -15,6 +16,7 @@ import {
   WebhookStatus,
 } from '../messaging/messaging.types';
 import { ProviderRegistry } from '../providers/core/provider-registry';
+import { verifyIngressSignature } from './signature';
 
 export const WEBHOOK_DEDUPLICATION_TTL_SECONDS = 86_400; // 24 hours
 export const TRACKING_PIXEL_DEDUPLICATION_TTL_SECONDS = 3_600; // 1 hour
@@ -46,11 +48,12 @@ export function verifyHubChallenge(
   }
 
   const expectedToken =
+    process.env.META_WEBHOOK_VERIFY_TOKEN ||
     process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
     process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
     process.env.WHATSAPP_VERIFY_TOKEN ||
-    process.env.META_VERIFY_TOKEN ||
-    'convey_verify_token';
+    process.env.META_VERIFY_TOKEN;
+  if (!expectedToken) return { verified: false };
 
   if (safeTimingCompare(token, expectedToken)) {
     return { verified: true, challenge };
@@ -64,8 +67,13 @@ export async function verifyWebhookSignature(
   req?: Request,
   rawString?: string,
 ): Promise<boolean> {
-  if (!mod?.webhook?.verifySignature || !req || !rawString) return true;
-  return await mod.webhook.verifySignature(req, rawString);
+  if (!mod || !req || rawString === undefined) return false;
+  if (mod.webhook?.verifySignature) return await mod.webhook.verifySignature(req, rawString);
+  if (process.env.CONVEY_ALLOW_UNSIGNED_WEBHOOKS === 'true' && env.NODE_ENV !== 'production') return true;
+  const secret =
+    process.env[`CONVEY_WEBHOOK_SECRET_${mod.id.toUpperCase().replace(/-/g, '_')}`] ||
+    process.env.CONVEY_WEBHOOK_SECRET;
+  return verifyIngressSignature(req, rawString, secret);
 }
 
 export function extractEventId(headers: Record<string, string>, rawString: string): string {
@@ -114,26 +122,31 @@ export const WebhooksService = {
       return { status: WebhookStatus.UNAUTHORIZED };
     }
 
-    const eventId = extractEventId(headers, rawString);
-    const isNew = await deduplicateEvent(
-      formatRedisKey(`provider-event:${providerId}:${flowType}:${eventId}`),
-      WEBHOOK_DEDUPLICATION_TTL_SECONDS,
-    );
-    if (!isNew) {
-      return { status: WebhookStatus.DUPLICATE_IGNORED };
+    const eventId = hashString(rawString);
+    const jobId = `webhook_${providerId}_${flowType}_${eventId}`;
+    if (await webhookIngestQueue.getJob(jobId)) return { status: WebhookStatus.DUPLICATE_IGNORED };
+    let parsedPayload = payload;
+    if (typeof payload === 'string') {
+      parsedPayload = req?.headers.get('content-type')?.includes('application/x-www-form-urlencoded')
+        ? Object.fromEntries(new URLSearchParams(payload))
+        : JSON.parse(payload);
     }
-
-    try {
-      await webhookIngestQueue.add(JobName.PROCESS_WEBHOOK, {
+    // Queue persistence is the acknowledgement boundary; never acknowledge a failed enqueue.
+    await webhookIngestQueue.add(
+      JobName.PROCESS_WEBHOOK,
+      {
         providerId,
-        payload,
+        payload: parsedPayload,
         headers,
         flowType,
         receivedAt: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.warn(`[Webhook Ingest] Queue push warning for ${providerId}:`, (err as Error).message);
-    }
+      },
+      {
+        jobId,
+        removeOnComplete: { age: WEBHOOK_DEDUPLICATION_TTL_SECONDS },
+        removeOnFail: { age: WEBHOOK_DEDUPLICATION_TTL_SECONDS },
+      },
+    );
 
     return { status: WebhookStatus.ACCEPTED, received: true };
   },

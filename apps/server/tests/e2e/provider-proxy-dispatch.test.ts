@@ -180,7 +180,7 @@ describe('Provider Proxy Dispatch E2E Integration', () => {
       providerId,
       channel: Channel.SMS,
       credentials: {
-        apiKey: 'twilio_test_api_key',
+        authToken: 'twilio_test_auth_token',
         accountSid: 'AC_test_sid',
       },
       config: {

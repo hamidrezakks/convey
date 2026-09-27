@@ -1,20 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { mattermostTransformer } from './mattermost.transformer';
-import type {
-  MattermostAdapterConfig,
-  MattermostApiRequest,
-  MattermostApiResponse,
-  MattermostWebhookPayload,
-} from './types';
+import type { MattermostAdapterConfig, MattermostApiRequest, MattermostApiResponse } from './types';
 
 export class MattermostChatAdapter
   implements ProviderAdapter<MattermostAdapterConfig, MattermostApiRequest, MattermostApiResponse>
@@ -25,7 +21,7 @@ export class MattermostChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -39,8 +35,8 @@ export class MattermostChatAdapter
   }
 
   hasSetup(configOverride?: MattermostAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.webhookUrl || config.serverUrl || config.personalAccessToken);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.webhookUrl || (config.serverUrl && config.personalAccessToken));
   }
 
   transformRequest(options: ProviderSendOptions, config?: MattermostAdapterConfig): MattermostApiRequest {
@@ -52,7 +48,17 @@ export class MattermostChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MattermostAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const webhookUrl = config.webhookUrl || options.recipient.webhookUrl;
     const serverUrl = config.serverUrl || '';
     const token = config.personalAccessToken || '';
@@ -82,19 +88,20 @@ export class MattermostChatAdapter
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify(reqPayload),
+        body: JSON.stringify(webhookUrl ? { text: reqPayload.message } : reqPayload),
       });
 
       const responseText = await response.text();
+      if (webhookUrl && response.ok && responseText.trim() === 'ok') return { success: true };
       let responseJson: MattermostApiResponse = {};
 
       try {
         responseJson = JSON.parse(responseText) as MattermostApiResponse;
       } catch {
-        responseJson = { id: `mattermost_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);
@@ -106,19 +113,8 @@ export class MattermostChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as MattermostWebhookPayload;
-    const msgId = webhookData.post_id || webhookData.id;
-    if (!msgId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: msgId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

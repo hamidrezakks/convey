@@ -38,9 +38,8 @@ export class IsendproSmsSmsAdapter
     this.config = config;
   }
 
-  hasSetup(configOverride?: IsendproSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+  hasSetup(_configOverride?: IsendproSmsAdapterConfig): boolean {
+    return false;
   }
 
   transformRequest(options: ProviderSendOptions, config?: IsendproSmsAdapterConfig): IsendproSmsApiRequest {
@@ -51,62 +50,27 @@ export class IsendproSmsSmsAdapter
     return isendproSmsTransformer.transformResponse(response, statusCode, rawBody);
   }
 
-  async send(options: ProviderSendOptions, configOverride?: IsendproSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.apiKey || '';
-
-    const reqPayload = this.transformRequest(options, config);
-
-    if (!reqPayload.to) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_RECIPIENT',
-          message: 'Recipient phone number is required for IsendproSms',
-          category: ErrorCategory.PERMANENT,
-        },
-      };
-    }
-
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(reqPayload),
-      });
-
-      const responseText = await response.text();
-      let responseJson: IsendproSmsApiResponse = {};
-
-      try {
-        responseJson = JSON.parse(responseText) as IsendproSmsApiResponse;
-      } catch {
-        responseJson = { message: responseText };
-      }
-
-      return this.transformResponse(responseJson, response.status, responseText);
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
-      };
-    }
+  async send(_options: ProviderSendOptions, _configOverride?: IsendproSmsAdapterConfig): Promise<ProviderSendResult> {
+    return {
+      success: false,
+      error: {
+        code: 'PROVIDER_NOT_IMPLEMENTED',
+        message: 'Native vendor protocol is not implemented for this adapter. See docs/provider-porting-matrix.md.',
+        category: ErrorCategory.PERMANENT,
+      },
+    };
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as IsendproSmsWebhookPayload;
     const msgId = webhookData.messageId || webhookData.id;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.status || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

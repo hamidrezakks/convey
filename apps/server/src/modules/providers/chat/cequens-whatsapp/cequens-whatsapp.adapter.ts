@@ -1,5 +1,7 @@
 import { parseFetchResponse } from '../../../../utils/http';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -84,7 +86,7 @@ export class CequensWhatsappChatAdapter
   }
 
   hasSetup(configOverride?: CequensWhatsappAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.apiKey);
   }
 
@@ -97,7 +99,17 @@ export class CequensWhatsappChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: CequensWhatsappAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -127,7 +139,7 @@ export class CequensWhatsappChatAdapter
     const endpoint = 'https://apis.cequens.com/whatsapp/v1/messages';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -149,6 +161,7 @@ export class CequensWhatsappChatAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const rawPayloadObj =
       typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : { raw: payload };
     const webhookData = payload as CequensWhatsappWebhookPayload;
@@ -170,6 +183,22 @@ export class CequensWhatsappChatAdapter
 
     const isInbound = Boolean(direction === 'inbound' || senderPhone);
     const normalizedStatus = normalizeCequensStatus(webhookData?.status || (rawPayloadObj.status as string));
+    if (
+      !isInbound &&
+      ![
+        'delivered',
+        'read',
+        'seen',
+        'failed',
+        'undelivered',
+        'rejected',
+        'expired',
+        'error',
+        'bounced',
+        'opened',
+      ].includes(String(webhookData?.status || rawPayloadObj.status || '').toLowerCase())
+    )
+      return [];
     const bodyText = extractCequensMessageBody(webhookData || {}, rawPayloadObj);
 
     return [

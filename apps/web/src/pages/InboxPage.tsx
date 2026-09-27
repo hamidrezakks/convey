@@ -3,6 +3,7 @@ import { Bell, Check, ExternalLink, Inbox, Loader2, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
+import { requireSession } from '../lib/session';
 
 export function InboxPage() {
   const [notifications, setNotifications] = useState<InAppNotificationDto[]>([]);
@@ -15,10 +16,11 @@ export function InboxPage() {
   const [newCta, setNewCta] = useState('https://convey.dev/messages');
   const [isSending, setIsSending] = useState(false);
 
-  const tenantId = '019ff136-0000-7000-8000-000000000001';
-  const team = 'core';
+  const { tenantId, team } = requireSession();
+  const [loadError, setLoadError] = useState('');
 
   const loadInbox = async () => {
+    setLoadError('');
     try {
       const res = await api.getInboxFeed(tenantId, recipientId);
       if (res.success) {
@@ -26,37 +28,9 @@ export function InboxPage() {
         setUnreadCount(res.unreadCount);
       }
     } catch {
-      // Fallback mock feed
-      const fallback: InAppNotificationDto[] = [
-        {
-          id: 'notif_1',
-          tenantId,
-          team,
-          recipientId,
-          title: 'Welcome to Convey Platform',
-          body: 'Your high-throughput communication infrastructure is ready.',
-          ctaUrl: 'https://convey.dev/overview',
-          category: 'onboarding',
-          isRead: false,
-          isArchived: false,
-          createdAt: new Date(Date.now() - 5 * 60000).toISOString(),
-        },
-        {
-          id: 'notif_2',
-          tenantId,
-          team,
-          recipientId,
-          title: 'Invoice #INV-2026-08 Paid',
-          body: 'Receipt of $299.00 processed successfully.',
-          category: 'billing',
-          isRead: true,
-          readAt: new Date().toISOString(),
-          isArchived: false,
-          createdAt: new Date(Date.now() - 60 * 60000).toISOString(),
-        },
-      ];
-      setNotifications(fallback);
-      setUnreadCount(1);
+      setLoadError('Unable to load notifications. Check your permissions, environment, and plugin service.');
+      setNotifications([]);
+      setUnreadCount(0);
     }
   };
 
@@ -103,6 +77,11 @@ export function InboxPage() {
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <p role="alert" className="text-red-500">
+          {loadError}
+        </p>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

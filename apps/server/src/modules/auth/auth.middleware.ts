@@ -1,194 +1,117 @@
-import { and, eq, gte, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import type { Elysia } from 'elysia';
+import { env } from '../../config/env';
 import { db } from '../../db';
-import { apiKeys, tenants } from '../../db/schema';
+import { apiKeys, teamOwners, tenants } from '../../db/schema';
 import { hashString } from '../../utils/crypto';
+import { type AuthIdentity, authError, authorizeRequest, UserRole } from './access-policy';
 
-interface CachedApiKey {
-  valid: boolean;
-  tenantId?: string;
-  team?: string;
-  keyName?: string;
-  error?: string;
-  cachedAt: number;
-}
+// Deliberately uncached: revocation, expiry and tenant suspension apply on the next request.
+export function clearApiKeyCache() {}
 
-const apiKeyCache = new Map<string, CachedApiKey>();
-const API_KEY_CACHE_TTL_MS = 30_000; // 30s cache
-
-export function clearApiKeyCache() {
-  apiKeyCache.clear();
-}
-
-export async function validateApiKey(apiKeyRaw: string): Promise<{
-  valid: boolean;
-  tenantId?: string;
-  team?: string;
-  keyName?: string;
-  error?: string;
-}> {
-  if (!apiKeyRaw) {
-    return { valid: false, error: 'API Key missing' };
-  }
-
-  const keyHash = hashString(apiKeyRaw);
-  const now = new Date();
-  const cached = apiKeyCache.get(keyHash);
-  if (cached && Date.now() - cached.cachedAt < API_KEY_CACHE_TTL_MS) {
-    return cached;
-  }
-
-  const rows = await db
+export async function validateApiKey(
+  apiKeyRaw: string,
+): Promise<Partial<AuthIdentity> & { valid: boolean; error?: string }> {
+  if (!apiKeyRaw) return { valid: false, error: 'API Key missing' };
+  const [row] = await db
     .select({
-      keyId: apiKeys.id,
       tenantId: apiKeys.tenantId,
       team: apiKeys.team,
       keyName: apiKeys.name,
-      tenantStatus: tenants.status,
+      role: apiKeys.role,
+      scope: apiKeys.scope,
+      sandboxOnly: apiKeys.sandboxOnly,
     })
     .from(apiKeys)
     .innerJoin(tenants, eq(apiKeys.tenantId, tenants.id))
+    .innerJoin(teamOwners, and(eq(apiKeys.team, teamOwners.team), eq(apiKeys.tenantId, teamOwners.tenantId)))
     .where(
       and(
-        eq(apiKeys.keyHash, keyHash),
+        eq(apiKeys.keyHash, hashString(apiKeyRaw)),
         eq(apiKeys.active, true),
-        or(isNull(apiKeys.expiresAt), gte(apiKeys.expiresAt, now)),
+        or(isNull(apiKeys.expiresAt), gt(apiKeys.expiresAt, new Date())),
         eq(tenants.status, 'active'),
       ),
     );
-
-  if (!rows.length) {
+  if (!row || !Object.values(UserRole).includes(row.role as UserRole) || !['tenant', 'platform'].includes(row.scope)) {
     return { valid: false, error: 'Invalid or expired API Key' };
   }
-
-  const row = rows[0];
-  const result = {
+  return {
     valid: true,
     tenantId: row.tenantId,
     team: row.team,
     keyName: row.keyName,
+    role: row.role as UserRole,
+    scope: row.scope as AuthIdentity['scope'],
+    isSandbox: row.sandboxOnly,
+    sandboxOnly: row.sandboxOnly,
   };
-  apiKeyCache.set(keyHash, { ...result, cachedAt: Date.now() });
-  return result;
 }
 
 export function extractApiKeyFromHeaders(headers: Record<string, string | undefined>): string | null {
-  const authHeader = headers.authorization || headers.Authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.slice(7).trim();
-  }
-  const apiKeyHeader = headers['x-api-key'] || headers['X-API-Key'];
-  if (apiKeyHeader) {
-    return apiKeyHeader.trim();
-  }
-  return null;
+  const authorization = headers.authorization || headers.Authorization;
+  if (authorization?.startsWith('Bearer ')) return authorization.slice(7).trim();
+  return (headers['x-api-key'] || headers['X-API-Key'])?.trim() || null;
 }
 
-import { UserRole } from './audit-log.service';
-
-export function requireRoles(
-  allowedRoles: UserRole[],
-  currentRole: UserRole | string = UserRole.ORG_ADMIN,
-): { authorized: boolean; errorResponse?: Response } {
-  if (allowedRoles.includes(currentRole as UserRole) || currentRole === UserRole.ORG_ADMIN) {
-    return { authorized: true };
-  }
-
-  return {
-    authorized: false,
-    errorResponse: new Response(
-      JSON.stringify({
-        error: {
-          code: 'FORBIDDEN',
-          message: `Action requires one of the following roles: ${allowedRoles.join(', ')}`,
-        },
-      }),
-      { status: 403, headers: { 'Content-Type': 'application/json' } },
-    ),
-  };
-}
-
-export async function verifyApiAuth(
-  headers: Record<string, string | undefined>,
-  requireAuth = false,
-): Promise<{
+export interface AuthResult extends Partial<AuthIdentity> {
   authenticated: boolean;
-  tenantId?: string;
-  team?: string;
-  keyName?: string;
-  role?: UserRole;
-  isSandbox?: boolean;
   errorResponse?: Response;
-}> {
-  const apiKeyRaw = extractApiKeyFromHeaders(headers);
-  const isSandboxHeader = headers['x-convey-sandbox'] === 'true' || headers['X-Convey-Sandbox'] === 'true';
-  const isSandboxKey = apiKeyRaw?.startsWith('sk_test_') || false;
-  const isSandbox = isSandboxHeader || isSandboxKey;
-  const rawRoleHeader = (headers['x-convey-role'] || headers['X-Convey-Role']) as UserRole | undefined;
-  const role = rawRoleHeader && Object.values(UserRole).includes(rawRoleHeader) ? rawRoleHeader : UserRole.ORG_ADMIN;
+}
 
-  if (!apiKeyRaw) {
-    if (requireAuth) {
+export function createAuthVerifier(lookup: typeof validateApiKey) {
+  return async (
+    headers: Record<string, string | undefined>,
+    requireAuth = env.CONVEY_REQUIRE_AUTH,
+  ): Promise<AuthResult> => {
+    const key = extractApiKeyFromHeaders(headers);
+    const requestedSandbox = headers['x-convey-sandbox'] === 'true' || headers['x-convey-environment'] === 'sandbox';
+    if (!key) {
+      if (requireAuth || env.NODE_ENV === 'production')
+        return { authenticated: false, errorResponse: authError(401, 'API credentials required') };
       return {
         authenticated: false,
-        errorResponse: new Response(
-          JSON.stringify({
-            error: {
-              code: 'UNAUTHORIZED',
-              message: 'Missing required API authentication header (x-api-key or Authorization: Bearer <key>)',
-            },
-          }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } },
-        ),
+        tenantId: 'default-tenant',
+        team: 'default-team',
+        keyName: 'local-development',
+        role: UserRole.ORG_ADMIN,
+        scope: 'platform',
+        isSandbox: requestedSandbox,
+        developmentBypass: true,
       };
     }
-    return { authenticated: false, tenantId: 'default-tenant', team: 'default-team', role, isSandbox };
-  }
-
-  const result = await validateApiKey(apiKeyRaw);
-  if (!result.valid) {
+    const result = await lookup(key);
+    if (!result.valid) return { authenticated: false, errorResponse: authError(401, 'Invalid or expired API Key') };
     return {
-      authenticated: false,
-      errorResponse: new Response(
-        JSON.stringify({
-          error: {
-            code: 'UNAUTHORIZED',
-            message: result.error || 'Invalid API Key',
-          },
-        }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } },
-      ),
+      ...result,
+      authenticated: true,
+      sandboxOnly: result.sandboxOnly || key.startsWith('sk_test_'),
+      isSandbox: result.isSandbox || key.startsWith('sk_test_') || requestedSandbox,
     };
-  }
-
-  return {
-    authenticated: true,
-    tenantId: result.tenantId,
-    team: result.team,
-    keyName: result.keyName,
-    role,
-    isSandbox,
   };
 }
 
-import type { Elysia } from 'elysia';
+export const verifyApiAuth = createAuthVerifier(validateApiKey);
+
+export function requireRoles(allowedRoles: UserRole[], currentRole?: UserRole | string) {
+  const authorized =
+    currentRole !== undefined && (allowedRoles.includes(currentRole as UserRole) || currentRole === UserRole.ORG_ADMIN);
+  return { authorized, errorResponse: authorized ? undefined : authError(403, 'Insufficient permissions') };
+}
+
+export async function guardApiRequest(headers: Record<string, string | undefined>, method: string, platform = false) {
+  const auth = await verifyApiAuth(headers);
+  if (auth.errorResponse) return auth.errorResponse;
+  return authorizeRequest(auth as AuthIdentity, method, platform);
+}
 
 export function authMiddleware(app: Elysia) {
   return app
-    .beforeHandle(async ({ headers }) => {
-      const auth = await verifyApiAuth(headers, false);
-      if (auth.errorResponse) {
-        return auth.errorResponse;
-      }
-    })
-    .derive(async ({ headers }: { headers: Record<string, string | undefined> }) => {
-      const auth = await verifyApiAuth(headers, false);
-      return {
-        auth: {
-          tenantId: auth.tenantId || 'default-tenant',
-          team: auth.team || 'default-team',
-          role: auth.role || UserRole.ORG_ADMIN,
-          isSandbox: auth.isSandbox || false,
-        },
-      };
+    .derive(async ({ headers }) => ({ auth: (await verifyApiAuth(headers)) as AuthResult & AuthIdentity }))
+    .beforeHandle(({ auth, request, path }) => {
+      if (auth.errorResponse) return auth.errorResponse;
+      if (auth.sandboxOnly && !path.startsWith('/v1/sandbox/'))
+        return authError(403, 'Sandbox keys cannot access shared configuration resources');
+      return authorizeRequest(auth, request.method);
     });
 }

@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { africasTalkingTransformer } from './africas-talking.transformer';
 import type {
   AfricasTalkingApiRequest,
@@ -39,8 +42,8 @@ export class AfricasTalkingSmsAdapter
   }
 
   hasSetup(configOverride?: AfricasTalkingSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.username);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.username);
   }
 
   transformRequest(options: ProviderSendOptions, config?: AfricasTalkingSmsAdapterConfig): AfricasTalkingApiRequest {
@@ -55,7 +58,17 @@ export class AfricasTalkingSmsAdapter
     options: ProviderSendOptions,
     configOverride?: AfricasTalkingSmsAdapterConfig,
   ): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
     const username = config.username || 'sandbox';
 
@@ -93,7 +106,7 @@ export class AfricasTalkingSmsAdapter
     if (reqPayload.from) formParams.append('from', reqPayload.from);
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           apiKey,
@@ -122,6 +135,17 @@ export class AfricasTalkingSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as AfricasTalkingWebhookPayload;
     if (!webhookData?.id) return [];
 
@@ -129,7 +153,7 @@ export class AfricasTalkingSmsAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

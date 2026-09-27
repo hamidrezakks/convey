@@ -144,7 +144,7 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
       }
     }
 
-    // Alpha2: Transactional in PREVIOUS hour (6 sent, 6 delivered, country null -> GLOBAL fallback)
+    // Alpha2: Transactional in PREVIOUS hour (6 sent, 6 delivered, country ZZ aggregation)
     for (let i = 0; i < 6; i++) {
       const msgId = generateMessageId();
       const publicId = `msg_01JALPHA2_${Date.now()}_${i}`;
@@ -155,7 +155,7 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
         userId: `usr_a2_${i}`,
         team: teamAlpha,
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'ZZ',
         campaignId: campaignAlpha2,
 
         state: 'delivered',
@@ -340,8 +340,8 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
       expect(campRows[0].readCount).toBe(3);
     });
 
-    it('correctly defaults missing country to GLOBAL in report_hourly', async () => {
-      // Alpha2 messages had country = GLOBAL
+    it('preserves country dimensions in report_hourly', async () => {
+      // Alpha2 messages had country = ZZ
       await ReportingDoctorService.reconcile({
         startDate: new Date(now.getTime() - 24 * 3600 * 1000),
         endDate: new Date(now.getTime() + 3600 * 1000),
@@ -351,7 +351,7 @@ describe('Reporting Advanced Edge Cases, Chaos & Concurrency Test Suite', () => 
       const globalBuckets = await db
         .select()
         .from(reportHourly)
-        .where(and(eq(reportHourly.team, teamAlpha), eq(reportHourly.country, 'GLOBAL')));
+        .where(and(eq(reportHourly.team, teamAlpha), eq(reportHourly.country, 'ZZ')));
       expect(globalBuckets.length).toBe(1);
       expect(globalBuckets[0].sentCount).toBe(6);
       expect(globalBuckets[0].deliveredCount).toBe(6);

@@ -1,20 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { httpErrorCategory, providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { outlook365Transformer } from './outlook365.transformer';
-import type {
-  Outlook365ApiRequest,
-  Outlook365ApiResponse,
-  Outlook365EmailAdapterConfig,
-  Outlook365WebhookPayload,
-} from './types';
+import type { Outlook365ApiRequest, Outlook365ApiResponse, Outlook365EmailAdapterConfig } from './types';
 
 export class Outlook365EmailAdapter
   implements ProviderAdapter<Outlook365EmailAdapterConfig, Outlook365ApiRequest, Outlook365ApiResponse>
@@ -25,7 +21,7 @@ export class Outlook365EmailAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -39,8 +35,8 @@ export class Outlook365EmailAdapter
   }
 
   hasSetup(configOverride?: Outlook365EmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.clientId || config.clientSecret || config.tenantId || config.fromUser);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.clientId && config.clientSecret && config.tenantId && config.fromUser);
   }
 
   transformRequest(options: ProviderSendOptions, config?: Outlook365EmailAdapterConfig): Outlook365ApiRequest {
@@ -52,11 +48,21 @@ export class Outlook365EmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: Outlook365EmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup({ ...config, fromUser: options.from || config.fromUser })) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const clientId = config.clientId || '';
     const clientSecret = config.clientSecret || '';
     const tenantId = config.tenantId || '';
-    const fromUser = options.from || config.fromUser || 'me';
+    const fromUser = options.from || config.fromUser || '';
 
     const reqPayload = this.transformRequest(options, config);
 
@@ -71,7 +77,7 @@ export class Outlook365EmailAdapter
       };
     }
 
-    if (!clientId || !clientSecret || !tenantId) {
+    if (!clientId || !clientSecret || !tenantId || !fromUser) {
       return {
         success: false,
         error: {
@@ -82,13 +88,36 @@ export class Outlook365EmailAdapter
       };
     }
 
-    const endpoint = `https://graph.microsoft.com/v1.0/users/${fromUser}/sendMail`;
+    const endpoint = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromUser)}/sendMail`;
 
     try {
-      const response = await fetch(endpoint, {
+      const tokenResponse = await providerFetch(
+        `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
+        {
+          method: 'POST',
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            scope: 'https://graph.microsoft.com/.default',
+            grant_type: 'client_credentials',
+          }),
+        },
+      );
+      const token = (await tokenResponse.json()) as { access_token?: string };
+      if (!tokenResponse.ok || !token.access_token) {
+        return {
+          success: false,
+          error: {
+            code: 'OAUTH_TOKEN_ERROR',
+            message: 'Microsoft Graph token exchange failed',
+            category: httpErrorCategory(tokenResponse.status),
+          },
+        };
+      }
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: 'Bearer mock_oauth_token',
+          Authorization: `Bearer ${token.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(reqPayload),
@@ -114,19 +143,8 @@ export class Outlook365EmailAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as Outlook365WebhookPayload;
-    const firstRes = webhookData?.value?.[0];
-    if (!firstRes?.resourceData?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: firstRes.resourceData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // Acceptance/change notifications are not evidence of recipient delivery.
+    return [];
   }
 }

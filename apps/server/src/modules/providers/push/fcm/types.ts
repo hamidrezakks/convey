@@ -1,41 +1,23 @@
 export interface FcmPushAdapterConfig {
+  /** Legacy server keys are no longer supported. */
   secretKey?: string;
   projectId?: string;
   email?: string;
+  privateKey?: string;
 }
-
 export interface FcmNotificationPayload {
   title?: string;
   body?: string;
 }
-
 export interface FcmApiRequest {
-  to?: string;
-  registration_ids?: string[];
-  notification?: FcmNotificationPayload;
-  data?: Record<string, unknown>;
+  message: { token?: string; notification?: FcmNotificationPayload; data?: Record<string, string> };
 }
-
 export interface FcmApiResponse {
-  multicast_id?: number;
-  success?: number;
-  failure?: number;
-  canonical_ids?: number;
-  results?: Array<{
-    message_id?: string;
-    error?: string;
-  }>;
-  message_id?: string;
-  error?: {
-    code?: number;
-    message?: string;
-    status?: string;
-  };
+  name?: string;
+  error?: { code?: number; message?: string; status?: string };
 }
-
 export interface FcmWebhookPayload {
   message_id?: string;
   event?: string;
   timestamp?: number;
-  rawPayload?: unknown;
 }

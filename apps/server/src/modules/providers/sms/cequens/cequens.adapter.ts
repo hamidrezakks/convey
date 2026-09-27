@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -34,7 +36,7 @@ export class CequensSmsAdapter
   }
 
   hasSetup(configOverride?: CequensSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.apiKey || config.baseUrl);
   }
 
@@ -47,7 +49,17 @@ export class CequensSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: CequensSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -89,7 +101,7 @@ export class CequensSmsAdapter
     const endpoint = `${baseUrl.replace(/\/$/, '')}/api/sms/v1/messages`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -122,6 +134,7 @@ export class CequensSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as CequensWebhookPayload;
     if (!webhookData?.message_id) return [];
 
@@ -131,7 +144,7 @@ export class CequensSmsAdapter
       normalizedStatus = NormalizedStatus.FAILED;
     } else if (rawStatus.includes('bounce') || rawStatus.includes('rejected')) {
       normalizedStatus = NormalizedStatus.BOUNCED;
-    }
+    } else if (rawStatus !== 'delivered') return [];
 
     return [
       {

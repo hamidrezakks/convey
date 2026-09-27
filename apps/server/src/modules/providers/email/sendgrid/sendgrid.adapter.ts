@@ -1,5 +1,7 @@
 import { parseFetchResponse } from '../../../../utils/http';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -40,7 +42,7 @@ export class SendgridEmailAdapter
   }
 
   hasSetup(configOverride?: SendgridEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.apiKey);
   }
 
@@ -57,7 +59,17 @@ export class SendgridEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: SendgridEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -83,7 +95,7 @@ export class SendgridEmailAdapter
     const endpoint = 'https://api.sendgrid.com/v3/mail/send';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -103,6 +115,7 @@ export class SendgridEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const events = (Array.isArray(payload) ? payload : [payload]) as SendgridWebhookPayload;
     const results: NormalizedWebhookEvent[] = [];
 
@@ -114,7 +127,8 @@ export class SendgridEmailAdapter
       if (eventName === 'delivered') normalizedStatus = NormalizedStatus.DELIVERED;
       else if (eventName === 'open') normalizedStatus = NormalizedStatus.OPENED;
       else if (eventName === 'bounce') normalizedStatus = NormalizedStatus.BOUNCED;
-      else if (eventName === 'dropped' || eventName === 'deferred') normalizedStatus = NormalizedStatus.FAILED;
+      else if (eventName === 'dropped') normalizedStatus = NormalizedStatus.FAILED;
+      else continue;
 
       results.push({
         providerId: this.id,

@@ -1,3 +1,4 @@
+import { env } from '../../src/config/env';
 import { db, queryClient } from '../../src/db';
 import {
   budgetPolicies,
@@ -15,19 +16,12 @@ import { encryptProviderCredentials } from '../../src/utils/payload-encryption';
 export const SEEDED_API_KEY_RAW = 'cv_live_secret_key_e2e_testing_99887766554433221100';
 
 export async function seedDatabaseWithRealisticData() {
+  if (env.NODE_ENV !== 'test' || !/test|hardening/.test(env.POSTGRES_DB))
+    throw new Error('Test fixtures require a disposable test database');
   clearApiKeyCache();
   const now = new Date();
   const currentMonth = now.toISOString().substring(0, 7);
   const tenantId = '10000000-0000-0000-0000-000000000001';
-
-  await queryClient.unsafe(`
-    ALTER TABLE providers ALTER COLUMN tenant_id DROP NOT NULL;
-    ALTER TABLE providers ALTER COLUMN provider_id DROP NOT NULL;
-    ALTER TABLE providers ALTER COLUMN name DROP NOT NULL;
-    ALTER TABLE providers ALTER COLUMN is_enabled DROP NOT NULL;
-    ALTER TABLE budget_ledger ALTER COLUMN tenant_id DROP NOT NULL;
-    ALTER TABLE budget_ledger ALTER COLUMN amount DROP NOT NULL;
-  `);
 
   // 1. Seed Tenants
   await queryClient.unsafe(`
@@ -48,6 +42,10 @@ export async function seedDatabaseWithRealisticData() {
       ('key_fintech_orders_live', '10000000-0000-0000-0000-000000000002', 'orders', '${hashString('cv_live_fintech_orders_key_12345')}', 'Fintech Orders API Key', true, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET active = true, tenant_id = EXCLUDED.tenant_id, key_hash = EXCLUDED.key_hash;
   `);
+
+  for (const team of ['restricted_team', 'budget_exceeded_team']) {
+    await queryClient`INSERT INTO api_keys(id,tenant_id,team,key_hash,name) VALUES(${`key_${team}`},${tenantId},${team},${hashString(`test_key_${team}`)},${team}) ON CONFLICT(id) DO UPDATE SET key_hash=EXCLUDED.key_hash, active=true`;
+  }
 
   // 3. Seed Campaigns with Raw SQL for backward compatibility with schema constraints
   for (let c = 1; c <= 10; c++) {
@@ -256,13 +254,13 @@ export async function seedDatabaseWithRealisticData() {
   const ledger1 = generateMessageId();
   const ledger2 = generateMessageId();
   await queryClient.unsafe(
-    `INSERT INTO budget_ledger (id, tenant_id, message_id, team, amount, amount_usd, channel, provider_id, created_at)
-     VALUES ('${ledger1}', '${tenantId}', 'msg_01JYQ81NE7XK47PAV6MQR2P9NK', 'payments', 0.005, '0.0050', 'sms', 'twilio', NOW())
+    `INSERT INTO budget_ledger (id, message_id, team, amount_usd, channel, provider_id, created_at)
+     VALUES ('${ledger1}', 'msg_01JYQ81NE7XK47PAV6MQR2P9NK', 'payments', '0.0050', 'sms', 'twilio', NOW())
      ON CONFLICT DO NOTHING;`,
   );
   await queryClient.unsafe(
-    `INSERT INTO budget_ledger (id, tenant_id, message_id, team, amount, amount_usd, channel, provider_id, created_at)
-     VALUES ('${ledger2}', '${tenantId}', 'msg_01JYQ81NE7XK47PAV6MQR2P9NL', 'orders', 0.0025, '0.0025', 'email', 'ses', NOW())
+    `INSERT INTO budget_ledger (id, message_id, team, amount_usd, channel, provider_id, created_at)
+     VALUES ('${ledger2}', 'msg_01JYQ81NE7XK47PAV6MQR2P9NL', 'orders', '0.0025', 'email', 'ses', NOW())
      ON CONFLICT DO NOTHING;`,
   );
 

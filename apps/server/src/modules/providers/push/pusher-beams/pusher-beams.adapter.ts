@@ -1,20 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { pusherBeamsTransformer } from './pusher-beams.transformer';
-import type {
-  PusherBeamsApiRequest,
-  PusherBeamsApiResponse,
-  PusherBeamsPushAdapterConfig,
-  PusherBeamsWebhookPayload,
-} from './types';
+import type { PusherBeamsApiRequest, PusherBeamsApiResponse, PusherBeamsPushAdapterConfig } from './types';
 
 export class PusherBeamsPushAdapter
   implements ProviderAdapter<PusherBeamsPushAdapterConfig, PusherBeamsApiRequest, PusherBeamsApiResponse>
@@ -25,7 +21,7 @@ export class PusherBeamsPushAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: true,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -39,8 +35,8 @@ export class PusherBeamsPushAdapter
   }
 
   hasSetup(configOverride?: PusherBeamsPushAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.instanceId || config.secretKey);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.instanceId && config.secretKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PusherBeamsPushAdapterConfig): PusherBeamsApiRequest {
@@ -52,7 +48,17 @@ export class PusherBeamsPushAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: PusherBeamsPushAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const instanceId = config.instanceId || '';
     const secretKey = config.secretKey || '';
 
@@ -84,7 +90,7 @@ export class PusherBeamsPushAdapter
     const endpoint = `https://${instanceId}.pushnotifications.pusher.com/customer_api/v1/instances/${instanceId}/${publishType}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secretKey}`,
@@ -111,18 +117,8 @@ export class PusherBeamsPushAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as PusherBeamsWebhookPayload;
-    if (!webhookData?.publishId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.publishId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

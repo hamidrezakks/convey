@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SparkpostApiRequest, SparkpostApiResponse, SparkpostEmailAdapterConfig } from './types';
 
 export class SparkpostTransformer
@@ -43,7 +39,7 @@ export class SparkpostTransformer
       error: {
         code: firstErr?.code || 'SPARKPOST_ERROR',
         message: firstErr?.message || 'SparkPost Transmissions API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

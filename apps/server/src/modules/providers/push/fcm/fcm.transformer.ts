@@ -1,65 +1,42 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { FcmApiRequest, FcmApiResponse, FcmPushAdapterConfig } from './types';
 
 export class FcmTransformer implements ProviderTransformer<FcmPushAdapterConfig, FcmApiRequest, FcmApiResponse> {
-  transformRequest(options: ProviderSendOptions, _config?: FcmPushAdapterConfig): FcmApiRequest {
-    const tokens =
-      options.recipient.fcmTokens || (options.recipient.deviceTokens ? options.recipient.deviceTokens : []);
-    const singleToken = typeof options.recipient.to === 'string' ? options.recipient.to : undefined;
-
-    const title = (options.content.title || options.content.subject || '') as string;
-    const body = (options.content.body || options.content.text || '') as string;
-
-    const req: FcmApiRequest = {
-      notification: {
-        title,
-        body,
-      },
-      data: options.content.data as Record<string, unknown> | undefined,
-    };
-
-    if (tokens.length > 1) {
-      req.registration_ids = tokens;
-    } else if (tokens.length === 1) {
-      req.to = tokens[0];
-    } else if (singleToken) {
-      req.to = singleToken;
-    }
-
-    return req;
-  }
-
-  transformResponse(response: FcmApiResponse, statusCode = 200, rawBody?: unknown): ProviderSendResult {
-    const firstResult = response.results?.[0];
-    const messageId = firstResult?.message_id || response.message_id;
-
-    if (statusCode >= 200 && statusCode < 300 && (response.success || messageId)) {
-      return {
-        success: true,
-        providerMessageId: messageId || `fcm_${Date.now()}`,
-        metadata: {
-          rawPayload: rawBody || response,
+  transformRequest(options: ProviderSendOptions): FcmApiRequest {
+    const tokens = options.recipient.fcmTokens || options.recipient.deviceTokens || [];
+    const data = options.content.data;
+    return {
+      message: {
+        token: tokens[0] || (typeof options.recipient.to === 'string' ? options.recipient.to : undefined),
+        notification: {
+          title: String(options.content.title || options.content.subject || ''),
+          body: String(options.content.body || options.content.text || ''),
         },
-      };
+        data: data
+          ? Object.fromEntries(
+              Object.entries(data).map(([key, value]) => [
+                key,
+                typeof value === 'string' ? value : JSON.stringify(value),
+              ]),
+            )
+          : undefined,
+      },
+    };
+  }
+  transformResponse(response: FcmApiResponse, statusCode = 200, rawBody?: unknown): ProviderSendResult {
+    if (statusCode === 200 && response.name && !response.error) {
+      return { success: true, providerMessageId: response.name, metadata: { rawPayload: rawBody || response } };
     }
-
     return {
       success: false,
       error: {
-        code: firstResult?.error || response.error?.status || 'FCM_ERROR',
-        message: response.error?.message || firstResult?.error || 'FCM legacy / HTTP API call failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        code: response.error?.status || 'FCM_ERROR',
+        message: response.error?.message || 'FCM HTTP v1 request failed',
+        category: httpErrorCategory(statusCode),
       },
-      metadata: {
-        rawPayload: rawBody || response,
-      },
+      metadata: { rawPayload: rawBody || response },
     };
   }
 }
-
 export const fcmTransformer = new FcmTransformer();

@@ -1,15 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { lineTransformer } from './line.transformer';
-import type { LineAdapterConfig, LineApiRequest, LineApiResponse, LineWebhookPayload } from './types';
+import type { LineAdapterConfig, LineApiRequest, LineApiResponse } from './types';
 
 export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineApiRequest, LineApiResponse> {
   readonly id = 'line';
@@ -18,7 +19,7 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -32,7 +33,7 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
   }
 
   hasSetup(configOverride?: LineAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.channelAccessToken);
   }
 
@@ -45,7 +46,17 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
   }
 
   async send(options: ProviderSendOptions, configOverride?: LineAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const channelAccessToken = config.channelAccessToken || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -75,7 +86,7 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
     const endpoint = 'https://api.line.me/v2/bot/message/push';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${channelAccessToken}`,
@@ -103,24 +114,8 @@ export class LineChatAdapter implements ProviderAdapter<LineAdapterConfig, LineA
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as LineWebhookPayload;
-    if (!webhookData?.events || webhookData.events.length === 0) return [];
-
-    const events: NormalizedWebhookEvent[] = [];
-    for (const evt of webhookData.events) {
-      const msgId = evt.webhookEventId || evt.message?.id;
-      if (msgId) {
-        events.push({
-          providerId: this.id,
-          providerMessageId: msgId,
-          normalizedStatus: NormalizedStatus.DELIVERED,
-          rawPayload: evt,
-          timestamp: evt.timestamp ? new Date(evt.timestamp) : new Date(),
-        });
-      }
-    }
-
-    return events;
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

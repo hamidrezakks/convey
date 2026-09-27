@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ClicksendApiRequest, ClicksendApiResponse, ClicksendSmsAdapterConfig } from './types';
 
 export class ClicksendTransformer
@@ -43,7 +39,7 @@ export class ClicksendTransformer
       error: {
         code: response.response_code || 'CLICKSEND_ERROR',
         message: response.response_msg || 'Clicksend SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { RuachSmsAdapterConfig, RuachSmsApiRequest, RuachSmsApiResponse } from './types';
 
 export class RuachSmsTransformer
@@ -34,7 +30,7 @@ export class RuachSmsTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `ruach-sms_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -44,7 +40,7 @@ export class RuachSmsTransformer
       error: {
         code: `RUACH_SMS_ERROR_${statusCode}`,
         message: response.message || response.error || 'RuachSms SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SendgridApiRequest, SendgridApiResponse, SendgridEmailAdapterConfig } from './types';
 
 export class SendgridTransformer
@@ -49,7 +45,7 @@ export class SendgridTransformer
       const msgIdHeader = headers?.['x-message-id'] || headers?.['X-Message-Id'];
       return {
         success: true,
-        providerMessageId: msgIdHeader || `sg_${Date.now()}`,
+        providerMessageId: msgIdHeader,
       };
     }
 
@@ -59,7 +55,7 @@ export class SendgridTransformer
       error: {
         code: statusCode === 401 ? 'UNAUTHORIZED' : 'SENDGRID_ERROR',
         message: firstErr?.message || 'SendGrid API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
     };
   }

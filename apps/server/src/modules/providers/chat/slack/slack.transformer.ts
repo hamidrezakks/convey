@@ -1,17 +1,13 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SlackApiRequest, SlackApiResponse, SlackChatAdapterConfig } from './types';
 
 export class SlackTransformer
   implements ProviderTransformer<SlackChatAdapterConfig, SlackApiRequest, SlackApiResponse>
 {
-  transformRequest(options: ProviderSendOptions, _config?: SlackChatAdapterConfig): SlackApiRequest {
+  transformRequest(options: ProviderSendOptions, config?: SlackChatAdapterConfig): SlackApiRequest {
     const text = (options.content.text || options.content.body || options.content.title || '') as string;
-    const channel = options.recipient.channel;
+    const channel = options.recipient.channel || config?.channel;
 
     return {
       channel,
@@ -20,10 +16,10 @@ export class SlackTransformer
   }
 
   transformResponse(response: SlackApiResponse, statusCode = 200, rawBody?: unknown): ProviderSendResult {
-    if (statusCode >= 200 && statusCode < 300 && (response.ok !== false || response.ts)) {
+    if (statusCode >= 200 && statusCode < 300 && response.ok === true && response.ts) {
       return {
         success: true,
-        providerMessageId: response.ts || `slack_${Date.now()}`,
+        providerMessageId: response.ts,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -33,7 +29,7 @@ export class SlackTransformer
       error: {
         code: 'SLACK_ERROR',
         message: response.error || 'Slack Webhook / API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

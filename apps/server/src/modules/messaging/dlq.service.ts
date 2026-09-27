@@ -1,20 +1,13 @@
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messageAttempts, messages, outbox } from '../../db/schema';
-import { dispatchQueue } from '../../queues/queue-definitions';
 import { getUtcMonthBoundary } from '../../utils/date';
 import { generateMessageId, parseMessageIdTimestamp } from '../../utils/id';
-import {
-  type ChannelRequest,
-  JobName,
-  MessagePriority,
-  MessageState,
-  OutboxState,
-  OutboxType,
-  type Recipients,
-} from './messaging.types';
+import type { TenantScope } from '../auth/tenant-scope';
+import { type ChannelRequest, MessageState, OutboxState, OutboxType, type Recipients } from './messaging.types';
 
 export interface DlqFilterParams {
+  isSandbox?: boolean;
   team?: string;
   channel?: string;
   limit?: number;
@@ -43,6 +36,7 @@ export const DlqService = {
       gte(messages.createdAt, startDate),
       lte(messages.createdAt, endDate),
     ];
+    if (params.isSandbox !== undefined) conditions.push(eq(messages.isSandbox, params.isSandbox));
     if (params.team) {
       conditions.push(eq(messages.team, params.team));
     }
@@ -112,18 +106,14 @@ export const DlqService = {
     };
   },
 
-  async replayFailedMessages(publicIds: string[]): Promise<DlqReplayResult> {
+  async replayFailedMessages(publicIds: string[], scope?: TenantScope): Promise<DlqReplayResult> {
+    if (scope?.developmentBypass) scope = undefined;
     if (!publicIds.length) {
       return { replayedCount: 0, messageIds: [] };
     }
 
     const now = new Date();
     const replayedIds: string[] = [];
-    const jobsToAdd: Array<{
-      name: string;
-      data: { publicId: string; outboxId: string };
-      opts: { priority: number; jobId: string };
-    }> = [];
 
     // Group message IDs by monthly partition to prune scans and batch queries
     const partitionMap = new Map<string, { startDate: Date; endDate: Date; ids: string[] }>();
@@ -140,70 +130,59 @@ export const DlqService = {
     }
 
     for (const group of partitionMap.values()) {
-      let msgList = await db
+      const msgList = await db
         .select()
         .from(messages)
         .where(
           and(
             inArray(messages.publicId, group.ids),
+            eq(messages.state, MessageState.FAILED),
+            ...(scope ? [eq(messages.team, scope.team), eq(messages.isSandbox, scope.isSandbox)] : []),
             gte(messages.createdAt, group.startDate),
             lte(messages.createdAt, group.endDate),
           ),
         );
 
-      if (!msgList.length) {
-        msgList = await db.select().from(messages).where(inArray(messages.publicId, group.ids));
-      }
-
       for (const msg of msgList) {
         const publicId = msg.publicId;
         const outboxId = generateMessageId();
 
-        await db.transaction(async (tx) => {
-          await tx
+        const replayed = await db.transaction(async (tx) => {
+          const updated = await tx
             .update(messages)
             .set({
               state: MessageState.ACCEPTED,
               completedAt: null,
+              metadata: { ...msg.metadata, _budgetExecutionId: outboxId },
               updatedAt: now,
             })
             .where(
               and(
                 eq(messages.publicId, publicId),
+                eq(messages.state, MessageState.FAILED),
                 gte(messages.createdAt, group.startDate),
                 lte(messages.createdAt, group.endDate),
               ),
-            );
+            )
+            .returning({ id: messages.id });
+          if (!updated.length) return false;
 
           const outboxRecord: typeof outbox.$inferInsert = {
             id: outboxId,
             messageId: publicId,
             type: OutboxType.MESSAGE_DISPATCH,
             payload: { publicId, internalId: msg.id, team: msg.team, priority: msg.priority },
-            state: OutboxState.PROCESSED, // Committed directly to BullMQ
-            processedAt: now,
+            state: OutboxState.PENDING,
             availableAt: now,
             createdAt: now,
           };
 
           await tx.insert(outbox).values(outboxRecord);
+          return true;
         });
 
-        jobsToAdd.push({
-          name: JobName.MESSAGE_DISPATCH,
-          data: { publicId, outboxId },
-          opts: {
-            priority: msg.priority === MessagePriority.CRITICAL ? 1 : 3,
-            jobId: `outbox_${outboxId}`, // Enforces idempotent deduplication in Redis BullMQ
-          },
-        });
-
-        replayedIds.push(publicId);
+        if (replayed) replayedIds.push(publicId);
       }
-    }
-
-    if (jobsToAdd.length > 0) {
-      await dispatchQueue.addBulk(jobsToAdd);
     }
 
     return {
@@ -212,16 +191,19 @@ export const DlqService = {
     };
   },
 
-  async replayMutatedMessages(params: {
-    messageIds: string[];
-    mutations?: {
-      recipients?: Partial<Recipients>;
-      channels?: ChannelRequest[];
-      metadata?: Record<string, unknown>;
-    };
-    isSandbox?: boolean;
-    dryRun?: boolean;
-  }): Promise<{
+  async replayMutatedMessages(
+    params: {
+      messageIds: string[];
+      mutations?: {
+        recipients?: Partial<Recipients>;
+        channels?: ChannelRequest[];
+        metadata?: Record<string, unknown>;
+      };
+      isSandbox?: boolean;
+      dryRun?: boolean;
+    },
+    scope?: TenantScope,
+  ): Promise<{
     replayedCount: number;
     messageIds: string[];
     dryRunResults?: Array<{
@@ -231,6 +213,7 @@ export const DlqService = {
       mutatedChannels: ChannelRequest[];
     }>;
   }> {
+    if (scope?.developmentBypass) scope = undefined;
     if (!params.messageIds.length) {
       return { replayedCount: 0, messageIds: [] };
     }
@@ -252,7 +235,13 @@ export const DlqService = {
         .select()
         .from(messages)
         .where(
-          and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+          and(
+            eq(messages.publicId, publicId),
+            eq(messages.state, MessageState.FAILED),
+            gte(messages.createdAt, startDate),
+            lte(messages.createdAt, endDate),
+            ...(scope ? [eq(messages.team, scope.team), eq(messages.isSandbox, scope.isSandbox)] : []),
+          ),
         );
 
       if (!msgList.length) continue;
@@ -285,46 +274,45 @@ export const DlqService = {
 
       const outboxId = generateMessageId();
 
-      await db.transaction(async (tx) => {
-        await tx
+      const replayed = await db.transaction(async (tx) => {
+        const updated = await tx
           .update(messages)
           .set({
             recipients: mergedRecipients,
             channels: mergedChannels,
-            metadata: mergedMetadata,
-            isSandbox: params.isSandbox ?? msg.isSandbox,
+            metadata: { ...mergedMetadata, _budgetExecutionId: outboxId },
+            isSandbox: scope?.isSandbox ?? params.isSandbox ?? msg.isSandbox,
             state: MessageState.ACCEPTED,
             completedAt: null,
             updatedAt: now,
           })
           .where(
-            and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
-          );
+            and(
+              eq(messages.publicId, publicId),
+              eq(messages.state, MessageState.FAILED),
+              gte(messages.createdAt, startDate),
+              lte(messages.createdAt, endDate),
+              ...(scope ? [eq(messages.team, scope.team), eq(messages.isSandbox, scope.isSandbox)] : []),
+            ),
+          )
+          .returning({ id: messages.id });
+        if (!updated.length) return false;
 
         const outboxRecord: typeof outbox.$inferInsert = {
           id: outboxId,
           messageId: publicId,
           type: OutboxType.MESSAGE_DISPATCH,
           payload: { publicId, internalId: msg.id, team: msg.team, priority: msg.priority },
-          state: OutboxState.PROCESSED,
-          processedAt: now,
+          state: OutboxState.PENDING,
           availableAt: now,
           createdAt: now,
         };
 
         await tx.insert(outbox).values(outboxRecord);
+        return true;
       });
 
-      await dispatchQueue.add(
-        JobName.MESSAGE_DISPATCH,
-        { publicId, outboxId },
-        {
-          priority: msg.priority === MessagePriority.CRITICAL ? 1 : 3,
-          jobId: `outbox_mutated_${outboxId}`,
-        },
-      );
-
-      replayedIds.push(publicId);
+      if (replayed) replayedIds.push(publicId);
     }
 
     return {

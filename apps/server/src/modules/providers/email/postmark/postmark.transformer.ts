@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { PostmarkApiRequest, PostmarkApiResponse, PostmarkEmailAdapterConfig } from './types';
 
 export class PostmarkTransformer
@@ -46,7 +42,7 @@ export class PostmarkTransformer
       error: {
         code: response.ErrorCode ? String(response.ErrorCode) : 'POSTMARK_ERROR',
         message: response.Message || 'Postmark Email API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

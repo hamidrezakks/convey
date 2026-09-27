@@ -11,6 +11,7 @@ import { ensureProviderSendWorker, getProviderSendQueue } from '../provider-queu
 
 export interface FallbackRetryJobData {
   publicId: string;
+  budgetExecutionId?: string;
   triggerChannel: string;
   triggerEvent: string;
   targetChannels: Array<{ channel: string; providerId?: string; content?: Record<string, unknown> }>;
@@ -66,9 +67,10 @@ export async function processFallbackRetryJob(data: FallbackRetryJobData): Promi
     .where(and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)));
   if (!msgList.length) return;
   const msg = msgList[0];
+  if ((data.budgetExecutionId ?? '') !== (msg.metadata?._budgetExecutionId ?? '')) return;
 
   // 2. Dispatch Fallback Channels to Dedicated Per-Provider Sending Queues
-  for (const target of targetChannels) {
+  for (const [targetIndex, target] of targetChannels.entries()) {
     const channel = target.channel as Channel;
     const fallbackContent = resolveFallbackContent(msg, channel, target.content);
 
@@ -86,6 +88,8 @@ export async function processFallbackRetryJob(data: FallbackRetryJobData): Promi
           channel,
           content: fallbackContent,
           recipient: msg.recipients,
+          budgetExecutionId: data.budgetExecutionId,
+          budgetStep: `fallback-${triggerChannel}-${triggerEvent}-${targetIndex}`,
           origin: AttemptOrigin.FALLBACK,
           attemptNo: 1,
         },
@@ -102,7 +106,19 @@ export const fallbackRetryWorker = new Worker(
   QueueName.FALLBACK_RETRY,
   async (job) => {
     if (job.name === JobName.PROCESS_CASCADE_STEP || (job.data as { stepIndex?: number })?.stepIndex !== undefined) {
-      const { publicId, stepIndex } = job.data as { publicId: string; stepIndex: number };
+      const { publicId, stepIndex, budgetExecutionId } = job.data as {
+        publicId: string;
+        stepIndex: number;
+        budgetExecutionId?: string;
+      };
+      const { startDate, endDate } = computePartitionWindow(publicId);
+      const [current] = await db
+        .select()
+        .from(messages)
+        .where(
+          and(eq(messages.publicId, publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+        );
+      if (!current || (budgetExecutionId ?? '') !== (current.metadata?._budgetExecutionId ?? '')) return;
       await CascadeManager.executeCascadeStep(publicId, stepIndex, async (stepData) => {
         const channel = stepData.channel as Channel;
         const adapters = ProviderRegistry.getByChannel(channel);
@@ -116,6 +132,8 @@ export const fallbackRetryWorker = new Worker(
           channel,
           content: stepData.content || {},
           recipient: (job.data as { recipient?: Record<string, unknown> })?.recipient || {},
+          budgetExecutionId,
+          budgetStep: `cascade-${stepIndex}`,
           origin: AttemptOrigin.FALLBACK,
           attemptNo: 1,
         };

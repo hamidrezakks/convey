@@ -1,6 +1,10 @@
+import { HTTPError } from 'ky';
 import { CheckCircle2, Copy, Loader2, Send, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { coreClient } from '../lib/http';
+import { buildQuickDispatch, type DispatchChannel, dispatchChannels } from '../lib/quick-dispatch';
+import { requireSession } from '../lib/session';
 
 export interface QuickDispatchDrawerProps {
   open: boolean;
@@ -8,7 +12,7 @@ export interface QuickDispatchDrawerProps {
 }
 
 export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerProps) {
-  const [channel, setChannel] = useState<'email' | 'sms' | 'push' | 'chat' | 'whatsapp'>('email');
+  const [channel, setChannel] = useState<DispatchChannel>('email');
   const [recipient, setRecipient] = useState('developer@example.com');
   const [subject, setSubject] = useState('Order Confirmation #ORD-9921');
   const [body, setBody] = useState('Hello! Your order has been placed successfully.');
@@ -34,18 +38,8 @@ export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerP
   const handleSend = async () => {
     setIsSending(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel,
-          recipient,
-          content: {
-            subject: channel === 'email' ? subject : undefined,
-            body,
-          },
-          priority: 'HIGH',
-        }),
+      const response = await coreClient.post('messages', {
+        json: buildQuickDispatch(requireSession().team, channel, recipient, subject, body),
       });
 
       const data = (await response.json()) as { messageId?: string; error?: { message: string } };
@@ -55,8 +49,11 @@ export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerP
       } else {
         toast.error(data.error?.message || 'Failed to dispatch message');
       }
-    } catch {
-      toast.error('Network error during message dispatch');
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const detail = (await error.response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        toast.error(detail?.error?.message || `Dispatch rejected (${error.response.status})`);
+      } else toast.error('Network error during message dispatch');
     } finally {
       setIsSending(false);
     }
@@ -100,8 +97,8 @@ export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerP
           {/* Channel Selector */}
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">Channel</label>
-            <div className="grid grid-cols-5 gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg">
-              {(['email', 'sms', 'push', 'chat', 'whatsapp'] as const).map((ch) => (
+            <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg">
+              {dispatchChannels.map((ch) => (
                 <button
                   key={ch}
                   type="button"
@@ -149,7 +146,7 @@ export function QuickDispatchDrawer({ open, onOpenChange }: QuickDispatchDrawerP
           )}
 
           {/* Push Title (Push Only) */}
-          {channel === 'push' && (
+          {(channel === 'fcm' || channel === 'apns') && (
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Push Title</label>
               <input

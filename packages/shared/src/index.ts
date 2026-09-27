@@ -425,6 +425,7 @@ export interface BudgetPolicyDto {
   monthlyBudget: number;
   currency: string;
   usedAmount: number;
+  reservedAmount?: number;
   remainingAmount: number;
   currencySymbol: string;
   hardStop: boolean;
@@ -1048,3 +1049,5 @@ export interface InAppFeedResponse {
   totalCount: number;
   items: InAppNotificationDto[];
 }
+
+export * from './provider-readiness';

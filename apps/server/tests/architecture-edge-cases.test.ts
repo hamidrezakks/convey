@@ -56,7 +56,7 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         team: 'qa_partition_team',
         userId: 'usr_part_1',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.CRITICAL,
         state: MessageState.ACCEPTED,
         recipients: { email: 'partition@example.com' },
@@ -170,7 +170,7 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         team: 'qa_reverse_team',
         userId: 'usr_rev_1',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.NORMAL,
         state: MessageState.ACCEPTED,
         recipients: { email: 'reverse@example.com' },
@@ -200,6 +200,9 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         now,
       });
 
+      const accepted = (await db.select().from(messages).where(eq(messages.publicId, publicId)))[0];
+      expect(accepted.state).toBe(MessageState.DISPATCHED);
+      expect(accepted.completedAt).toBeNull();
       // Verify reverse Redis key was created
       const redisKey = formatRedisKey(`provmsg:ses:${providerMessageId}`);
       const cached = await redisClient.get(redisKey);
@@ -232,7 +235,7 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         team,
         userId: 'usr_idem_1',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.NORMAL,
         idempotencyKey: key,
         recipients: { email: 'original@example.com' },
@@ -242,7 +245,7 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         team,
         userId: 'usr_idem_1',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.NORMAL,
         idempotencyKey: key,
         recipients: { email: 'different@example.com' },
@@ -269,7 +272,7 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         team,
         userId: 'usr_rel_1',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.NORMAL,
         idempotencyKey: key,
         recipients: {}, // Missing required recipient
@@ -284,7 +287,7 @@ describe('Architecture & Resiliency Edge Cases Suite', () => {
         team,
         userId: 'usr_rel_1',
         category: 'transactional',
-        country: 'GLOBAL',
+        country: 'US',
         priority: MessagePriority.NORMAL,
         idempotencyKey: key,
         recipients: { email: 'valid@example.com' },

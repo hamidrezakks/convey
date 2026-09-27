@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -61,8 +63,8 @@ export class WhatsappBusinessChatAdapter
   }
 
   hasSetup(configOverride?: WhatsappBusinessChatAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.phoneNumberId || config.accessToken);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.phoneNumberId && config.accessToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: WhatsappBusinessChatAdapterConfig): WhatsappApiRequest {
@@ -77,7 +79,17 @@ export class WhatsappBusinessChatAdapter
     options: ProviderSendOptions,
     configOverride?: WhatsappBusinessChatAdapterConfig,
   ): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const phoneNumberId = config.phoneNumberId || '';
     const accessToken = config.accessToken || '';
     const baseUrl = config.baseUrl || 'https://graph.facebook.com';
@@ -110,7 +122,7 @@ export class WhatsappBusinessChatAdapter
     const endpoint = `${baseUrl}/${apiVersion}/${phoneNumberId}/messages`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -141,6 +153,7 @@ export class WhatsappBusinessChatAdapter
    * Parse incoming webhook payloads, supporting batch statuses and inbound customer messages.
    */
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const events: NormalizedWebhookEvent[] = [];
     const webhookData = payload as WhatsappWebhookPayload;
     const entries = webhookData?.entry || [];
@@ -163,6 +176,7 @@ export class WhatsappBusinessChatAdapter
             normalizedStatus = NormalizedStatus.FAILED;
           }
 
+          if (!['delivered', 'read', 'failed'].includes(statusObj.status || '')) continue;
           events.push({
             providerId: this.id,
             providerMessageId: statusObj.id,
@@ -175,13 +189,13 @@ export class WhatsappBusinessChatAdapter
         // 2. Process Inbound Customer Messages
         const messages = value.messages || [];
         for (const incomingMsg of messages) {
-          if (!incomingMsg?.from) continue;
+          if (!incomingMsg?.from || !incomingMsg.id) continue;
 
           const messageBody = extractWhatsappMessageBody(incomingMsg);
 
           events.push({
             providerId: this.id,
-            providerMessageId: incomingMsg.id || `inbound_${Date.now()}`,
+            providerMessageId: incomingMsg.id,
             normalizedStatus: NormalizedStatus.DELIVERED,
             rawPayload: {
               ...(typeof payload === 'object' && payload !== null ? payload : { raw: payload }),

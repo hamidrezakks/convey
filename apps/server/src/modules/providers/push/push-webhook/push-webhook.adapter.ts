@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { pushWebhookTransformer } from './push-webhook.transformer';
 import type {
   PushWebhookAdapterConfig,
@@ -39,8 +42,8 @@ export class PushWebhookPushAdapter
   }
 
   hasSetup(configOverride?: PushWebhookAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.webhookUrl || config.secretHeader || config.secretKey);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.webhookUrl);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PushWebhookAdapterConfig): PushWebhookApiRequest {
@@ -52,7 +55,17 @@ export class PushWebhookPushAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: PushWebhookAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const webhookUrl = config.webhookUrl || (options.recipient.webhookUrl as string) || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -87,7 +100,7 @@ export class PushWebhookPushAdapter
     }
 
     try {
-      const response = await fetch(webhookUrl, {
+      const response = await providerFetch(webhookUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -112,6 +125,17 @@ export class PushWebhookPushAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as PushWebhookPayload;
     if (!webhookData?.messageId) return [];
 
@@ -119,7 +143,7 @@ export class PushWebhookPushAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

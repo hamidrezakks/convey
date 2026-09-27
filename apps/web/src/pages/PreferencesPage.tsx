@@ -1,8 +1,9 @@
-import { Channel, type PreferenceCheckResult, type SubscriptionTopicDto } from '@convey/shared';
+import type { PreferenceCheckResult, SubscriptionTopicDto } from '@convey/shared';
 import { CheckCircle2, Layers, Plus, Sliders, UserCheck, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
+import { requireSession } from '../lib/session';
 
 export function PreferencesPage() {
   const [topics, setTopics] = useState<SubscriptionTopicDto[]>([]);
@@ -20,53 +21,19 @@ export function PreferencesPage() {
   const [simTopicKey, setSimTopicKey] = useState('marketing_newsletter');
   const [simResult, setSimResult] = useState<({ success: boolean } & PreferenceCheckResult) | null>(null);
 
-  const tenantId = '019ff136-0000-7000-8000-000000000001';
-  const team = 'core';
+  const { tenantId, team } = requireSession();
+  const [loadError, setLoadError] = useState('');
 
   const loadTopics = async () => {
+    setLoadError('');
     try {
       const res = await api.listTopics(tenantId, team);
       if (res.success && res.topics) {
         setTopics(res.topics);
       }
     } catch {
-      // Fallback topics
-      const fallback: SubscriptionTopicDto[] = [
-        {
-          id: '1',
-          tenantId,
-          team,
-          key: 'security_2fa',
-          name: 'Security & 2FA Codes',
-          description: 'Critical authentication and security alerts (Cannot be opted out)',
-          isMandatory: true,
-          defaultChannels: [Channel.SMS, Channel.EMAIL],
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          tenantId,
-          team,
-          key: 'billing_alerts',
-          name: 'Invoices & Billing',
-          description: 'Receipts, invoices, and payment failure notices',
-          isMandatory: false,
-          defaultChannels: [Channel.EMAIL],
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          tenantId,
-          team,
-          key: 'marketing_newsletter',
-          name: 'Product Updates & Offers',
-          description: 'Weekly digest of features and exclusive promotions',
-          isMandatory: false,
-          defaultChannels: [Channel.EMAIL],
-          createdAt: new Date().toISOString(),
-        },
-      ];
-      setTopics(fallback);
+      setLoadError('Unable to load topics. Check your permissions, environment, and plugin service.');
+      setTopics([]);
     }
   };
 
@@ -119,17 +86,18 @@ export function PreferencesPage() {
         toast.warning(`Dispatch Blocked: ${res.reason}`);
       }
     } catch {
-      // Offline fallback simulation
-      setSimResult({
-        success: true,
-        allowed: true,
-      });
-      toast.success('Dispatch Allowed (Simulated)');
+      setSimResult(null);
+      toast.error('Unable to check preferences. No dispatch decision was made.');
     }
   };
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <p role="alert" className="text-red-500">
+          {loadError}
+        </p>
+      )}
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div className="space-y-1">

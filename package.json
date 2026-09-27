@@ -34,10 +34,10 @@
     "test:plugins": "bun --filter @convey/plugins test",
     "test:web": "bun --filter @convey/web test",
     "test:mock": "bun test apps/mock-server",
-    "test:sdk": "bun --filter @convey/sdk test",
+    "test:sdk": "bun scripts/test-sdk-unit.ts",
     "test:go": "cd packages/sdk-go && go test -v -race ./...",
     "test:py": "PYTHONPATH=packages/sdk-py python3 -m unittest discover -s packages/sdk-py/tests -v",
-    "test:sdks": "bun run --filter @convey/sdk test && bun run test:go && bun run test:py",
+    "test:sdks": "bun run test:sdk && bun run test:go && bun run test:py",
     "test:e2e:sdks": "bun run scripts/run-e2e-sdks.ts",
     "test:prod:docker": "bun scripts/run-production-docker-test.ts",
     "test:prod:soak": "bun scripts/run-all-providers-soak-test.ts",
@@ -57,8 +57,10 @@
     "db:generate": "bun --filter @convey/server db:generate",
     "db:migrate": "bun --filter @convey/server db:migrate",
     "db:seed:million": "bun --filter @convey/server db:seed:million",
-    "typecheck": "bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p apps/plugins/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p packages/sdk/tsconfig.json",
-    "postinstall": "bun scripts/patch-openapi.ts"
+    "typecheck": "bun --filter @convey/website generate && bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p apps/plugins/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p packages/sdk/tsconfig.json",
+    "postinstall": "bun scripts/patch-openapi.ts",
+    "test:server:ci": "bun scripts/test-server-ci.ts",
+    "test:server:performance": "bun scripts/test-server-ci.ts --performance"
   },
   "devDependencies": {
     "@aws-sdk/client-sesv2": "^3.749.0",
@@ -80,5 +82,6 @@
     "typebox": "^1.3.16",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"
-  }
+  },
+  "packageManager": "bun@1.4.0"
 }

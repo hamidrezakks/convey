@@ -1,5 +1,6 @@
 import { Channel } from './channels';
 import type { ProviderCatalogItem, ProviderFeatureConfigs } from './index';
+import { isNativeProviderIncomplete } from './provider-readiness';
 
 export interface FullProviderCatalogItem extends ProviderCatalogItem {
   category: 'email' | 'sms' | 'push' | 'chat' | 'tool';
@@ -3273,3 +3274,9 @@ export const COMPLETE_88_PROVIDER_CATALOG: FullProviderCatalogItem[] = [
     },
   },
 ];
+
+for (const provider of COMPLETE_88_PROVIDER_CATALOG) {
+  if (isNativeProviderIncomplete(provider.id)) {
+    provider.description = `Not available: native vendor implementation is incomplete. ${provider.description}`;
+  }
+}

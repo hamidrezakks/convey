@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { mailjetTransformer } from './mailjet.transformer';
 import type { MailjetApiRequest, MailjetApiResponse, MailjetEmailAdapterConfig, MailjetWebhookPayload } from './types';
 
@@ -34,8 +37,8 @@ export class MailjetEmailAdapter
   }
 
   hasSetup(configOverride?: MailjetEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.apiSecret);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.apiSecret);
   }
 
   transformRequest(options: ProviderSendOptions, config?: MailjetEmailAdapterConfig): MailjetApiRequest {
@@ -47,7 +50,17 @@ export class MailjetEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MailjetEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
     const apiSecret = config.apiSecret || '';
 
@@ -79,7 +92,7 @@ export class MailjetEmailAdapter
     const authHeader = `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -107,6 +120,15 @@ export class MailjetEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'event', {
+      sent: NormalizedStatus.DELIVERED,
+      bounce: NormalizedStatus.BOUNCED,
+      blocked: NormalizedStatus.FAILED,
+      open: NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as MailjetWebhookPayload;
     if (!webhookData?.MessageID) return [];
 
@@ -114,7 +136,7 @@ export class MailjetEmailAdapter
       {
         providerId: this.id,
         providerMessageId: String(webhookData.MessageID),
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.time ? new Date(webhookData.time * 1000) : new Date(),
       },

@@ -1,128 +1,27 @@
-# Convey Release Management & SemVer Deployment Guide
+# Release management
 
-This document outlines the **Semantic Versioning 2.0.0**, **Docker Container Release**, and **NPM Package Publishing** architecture configured for the **Convey** planetary communication service monorepo.
+The release workflow runs on `main` updates and manual dispatch from `main`. It prepares a versioned candidate locally, validates that exact revision, then creates and atomically pushes the root tag and nested Go module tag. Publishers depend on successful preparation and validation.
 
----
+## Candidate sequence
 
-## 1. Release Architecture Overview
+1. Compute the version/changelog using validated inputs to `scripts/release-bump.ts`.
+2. Update package versions and lockfile, then make a local candidate commit in the runner.
+3. Run `.github/actions/validate/action.yml`: formatting/lint, workspace types, selected units, console and SDK suites, canonical database migrations, strict-auth security tests, SDK integration, legacy server/plugin suites, distribution builds and all application container targets.
+4. Require a clean tracked working tree after validation.
+5. Push the validated candidate and tags atomically, then create the GitHub release. Downstream jobs publish SDKs and container images from the tag.
 
-The release pipeline coordinates three artifacts:
-1. **GitHub Releases & Git Tags**: Annotated SemVer tags (`vX.Y.Z`) with structured changelogs.
-2. **NPM Package (`@convey/sdk`)**: Production client library compiled for ESM and CommonJS with TypeScript declarations and SLSA provenance.
-3. **Docker Multi-Arch Images (`GHCR`)**:
-   - `ghcr.io/<owner>/convey-server`: Elysia API service, BullMQ queue workers, and PostgreSQL partition relays.
-   - `ghcr.io/<owner>/convey-web`: Vite & React Admin Mission Control console.
+A failed check prevents tagging and publishing. The legacy regression failures identified during review have been repaired; those checks remain mandatory. See [verification](operations/hardening-verification.md).
 
-```
-                  ┌─────────────────────────────────────┐
-                  │ Conventional Commits (feat, fix...) │
-                  └──────────────────┬──────────────────┘
-                                     │
-                     git push origin main OR workflow_dispatch
-                                     │
-                                     ▼
-                  ┌─────────────────────────────────────┐
-                  │ .github/workflows/release.yml       │
-                  │ - Compute SemVer (major/minor/patch)│
-                  │ - Update monorepo package.json files│
-                  │ - Prepend CHANGELOG.md              │
-                  │ - Create Git Tag vX.Y.Z & GH Release│
-                  └─────────┬─────────────────┬─────────┘
-                            │                 │
-              ┌─────────────┴──────┐   ┌──────┴────────────────────┐
-              ▼                    │   ▼                           ▼
-┌───────────────────────────────┐  │ ┌────────────────────────────────────────┐
-│ NPM Release (@convey/sdk)     │  │ │ Docker Multi-Arch Build (GHCR)         │
-│ - bun build (ESM & CJS)       │  │ │ - platforms: linux/amd64, linux/arm64  │
-│ - tsc declaration emit        │  │ │ - convey-server (target: server)       │
-│ - npm publish --provenance    │  │ │ - convey-web (target: web)             │
-│ - tags: latest or beta        │  │ │ - tags: 1.2.3, 1.2, 1, latest, sha-*   │
-└───────────────────────────────┘  │ └────────────────────────────────────────┘
-```
+## Dry runs
 
----
+Dispatch with `dry_run=true` to prepare and validate a real local candidate without pushing commits, tags, GitHub releases or package/image publications. This still installs dependencies, creates a temporary runner commit, runs tests and builds artifacts. A dry run does not exercise registry credentials or guarantee that later publication will succeed.
 
-## 2. Semantic Versioning & Conventional Commits
+Inputs are `bump_type` (`auto`, `patch`, `minor`, `major`, `prerelease`), optional `custom_version`, and `prerelease_tag`. Inputs are passed as arguments through environment variables, not interpolated as shell source. Use dry run before a manual release.
 
-Convey follows strict **Conventional Commits**:
+## Toolchain and artifacts
 
-| Commit Type | SemVer Impact | Description | Example |
-|---|---|---|---|
-| `feat:` | **MINOR** (`1.0.0` ➔ `1.1.0`) | Introducing a new feature or public capability | `feat(sdk): add auto-pagination iterator` |
-| `fix:` | **PATCH** (`1.0.0` ➔ `1.0.1`) | Bug fix or operational correction | `fix(server): resolve race condition in outbox relay` |
-| `perf:` | **PATCH** (`1.0.0` ➔ `1.0.1`) | Performance optimization | `perf(router): optimize SIMD shard hashing` |
-| `BREAKING CHANGE:` or `feat!:` | **MAJOR** (`1.0.0` ➔ `2.0.0`) | Breaking API or schema changes | `feat(api)!: rename endpoint /v1/send to /v1/messages` |
-| `docs:`, `chore:`, `ci:`, `test:`, `refactor:` | **PATCH** (if unreleased changes exist) | Maintenance, documentation, and internal refactors | `docs(readme): update deployment topology` |
+Bun is pinned by `.bun-version` and the Dockerfile. The shared action also pins Go and Python. CI uses isolated PostgreSQL 18 and Redis services; it does not use a developer's database.
 
----
+Container release targets are `server`, `web` and `plugins`. The TypeScript SDK build checks ESM, CommonJS and both declaration formats. The Go tag uses `packages/sdk-go/vX.Y.Z`; Python distributions are built during validation. Consult the workflow for registry credentials and publication configuration.
 
-## 3. Workflow Trigger Modes
-
-### A. Automated Release (Continuous Delivery)
-When commits are merged into `main`, GitHub Actions:
-1. Compares commit history against the latest Git tag (`vX.Y.Z`).
-2. Calculates the required SemVer bump.
-3. Automatically updates `package.json` across workspaces and prepends `CHANGELOG.md`.
-4. Commits `chore(release): bump version to vX.Y.Z [skip ci]` and pushes tag `vX.Y.Z`.
-5. Publishes `@convey/sdk` to NPM and pushes multi-arch images to GHCR.
-
-### B. Manual Dispatch (`workflow_dispatch`)
-Release engineers can trigger releases on-demand via the GitHub Actions web interface:
-- **`bump_type`**: `auto` (default), `patch`, `minor`, `major`, `prerelease`.
-- **`custom_version`**: Explicit version override (e.g. `1.2.0-rc.1`).
-- **`prerelease_tag`**: Identifier for prereleases (default: `beta`).
-- **`dry_run`**: Set to `true` to test changelog generation and SemVer evaluation without pushing changes.
-
----
-
-## 4. Docker Multi-Arch Container Images
-
-Docker images are pushed to GitHub Container Registry (`ghcr.io`):
-
-### Tagging Scheme
-When release `v1.2.3` is created:
-- `ghcr.io/<owner>/convey-server:1.2.3` (Full SemVer)
-- `ghcr.io/<owner>/convey-server:1.2` (Minor SemVer alias)
-- `ghcr.io/<owner>/convey-server:1` (Major SemVer alias)
-- `ghcr.io/<owner>/convey-server:latest` (Stable track)
-- `ghcr.io/<owner>/convey-server:sha-<commit_sha>` (Immutable commit reference)
-
-### Pulling and Running
-```bash
-# Pull server backend
-docker pull ghcr.io/<owner>/convey-server:latest
-
-# Run with environment configuration
-docker run -d \
-  -p 3000:3000 \
-  -e DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5432/convey" \
-  -e REDIS_URL="redis://host.docker.internal:6379" \
-  ghcr.io/<owner>/convey-server:latest
-
-# Pull web console UI
-docker pull ghcr.io/<owner>/convey-web:latest
-docker run -d -p 5173:5173 ghcr.io/<owner>/convey-web:latest
-```
-
----
-
-## 5. NPM Package Publishing (`@convey/sdk`)
-
-The SDK is published with zero external runtime dependencies and signed with **SLSA Provenance**:
-- **Bundle**: Dual ESM (`dist/index.js`) and CommonJS (`dist/index.cjs`).
-- **Types**: Full TypeScript definitions (`dist/index.d.ts` and `dist/index.d.cts`) with sourcemaps.
-- **Security**: Built with `--provenance` via GitHub Actions OIDC.
-
-### Installation
-```bash
-bun add @convey/sdk
-# or
-npm install @convey/sdk
-```
-
----
-
-## 6. Required GitHub Secrets & Permissions
-
-1. **`NPM_TOKEN`**: Granular Access Token with publish permissions for the `@convey` npm organization or scope.
-2. **`GITHUB_TOKEN`**: Automatically provided by GitHub Actions. Ensure **"Read and write permissions"** is enabled in `Settings -> Actions -> General -> Workflow permissions`.
+Do not infer rollback safety from a successful build. Follow the [migration runbook](operations/hardening-migration.md), record deployed image digests, and validate restore/reconciliation before deploying a schema or security change.

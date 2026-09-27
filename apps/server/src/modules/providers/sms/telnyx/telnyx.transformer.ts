@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { TelnyxApiRequest, TelnyxApiResponse, TelnyxSmsAdapterConfig } from './types';
 
 export class TelnyxTransformer
@@ -40,7 +36,7 @@ export class TelnyxTransformer
       error: {
         code: firstErr?.code || 'TELNYX_ERROR',
         message: firstErr?.detail || firstErr?.title || 'Telnyx Messaging v2 API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

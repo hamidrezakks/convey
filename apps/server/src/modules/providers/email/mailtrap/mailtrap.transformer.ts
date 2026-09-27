@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MailtrapApiRequest, MailtrapApiResponse, MailtrapEmailAdapterConfig } from './types';
 
 export class MailtrapTransformer
@@ -32,7 +28,7 @@ export class MailtrapTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.success !== false || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `mailtrap_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -42,7 +38,7 @@ export class MailtrapTransformer
       error: {
         code: 'MAILTRAP_ERROR',
         message: response.errors?.join(', ') || 'Mailtrap Email API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

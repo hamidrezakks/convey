@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { infobipEmailTransformer } from './infobip.transformer';
 import type {
   InfobipEmailAdapterConfig,
@@ -39,8 +42,8 @@ export class InfobipEmailAdapter
   }
 
   hasSetup(configOverride?: InfobipEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.baseUrl);
   }
 
   transformRequest(options: ProviderSendOptions, config?: InfobipEmailAdapterConfig): InfobipEmailApiRequest {
@@ -52,7 +55,17 @@ export class InfobipEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: InfobipEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
     const baseUrl = config.baseUrl || '';
 
@@ -90,7 +103,7 @@ export class InfobipEmailAdapter
     if (reqPayload.html) formData.append('html', reqPayload.html);
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `App ${apiKey}`,
@@ -117,6 +130,17 @@ export class InfobipEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as InfobipEmailWebhookPayload;
     if (!webhookData?.results?.[0]?.messageId) return [];
 
@@ -125,7 +149,7 @@ export class InfobipEmailAdapter
       {
         providerId: this.id,
         providerMessageId: firstRes.messageId || 'infobip_email',
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

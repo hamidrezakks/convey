@@ -1,19 +1,7 @@
 import { CURRENCY_REGISTRY, formatCurrencyAmount } from '@convey/shared';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Briefcase,
-  Check,
-  ChevronDown,
-  Clock,
-  Coins,
-  Globe,
-  RotateCcw,
-  Scale,
-  Sliders,
-  TrendingUp,
-  Zap,
-} from 'lucide-react';
-import { useState } from 'react';
+import { Briefcase, Check, ChevronDown, Clock, Coins, Globe, RotateCcw, Scale, Sliders, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -23,7 +11,6 @@ import { Slider } from '../components/ui/slider';
 import { Switch } from '../components/ui/switch';
 import { useI18n } from '../i18n/context';
 import { api } from '../lib/api';
-import { policyKeys } from '../lib/queryKeys';
 import { useUiMode } from '../mode';
 
 export function PoliciesPage() {
@@ -34,7 +21,8 @@ export function PoliciesPage() {
   const [budgetCurrency, setBudgetCurrency] = useState<string>('USD');
   const [monthlyBudget, setMonthlyBudget] = useState<number>(2500);
   const [hardStop, setHardStop] = useState<boolean>(true);
-  const [usedAmount] = useState<number>(642.5);
+  const [team, setTeam] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const [rateLimitRps, setRateLimitRps] = useState(5000);
   const [burstCapacity, setBurstCapacity] = useState(10000);
@@ -45,45 +33,42 @@ export function PoliciesPage() {
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(true);
   const [showAdvancedDrrInOps, setShowAdvancedDrrInOps] = useState(false);
 
-  // TanStack Query: Policies list
-  const { isFetching, refetch } = useQuery({
-    queryKey: policyKeys.all,
-    queryFn: () => api.getPolicies(),
+  const {
+    data: budget,
+    isFetching,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['budget', team],
+    queryFn: () => api.getBudget(team),
+    enabled: Boolean(team.trim()),
+    retry: false,
   });
-
-  const handleSavePolicies = () => {
-    toast.success(
-      isOps
-        ? 'Communication guardrails and budget policy saved successfully!'
-        : 'Traffic policies, multi-currency budget cap, and DRR quanta deployed to Redis cluster!',
-    );
+  useEffect(() => {
+    setBudgetCurrency(budget?.currency ?? 'USD');
+    setMonthlyBudget(budget?.monthlyBudget ?? 2500);
+    setHardStop(budget?.hardStop ?? true);
+  }, [budget]);
+  const usedAmount = budget?.usedAmount ?? 0;
+  const reservedAmount = budget?.reservedAmount ?? 0;
+  const usageCurrency = budget?.currency ?? budgetCurrency;
+  const utilizationPercent = budget?.monthlyBudget
+    ? Math.min(100, Math.round(((usedAmount + reservedAmount) / budget.monthlyBudget) * 100))
+    : 0;
+  const handleSavePolicies = async () => {
+    setSaving(true);
+    try {
+      await api.saveBudget(team, { monthlyBudget, currency: budgetCurrency, hardStop });
+      await refetch();
+      toast.success('Budget policy saved.');
+    } catch {
+      toast.error(
+        'Budget was not saved. Check team, amount and currency; currency cannot change after accounting starts.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
-
-  // FX Conversion calculations for preview
-  const STATIC_RATES_TO_USD: Record<string, number> = {
-    USD: 1.0,
-    EUR: 1.08,
-    GBP: 1.28,
-    AED: 0.27,
-    SAR: 0.27,
-    JPY: 0.0067,
-    CAD: 0.74,
-    AUD: 0.66,
-    CHF: 1.13,
-    CNY: 0.14,
-    INR: 0.012,
-    BRL: 0.18,
-    SGD: 0.75,
-    MXN: 0.059,
-    KRW: 0.00075,
-    SEK: 0.096,
-    NOK: 0.094,
-    ZAR: 0.055,
-  };
-  const rateToUsd = STATIC_RATES_TO_USD[budgetCurrency] || 1.0;
-  const budgetUsd = monthlyBudget * rateToUsd;
-  const usedUsd = usedAmount * rateToUsd;
-  const utilizationPercent = Math.min(100, Math.round((usedAmount / (monthlyBudget || 1)) * 100));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -112,7 +97,15 @@ export function PoliciesPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            disabled={!team || saving}
+            onClick={async () => {
+              const result = await refetch();
+              if (!result.isError) {
+                setMonthlyBudget(result.data?.monthlyBudget ?? 2500);
+                setBudgetCurrency(result.data?.currency ?? 'USD');
+                setHardStop(result.data?.hardStop ?? true);
+              }
+            }}
             isLoading={isFetching}
             className="text-xs gap-1.5 rounded-xl"
           >
@@ -123,14 +116,39 @@ export function PoliciesPage() {
             variant="primary"
             size="sm"
             onClick={handleSavePolicies}
+            disabled={
+              !team.trim() ||
+              isFetching ||
+              isError ||
+              budget === undefined ||
+              saving ||
+              !Number.isFinite(monthlyBudget) ||
+              monthlyBudget < 0
+            }
+            isLoading={saving}
             className="text-xs gap-1.5 font-semibold rounded-xl shadow-2xs"
           >
             <Check className="w-3.5 h-3.5" />
-            <span>{isOps ? 'Save Guardrails' : t('policies.deployRedis')}</span>
+            <span>Save Budget</span>
           </Button>
         </div>
       </div>
 
+      <label className="block text-sm">
+        Team ID
+        <input
+          aria-label="Budget team ID"
+          value={team}
+          disabled={saving}
+          onChange={(event) => setTeam(event.target.value.trim())}
+          className="ml-3 rounded border p-2 bg-transparent"
+          placeholder="Registered team ID"
+        />
+      </label>
+      {!team && <p>Select a registered team to load its budget.</p>}
+      {isFetching && <p role="status">Loading budget…</p>}
+      {isError && <p role="alert">Budget could not be loaded. Saving is disabled until it loads successfully.</p>}
+      {team && budget === null && <p>No budget is configured for this team.</p>}
       {/* CORE FINANCIAL GUARDRAIL: Team Financial Budget Cap & Multi-Currency Policy */}
       <Card className="glass-panel border-sky-500/20 dark:border-sky-500/20 shadow-md relative z-30">
         <CardHeader className="pb-4">
@@ -186,7 +204,7 @@ export function PoliciesPage() {
               />
 
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                All provider charges converted to {budgetCurrency} via FxEngine.
+                Budget uses configured cost estimates and exchange rates; actual invoices may differ.
               </p>
             </div>
 
@@ -200,43 +218,22 @@ export function PoliciesPage() {
                   {formatCurrencyAmount(monthlyBudget, budgetCurrency)}
                 </span>
               </div>
-              <Slider
+              <input
+                aria-label="Monthly budget"
+                type="number"
+                min="0"
+                max="99999999.9999"
+                step="0.0001"
                 value={monthlyBudget}
-                min={100}
-                max={50000}
-                step={100}
-                onValueChange={(val) => setMonthlyBudget(Array.isArray(val) ? val[0] : val)}
+                onChange={(event) =>
+                  setMonthlyBudget(event.target.value === '' ? Number.NaN : Number(event.target.value))
+                }
+                className="w-full rounded border p-2 bg-transparent"
               />
-              <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                <span>Min: {formatCurrencyAmount(100, budgetCurrency)}</span>
-                <span>Max: {formatCurrencyAmount(50000, budgetCurrency)}</span>
-              </div>
             </div>
 
-            {/* Real-time Multi-Currency FX Preview */}
-            <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                <span>{t('policies.fxPreviewLabel')}</span>
-              </span>
-              <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-xs">
-                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">USD Equivalent</span>
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    ${budgetUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">EUR Valuation</span>
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    €
-                    {(budgetUsd * 0.924).toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              </div>
+            <div className="p-3.5 text-sm">
+              Pending sends reserve funds before delivery. Uncertain outcomes retain their reservation until reconciled.
             </div>
           </div>
 
@@ -248,10 +245,10 @@ export function PoliciesPage() {
                   {t('policies.usedAmountLabel')}:
                 </span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white">
-                  {formatCurrencyAmount(usedAmount, budgetCurrency)}
+                  {budget ? formatCurrencyAmount(usedAmount, usageCurrency) : 'Unavailable'}
                 </span>
                 <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                  (${usedUsd.toFixed(2)} USD)
+                  Reserved: {budget ? formatCurrencyAmount(reservedAmount, usageCurrency) : 'Unavailable'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -280,199 +277,204 @@ export function PoliciesPage() {
             </div>
 
             <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-              <span>Remaining: {formatCurrencyAmount(Math.max(0, monthlyBudget - usedAmount), budgetCurrency)}</span>
+              <span>
+                Remaining: {budget ? formatCurrencyAmount(budget.remainingAmount, usageCurrency) : 'Unavailable'}
+              </span>
               <span>Reset Date: 1st of Next Month (00:00 UTC)</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Business Guardrail 1: WhatsApp Session Cost Optimizer */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card className="glass-panel">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <Coins className="w-5 h-5" />
+      <fieldset disabled className="space-y-6 opacity-60">
+        <legend className="text-sm">The following controls are previews and are not saved by Save Budget.</legend>
+        {/* Business Guardrail 1: WhatsApp Session Cost Optimizer */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <Card className="glass-panel">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <Coins className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
+                      WhatsApp Cost Optimizer
+                    </CardTitle>
+                    <CardDescription>
+                      Automatically switches from paid Template messages ($0.035) to free Session messages when a 24h
+                      user window is active.
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
-                    WhatsApp Cost Optimizer
-                  </CardTitle>
-                  <CardDescription>
-                    Automatically switches from paid Template messages ($0.035) to free Session messages when a 24h user
-                    window is active.
-                  </CardDescription>
-                </div>
+                <Switch checked={whatsappSessionAutoConvert} onCheckedChange={setWhatsappSessionAutoConvert} />
               </div>
-              <Switch checked={whatsappSessionAutoConvert} onCheckedChange={setWhatsappSessionAutoConvert} />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
-              <span className="font-semibold">{t('overview.kpiCostSaved')}: </span>
-              Convey tracks incoming customer replies and automatically sends replies as free text messages inside the
-              active 24-hour window.
-            </div>
-            <div className="flex justify-between pt-1">
-              <span className="text-slate-500 dark:text-slate-400">Estimated Monthly Savings:</span>
-              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">$1,450.00 / mo</span>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                <span className="font-semibold">{t('overview.kpiCostSaved')}: </span>
+                Convey tracks incoming customer replies and automatically sends replies as free text messages inside the
+                active 24-hour window.
+              </div>
+              <div className="flex justify-between pt-1">
+                <span className="text-slate-500 dark:text-slate-400">Estimated Monthly Savings:</span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">$1,450.00 / mo</span>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Business Guardrail 2: Regional Quiet Hours */}
-        <Card className="glass-panel">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  <Clock className="w-4 h-4" />
+          {/* Business Guardrail 2: Regional Quiet Hours */}
+          <Card className="glass-panel">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
+                      Quiet Hours Protection (Night-Time Deflection)
+                    </CardTitle>
+                    <CardDescription>
+                      Holds non-critical marketing messages arriving between 22:00 and 08:00 local recipient time to
+                      08:00 the next morning.
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
-                    Quiet Hours Protection (Night-Time Deflection)
-                  </CardTitle>
-                  <CardDescription>
-                    Holds non-critical marketing messages arriving between 22:00 and 08:00 local recipient time to 08:00
-                    the next morning.
-                  </CardDescription>
-                </div>
+                <Switch checked={quietHoursEnabled} onCheckedChange={setQuietHoursEnabled} />
               </div>
-              <Switch checked={quietHoursEnabled} onCheckedChange={setQuietHoursEnabled} />
-            </div>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-700 dark:text-slate-300 space-y-2">
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300">
-              <span className="font-semibold">Customer Courtesy Guarantee: </span>
-              Prevents bothering customers late at night. Urgent security OTPs always bypass quiet hours.
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Engineering Guardrail 1: DRR Multi-Tenant Fair Scheduler */}
-      {(isEngineer || showAdvancedDrrInOps) && (
-        <Card className="glass-panel">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                  <Scale className="w-5 h-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {t('policies.drrTitle')}
-                  </CardTitle>
-                  <CardDescription>{t('policies.drrDesc')}</CardDescription>
-                </div>
+            </CardHeader>
+            <CardContent className="text-xs text-slate-700 dark:text-slate-300 space-y-2">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300">
+                <span className="font-semibold">Customer Courtesy Guarantee: </span>
+                Prevents bothering customers late at night. Urgent security OTPs always bypass quiet hours.
               </div>
-              <Badge variant="purple">{t('common.active')}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Enterprise Tier */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase">
-                    {t('policies.enterpriseTier')}
-                  </span>
-                  <span className="font-mono text-sm text-slate-900 dark:text-white font-bold">
-                    {quantumEnterprise} msgs/round
-                  </span>
-                </div>
-                <Slider value={quantumEnterprise} min={50} max={500} step={10} onValueChange={setQuantumEnterprise} />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('policies.slaTarget')}</p>
-              </div>
-
-              {/* Pro Tier */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">
-                    {t('policies.proTier')}
-                  </span>
-                  <span className="font-mono text-sm text-slate-900 dark:text-white font-bold">
-                    {quantumPro} msgs/round
-                  </span>
-                </div>
-                <Slider value={quantumPro} min={10} max={100} step={5} onValueChange={setQuantumPro} />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Target 800ms P95 SLA</p>
-              </div>
-
-              {/* Free Tier */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
-                    {t('policies.freeTier')}
-                  </span>
-                  <span className="font-mono text-sm text-slate-900 dark:text-white font-bold">
-                    {quantumFree} msgs/round
-                  </span>
-                </div>
-                <Slider value={quantumFree} min={1} max={50} step={1} onValueChange={setQuantumFree} />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Best-effort fair share</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Engineering Guardrail 2: Token Bucket Limiter */}
-      {(isEngineer || showAdvancedDrrInOps) && (
-        <Card className="glass-panel">
-          <CardHeader>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {t('policies.tokenBucketTitle')}
-                </CardTitle>
-                <CardDescription>{t('policies.tokenBucketDesc')}</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-700 dark:text-slate-300 font-semibold">
-                  {t('policies.rateLimitLabel')}:
-                </span>
-                <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">{rateLimitRps} tokens/sec</span>
-              </div>
-              <Slider value={rateLimitRps} min={500} max={20000} step={500} onValueChange={setRateLimitRps} />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-700 dark:text-slate-300 font-semibold">
-                  {t('policies.burstCapacityLabel')}:
-                </span>
-                <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">{burstCapacity} tokens</span>
-              </div>
-              <Slider value={burstCapacity} min={1000} max={50000} step={1000} onValueChange={setBurstCapacity} />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Ops Mode: Expand Advanced Fair-Share Scheduling Toggle */}
-      {isOps && !showAdvancedDrrInOps && (
-        <div className="pt-2 text-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAdvancedDrrInOps(true)}
-            className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white gap-1"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-            <span>Show Technical Rate Limits & Deficit Round Robin Quanta</span>
-          </Button>
+            </CardContent>
+          </Card>
         </div>
-      )}
+
+        {/* Engineering Guardrail 1: DRR Multi-Tenant Fair Scheduler */}
+        {(isEngineer || showAdvancedDrrInOps) && (
+          <Card className="glass-panel">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                    <Scale className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {t('policies.drrTitle')}
+                    </CardTitle>
+                    <CardDescription>{t('policies.drrDesc')}</CardDescription>
+                  </div>
+                </div>
+                <Badge variant="purple">{t('common.active')}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Enterprise Tier */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase">
+                      {t('policies.enterpriseTier')}
+                    </span>
+                    <span className="font-mono text-sm text-slate-900 dark:text-white font-bold">
+                      {quantumEnterprise} msgs/round
+                    </span>
+                  </div>
+                  <Slider value={quantumEnterprise} min={50} max={500} step={10} onValueChange={setQuantumEnterprise} />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('policies.slaTarget')}</p>
+                </div>
+
+                {/* Pro Tier */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">
+                      {t('policies.proTier')}
+                    </span>
+                    <span className="font-mono text-sm text-slate-900 dark:text-white font-bold">
+                      {quantumPro} msgs/round
+                    </span>
+                  </div>
+                  <Slider value={quantumPro} min={10} max={100} step={5} onValueChange={setQuantumPro} />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Target 800ms P95 SLA</p>
+                </div>
+
+                {/* Free Tier */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
+                      {t('policies.freeTier')}
+                    </span>
+                    <span className="font-mono text-sm text-slate-900 dark:text-white font-bold">
+                      {quantumFree} msgs/round
+                    </span>
+                  </div>
+                  <Slider value={quantumFree} min={1} max={50} step={1} onValueChange={setQuantumFree} />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Best-effort fair share</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Engineering Guardrail 2: Token Bucket Limiter */}
+        {(isEngineer || showAdvancedDrrInOps) && (
+          <Card className="glass-panel">
+            <CardHeader>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {t('policies.tokenBucketTitle')}
+                  </CardTitle>
+                  <CardDescription>{t('policies.tokenBucketDesc')}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                    {t('policies.rateLimitLabel')}:
+                  </span>
+                  <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">{rateLimitRps} tokens/sec</span>
+                </div>
+                <Slider value={rateLimitRps} min={500} max={20000} step={500} onValueChange={setRateLimitRps} />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                    {t('policies.burstCapacityLabel')}:
+                  </span>
+                  <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">{burstCapacity} tokens</span>
+                </div>
+                <Slider value={burstCapacity} min={1000} max={50000} step={1000} onValueChange={setBurstCapacity} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Ops Mode: Expand Advanced Fair-Share Scheduling Toggle */}
+        {isOps && !showAdvancedDrrInOps && (
+          <div className="pt-2 text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAdvancedDrrInOps(true)}
+              className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white gap-1"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+              <span>Show Technical Rate Limits & Deficit Round Robin Quanta</span>
+            </Button>
+          </div>
+        )}
+      </fieldset>
     </div>
   );
 }

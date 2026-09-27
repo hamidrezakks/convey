@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { EmailjsApiRequest, EmailjsApiResponse, EmailjsEmailAdapterConfig } from './types';
 
 export class EmailjsTransformer
@@ -35,7 +31,6 @@ export class EmailjsTransformer
     if (statusCode >= 200 && statusCode < 300) {
       return {
         success: true,
-        providerMessageId: `emailjs_${Date.now()}`,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -45,7 +40,7 @@ export class EmailjsTransformer
       error: {
         code: 'EMAILJS_ERROR',
         message: response.text || response.error || 'EmailJS request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

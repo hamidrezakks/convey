@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { plivoTransformer } from './plivo.transformer';
 import type { PlivoApiRequest, PlivoApiResponse, PlivoSmsAdapterConfig, PlivoWebhookPayload } from './types';
 
@@ -32,8 +35,8 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
   }
 
   hasSetup(configOverride?: PlivoSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.authId || config.authToken);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.authId && config.authToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PlivoSmsAdapterConfig): PlivoApiRequest {
@@ -45,7 +48,17 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
   }
 
   async send(options: ProviderSendOptions, configOverride?: PlivoSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const authId = config.authId || '';
     const authToken = config.authToken || '';
 
@@ -77,7 +90,7 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
     const authHeader = `Basic ${Buffer.from(`${authId}:${authToken}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -105,6 +118,17 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as PlivoWebhookPayload;
     if (!webhookData?.MessageUUID) return [];
 
@@ -112,7 +136,7 @@ export class PlivoSmsAdapter implements ProviderAdapter<PlivoSmsAdapterConfig, P
       {
         providerId: this.id,
         providerMessageId: webhookData.MessageUUID,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

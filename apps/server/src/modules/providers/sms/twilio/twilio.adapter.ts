@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
 import {
   Channel,
   ErrorCategory,
@@ -33,8 +34,8 @@ export class TwilioSmsAdapter implements ProviderAdapter<TwilioAdapterConfig, Tw
   }
 
   hasSetup(configOverride?: TwilioAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.accountSid || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.accountSid && config.authToken);
   }
 
   transformRequest(options: ProviderSendOptions, config?: TwilioAdapterConfig): TwilioApiRequest {
@@ -46,8 +47,17 @@ export class TwilioSmsAdapter implements ProviderAdapter<TwilioAdapterConfig, Tw
   }
 
   async send(options: ProviderSendOptions, configOverride?: TwilioAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.apiKey || '';
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
 
     const reqPayload = this.transformRequest(options, config);
 
@@ -62,18 +72,34 @@ export class TwilioSmsAdapter implements ProviderAdapter<TwilioAdapterConfig, Tw
       };
     }
 
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Twilio accountSid and authToken are required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
+    const endpoint =
+      config.baseUrl ||
+      `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(config.accountSid || '')}/Messages.json`;
+    const body = new URLSearchParams({ To: reqPayload.To, From: reqPayload.From, Body: reqPayload.Body });
+    for (const media of reqPayload.MediaUrl || []) body.append('MediaUrl', media);
+    if (reqPayload.StatusCallback) body.set('StatusCallback', reqPayload.StatusCallback);
     const transportFetch = createTransportFetch(config?.proxy);
 
     try {
       const response = await transportFetch(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
           Accept: 'application/json',
         },
-        body: JSON.stringify(reqPayload),
+        body,
+        signal: AbortSignal.timeout(15_000),
       });
 
       const responseText = await response.text();
@@ -95,13 +121,15 @@ export class TwilioSmsAdapter implements ProviderAdapter<TwilioAdapterConfig, Tw
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as TwilioWebhookPayload;
     const msgId = webhookData.MessageSid || webhookData.SmsSid;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.MessageStatus || webhookData.SmsStatus || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

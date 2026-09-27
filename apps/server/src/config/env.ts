@@ -60,7 +60,9 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   BULLMQ_SCHEDULING_HORIZON_SECONDS: z.coerce.number().default(1800),
   DB_MAX_CONNECTIONS: z.coerce.number().default(20),
-  CONVEY_REQUIRE_AUTH: z.preprocess((v) => String(v).toLowerCase() === 'true', z.boolean()).default(false),
+  CONVEY_REQUIRE_AUTH: z
+    .preprocess((v) => (v === undefined ? true : v), z.enum(['true', 'false']).or(z.boolean()))
+    .transform((v) => v === true || v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -81,6 +83,9 @@ export function parseEnv(rawEnv: Record<string, string | undefined> = process.en
     throw new Error('Invalid environment configuration');
   }
 
+  if (result.data.NODE_ENV === 'production' && !result.data.CONVEY_REQUIRE_AUTH) {
+    throw new Error('CONVEY_REQUIRE_AUTH cannot be disabled in production');
+  }
   return result.data;
 }
 

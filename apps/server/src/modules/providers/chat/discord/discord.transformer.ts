@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { DiscordApiRequest, DiscordApiResponse, DiscordChatAdapterConfig } from './types';
 
 export class DiscordTransformer
@@ -34,7 +30,7 @@ export class DiscordTransformer
     if ((statusCode >= 200 && statusCode < 300) || statusCode === 204) {
       return {
         success: true,
-        providerMessageId: response.id || `discord_${Date.now()}`,
+        providerMessageId: response.id,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -44,7 +40,7 @@ export class DiscordTransformer
       error: {
         code: response.code ? String(response.code) : 'DISCORD_ERROR',
         message: response.message || 'Discord Webhook/Bot API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { TwilioWhatsappAdapterConfig, TwilioWhatsappApiRequest, TwilioWhatsappApiResponse } from './types';
 
 export class TwilioWhatsappTransformer
@@ -55,7 +51,7 @@ export class TwilioWhatsappTransformer
       error: {
         code: response.error_code ? String(response.error_code) : 'TWILIO_WHATSAPP_ERROR',
         message: response.error_message || 'Twilio WhatsApp API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

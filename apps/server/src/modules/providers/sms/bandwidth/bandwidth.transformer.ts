@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { BandwidthApiRequest, BandwidthApiResponse, BandwidthSmsAdapterConfig } from './types';
 
 export class BandwidthTransformer
@@ -39,7 +35,7 @@ export class BandwidthTransformer
       error: {
         code: 'BANDWIDTH_ERROR',
         message: response.message || 'Bandwidth Messaging v2 API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

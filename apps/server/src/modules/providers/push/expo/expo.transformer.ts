@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ExpoApiRequest, ExpoApiResponse, ExpoPushAdapterConfig } from './types';
 
 export class ExpoTransformer implements ProviderTransformer<ExpoPushAdapterConfig, ExpoApiRequest, ExpoApiResponse> {
@@ -32,7 +28,7 @@ export class ExpoTransformer implements ProviderTransformer<ExpoPushAdapterConfi
     if (statusCode >= 200 && statusCode < 300 && firstTicket?.status === 'ok') {
       return {
         success: true,
-        providerMessageId: firstTicket.id || `expo_${Date.now()}`,
+        providerMessageId: firstTicket.id,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -43,7 +39,7 @@ export class ExpoTransformer implements ProviderTransformer<ExpoPushAdapterConfi
       error: {
         code: (firstTicket?.details?.error as string) || response.errors?.[0]?.code || 'EXPO_ERROR',
         message: firstTicket?.message || response.errors?.[0]?.message || 'Expo Push Notification API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

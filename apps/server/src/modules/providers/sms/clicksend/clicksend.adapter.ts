@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { clicksendTransformer } from './clicksend.transformer';
 import type {
   ClicksendApiRequest,
@@ -39,8 +42,8 @@ export class ClicksendSmsAdapter
   }
 
   hasSetup(configOverride?: ClicksendSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.username || config.apiKey);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.username && config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: ClicksendSmsAdapterConfig): ClicksendApiRequest {
@@ -52,7 +55,17 @@ export class ClicksendSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: ClicksendSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const username = config.username || '';
     const apiKey = config.apiKey || '';
 
@@ -84,7 +97,7 @@ export class ClicksendSmsAdapter
     const authHeader = `Basic ${Buffer.from(`${username}:${apiKey}`).toString('base64')}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: authHeader,
@@ -112,6 +125,17 @@ export class ClicksendSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'status', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+      undelivered: NormalizedStatus.FAILED,
+      bounced: NormalizedStatus.BOUNCED,
+      opened: NormalizedStatus.OPENED,
+      read: NormalizedStatus.READ,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as ClicksendWebhookPayload;
     if (!webhookData?.message_id) return [];
 
@@ -119,7 +143,7 @@ export class ClicksendSmsAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.message_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { BrevoSmsApiRequest, BrevoSmsApiResponse, BrevoSmsSmsAdapterConfig } from './types';
 
 export class BrevoSmsTransformer
@@ -40,7 +36,7 @@ export class BrevoSmsTransformer
       error: {
         code: response.code || 'BREVO_SMS_ERROR',
         message: response.message || 'Brevo SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

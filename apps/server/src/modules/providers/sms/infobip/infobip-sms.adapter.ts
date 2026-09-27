@@ -1,4 +1,5 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -48,7 +49,7 @@ export class InfobipSmsAdapter implements ProviderAdapter {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/sms/2/text/advanced`, {
+      const response = await providerFetch(`${this.baseUrl}/sms/2/text/advanced`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

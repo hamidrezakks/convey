@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { sparkpostTransformer } from './sparkpost.transformer';
 import type {
   SparkpostApiRequest,
@@ -39,8 +42,8 @@ export class SparkpostEmailAdapter
   }
 
   hasSetup(configOverride?: SparkpostEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.endpoint);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: SparkpostEmailAdapterConfig): SparkpostApiRequest {
@@ -52,7 +55,17 @@ export class SparkpostEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: SparkpostEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -82,7 +95,7 @@ export class SparkpostEmailAdapter
     const endpoint = config.endpoint || 'https://api.sparkpost.com/api/v1/transmissions';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: apiKey,
@@ -110,6 +123,14 @@ export class SparkpostEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'msys.message_event.type', {
+      delivery: NormalizedStatus.DELIVERED,
+      bounce: NormalizedStatus.BOUNCED,
+      policy_rejection: NormalizedStatus.FAILED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as SparkpostWebhookPayload;
     const msgEvent = webhookData?.msys?.message_event;
     if (!msgEvent?.message_id) return [];
@@ -118,7 +139,7 @@ export class SparkpostEmailAdapter
       {
         providerId: this.id,
         providerMessageId: msgEvent.message_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: msgEvent.timestamp ? new Date(Number(msgEvent.timestamp) * 1000) : new Date(),
       },

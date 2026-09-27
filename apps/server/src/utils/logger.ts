@@ -8,17 +8,33 @@ export const pinoLogger = pino({
   timestamp: pino.stdTimeFunctions.isoTime,
 });
 
+export function redactLogMetadata(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (!value || typeof value !== 'object') return value;
+  if (value instanceof Date) return value.toISOString();
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => redactLogMetadata(item, seen));
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      /authorization|cookie|password|token|secret|api[-_]?key|credentials|recipients?|email|phone|webhookurl/i.test(key)
+        ? '[REDACTED]'
+        : redactLogMetadata(item, seen),
+    ]),
+  );
+}
+
 export class Logger {
   debug(component: string, message: string, meta?: Record<string, unknown>): void {
-    pinoLogger.debug({ component, ...meta }, message);
+    pinoLogger.debug({ component, metadata: redactLogMetadata(meta) }, message);
   }
 
   info(component: string, message: string, meta?: Record<string, unknown>): void {
-    pinoLogger.info({ component, ...meta }, message);
+    pinoLogger.info({ component, metadata: redactLogMetadata(meta) }, message);
   }
 
   warn(component: string, message: string, meta?: Record<string, unknown>): void {
-    pinoLogger.warn({ component, ...meta }, message);
+    pinoLogger.warn({ component, metadata: redactLogMetadata(meta) }, message);
   }
 
   error(component: string, message: string, meta?: Record<string, unknown> | Error | unknown): void {
@@ -28,7 +44,7 @@ export class Logger {
         : meta && typeof meta === 'object'
           ? (meta as Record<string, unknown>)
           : { meta };
-    pinoLogger.error({ component, ...errorObj }, message);
+    pinoLogger.error({ component, metadata: redactLogMetadata(errorObj) }, message);
   }
 }
 

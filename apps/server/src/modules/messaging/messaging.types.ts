@@ -124,6 +124,7 @@ export enum EventType {
   POLICY_RATE_LIMITED = 'policy.rate_limited',
   POLICY_BUDGET_EXCEEDED = 'policy.budget_exceeded',
   SUPPRESSION_BLOCKED = 'suppression.blocked',
+  DELIVERY_ACCEPTED = 'delivery.accepted',
   DELIVERY_DELIVERED = 'delivery.delivered',
   ATTEMPT_RETRYING = 'attempt.retrying',
   ATTEMPT_FAILED = 'attempt.failed',

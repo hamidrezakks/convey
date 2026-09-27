@@ -1,115 +1,118 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { httpErrorCategory, providerFetch } from '../../core/provider-http';
+import { ProviderTokenCache, signProviderJwt } from '../../core/provider-token';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { fcmTransformer } from './fcm.transformer';
-import type { FcmApiRequest, FcmApiResponse, FcmPushAdapterConfig, FcmWebhookPayload } from './types';
+import type { FcmApiRequest, FcmApiResponse, FcmPushAdapterConfig } from './types';
 
 export class FcmPushAdapter implements ProviderAdapter<FcmPushAdapterConfig, FcmApiRequest, FcmApiResponse> {
   readonly id = 'fcm';
-  readonly name = 'Fcm Push';
+  readonly name = 'FCM HTTP v1';
   readonly channel = Channel.PUSH;
-
   readonly capabilities: ProviderCapabilities = {
-    supportsBulk: true,
-    supportsDeliveryReceipts: true,
+    supportsBulk: false,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
     supportsMedia: false,
   };
-
-  private config?: FcmPushAdapterConfig;
-
-  constructor(config?: FcmPushAdapterConfig) {
-    this.config = config;
+  private tokens = new ProviderTokenCache();
+  constructor(private config?: FcmPushAdapterConfig) {}
+  hasSetup(override?: FcmPushAdapterConfig): boolean {
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...override });
+    return Boolean(config.projectId && config.email && config.privateKey);
   }
-
-  hasSetup(configOverride?: FcmPushAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.secretKey);
+  transformRequest(options: ProviderSendOptions, _config?: FcmPushAdapterConfig): FcmApiRequest {
+    return fcmTransformer.transformRequest(options);
   }
-
-  transformRequest(options: ProviderSendOptions, config?: FcmPushAdapterConfig): FcmApiRequest {
-    return fcmTransformer.transformRequest(options, config || this.config);
+  transformResponse(response: FcmApiResponse, status?: number, rawBody?: unknown): ProviderSendResult {
+    return fcmTransformer.transformResponse(response, status, rawBody);
   }
-
-  transformResponse(response: FcmApiResponse, statusCode?: number, rawBody?: unknown): ProviderSendResult {
-    return fcmTransformer.transformResponse(response, statusCode, rawBody);
-  }
-
-  async send(options: ProviderSendOptions, configOverride?: FcmPushAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.secretKey || '';
-
-    const reqPayload = this.transformRequest(options, config);
-
-    if (!reqPayload.to && (!reqPayload.registration_ids || reqPayload.registration_ids.length === 0)) {
+  async send(options: ProviderSendOptions, override?: FcmPushAdapterConfig): Promise<ProviderSendResult> {
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...override });
+    const payload = this.transformRequest(options);
+    const tokens = options.recipient.fcmTokens || options.recipient.deviceTokens || [];
+    if (!payload.message.token || tokens.length > 1)
       return {
         success: false,
         error: {
           code: 'INVALID_RECIPIENT',
-          message: 'FCM recipient token (to/fcmTokens) is required',
+          message: 'FCM requires exactly one token per send; fan out messages before dispatch',
           category: ErrorCategory.PERMANENT,
         },
       };
-    }
-
-    if (!apiKey) {
+    if (!this.hasSetup(config))
       return {
         success: false,
-        error: { code: 'MISSING_CREDENTIALS', message: 'FCM server key is missing', category: ErrorCategory.PERMANENT },
-      };
-    }
-
-    const endpoint = 'https://fcm.googleapis.com/fcm/send';
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `key=${apiKey}`,
-          'Content-Type': 'application/json',
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'FCM HTTP v1 requires projectId, email and privateKey from a service account',
+          category: ErrorCategory.PERMANENT,
         },
-        body: JSON.stringify(reqPayload),
+      };
+    try {
+      const accessToken = await this.tokens.get(config, async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const assertion = signProviderJwt(
+          { alg: 'RS256', typ: 'JWT' },
+          {
+            iss: config.email,
+            scope: 'https://www.googleapis.com/auth/firebase.messaging',
+            aud: 'https://oauth2.googleapis.com/token',
+            iat: now,
+            exp: now + 3600,
+          },
+          config.privateKey || '',
+          'RS256',
+        );
+        const response = await providerFetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
+        });
+        const body = (await response.json()) as { access_token?: string; expires_in?: number };
+        if (!response.ok || !body.access_token)
+          throw Object.assign(new Error('FCM token exchange failed'), { status: response.status });
+        return { token: body.access_token, expiresIn: body.expires_in || 3600 };
       });
-
-      const responseText = await response.text();
-      let responseJson: FcmApiResponse = {};
-
+      const response = await providerFetch(
+        `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(config.projectId || '')}/messages:send`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (response.status === 401) this.tokens.clear();
+      const text = await response.text();
+      let data: FcmApiResponse;
       try {
-        responseJson = JSON.parse(responseText) as FcmApiResponse;
+        data = JSON.parse(text) || {};
       } catch {
-        responseJson = { error: { message: responseText } };
+        data = { error: { message: 'Invalid FCM response' } };
       }
-
-      return this.transformResponse(responseJson, response.status, responseText);
-    } catch (err: unknown) {
+      return this.transformResponse(data, response.status, text);
+    } catch (error) {
+      const err = error as Error & { status?: number };
       return {
         success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+        error: {
+          code: 'FCM_SEND_ERROR',
+          message: err.message,
+          category: err.status ? httpErrorCategory(err.status) : ErrorCategory.TRANSIENT,
+        },
       };
     }
   }
-
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as FcmWebhookPayload;
-    if (!webhookData?.message_id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.message_id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: webhookData.timestamp ? new Date(webhookData.timestamp) : new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    return [];
   }
 }

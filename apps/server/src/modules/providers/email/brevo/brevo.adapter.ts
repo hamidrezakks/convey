@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -32,7 +34,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
   }
 
   hasSetup(configOverride?: BrevoEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.apiKey);
   }
 
@@ -45,7 +47,17 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
   }
 
   async send(options: ProviderSendOptions, configOverride?: BrevoEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -71,7 +83,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
     const endpoint = 'https://api.brevo.com/v3/smtp/email';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'api-key': apiKey,
@@ -100,6 +112,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as BrevoWebhookPayload;
     const msgId = webhookData?.['message-id'];
     if (!msgId) return [];
@@ -110,6 +123,7 @@ export class BrevoEmailAdapter implements ProviderAdapter<BrevoEmailAdapterConfi
     else if (event === 'opened') normalizedStatus = NormalizedStatus.OPENED;
     else if (event === 'bounced') normalizedStatus = NormalizedStatus.BOUNCED;
     else if (event === 'error') normalizedStatus = NormalizedStatus.FAILED;
+    else return [];
 
     return [
       {

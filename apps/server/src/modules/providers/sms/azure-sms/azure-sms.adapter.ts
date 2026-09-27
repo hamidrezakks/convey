@@ -1,4 +1,7 @@
+import { SmsClient } from '@azure/communication-sms';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { httpErrorCategory } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +11,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { azureSmsTransformer } from './azure-sms.transformer';
 import type {
   AzureSmsApiRequest,
@@ -39,7 +43,7 @@ export class AzureSmsSmsAdapter
   }
 
   hasSetup(configOverride?: AzureSmsSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.connectionString);
   }
 
@@ -52,7 +56,17 @@ export class AzureSmsSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: AzureSmsSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const connectionString = config.connectionString || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -80,22 +94,32 @@ export class AzureSmsSmsAdapter
     }
 
     try {
-      const generatedId = `azure_sms_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      const mockResult: AzureSmsApiResponse = {
-        messageId: generatedId,
-        successful: true,
-      };
-
-      return this.transformResponse(mockResult, 202, mockResult);
+      const client = new SmsClient(connectionString, { retryOptions: { maxRetries: 0 } });
+      const result = await client.send(
+        { from: reqPayload.from, to: reqPayload.to, message: reqPayload.message },
+        { enableDeliveryReport: true, abortSignal: AbortSignal.timeout(30_000) },
+      );
+      return this.transformResponse(result, 202, result);
     } catch (err: unknown) {
       return {
         success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+        error: {
+          code: 'HTTP_FETCH_ERROR',
+          message: (err as Error).message,
+          category: httpErrorCategory((err as { statusCode?: number }).statusCode ?? 503),
+        },
       };
     }
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'deliveryStatus', {
+      delivered: NormalizedStatus.DELIVERED,
+      failed: NormalizedStatus.FAILED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as AzureSmsWebhookPayload;
     if (!webhookData?.messageId) return [];
 
@@ -103,7 +127,7 @@ export class AzureSmsSmsAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: new Date(),
       },

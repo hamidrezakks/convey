@@ -2,6 +2,7 @@ export interface SesEmailAdapterConfig {
   region?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
+  sessionToken?: string;
   from?: string;
   senderName?: string;
 }

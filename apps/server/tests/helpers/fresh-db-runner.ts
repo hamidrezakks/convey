@@ -1,8 +1,10 @@
+import { env } from '../../src/config/env';
 import { db, queryClient } from '../../src/db';
 import {
   apiKeys,
   auditLogs,
   budgetPolicies,
+  budgetReservations,
   budgetUsage,
   campaigns,
   messageAttempts,
@@ -30,46 +32,10 @@ export interface IsolatedDbSetup {
  * Ensures clean state for benchmark test run by resetting DB schema.
  */
 export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise<IsolatedDbSetup> {
+  if (env.NODE_ENV !== 'test' || !/test|hardening/.test(env.POSTGRES_DB))
+    throw new Error('Test reset requires a disposable test database');
   clearApiKeyCache();
   const prefix = customPrefix || `e2e_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-  await queryClient.unsafe(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT NOT NULL,
-      team TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      actor_role TEXT NOT NULL,
-      action TEXT NOT NULL,
-      resource_type TEXT NOT NULL,
-      resource_id TEXT NOT NULL,
-      details JSONB,
-      prev_hash TEXT,
-      hash TEXT NOT NULL,
-      ip_address TEXT,
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-    );
-
-    ALTER TABLE providers ALTER COLUMN tenant_id DROP NOT NULL;
-    ALTER TABLE providers ALTER COLUMN provider_id DROP NOT NULL;
-    ALTER TABLE providers ALTER COLUMN name DROP NOT NULL;
-    ALTER TABLE providers ALTER COLUMN is_enabled DROP NOT NULL;
-    ALTER TABLE budget_ledger ALTER COLUMN tenant_id DROP NOT NULL;
-    ALTER TABLE budget_ledger ALTER COLUMN amount DROP NOT NULL;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS display_name TEXT;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS base_currency TEXT NOT NULL DEFAULT 'USD';
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT TRUE;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS weight INT NOT NULL DEFAULT 100;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS fallback_provider_id TEXT;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS credentials JSONB;
-    ALTER TABLE providers ADD COLUMN IF NOT EXISTS config JSONB;
-    ALTER TABLE budget_policies ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
-    ALTER TABLE budget_usage ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
-    ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
-    ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(16, 8) NOT NULL DEFAULT '1.00000000';
-    ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS amount_in_policy_currency NUMERIC(12, 4) NOT NULL DEFAULT '0.0000';
-  `);
 
   // Clean existing transactional tables for fresh benchmark state
   await db.delete(auditLogs);
@@ -79,6 +45,7 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
   await db.delete(messages);
   await db.delete(reportHourly);
   await db.delete(suppressions);
+  await db.delete(budgetReservations);
   await db.delete(budgetUsage);
   await db.delete(budgetPolicies);
   await db.delete(rateLimitPolicies);
@@ -86,6 +53,7 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
   await db.delete(providers);
   await db.delete(campaigns);
   await db.delete(apiKeys);
+  await queryClient`DELETE FROM team_owners`;
   await db.delete(tenants);
 
   const now = new Date();

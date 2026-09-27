@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SnsApiRequest, SnsApiResponse, SnsSmsAdapterConfig } from './types';
 
 export class SnsTransformer implements ProviderTransformer<SnsSmsAdapterConfig, SnsApiRequest, SnsApiResponse> {
@@ -45,7 +41,7 @@ export class SnsTransformer implements ProviderTransformer<SnsSmsAdapterConfig, 
       error: {
         code: response.code || 'SNS_ERROR',
         message: response.message || 'AWS SNS SMS Publish request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

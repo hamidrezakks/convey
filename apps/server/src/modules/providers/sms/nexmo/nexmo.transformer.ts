@@ -1,9 +1,6 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
+import { ErrorCategory } from '../../core/provider-types';
 import type { NexmoApiRequest, NexmoApiResponse, NexmoSmsAdapterConfig } from './types';
 
 export class NexmoTransformer implements ProviderTransformer<NexmoSmsAdapterConfig, NexmoApiRequest, NexmoApiResponse> {
@@ -39,7 +36,12 @@ export class NexmoTransformer implements ProviderTransformer<NexmoSmsAdapterConf
       error: {
         code: msg?.status ? `STATUS_${msg.status}` : 'NEXMO_ERROR',
         message: msg?.['error-text'] || 'Vonage (Nexmo) SMS request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category:
+          statusCode === 200 && msg?.status === '1'
+            ? ErrorCategory.RATE_LIMITED
+            : statusCode === 200 && msg?.status === '5'
+              ? ErrorCategory.TRANSIENT
+              : httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

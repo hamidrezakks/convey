@@ -1,20 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { telegramTransformer } from './telegram.transformer';
-import type {
-  TelegramApiRequest,
-  TelegramApiResponse,
-  TelegramChatAdapterConfig,
-  TelegramWebhookPayload,
-} from './types';
+import type { TelegramApiRequest, TelegramApiResponse, TelegramChatAdapterConfig } from './types';
 
 export class TelegramChatAdapter
   implements ProviderAdapter<TelegramChatAdapterConfig, TelegramApiRequest, TelegramApiResponse>
@@ -25,7 +21,7 @@ export class TelegramChatAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -39,7 +35,7 @@ export class TelegramChatAdapter
   }
 
   hasSetup(configOverride?: TelegramChatAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.botToken);
   }
 
@@ -52,7 +48,17 @@ export class TelegramChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: TelegramChatAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const botToken = config.botToken || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -89,7 +95,7 @@ export class TelegramChatAdapter
     const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,18 +121,8 @@ export class TelegramChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as TelegramWebhookPayload;
-    if (!webhookData?.message?.message_id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: String(webhookData.message.message_id),
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: webhookData.message.date ? new Date(webhookData.message.date * 1000) : new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

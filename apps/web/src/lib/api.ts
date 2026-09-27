@@ -1,5 +1,6 @@
 import type {
   AuditLogDto,
+  BudgetPolicyDto,
   CampaignDetailDto,
   CampaignsReportResponse,
   CarrierCostEvaluationResult,
@@ -39,8 +40,8 @@ import type {
   TestConnectionResult,
   WebhookSubscriptionDto,
 } from '@convey/shared';
-import ky from 'ky';
 import { getStoredEnvironment } from '../mode/EnvironmentContext';
+import { coreApiPrefix, coreClient, createApiClient, pluginClient } from './http';
 
 export interface OverviewData {
   status: string;
@@ -133,30 +134,7 @@ export interface TestMessageResult {
   receiptUrl: string;
 }
 
-// Configured Ky instance with prefix, retries, timeout, and environment headers
-export const httpClient = ky.create({
-  prefix: '/v1/admin',
-  timeout: 20000,
-  retry: {
-    limit: 2,
-    methods: ['get', 'put', 'head', 'delete', 'options'],
-    statusCodes: [408, 413, 429, 500, 502, 503, 504],
-  },
-  headers: {
-    Accept: 'application/json',
-  },
-  hooks: {
-    beforeRequest: [
-      ({ request }) => {
-        const activeEnv = getStoredEnvironment();
-        if (activeEnv === 'sandbox') {
-          request.headers.set('x-convey-sandbox', 'true');
-        }
-        request.headers.set('x-convey-environment', activeEnv);
-      },
-    ],
-  },
-});
+export const httpClient = createApiClient(`${coreApiPrefix}/admin`);
 
 export const api = {
   async getOverview(isSandbox?: boolean): Promise<OverviewData> {
@@ -241,6 +219,16 @@ export const api = {
 
   async removeSuppression(id: string): Promise<{ success: boolean; id: string }> {
     return httpClient.delete(`suppressions/${id}`).json<{ success: boolean; id: string }>();
+  },
+
+  async getBudget(team: string): Promise<BudgetPolicyDto | null> {
+    return httpClient.get(`budgets/${encodeURIComponent(team)}`).json<BudgetPolicyDto | null>();
+  },
+  async saveBudget(
+    team: string,
+    input: { monthlyBudget: number; currency: string; hardStop: boolean },
+  ): Promise<BudgetPolicyDto> {
+    return httpClient.put(`budgets/${encodeURIComponent(team)}`, { json: input }).json<BudgetPolicyDto>();
   },
 
   async getPolicies(): Promise<PolicyDto[]> {
@@ -329,13 +317,13 @@ export const api = {
     if (params?.limit) searchParams.limit = params.limit;
     if (params?.offset) searchParams.offset = params.offset;
 
-    return httpClient.get('dlq', { prefix: '/v1', searchParams }).json<DlqListResponse>();
+    return httpClient.get('dlq', { prefix: coreApiPrefix, searchParams }).json<DlqListResponse>();
   },
 
   // --- Webhook Subscriptions ---
   async getWebhookSubscriptions(): Promise<{ subscriptions: WebhookSubscriptionDto[] }> {
     return httpClient
-      .get('webhook-subscriptions', { prefix: '/v1' })
+      .get('webhook-subscriptions', { prefix: coreApiPrefix })
       .json<{ subscriptions: WebhookSubscriptionDto[] }>();
   },
 
@@ -345,12 +333,12 @@ export const api = {
     secret?: string;
   }): Promise<{ subscription: WebhookSubscriptionDto }> {
     return httpClient
-      .post('webhook-subscriptions', { prefix: '/v1', json: data })
+      .post('webhook-subscriptions', { prefix: coreApiPrefix, json: data })
       .json<{ subscription: WebhookSubscriptionDto }>();
   },
 
   async deleteWebhookSubscription(id: string): Promise<{ success: boolean }> {
-    return httpClient.delete(`webhook-subscriptions/${id}`, { prefix: '/v1' }).json<{ success: boolean }>();
+    return httpClient.delete(`webhook-subscriptions/${id}`, { prefix: coreApiPrefix }).json<{ success: boolean }>();
   },
 
   // --- Multi-Dimension Analytics & Delivery Reporting ---
@@ -497,8 +485,8 @@ export const api = {
   },
 
   // --- Templates API ---
-  async listTemplates(environment = 'production'): Promise<{ success: boolean; templates: TemplateDto[] }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+  async listTemplates(environment = getStoredEnvironment()): Promise<{ success: boolean; templates: TemplateDto[] }> {
+    const raw = coreClient;
     return raw
       .get('templates', { searchParams: { environment } })
       .json<{ success: boolean; templates: TemplateDto[] }>();
@@ -507,14 +495,14 @@ export const api = {
   async getTemplate(
     slug: string,
   ): Promise<{ success: boolean; template: TemplateDto; versions: TemplateVersionDto[] }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    const raw = coreClient;
     return raw
       .get(`templates/${slug}`)
       .json<{ success: boolean; template: TemplateDto; versions: TemplateVersionDto[] }>();
   },
 
   async createTemplate(request: CreateTemplateRequest): Promise<{ success: boolean; template: TemplateDto }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    const raw = coreClient;
     return raw.post('templates', { json: request }).json<{ success: boolean; template: TemplateDto }>();
   },
 
@@ -522,14 +510,14 @@ export const api = {
     slug: string,
     request: CreateTemplateVersionRequest,
   ): Promise<{ success: boolean; version: TemplateVersionDto }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    const raw = coreClient;
     return raw
       .post(`templates/${slug}/versions`, { json: request })
       .json<{ success: boolean; version: TemplateVersionDto }>();
   },
 
   async publishTemplateVersion(slug: string, version: string): Promise<{ success: boolean; template: TemplateDto }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    const raw = coreClient;
     return raw
       .post(`templates/${slug}/publish`, { json: { version } })
       .json<{ success: boolean; template: TemplateDto }>();
@@ -538,14 +526,14 @@ export const api = {
   async renderTemplate(
     request: RenderTemplateRequest,
   ): Promise<{ success: boolean; rendered: RenderTemplateResponse }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    const raw = coreClient;
     return raw
       .post('templates/render', { json: request })
       .json<{ success: boolean; rendered: RenderTemplateResponse }>();
   },
 
   async listTemplatePartials(): Promise<{ success: boolean; partials: TemplatePartialDto[] }> {
-    const raw = ky.create({ prefix: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1` });
+    const raw = coreClient;
     return raw.get('templates/partials').json<{ success: boolean; partials: TemplatePartialDto[] }>();
   },
 
@@ -568,7 +556,6 @@ export const api = {
 
   // --- Plugins Preferences ---
   async listTopics(tenantId: string, team: string): Promise<{ success: boolean; topics: SubscriptionTopicDto[] }> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     return pluginClient
       .get('preferences/topics', { searchParams: { tenantId, team } })
       .json<{ success: boolean; topics: SubscriptionTopicDto[] }>();
@@ -582,7 +569,6 @@ export const api = {
     description?: string;
     isMandatory?: boolean;
   }): Promise<{ success: boolean; topic: SubscriptionTopicDto }> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     return pluginClient
       .post('preferences/topics', { json: data })
       .json<{ success: boolean; topic: SubscriptionTopicDto }>();
@@ -592,7 +578,6 @@ export const api = {
     tenantId: string,
     recipientId: string,
   ): Promise<{ success: boolean; preferences: RecipientPreferencesDto }> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     return pluginClient
       .get(`preferences/${recipientId}`, { searchParams: { tenantId } })
       .json<{ success: boolean; preferences: RecipientPreferencesDto }>();
@@ -604,7 +589,6 @@ export const api = {
     channel: string;
     topicKey?: string;
   }): Promise<{ success: boolean } & PreferenceCheckResult> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     return pluginClient.post('preferences/check', { json: data }).json<{ success: boolean } & PreferenceCheckResult>();
   },
 
@@ -614,7 +598,6 @@ export const api = {
     recipientId: string,
     options?: { unreadOnly?: boolean; page?: number; limit?: number },
   ): Promise<{ success: boolean } & InAppFeedResponse> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     const searchParams: Record<string, string | number | boolean> = { tenantId, ...(options || {}) };
     return pluginClient.get(`inbox/${recipientId}`, { searchParams }).json<{ success: boolean } & InAppFeedResponse>();
   },
@@ -628,7 +611,6 @@ export const api = {
     ctaUrl?: string;
     category?: string;
   }): Promise<{ success: boolean; notification: InAppNotificationDto }> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     return pluginClient.post('inbox', { json: data }).json<{ success: boolean; notification: InAppNotificationDto }>();
   },
 
@@ -637,7 +619,6 @@ export const api = {
     recipientId: string,
     notificationIds: string[],
   ): Promise<{ success: boolean; updatedCount: number }> {
-    const pluginClient = ky.create({ prefix: 'http://localhost:3001/api/v1/plugins' });
     return pluginClient
       .patch(`inbox/${recipientId}/read`, { json: { tenantId, notificationIds } })
       .json<{ success: boolean; updatedCount: number }>();

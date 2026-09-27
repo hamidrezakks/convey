@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { AppioApiRequest, AppioApiResponse, AppioPushAdapterConfig } from './types';
 
 export class AppioTransformer
@@ -29,7 +25,7 @@ export class AppioTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.success !== false || response.message_id)) {
       return {
         success: true,
-        providerMessageId: response.message_id || `appio_${Date.now()}`,
+        providerMessageId: response.message_id,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -39,7 +35,7 @@ export class AppioTransformer
       error: {
         code: 'APPIO_ERROR',
         message: response.error || 'Appio Push API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

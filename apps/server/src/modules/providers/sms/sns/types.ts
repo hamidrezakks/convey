@@ -2,6 +2,7 @@ export interface SnsSmsAdapterConfig {
   region?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
+  sessionToken?: string;
   from?: string;
   apiKey?: string;
   baseUrl?: string;

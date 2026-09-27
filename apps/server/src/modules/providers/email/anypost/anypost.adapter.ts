@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -34,8 +36,8 @@ export class AnypostEmailAdapter
   }
 
   hasSetup(configOverride?: AnypostEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.baseUrl);
   }
 
   transformRequest(options: ProviderSendOptions, config?: AnypostEmailAdapterConfig): AnypostApiRequest {
@@ -47,7 +49,17 @@ export class AnypostEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: AnypostEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -78,7 +90,7 @@ export class AnypostEmailAdapter
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/email/send`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -106,6 +118,7 @@ export class AnypostEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as AnypostWebhookPayload;
     if (!webhookData?.messageId) return [];
 
@@ -113,6 +126,7 @@ export class AnypostEmailAdapter
     if (webhookData.status === 'opened') normalizedStatus = NormalizedStatus.OPENED;
     else if (webhookData.status === 'read') normalizedStatus = NormalizedStatus.READ;
     else if (webhookData.status === 'failed') normalizedStatus = NormalizedStatus.FAILED;
+    else if (webhookData.status !== 'delivered') return [];
 
     return [
       {

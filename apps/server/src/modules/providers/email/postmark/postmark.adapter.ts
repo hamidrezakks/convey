@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { postmarkTransformer } from './postmark.transformer';
 import type {
   PostmarkApiRequest,
@@ -39,7 +42,7 @@ export class PostmarkEmailAdapter
   }
 
   hasSetup(configOverride?: PostmarkEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.serverToken);
   }
 
@@ -52,7 +55,17 @@ export class PostmarkEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: PostmarkEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const serverToken = config.serverToken || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -82,7 +95,7 @@ export class PostmarkEmailAdapter
     const endpoint = 'https://api.postmarkapp.com/email';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'X-Postmark-Server-Token': serverToken,
@@ -111,6 +124,14 @@ export class PostmarkEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'RecordType', {
+      delivery: NormalizedStatus.DELIVERED,
+      bounce: NormalizedStatus.BOUNCED,
+      open: NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as PostmarkWebhookPayload;
     if (!webhookData?.MessageID) return [];
 
@@ -118,7 +139,7 @@ export class PostmarkEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.MessageID,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.DeliveredAt ? new Date(webhookData.DeliveredAt) : new Date(),
       },

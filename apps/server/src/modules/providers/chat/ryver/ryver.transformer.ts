@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { RyverAdapterConfig, RyverApiRequest, RyverApiResponse } from './types';
 
 export class RyverTransformer implements ProviderTransformer<RyverAdapterConfig, RyverApiRequest, RyverApiResponse> {
@@ -31,7 +27,7 @@ export class RyverTransformer implements ProviderTransformer<RyverAdapterConfig,
       error: {
         code: `RYVER_ERROR_${statusCode}`,
         message: response.message || response.error?.message || 'Ryver API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

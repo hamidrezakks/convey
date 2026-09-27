@@ -1,15 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { pushpadTransformer } from './pushpad.transformer';
-import type { PushpadApiRequest, PushpadApiResponse, PushpadPushAdapterConfig, PushpadWebhookPayload } from './types';
+import type { PushpadApiRequest, PushpadApiResponse, PushpadPushAdapterConfig } from './types';
 
 export class PushpadPushAdapter
   implements ProviderAdapter<PushpadPushAdapterConfig, PushpadApiRequest, PushpadApiResponse>
@@ -20,7 +21,7 @@ export class PushpadPushAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: true,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -34,8 +35,8 @@ export class PushpadPushAdapter
   }
 
   hasSetup(configOverride?: PushpadPushAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.authToken || config.projectId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.authToken && config.projectId);
   }
 
   transformRequest(options: ProviderSendOptions, config?: PushpadPushAdapterConfig): PushpadApiRequest {
@@ -47,7 +48,17 @@ export class PushpadPushAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: PushpadPushAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const authToken = config.authToken || '';
     const projectId = config.projectId || '';
 
@@ -67,7 +78,7 @@ export class PushpadPushAdapter
     const endpoint = `https://pushpad.xyz/api/v1/projects/${projectId}/notifications`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Token token="${authToken}"`,
@@ -97,18 +108,8 @@ export class PushpadPushAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as PushpadWebhookPayload;
-    if (webhookData?.id == null) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: String(webhookData.id),
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

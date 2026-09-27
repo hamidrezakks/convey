@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { TermiiAdapterConfig, TermiiApiRequest, TermiiApiResponse } from './types';
 
 export class TermiiTransformer
@@ -34,7 +30,7 @@ export class TermiiTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `termii_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -44,7 +40,7 @@ export class TermiiTransformer
       error: {
         code: `TERMII_ERROR_${statusCode}`,
         message: response.message || response.error || 'Termii SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

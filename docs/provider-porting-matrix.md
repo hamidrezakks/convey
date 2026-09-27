@@ -1,85 +1,142 @@
-# Convey Provider Porting & Parity Matrix
+# Provider implementation audit
 
-This document tracks the comprehensive porting status and architectural verification of all **88 provider adapters** ported into Convey's native module structure (`src/modules/providers/`).
+Audited 2026-09-25. The repository contains **88 module entries**, not 88 certified native integrations. Earlier “100% verified” and “all native webhooks cryptographically verified” claims were incorrect.
 
----
+## Evidence and status
 
-## 1. Porting Architecture & Design Guarantees
+All 88 modules are covered by `apps/server/tests/provider-catalog-contracts.test.ts` for setup rejection, HTTP 401/429/503 handling, and missing/unknown receipt events. `provider-configuration-contracts.test.ts` also checks every console catalog credential example and channel isolation. These checks do **not** certify every vendor request schema or optional feature.
 
-Every ported provider in Convey adheres to the following structural and operational guarantees:
+`provider-delivery-contracts.test.ts` exercises local SMTP and HTTP/2 peers, verifies signed push tokens, tests OAuth requests, and checks AWS/Azure SDK invocation. The configuration suite covers native SMS wire requests and text webhook acknowledgements. `provider-receipts.test.ts` checks intermediate statuses, bounce mapping and Mailgun message correlation. No live vendor delivery has been verified.
 
-1. **100% Standalone Implementation**: Built in pure TypeScript on Bun 1.4. Zero runtime imports or dependencies on external packages (`@novu/framework`, `@novu/shared`, `@novu/stateless`).
-2. **Standardized Directory Structure**:
-   ```text
-   src/modules/providers/<channel>/<provider-id>/
-   ├── <provider-id>.adapter.ts     # Implements ProviderAdapter send() method
-   ├── <provider-id>.transformer.ts # Transforms Convey message to native vendor payload
-   ├── <provider-id>.mock.ts        # Fast in-memory mock handler for test harnesses
-   ├── types.ts                     # Vendor-specific configuration & response schemas
-   └── index.ts                     # Export manifest conforming to ProviderManifest
-   ```
-3. **Cryptographic Webhook Verification**: All webhook handlers implement signature validation (HMAC-SHA256, Ed25519, ECDSA, AWS SigV4) before event ingestion.
-4. **Error Code Normalization**: Provider-specific HTTP error codes and exception messages are mapped deterministically into Convey's `ErrorCode` enum and retry categories (`TRANSIENT`, `TERMINAL_PROVIDER`, `TERMINAL_RECIPIENT`).
-5. **Comprehensive Mocking & Test Suites**: Every provider is covered by mock fixtures and unit test assertions in `tests/provider-transformers.test.ts`.
+| Status | Meaning |
+|---|---|
+| Repaired send path | Concrete send/authentication changes in this audit; offline tests listed above. Live verification and full optional-feature parity remain pending. |
+| Present; protocol review pending | Module exists and shared invariants pass. Vendor-specific send, attachment, template, batch and receipt parity are not certified. |
+| Unavailable | Native send was an invented generic endpoint. Adapter now rejects before network I/O, even with an override URL. |
 
----
+## Module-by-module inventory
 
-## 2. Exhaustive Parity Verification by Channel
+| Channel | Module | Status |
+|---|---|---|
+| chat | `cequens-whatsapp` | Present; protocol review pending |
+| chat | `chat-webhook` | Present; protocol review pending |
+| chat | `discord` | Present; protocol review pending |
+| chat | `getstream` | Repaired send path |
+| chat | `grafana-on-call` | Present; protocol review pending |
+| chat | `line` | Present; protocol review pending |
+| chat | `mattermost` | Repaired send path |
+| chat | `msTeams` | Present; protocol review pending |
+| chat | `rocket-chat` | Present; protocol review pending |
+| chat | `ryver` | Present; protocol review pending |
+| chat | `sendblue` | Present; protocol review pending |
+| chat | `slack` | Repaired send path |
+| chat | `telegram` | Present; protocol review pending |
+| chat | `twilio-whatsapp` | Present; protocol review pending |
+| chat | `webex-messaging` | Present; protocol review pending |
+| chat | `whatsapp-business` | Present; protocol review pending |
+| chat | `zulip` | Present; protocol review pending |
+| email | `anypost` | Present; protocol review pending |
+| email | `braze` | Present; protocol review pending |
+| email | `brevo` | Present; protocol review pending |
+| email | `email-webhook` | Present; protocol review pending |
+| email | `emailjs` | Present; protocol review pending |
+| email | `infobip` | Present; protocol review pending |
+| email | `mailersend` | Present; protocol review pending |
+| email | `mailgun` | Present; protocol review pending |
+| email | `mailjet` | Present; protocol review pending |
+| email | `mailtrap` | Present; protocol review pending |
+| email | `mandrill` | Present; protocol review pending |
+| email | `netcore` | Present; protocol review pending |
+| email | `nodemailer` | Repaired send path |
+| email | `outlook365` | Repaired send path |
+| email | `plunk` | Present; protocol review pending |
+| email | `postmark` | Present; protocol review pending |
+| email | `resend` | Present; protocol review pending |
+| email | `sendgrid` | Present; protocol review pending |
+| email | `ses` | Repaired send path |
+| email | `sparkpost` | Present; protocol review pending |
+| push | `apns` | Repaired send path |
+| push | `appio` | Present; protocol review pending |
+| push | `expo` | Present; protocol review pending |
+| push | `fcm` | Repaired send path |
+| push | `one-signal` | Present; protocol review pending |
+| push | `push-webhook` | Present; protocol review pending |
+| push | `pusher-beams` | Present; protocol review pending |
+| push | `pushpad` | Present; protocol review pending |
+| sms | `africas-talking` | Present; protocol review pending |
+| sms | `afro-sms` | Unavailable |
+| sms | `azure-sms` | Repaired send path |
+| sms | `bandwidth` | Present; protocol review pending |
+| sms | `brevo-sms` | Repaired send path |
+| sms | `bulk-sms` | Present; protocol review pending |
+| sms | `burst-sms` | Unavailable |
+| sms | `cequens` | Present; protocol review pending |
+| sms | `clickatell` | Unavailable |
+| sms | `clicksend` | Present; protocol review pending |
+| sms | `cm-telecom` | Unavailable |
+| sms | `eazy-sms` | Unavailable |
+| sms | `firetext` | Repaired send path |
+| sms | `forty-six-elks` | Repaired send path |
+| sms | `generic-sms` | Present; protocol review pending |
+| sms | `gupshup` | Unavailable |
+| sms | `imedia` | Unavailable |
+| sms | `infobip` | Present; protocol review pending |
+| sms | `isend-sms` | Unavailable |
+| sms | `isendpro-sms` | Unavailable |
+| sms | `kannel` | Unavailable |
+| sms | `maqsam` | Unavailable |
+| sms | `messagebird` | Repaired send path |
+| sms | `mobishastra` | Unavailable |
+| sms | `nexmo` | Repaired send path |
+| sms | `plivo` | Present; protocol review pending |
+| sms | `ring-central` | Unavailable |
+| sms | `ruach-sms` | Unavailable |
+| sms | `sendchamp` | Unavailable |
+| sms | `simpletexting` | Unavailable |
+| sms | `sinch` | Repaired send path |
+| sms | `sms-central` | Unavailable |
+| sms | `sms77` | Repaired send path |
+| sms | `smsmode` | Unavailable |
+| sms | `sns` | Repaired send path |
+| sms | `telnyx` | Repaired send path |
+| sms | `termii` | Unavailable |
+| sms | `twilio` | Repaired send path |
+| sms | `unifonic` | Unavailable |
+| tool | `grafana` | Present; protocol review pending |
+| tool | `opsgenie` | Present; protocol review pending |
+| tool | `pagerduty` | Present; protocol review pending |
+| tool | `tool-webhook` | Present; protocol review pending |
 
-### 📧 Email Channel (20 / 20 Ported — 100% Complete)
-| Provider ID | Adapter Path | Transformer Path | Mock Path | Verification Status |
-| :--- | :--- | :--- | :--- | :---: |
-| `ses` | `src/modules/providers/email/ses/ses.adapter.ts` | `ses.transformer.ts` | `ses.mock.ts` | ✅ Verified |
-| `sendgrid` | `src/modules/providers/email/sendgrid/sendgrid.adapter.ts` | `sendgrid.transformer.ts` | `sendgrid.mock.ts` | ✅ Verified |
-| `resend` | `src/modules/providers/email/resend/resend.adapter.ts` | `resend.transformer.ts` | `resend.mock.ts` | ✅ Verified |
-| `mailgun` | `src/modules/providers/email/mailgun/mailgun.adapter.ts` | `mailgun.transformer.ts` | `mailgun.mock.ts` | ✅ Verified |
-| `postmark` | `src/modules/providers/email/postmark/postmark.adapter.ts` | `postmark.transformer.ts` | `postmark.mock.ts` | ✅ Verified |
-| `brevo` | `src/modules/providers/email/brevo/brevo.adapter.ts` | `brevo.transformer.ts` | `brevo.mock.ts` | ✅ Verified |
-| `mailjet` | `src/modules/providers/email/mailjet/mailjet.adapter.ts` | `mailjet.transformer.ts` | `mailjet.mock.ts` | ✅ Verified |
-| `sparkpost` | `src/modules/providers/email/sparkpost/sparkpost.adapter.ts` | `sparkpost.transformer.ts` | `sparkpost.mock.ts` | ✅ Verified |
-| `mandrill` | `src/modules/providers/email/mandrill/mandrill.adapter.ts` | `mandrill.transformer.ts` | `mandrill.mock.ts` | ✅ Verified |
-| `mailersend` | `src/modules/providers/email/mailersend/mailersend.adapter.ts` | `mailersend.transformer.ts` | `mailersend.mock.ts` | ✅ Verified |
-| `nodemailer` | `src/modules/providers/email/nodemailer/nodemailer.adapter.ts` | `nodemailer.transformer.ts`| `nodemailer.mock.ts` | ✅ Verified |
-| `plunk` | `src/modules/providers/email/plunk/plunk.adapter.ts` | `plunk.transformer.ts` | `plunk.mock.ts` | ✅ Verified |
-| `mailtrap` | `src/modules/providers/email/mailtrap/mailtrap.adapter.ts` | `mailtrap.transformer.ts` | `mailtrap.mock.ts` | ✅ Verified |
-| `anypost` | `src/modules/providers/email/anypost/anypost.adapter.ts` | `anypost.transformer.ts` | `anypost.mock.ts` | ✅ Verified |
-| `braze` | `src/modules/providers/email/braze/braze.adapter.ts` | `braze.transformer.ts` | `braze.mock.ts` | ✅ Verified |
-| `emailjs` | `src/modules/providers/email/emailjs/emailjs.adapter.ts` | `emailjs.transformer.ts` | `emailjs.mock.ts` | ✅ Verified |
-| `infobip` | `src/modules/providers/email/infobip/infobip.adapter.ts` | `infobip.transformer.ts` | `infobip.mock.ts` | ✅ Verified |
-| `netcore` | `src/modules/providers/email/netcore/netcore.adapter.ts` | `netcore.transformer.ts` | `netcore.mock.ts` | ✅ Verified |
-| `outlook365` | `src/modules/providers/email/outlook365/outlook365.adapter.ts` | `outlook365.transformer.ts`| `outlook365.mock.ts` | ✅ Verified |
-| `email-webhook`| `src/modules/providers/email/email-webhook/email-webhook.adapter.ts`| `email-webhook.transformer.ts`| `email-webhook.mock.ts`| ✅ Verified |
+## Deployment changes
 
----
+- Provider success means **accepted**, not delivered. The worker records `dispatched`, emits `delivery.accepted` internally and `message.sent` to subscribers, and increments the sent metric. Delivery status requires a receipt. Consumers relying on the old premature `message.delivered` notification must subscribe to `message.sent` for acceptance.
+- No fabricated vendor message IDs. Some webhook/email APIs acknowledge without a message ID; those sends cannot use provider-ID receipt correlation.
+- FCM requires a service-account project ID, client email and private key (or the console `FCM_SERVICE_ACCOUNT_JSON` field). Legacy server keys are rejected. FCM/APNs sends support one token per dispatch; multiple tokens fail explicitly rather than dropping recipients. Fan-out with per-token outcomes remains pending.
+- APNs requires key, key ID, team ID and bundle ID; uses ES256 and HTTP/2. FCM/APNs/Graph change notifications are not delivery receipts.
+- SMTP now actually sends. It requires a host and a complete optional username/password pair. File and URL attachment reads are disabled.
+- AWS uses the official SESv2/SNS SDKs, explicit region and credentials, optional session tokens and one SDK attempt; queue workers own retries. SES attachment/template support is not implemented and is no longer advertised by its adapter.
+- Outlook uses application credentials and a sender mailbox with Graph `Mail.Send` application permission/admin consent. `202` is acceptance only.
+- All HTTP adapters have bounded direct requests; proxy support is tested for Resend and Twilio only. SMTP, APNs and SDK-based transports do not inherit the custom HTTP proxy configuration.
+- Console credential aliases normalize at the adapter boundary. Configuration values are not read from ambient environment variables automatically.
+- Delivery webhook verification still requires the trusted ingress gateway HMAC described in [security.md](security.md). Native vendor signature verification across the catalog remains unimplemented; do not point arbitrary vendor webhooks directly at this gateway contract.
 
-### 📱 SMS Channel (39 / 39 Ported — 100% Complete)
-- `twilio`, `nexmo`, `plivo`, `sinch`, `telnyx`, `termii`, `bandwidth`, `cequens`, `infobip`, `messagebird`, `gupshup`, `clicksend`, `clickatell`, `sns`, `africas-talking`, `afro-sms`, `azure-sms`, `brevo-sms`, `bulk-sms`, `burst-sms`, `cm-telecom`, `eazy-sms`, `firetext`, `forty-six-elks`, `generic-sms`, `imedia`, `isend-sms`, `isendpro-sms`, `kannel`, `maqsam`, `mobishastra`, `ring-central`, `ruach-sms`, `sendchamp`, `simpletexting`, `sms-central`, `sms77`, `smsmode`, `unifonic`.
-- All 39 adapters implement normalized `to`, `body`, `from` (alphanumeric Sender ID), and delivery receipt parsing.
+## Remaining implementation work
 
----
+The following native SMS implementations are still blocked: `afro-sms`, `burst-sms`, `clickatell`, `cm-telecom`, `eazy-sms`, `gupshup`, `imedia`, `isend-sms`, `isendpro-sms`, `kannel`, `maqsam`, `mobishastra`, `ring-central`, `ruach-sms`, `sendchamp`, `simpletexting`, `sms-central`, `smsmode`, `termii`, `unifonic`. A custom URL cannot repair their missing authentication/payload/response protocols. They are deliberately unavailable, not verified integrations.
 
-### 🔔 Push Channel (8 / 8 Ported — 100% Complete)
-- `fcm`, `apns`, `one-signal`, `expo`, `pusher-beams`, `pushpad`, `appio`, `push-webhook`.
-- Implements unified payload normalization (`title`, `body`, `badge`, `sound`, `data` dictionary).
+For each unavailable integration, obtain its current account/region API contract, implement authentication and exact request/response schemas, add recorded sanitized success/rejection/throttle fixtures, then remove its entry from `INCOMPLETE_NATIVE_PROVIDERS`. `generic-sms` remains available only for an explicitly configured gateway implementing Convey's generic JSON contract.
 
----
+For every remaining module, finish a vendor-specific contract review, validate advertised attachments/templates/media/batch handling, and verify native webhook event envelopes and signatures. Existing mock success responses are simulation fixtures, not evidence of real delivery. Multi-recipient partial acceptance and per-recipient correlation need a dedicated design before batch support can be certified.
 
-### 💬 Chat Channel (17 / 17 Ported — 100% Complete)
-- `whatsapp-business`, `twilio-whatsapp`, `cequens-whatsapp`, `slack`, `discord`, `telegram`, `msTeams`, `mattermost`, `line`, `getstream`, `grafana-on-call`, `rocket-chat`, `ryver`, `sendblue`, `webex-messaging`, `zulip`, `chat-webhook`.
-- Full support for interactive blocks, embedded attachments, Markdown formatting, and WhatsApp 24-hour customer service window optimization.
+Live certification must use designated test accounts and recipients: verify provider acceptance, actual delivery, a permanent rejection, rate limiting/retry behavior and an authenticated receipt. Record vendor region/API version and test date. No secret values belong in this report or Git history.
 
----
+## Official protocol references used
 
-### 🛠️ Tool & Alerting Channel (4 / 4 Ported — 100% Complete)
-- `pagerduty`, `opsgenie`, `grafana`, `tool-webhook`.
-- Implements incident trigger/ack/resolve lifecycles and severity mapping (`critical`, `warning`, `info`).
-
----
-
-## 3. Test & Performance Verification
-
-Every provider transformer is validated across multiple test scenarios:
-1. **Schema Transformation**: Validates correct mapping of Convey generic message structures into vendor-native HTTP schemas.
-2. **Authentication Injection**: Verifies correct header generation (Bearer tokens, Basic Auth, API Keys, AWS SigV4).
-3. **Webhook Signature Validation**: Validates cryptographic signature checking with mock payloads and valid/invalid secret keys.
-4. **End-to-End Execution**: Verified during the 886-test automated suite (`bun test`).
+- [Microsoft Graph sendMail](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0) and [client credentials](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow)
+- [Firebase HTTP v1](https://firebase.google.com/docs/cloud-messaging/send/v1-api)
+- [Apple APNs protocol](https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/CommunicatingwithAPNs.html)
+- [Nodemailer SMTP](https://nodemailer.com/smtp), [AWS SES](https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/ses-examples-sending-email.html), [AWS SNS](https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/sns-examples-sending-sms.html), [Azure SMS](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/sms/send)
+- [Twilio messages](https://www.twilio.com/docs/messaging/api/message-resource), [Telnyx](https://developers.telnyx.com/api-reference/messages/send-a-message), [Brevo SMS](https://developers.brevo.com/docs/transactional-sms-endpoints), [Vonage SMS](https://developer.vonage.com/en/api/sms)
+- [MessageBird SMS](https://developers.messagebird.com/api/sms-messaging/), [Sinch batches](https://developers.sinch.com/docs/sms/common-operations/batches), [46elks SMS](https://46elks.com/docs/send-sms), [seven.io SMS](https://docs.seven.io/en/rest-api/endpoints/sms), [FireText](https://www.firetext.co.uk/docs)
+- [Stream signing implementation](https://github.com/GetStream/stream-chat-js/blob/master/src/signing.ts), [Slack incoming webhooks](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/), [Mattermost incoming webhooks](https://developers.mattermost.com/integrate/webhooks/incoming/)
+- [Postmark webhook types](https://postmarkapp.com/developer/webhooks/webhooks-overview), [Mailgun payloads](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhook-payloads), [SendGrid deferrals](https://www.twilio.com/docs/sendgrid/concepts/deliverability/deferrals)

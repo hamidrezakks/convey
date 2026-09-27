@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { PusherBeamsApiRequest, PusherBeamsApiResponse, PusherBeamsPushAdapterConfig } from './types';
 
 export class PusherBeamsTransformer
@@ -50,7 +46,7 @@ export class PusherBeamsTransformer
       error: {
         code: 'PUSHER_BEAMS_ERROR',
         message: response.description || response.error || 'Pusher Beams Publish API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

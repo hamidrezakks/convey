@@ -1,4 +1,7 @@
+import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { httpErrorCategory } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -32,8 +35,8 @@ export class SnsSmsAdapter implements ProviderAdapter<SnsAdapterConfig, SnsApiRe
   }
 
   hasSetup(configOverride?: SnsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.region && config.accessKeyId && config.secretAccessKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: SnsAdapterConfig): SnsApiRequest {
@@ -45,8 +48,17 @@ export class SnsSmsAdapter implements ProviderAdapter<SnsAdapterConfig, SnsApiRe
   }
 
   async send(options: ProviderSendOptions, configOverride?: SnsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.apiKey || '';
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
 
     const reqPayload = this.transformRequest(options, config);
 
@@ -61,45 +73,54 @@ export class SnsSmsAdapter implements ProviderAdapter<SnsAdapterConfig, SnsApiRe
       };
     }
 
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(reqPayload),
-      });
-
-      const responseText = await response.text();
-      let responseJson: SnsApiResponse = {};
-
-      try {
-        responseJson = JSON.parse(responseText) as SnsApiResponse;
-      } catch {
-        responseJson = { message: responseText };
-      }
-
-      return this.transformResponse(responseJson, response.status, responseText);
-    } catch (err: unknown) {
+    if (!this.hasSetup(config)) {
       return {
         success: false,
-        error: { code: 'HTTP_FETCH_ERROR', message: (err as Error).message, category: ErrorCategory.TRANSIENT },
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'AWS region, accessKeyId and secretAccessKey are required',
+          category: ErrorCategory.PERMANENT,
+        },
       };
+    }
+    const client = new SNSClient({
+      region: config.region,
+      maxAttempts: 1,
+      credentials: {
+        accessKeyId: config.accessKeyId || '',
+        secretAccessKey: config.secretAccessKey || '',
+        sessionToken: config.sessionToken,
+      },
+      requestHandler: { connectionTimeout: 15_000, requestTimeout: 30_000 },
+    });
+    try {
+      const result = await client.send(new PublishCommand(reqPayload));
+      return this.transformResponse(result, result.$metadata.httpStatusCode ?? 200);
+    } catch (err: unknown) {
+      const error = err as Error & { $metadata?: { httpStatusCode?: number } };
+      return {
+        success: false,
+        error: {
+          code: error.name,
+          message: error.message,
+          category: httpErrorCategory(error.$metadata?.httpStatusCode ?? 503),
+        },
+      };
+    } finally {
+      client.destroy();
     }
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as SnsWebhookPayload;
     const msgId = webhookData.MessageId;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.Status || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

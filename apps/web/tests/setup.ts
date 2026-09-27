@@ -1,3 +1,4 @@
+import { afterEach } from 'bun:test';
 import { GlobalWindow } from 'happy-dom';
 
 const window = new GlobalWindow();
@@ -66,4 +67,11 @@ Object.defineProperty(globalThis, 'localStorage', {
 Object.defineProperty(globalThis.window, 'localStorage', {
   value: localStorageMock,
   writable: true,
+});
+
+// Import React testing utilities only after the browser globals exist.
+const { cleanup } = await import('@testing-library/react');
+afterEach(() => {
+  cleanup();
+  document.body.style.overflow = '';
 });

@@ -1,26 +1,27 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { msTeamsTransformer } from './msTeams.transformer';
-import type { MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse, MsTeamsWebhookPayload } from './types';
+import type { MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse } from './types';
 
 export class MsTeamsChatAdapter
   implements ProviderAdapter<MsTeamsAdapterConfig, MsTeamsApiRequest, MsTeamsApiResponse>
 {
-  readonly id = 'msTeams';
+  readonly id = 'msteams';
   readonly name = 'Microsoft Teams';
   readonly channel = Channel.CHAT;
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: true,
     supportsTemplates: false,
@@ -34,7 +35,7 @@ export class MsTeamsChatAdapter
   }
 
   hasSetup(configOverride?: MsTeamsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.webhookUrl);
   }
 
@@ -47,7 +48,17 @@ export class MsTeamsChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MsTeamsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const webhookUrl = config.webhookUrl || options.recipient.webhookUrl || options.recipient.to || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -66,7 +77,7 @@ export class MsTeamsChatAdapter
     const endpoint = Array.isArray(webhookUrl) ? webhookUrl[0] : webhookUrl;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +92,7 @@ export class MsTeamsChatAdapter
       try {
         responseJson = JSON.parse(responseText) as MsTeamsApiResponse;
       } catch {
-        responseJson = { id: `msteams_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);
@@ -93,18 +104,8 @@ export class MsTeamsChatAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as MsTeamsWebhookPayload;
-    if (!webhookData?.id) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

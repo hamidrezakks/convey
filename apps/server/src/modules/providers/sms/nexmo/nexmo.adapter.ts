@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -32,8 +34,8 @@ export class NexmoSmsAdapter implements ProviderAdapter<NexmoAdapterConfig, Nexm
   }
 
   hasSetup(configOverride?: NexmoAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.apiSecret);
   }
 
   transformRequest(options: ProviderSendOptions, config?: NexmoAdapterConfig): NexmoApiRequest {
@@ -45,8 +47,17 @@ export class NexmoSmsAdapter implements ProviderAdapter<NexmoAdapterConfig, Nexm
   }
 
   async send(options: ProviderSendOptions, configOverride?: NexmoAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
-    const apiKey = config.apiKey || '';
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
 
     const reqPayload = this.transformRequest(options, config);
 
@@ -61,13 +72,12 @@ export class NexmoSmsAdapter implements ProviderAdapter<NexmoAdapterConfig, Nexm
       };
     }
 
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+    const endpoint = config.baseUrl || 'https://rest.nexmo.com/sms/json';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
@@ -93,13 +103,15 @@ export class NexmoSmsAdapter implements ProviderAdapter<NexmoAdapterConfig, Nexm
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as NexmoWebhookPayload;
     const msgId = webhookData.messageId;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.status || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

@@ -54,3 +54,21 @@ export type RateLimitPolicy = typeof rateLimitPolicies.$inferSelect;
 export type BudgetPolicy = typeof budgetPolicies.$inferSelect;
 export type BudgetUsage = typeof budgetUsage.$inferSelect;
 export type BudgetLedger = typeof budgetLedger.$inferSelect;
+
+export const budgetReservations = pgTable('budget_reservations', {
+  id: text('id').primaryKey(),
+  messageId: text('message_id').notNull(),
+  team: text('team').notNull(),
+  channel: text('channel').notNull(),
+  providerId: text('provider_id').notNull(),
+  policyId: text('policy_id'),
+  month: text('month').notNull(),
+  currency: text('currency').notNull(),
+  policyCurrency: text('policy_currency').notNull(),
+  amountUsd: numeric('amount_usd', { precision: 12, scale: 4 }).notNull(),
+  amountInPolicyCurrency: numeric('amount_in_policy_currency', { precision: 12, scale: 4 }).notNull(),
+  exchangeRate: numeric('exchange_rate', { precision: 16, scale: 8 }).notNull(),
+  state: text('state').notNull().default('reserved'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

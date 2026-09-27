@@ -1,9 +1,9 @@
 import type { Elysia } from 'elysia';
 import { z } from 'zod';
-import { env } from '../../config/env';
 import { DlqDocs } from '../../openapi';
 import { TraceContext } from '../../utils/trace-context';
-import { verifyApiAuth } from '../auth/auth.middleware';
+import { guardApiRequest, verifyApiAuth } from '../auth/auth.middleware';
+import type { TenantScope } from '../auth/tenant-scope';
 import { DlqService } from './dlq.service';
 import { DlqMutatedReplaySchema } from './messaging.types';
 
@@ -20,12 +20,7 @@ const DlqReplaySchema = z.object({
 export function dlqController(app: Elysia) {
   return app.group('/v1/dlq', (app) =>
     app
-      .beforeHandle(async ({ headers }: { headers: Record<string, string | undefined> }) => {
-        const auth = await verifyApiAuth(headers, env.CONVEY_REQUIRE_AUTH);
-        if (auth.errorResponse) {
-          return auth.errorResponse;
-        }
-      })
+      .beforeHandle(({ headers, request }) => guardApiRequest(headers, request.method))
       .get(
         '/',
         { detail: DlqDocs.listFailedMessages },
@@ -49,8 +44,14 @@ export function dlqController(app: Elysia) {
             );
           }
 
-          const { team, limit, offset } = parsed.data;
-          const result = await DlqService.listFailedMessages({ team, limit, offset });
+          const { limit, offset } = parsed.data;
+          const scope = (await verifyApiAuth(headers)) as TenantScope;
+          const result = await DlqService.listFailedMessages({
+            team: scope.developmentBypass ? parsed.data.team : scope.team,
+            limit,
+            offset,
+            isSandbox: scope.developmentBypass ? undefined : scope.isSandbox,
+          });
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { 'Content-Type': 'application/json', traceparent: traceHeader },
@@ -78,7 +79,10 @@ export function dlqController(app: Elysia) {
             );
           }
 
-          const result = await DlqService.replayFailedMessages(parsed.data.messageIds);
+          const result = await DlqService.replayFailedMessages(
+            parsed.data.messageIds,
+            (await verifyApiAuth(headers)) as TenantScope,
+          );
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { 'Content-Type': 'application/json', traceparent: traceHeader },
@@ -106,7 +110,10 @@ export function dlqController(app: Elysia) {
             );
           }
 
-          const result = await DlqService.replayMutatedMessages(parsed.data);
+          const result = await DlqService.replayMutatedMessages(
+            parsed.data,
+            (await verifyApiAuth(headers)) as TenantScope,
+          );
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { 'Content-Type': 'application/json', traceparent: traceHeader },

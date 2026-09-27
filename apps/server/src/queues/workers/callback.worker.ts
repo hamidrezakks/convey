@@ -48,6 +48,7 @@ export async function processCallbackJob(data: CallbackJobData): Promise<void> {
 
         await fallbackRetryQueue.add(JobName.FALLBACK_RETRY, {
           publicId: messageId,
+          budgetExecutionId: msgList[0].metadata?._budgetExecutionId,
           triggerChannel: channel,
           triggerEvent: event,
           targetChannels: fallbackConfig.targetChannels,

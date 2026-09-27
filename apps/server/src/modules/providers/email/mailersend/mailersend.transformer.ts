@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MailersendApiRequest, MailersendApiResponse, MailersendEmailAdapterConfig } from './types';
 
 export class MailersendTransformer
@@ -29,14 +25,14 @@ export class MailersendTransformer
 
   transformResponse(
     response: MailersendApiResponse,
-    statusCode = 222,
+    statusCode = 202,
     headers?: Record<string, string>,
   ): ProviderSendResult {
     if (statusCode >= 200 && statusCode < 300) {
       const msgId = headers?.['x-message-id'] || headers?.['X-Message-Id'];
       return {
         success: true,
-        providerMessageId: msgId || `mailersend_${Date.now()}`,
+        providerMessageId: msgId,
       };
     }
 
@@ -45,7 +41,7 @@ export class MailersendTransformer
       error: {
         code: 'MAILERSEND_ERROR',
         message: response.message || 'MailerSend API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
     };
   }

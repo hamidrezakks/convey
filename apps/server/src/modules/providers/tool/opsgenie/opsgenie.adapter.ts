@@ -1,20 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { opsgenieTransformer } from './opsgenie.transformer';
-import type {
-  OpsgenieApiCreateAlertPayload,
-  OpsgenieApiResponse,
-  OpsgenieToolAdapterConfig,
-  OpsgenieWebhookPayload,
-} from './types';
+import type { OpsgenieApiCreateAlertPayload, OpsgenieApiResponse, OpsgenieToolAdapterConfig } from './types';
 
 export class OpsgenieToolAdapter
   implements ProviderAdapter<OpsgenieToolAdapterConfig, OpsgenieApiCreateAlertPayload, OpsgenieApiResponse>
@@ -25,7 +21,7 @@ export class OpsgenieToolAdapter
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -39,8 +35,8 @@ export class OpsgenieToolAdapter
   }
 
   hasSetup(configOverride?: OpsgenieToolAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.webhookUrl || config.region);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: OpsgenieToolAdapterConfig): OpsgenieApiCreateAlertPayload {
@@ -52,7 +48,17 @@ export class OpsgenieToolAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: OpsgenieToolAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = (options.recipient.to as string) || (options.recipient.channel as string) || config.apiKey;
 
     if (!apiKey && !config.webhookUrl) {
@@ -79,7 +85,7 @@ export class OpsgenieToolAdapter
         headers.Authorization = `GenieKey ${apiKey}`;
       }
 
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(reqPayload),
@@ -103,18 +109,8 @@ export class OpsgenieToolAdapter
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as OpsgenieWebhookPayload;
-    if (!webhookData?.alert?.alertId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.alert.alertId,
-        normalizedStatus: webhookData.action === 'Create' ? NormalizedStatus.DELIVERED : NormalizedStatus.READ,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

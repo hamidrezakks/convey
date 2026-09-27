@@ -1,15 +1,16 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
-  NormalizedStatus,
   type NormalizedWebhookEvent,
   type ProviderCapabilities,
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
 import { ryverTransformer } from './ryver.transformer';
-import type { RyverAdapterConfig, RyverApiRequest, RyverApiResponse, RyverWebhookPayload } from './types';
+import type { RyverAdapterConfig, RyverApiRequest, RyverApiResponse } from './types';
 
 export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, RyverApiRequest, RyverApiResponse> {
   readonly id = 'ryver';
@@ -18,7 +19,7 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
 
   readonly capabilities: ProviderCapabilities = {
     supportsBulk: false,
-    supportsDeliveryReceipts: true,
+    supportsDeliveryReceipts: false,
     supportsReadReceipts: false,
     supportsAttachments: false,
     supportsTemplates: false,
@@ -32,7 +33,7 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
   }
 
   hasSetup(configOverride?: RyverAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.webhookUrl);
   }
 
@@ -45,7 +46,17 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
   }
 
   async send(options: ProviderSendOptions, configOverride?: RyverAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const webhookUrl = config.webhookUrl || options.recipient.webhookUrl || options.recipient.to || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -64,7 +75,7 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
     const endpoint = Array.isArray(webhookUrl) ? webhookUrl[0] : webhookUrl;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,12 +85,13 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
       });
 
       const responseText = await response.text();
+      if (response.status === 204) return { success: true };
       let responseJson: RyverApiResponse = {};
 
       try {
         responseJson = JSON.parse(responseText) as RyverApiResponse;
       } catch {
-        responseJson = { id: `ryver_${Date.now()}` };
+        responseJson = {};
       }
 
       return this.transformResponse(responseJson, response.status, responseText);
@@ -91,18 +103,8 @@ export class RyverChatAdapter implements ProviderAdapter<RyverAdapterConfig, Ryv
     }
   }
 
-  parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
-    const webhookData = payload as RyverWebhookPayload;
-    if (!webhookData?.messageId) return [];
-
-    return [
-      {
-        providerId: this.id,
-        providerMessageId: webhookData.messageId,
-        normalizedStatus: NormalizedStatus.DELIVERED,
-        rawPayload: payload,
-        timestamp: new Date(),
-      },
-    ];
+  parseWebhook(_payload: unknown): NormalizedWebhookEvent[] {
+    // This integration has no implemented outbound delivery receipt contract.
+    return [];
   }
 }

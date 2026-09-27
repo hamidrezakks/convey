@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MandrillApiRequest, MandrillApiResponse, MandrillEmailAdapterConfig } from './types';
 
 export class MandrillTransformer
@@ -52,7 +48,7 @@ export class MandrillTransformer
         message: firstRes?.reject_reason
           ? `Mandrill send rejected: ${firstRes.reject_reason}`
           : 'Mandrill API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

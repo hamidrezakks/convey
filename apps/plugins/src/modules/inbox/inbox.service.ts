@@ -71,15 +71,17 @@ export class InboxService {
   static async getFeed(params: {
     tenantId: string;
     recipientId: string;
+    team?: string;
     page?: number;
     limit?: number;
     unreadOnly?: boolean;
   }): Promise<InAppFeedResponse> {
-    const { tenantId, recipientId, page = 1, limit = 20, unreadOnly = false } = params;
+    const { tenantId, team, recipientId, page = 1, limit = 20, unreadOnly = false } = params;
     const offset = (page - 1) * limit;
 
     const conditions = [
       eq(inAppNotifications.tenantId, tenantId),
+      ...(team ? [eq(inAppNotifications.team, team)] : []),
       eq(inAppNotifications.recipientId, recipientId),
       eq(inAppNotifications.isArchived, false),
     ];
@@ -103,6 +105,7 @@ export class InboxService {
       .where(
         and(
           eq(inAppNotifications.tenantId, tenantId),
+          ...(team ? [eq(inAppNotifications.team, team)] : []),
           eq(inAppNotifications.recipientId, recipientId),
           eq(inAppNotifications.isRead, false),
           eq(inAppNotifications.isArchived, false),
@@ -115,6 +118,7 @@ export class InboxService {
       .where(
         and(
           eq(inAppNotifications.tenantId, tenantId),
+          ...(team ? [eq(inAppNotifications.team, team)] : []),
           eq(inAppNotifications.recipientId, recipientId),
           eq(inAppNotifications.isArchived, false),
         ),
@@ -150,6 +154,7 @@ export class InboxService {
     tenantId: string,
     recipientId: string,
     notificationIds: string[],
+    team?: string,
   ): Promise<{ updatedCount: number }> {
     if (!notificationIds || notificationIds.length === 0) {
       return { updatedCount: 0 };
@@ -162,6 +167,7 @@ export class InboxService {
       .where(
         and(
           eq(inAppNotifications.tenantId, tenantId),
+          ...(team ? [eq(inAppNotifications.team, team)] : []),
           eq(inAppNotifications.recipientId, recipientId),
           inArray(inAppNotifications.id, notificationIds),
         ),
@@ -173,7 +179,7 @@ export class InboxService {
   /**
    * Marks all notifications as read for a recipient.
    */
-  static async markAllAsRead(tenantId: string, recipientId: string): Promise<{ success: boolean }> {
+  static async markAllAsRead(tenantId: string, recipientId: string, team?: string): Promise<{ success: boolean }> {
     const now = new Date();
     await db
       .update(inAppNotifications)
@@ -181,6 +187,7 @@ export class InboxService {
       .where(
         and(
           eq(inAppNotifications.tenantId, tenantId),
+          ...(team ? [eq(inAppNotifications.team, team)] : []),
           eq(inAppNotifications.recipientId, recipientId),
           eq(inAppNotifications.isRead, false),
         ),
@@ -196,6 +203,7 @@ export class InboxService {
     tenantId: string,
     recipientId: string,
     notificationIds: string[],
+    team?: string,
   ): Promise<{ archivedCount: number }> {
     if (!notificationIds || notificationIds.length === 0) {
       return { archivedCount: 0 };
@@ -208,6 +216,7 @@ export class InboxService {
       .where(
         and(
           eq(inAppNotifications.tenantId, tenantId),
+          ...(team ? [eq(inAppNotifications.team, team)] : []),
           eq(inAppNotifications.recipientId, recipientId),
           inArray(inAppNotifications.id, notificationIds),
         ),

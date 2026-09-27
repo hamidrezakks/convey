@@ -228,7 +228,7 @@ describe('Convey Complete Real API Endpoints E2E Test Suite', () => {
       const res = await app.fetch(
         new Request('http://localhost/v1/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SEEDED_API_KEY_RAW },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': 'cv_live_fintech_orders_key_12345' },
           body: JSON.stringify({
             idempotencyKey: `idemp_tmpl_${Date.now()}`,
             userId: 'usr_email_tmpl',
@@ -1160,12 +1160,29 @@ describe('Convey Complete Real API Endpoints E2E Test Suite', () => {
     });
 
     it('Ingests Client Delivery Receipt (POST /v1/receipts)', async () => {
+      const accepted = await app.fetch(
+        new Request('http://localhost/v1/messages', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': SEEDED_API_KEY_RAW },
+          body: JSON.stringify({
+            team: 'payments',
+            userId: 'receipt-test',
+            category: 'transactional',
+            country: 'US',
+            idempotencyKey: crypto.randomUUID(),
+            recipients: { email: 'receipt@example.invalid' },
+            channels: [{ channel: 'email', content: { subject: 'Receipt', text: 'Test' } }],
+          }),
+        }),
+      );
+      expect(accepted.status).toBe(202);
+      const { messageId } = (await accepted.json()) as { messageId: string };
       const res = await app.fetch(
         new Request('http://localhost/v1/receipts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SEEDED_API_KEY_RAW },
           body: JSON.stringify({
-            messageId: 'msg_01JYQ81NE7XK47PAV6MQR2P9NK',
+            messageId,
             event: 'delivered',
             channel: 'push',
             receivedAt: new Date().toISOString(),

@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { ResendApiRequest, ResendApiResponse, ResendEmailAdapterConfig } from './types';
 
 export class ResendTransformer
@@ -41,7 +37,7 @@ export class ResendTransformer
       error: {
         code: response.name || 'RESEND_ERROR',
         message: response.message || 'Resend API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

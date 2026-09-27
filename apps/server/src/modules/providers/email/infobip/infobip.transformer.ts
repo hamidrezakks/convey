@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { InfobipEmailAdapterConfig, InfobipEmailApiRequest, InfobipEmailApiResponse } from './types';
 
 export class InfobipEmailTransformer
@@ -42,7 +38,7 @@ export class InfobipEmailTransformer
           response.requestError?.serviceException?.text ||
           firstMsg?.status?.description ||
           'Infobip Email API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

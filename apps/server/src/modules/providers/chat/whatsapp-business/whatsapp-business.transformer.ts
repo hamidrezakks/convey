@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import {
   type WhatsappApiRequest,
   type WhatsappApiResponse,
@@ -61,7 +57,7 @@ export class WhatsappBusinessTransformer
       error: {
         code: response.error?.code ? String(response.error.code) : 'WHATSAPP_ERROR',
         message: response.error?.message || 'WhatsApp Cloud API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

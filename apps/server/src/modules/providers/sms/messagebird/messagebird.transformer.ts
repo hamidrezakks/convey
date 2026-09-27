@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { MessagebirdAdapterConfig, MessagebirdApiRequest, MessagebirdApiResponse } from './types';
 
 export class MessagebirdTransformer
@@ -14,7 +10,7 @@ export class MessagebirdTransformer
     const recipientPhone = Array.isArray(rawTo) ? rawTo[0] : (rawTo as string) || '';
 
     const text = (options.content.text || options.content.body || options.content.title || '') as string;
-    const from = options.senderName || config?.from || config?.senderId;
+    const from = options.from || options.senderName || config?.from || config?.senderId;
 
     return {
       to: recipientPhone,
@@ -34,7 +30,7 @@ export class MessagebirdTransformer
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `messagebird_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -44,7 +40,7 @@ export class MessagebirdTransformer
       error: {
         code: `MESSAGEBIRD_ERROR_${statusCode}`,
         message: response.message || response.error || 'Messagebird SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

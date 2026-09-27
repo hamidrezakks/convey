@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { RocketChatAdapterConfig, RocketChatApiRequest, RocketChatApiResponse } from './types';
 
 export class RocketChatTransformer
@@ -45,7 +41,7 @@ export class RocketChatTransformer
     if (statusCode >= 200 && statusCode < 300 && (response.success || msgId)) {
       return {
         success: true,
-        providerMessageId: msgId || `rocketchat_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -55,7 +51,7 @@ export class RocketChatTransformer
       error: {
         code: `ROCKETCHAT_ERROR_${statusCode}`,
         message: response.error || 'Rocket.Chat API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

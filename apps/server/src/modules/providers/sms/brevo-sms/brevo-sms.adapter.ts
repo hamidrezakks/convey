@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -34,8 +36,8 @@ export class BrevoSmsSmsAdapter
   }
 
   hasSetup(configOverride?: BrevoSmsAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.baseUrl);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey);
   }
 
   transformRequest(options: ProviderSendOptions, config?: BrevoSmsAdapterConfig): BrevoSmsApiRequest {
@@ -47,7 +49,17 @@ export class BrevoSmsSmsAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: BrevoSmsAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -63,13 +75,13 @@ export class BrevoSmsSmsAdapter
       };
     }
 
-    const endpoint = config.baseUrl || `https://api.${this.id}.com/v1/sms/send`;
+    const endpoint = config.baseUrl || 'https://api.brevo.com/v3/transactionalSMS/send';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          'api-key': apiKey,
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
@@ -95,13 +107,15 @@ export class BrevoSmsSmsAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as BrevoSmsWebhookPayload;
     const msgId = webhookData.messageId ? String(webhookData.messageId) : undefined;
     if (!msgId) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const status = (webhookData.event || '').toLowerCase();
-    if (status.includes('fail')) normalizedStatus = NormalizedStatus.FAILED;
+    if (status === 'failed' || status === 'undelivered') normalizedStatus = NormalizedStatus.FAILED;
+    else if (status !== 'delivered') return [];
 
     return [
       {

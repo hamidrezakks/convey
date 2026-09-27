@@ -1,9 +1,5 @@
-import {
-  ErrorCategory,
-  type ProviderSendOptions,
-  type ProviderSendResult,
-  type ProviderTransformer,
-} from '../../core/provider-types';
+import { httpErrorCategory } from '../../core/provider-http';
+import type { ProviderSendOptions, ProviderSendResult, ProviderTransformer } from '../../core/provider-types';
 import type { SinchAdapterConfig, SinchApiRequest, SinchApiResponse } from './types';
 
 export class SinchTransformer implements ProviderTransformer<SinchAdapterConfig, SinchApiRequest, SinchApiResponse> {
@@ -12,7 +8,7 @@ export class SinchTransformer implements ProviderTransformer<SinchAdapterConfig,
     const recipientPhone = Array.isArray(rawTo) ? rawTo[0] : (rawTo as string) || '';
 
     const text = (options.content.text || options.content.body || options.content.title || '') as string;
-    const from = options.senderName || config?.from || config?.senderId;
+    const from = options.from || options.senderName || config?.from || config?.senderId;
 
     return {
       to: recipientPhone,
@@ -32,7 +28,7 @@ export class SinchTransformer implements ProviderTransformer<SinchAdapterConfig,
     ) {
       return {
         success: true,
-        providerMessageId: msgId || `sinch_${Date.now()}`,
+        providerMessageId: msgId,
         metadata: { rawPayload: rawBody || response },
       };
     }
@@ -42,7 +38,7 @@ export class SinchTransformer implements ProviderTransformer<SinchAdapterConfig,
       error: {
         code: `SINCH_ERROR_${statusCode}`,
         message: response.message || response.error || 'Sinch SMS API request failed',
-        category: statusCode >= 500 ? ErrorCategory.TRANSIENT : ErrorCategory.PERMANENT,
+        category: httpErrorCategory(statusCode),
       },
       metadata: { rawPayload: rawBody || response },
     };

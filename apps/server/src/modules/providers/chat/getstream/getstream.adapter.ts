@@ -1,4 +1,7 @@
+import { createHmac } from 'node:crypto';
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -39,8 +42,8 @@ export class GetstreamChatAdapter
   }
 
   hasSetup(configOverride?: GetstreamAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
-    return Boolean(config.apiKey || config.channelType || config.channelId);
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    return Boolean(config.apiKey && config.secret);
   }
 
   transformRequest(options: ProviderSendOptions, config?: GetstreamAdapterConfig): GetstreamApiRequest {
@@ -52,7 +55,17 @@ export class GetstreamChatAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: GetstreamAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
     const channelType = config.channelType || 'messaging';
     const rawChannel = options.recipient.channel || options.recipient.to || config.channelId;
@@ -82,15 +95,20 @@ export class GetstreamChatAdapter
       };
     }
 
-    const endpoint = `https://chat.stream-io-api.com/channels/${channelType}/${channelId}/message?api_key=${apiKey}`;
+    const endpoint = `https://chat.stream-io-api.com/channels/${encodeURIComponent(channelType)}/${encodeURIComponent(channelId)}/message?api_key=${encodeURIComponent(apiKey)}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const unsigned = `${Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ server: true })).toString('base64url')}`;
+      const token = `${unsigned}.${createHmac('sha256', config.secret || '')
+        .update(unsigned)
+        .digest('base64url')}`;
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           'Stream-Auth-Type': 'jwt',
+          Authorization: token,
         },
         body: JSON.stringify(reqPayload),
       });
@@ -114,12 +132,14 @@ export class GetstreamChatAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
     const webhookData = payload as GetstreamWebhookPayload;
     if (!webhookData?.message?.id) return [];
 
     let normalizedStatus: NormalizedStatus = NormalizedStatus.DELIVERED;
     const evtType = (webhookData.type || '').toLowerCase();
-    if (evtType.includes('read')) normalizedStatus = NormalizedStatus.READ;
+    if (evtType === 'message.read') normalizedStatus = NormalizedStatus.READ;
+    else return [];
 
     return [
       {

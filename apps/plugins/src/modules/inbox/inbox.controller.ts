@@ -1,7 +1,9 @@
 import { Elysia, t } from 'elysia';
+import { pluginAuth } from '../../auth';
 import { InboxService } from './inbox.service';
 
 export const inboxController = new Elysia({ prefix: '/api/v1/plugins/inbox' })
+  .use(pluginAuth)
   .post(
     '/',
     {
@@ -41,9 +43,10 @@ export const inboxController = new Elysia({ prefix: '/api/v1/plugins/inbox' })
         unreadOnly: t.Optional(t.Boolean({ default: false })),
       }),
     },
-    async ({ params, query }) => {
+    async ({ pluginIdentity, params, query }) => {
       const feed = await InboxService.getFeed({
         tenantId: query.tenantId,
+        team: (pluginIdentity as { team: string }).team,
         recipientId: params.recipientId,
         page: query.page,
         limit: query.limit,
@@ -64,8 +67,13 @@ export const inboxController = new Elysia({ prefix: '/api/v1/plugins/inbox' })
         notificationIds: t.Array(t.String()),
       }),
     },
-    async ({ params, body }) => {
-      const result = await InboxService.markAsRead(body.tenantId, params.recipientId, body.notificationIds);
+    async ({ pluginIdentity, params, body }) => {
+      const result = await InboxService.markAsRead(
+        body.tenantId,
+        params.recipientId,
+        body.notificationIds,
+        (pluginIdentity as { team: string }).team,
+      );
 
       return { success: true, ...result };
     },
@@ -80,8 +88,12 @@ export const inboxController = new Elysia({ prefix: '/api/v1/plugins/inbox' })
         tenantId: t.String(),
       }),
     },
-    async ({ params, body }) => {
-      const result = await InboxService.markAllAsRead(body.tenantId, params.recipientId);
+    async ({ pluginIdentity, params, body }) => {
+      const result = await InboxService.markAllAsRead(
+        body.tenantId,
+        params.recipientId,
+        (pluginIdentity as { team: string }).team,
+      );
       return result;
     },
   )
@@ -96,8 +108,13 @@ export const inboxController = new Elysia({ prefix: '/api/v1/plugins/inbox' })
         notificationIds: t.Array(t.String()),
       }),
     },
-    async ({ params, body }) => {
-      const result = await InboxService.archiveNotifications(body.tenantId, params.recipientId, body.notificationIds);
+    async ({ pluginIdentity, params, body }) => {
+      const result = await InboxService.archiveNotifications(
+        body.tenantId,
+        params.recipientId,
+        body.notificationIds,
+        (pluginIdentity as { team: string }).team,
+      );
 
       return { success: true, ...result };
     },
@@ -112,9 +129,10 @@ export const inboxController = new Elysia({ prefix: '/api/v1/plugins/inbox' })
         tenantId: t.String(),
       }),
     },
-    async ({ params, query }) => {
+    async ({ pluginIdentity, params, query }) => {
       const initialFeed = await InboxService.getFeed({
         tenantId: query.tenantId,
+        team: (pluginIdentity as { team: string }).team,
         recipientId: params.recipientId,
         limit: 10,
       });

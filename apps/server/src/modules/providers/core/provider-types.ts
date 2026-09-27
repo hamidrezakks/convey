@@ -58,6 +58,7 @@ export interface UnifiedRecipient {
   email?: string | string[];
   phone?: string | string[];
   fcmTokens?: string[];
+  apnsTokens?: string[];
   deviceTokens?: string[];
   subscriberId?: string;
   chatId?: string;

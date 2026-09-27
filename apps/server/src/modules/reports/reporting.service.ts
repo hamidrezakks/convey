@@ -19,6 +19,7 @@ import { db } from '../../db';
 import {
   budgetLedger,
   budgetPolicies,
+  budgetReservations,
   budgetUsage,
   campaigns,
   messageEvents,
@@ -28,6 +29,7 @@ import {
 } from '../../db/schema';
 import { getUtcHourBoundary, getUtcMonthString } from '../../utils/date';
 import { MetricType } from '../messaging/messaging.types';
+import { fxEngine } from '../policies/fx-engine';
 
 export interface RecordMetricParams {
   team: string;
@@ -699,6 +701,15 @@ export const ReportingService = {
     const policies = await db.select().from(budgetPolicies);
     const usageList = await db.select().from(budgetUsage).where(eq(budgetUsage.month, currentMonth));
 
+    const reservedRows = await db
+      .select({
+        policyId: budgetReservations.policyId,
+        amount: sql<string>`sum(${budgetReservations.amountInPolicyCurrency})::text`,
+      })
+      .from(budgetReservations)
+      .where(and(eq(budgetReservations.month, currentMonth), eq(budgetReservations.state, 'reserved')))
+      .groupBy(budgetReservations.policyId);
+    const reservedMap = new Map(reservedRows.map((row) => [row.policyId, Number(row.amount)]));
     const policyMap = new Map<string, typeof budgetPolicies.$inferSelect>();
     for (const p of policies) policyMap.set(p.team, p);
 
@@ -728,12 +739,16 @@ export const ReportingService = {
       const stats = teamMap.get(teamId) || { sent: 0, delivered: 0, failed: 0, opened: 0, read: 0, costUsd: 0 };
       const policy = policyMap.get(teamId);
 
-      const monthlyBudget = policy ? Number.parseFloat(policy.monthlyBudgetUsd) : 1000.0;
+      const monthlyBudget = policy ? Number.parseFloat(policy.monthlyBudgetUsd) : 0;
       const currency = policy?.currency || 'USD';
-      const usedBudgetUsd = policy ? (usageMap.get(policy.id) ?? stats.costUsd) : stats.costUsd;
+      const usedPolicyAmount = policy ? (usageMap.get(policy.id) ?? 0) : 0;
+      const reservedPolicyAmount = policy ? (reservedMap.get(policy.id) ?? 0) : 0;
+      const usedBudgetUsd = policy ? fxEngine.toUsd(usedPolicyAmount, currency) : stats.costUsd;
       const budgetUtilizationPercent =
-        monthlyBudget > 0 ? Number(((usedBudgetUsd / monthlyBudget) * 100).toFixed(2)) : 0.0;
-      const remainingBudgetUsd = Number(Math.max(0, monthlyBudget - usedBudgetUsd).toFixed(2));
+        monthlyBudget > 0 ? Number((((usedPolicyAmount + reservedPolicyAmount) / monthlyBudget) * 100).toFixed(2)) : 0;
+      const remainingBudgetUsd = Number(
+        fxEngine.toUsd(Math.max(0, monthlyBudget - usedPolicyAmount - reservedPolicyAmount), currency).toFixed(2),
+      );
 
       const deliveryRatePercent = stats.sent > 0 ? Number(((stats.delivered / stats.sent) * 100).toFixed(2)) : 100.0;
       const openRatePercent = stats.delivered > 0 ? Number(((stats.opened / stats.delivered) * 100).toFixed(2)) : 0.0;

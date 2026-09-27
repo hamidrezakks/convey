@@ -1,4 +1,6 @@
 import type { ProviderAdapter } from '../../core/provider-adapter';
+import { normalizeProviderConfig } from '../../core/provider-config';
+import { providerFetch } from '../../core/provider-http';
 import {
   Channel,
   ErrorCategory,
@@ -8,6 +10,7 @@ import {
   type ProviderSendOptions,
   type ProviderSendResult,
 } from '../../core/provider-types';
+import { receiptStatus } from '../../core/receipt-status';
 import { mandrillTransformer } from './mandrill.transformer';
 import type {
   MandrillApiRequest,
@@ -39,7 +42,7 @@ export class MandrillEmailAdapter
   }
 
   hasSetup(configOverride?: MandrillEmailAdapterConfig): boolean {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
     return Boolean(config.apiKey);
   }
 
@@ -52,7 +55,17 @@ export class MandrillEmailAdapter
   }
 
   async send(options: ProviderSendOptions, configOverride?: MandrillEmailAdapterConfig): Promise<ProviderSendResult> {
-    const config = { ...this.config, ...configOverride };
+    const config = normalizeProviderConfig(this.id, { ...this.config, ...configOverride });
+    if (!this.hasSetup(config)) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_CREDENTIALS',
+          message: 'Complete provider configuration is required',
+          category: ErrorCategory.PERMANENT,
+        },
+      };
+    }
     const apiKey = config.apiKey || '';
 
     const reqPayload = this.transformRequest(options, config);
@@ -83,7 +96,7 @@ export class MandrillEmailAdapter
     const endpoint = 'https://mandrillapp.com/api/1.0/messages/send.json';
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await providerFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,6 +123,16 @@ export class MandrillEmailAdapter
   }
 
   parseWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const normalizedStatus = receiptStatus(payload, 'event', {
+      send: NormalizedStatus.DELIVERED,
+      hard_bounce: NormalizedStatus.BOUNCED,
+      soft_bounce: NormalizedStatus.BOUNCED,
+      reject: NormalizedStatus.FAILED,
+      open: NormalizedStatus.OPENED,
+    });
+    if (!normalizedStatus) return [];
+
     const webhookData = payload as MandrillWebhookPayload;
     if (!webhookData?.msg?._id) return [];
 
@@ -117,7 +140,7 @@ export class MandrillEmailAdapter
       {
         providerId: this.id,
         providerMessageId: webhookData.msg._id,
-        normalizedStatus: NormalizedStatus.DELIVERED,
+        normalizedStatus,
         rawPayload: payload,
         timestamp: webhookData.msg.ts ? new Date(webhookData.msg.ts * 1000) : new Date(),
       },
