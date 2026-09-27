@@ -4,9 +4,11 @@ import { db } from '../../db';
 import { webhookSubscriptions } from '../../db/schema';
 import { customerWebhookDispatchQueue } from '../../queues/queue-definitions';
 import { generateMessageId } from '../../utils/id';
+import { validateWebhookUrl } from '../../utils/webhook-destination';
 
 export const WebhookSubscriptionsService = {
   async createSubscription(params: { tenantId: string; team: string; url: string; events: string[]; secret?: string }) {
+    validateWebhookUrl(params.url);
     const id = generateMessageId();
     const secret = params.secret || randomBytes(24).toString('hex');
 
