@@ -32,6 +32,7 @@ export async function ensureMonthlyPartitions(monthsAhead = 6, monthsBehind = 3)
         await queryClient.unsafe(query);
       } catch (err) {
         console.error(`Error creating partition ${partitionName}:`, err);
+        throw err;
       }
     }
   }
