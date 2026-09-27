@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, hkdfSync } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { type BunNativeRedis, redisClient } from '../queues/connection';
 import { logger } from './logger';
 import { formatPubSubChannel, formatRedisKey } from './redis-keys';
@@ -61,23 +62,42 @@ export class CryptographicShreddedError extends Error {
   readonly recipientId: string;
 
   constructor(recipientId: string) {
-    super(
-      `CRYPTOGRAPHIC_SHREDDED: Decryption failed. Key for recipient '${recipientId}' was shredded under GDPR compliance.`,
-    );
+    super(`CRYPTOGRAPHIC_SHREDDED: Decryption failed. Key for recipient '${recipientId}' has been durably revoked.`);
     this.name = 'CryptographicShreddedError';
     this.recipientId = recipientId;
   }
 }
 
 /**
- * Zero-Trust Envelope Payload Encryption Manager.
+ * Payload encryption with durable logical recipient revocation.
  *
  * Implements AES-256-GCM envelope encryption with HKDF key derivation, key versioning, pluggable BYOK KMS providers,
- * and LRU caching to transparently encrypt sensitive recipient PII and message content at rest.
+ * and LRU caching. HKDF keys remain derivable from the master; revocation is not cryptographic erasure.
  */
+export interface RecipientRevocationStore {
+  isRevoked(recipientId: string): Promise<boolean>;
+  revoke(recipientId: string): Promise<void>;
+}
+const durableRevocations: RecipientRevocationStore = {
+  async isRevoked(recipientId) {
+    const { db } = await import('../db');
+    const rows = await db.execute(
+      sql`SELECT recipient_id FROM recipient_revocations WHERE recipient_id = ${recipientId}`,
+    );
+    return rows.length > 0;
+  },
+  async revoke(recipientId) {
+    const { db } = await import('../db');
+    await db.execute(
+      sql`INSERT INTO recipient_revocations (recipient_id) VALUES (${recipientId}) ON CONFLICT DO NOTHING`,
+    );
+  },
+};
+
 export class PayloadEncryptionManager {
   private masterKey: Buffer;
   private keyVersion = 1;
+  private keyRing = new Map<number, Buffer>();
   private keyProviders = new Map<string, KeyManagementProvider>();
   private tenantKeyProviders = new Map<string, string>(); // tenantId -> providerName
   private revokedRecipientKeys = new Set<string>();
@@ -85,7 +105,10 @@ export class PayloadEncryptionManager {
   private maxCacheSize = 10000;
   private pubSubClient: BunNativeRedis | null = null;
 
-  constructor(secretKeyStr?: string) {
+  constructor(
+    secretKeyStr?: string,
+    private revocations: RecipientRevocationStore = durableRevocations,
+  ) {
     const configuredKey = secretKeyStr || process.env.PAYLOAD_ENCRYPTION_KEY;
     if (
       process.env.NODE_ENV === 'production' &&
@@ -98,6 +121,21 @@ export class PayloadEncryptionManager {
     const hasher = new Bun.CryptoHasher('sha256');
     hasher.update(rawKey);
     this.masterKey = Buffer.from(hasher.digest());
+    this.keyRing.set(1, this.masterKey);
+    if (!secretKeyStr && process.env.PAYLOAD_ENCRYPTION_KEYS) {
+      const keys = JSON.parse(process.env.PAYLOAD_ENCRYPTION_KEYS) as Record<string, string>;
+      for (const [version, key] of Object.entries(keys)) {
+        if (!Number.isSafeInteger(Number(version)) || Number(version) < 1 || typeof key !== 'string' || key.length < 32)
+          throw new Error('Invalid encryption key ring');
+        const hash = new Bun.CryptoHasher('sha256');
+        hash.update(key);
+        this.keyRing.set(Number(version), Buffer.from(hash.digest()));
+      }
+      this.keyVersion = Number(process.env.PAYLOAD_ENCRYPTION_KEY_VERSION || 1);
+      const active = this.keyRing.get(this.keyVersion);
+      if (!active) throw new Error('Active encryption key version is missing');
+      this.masterKey = active;
+    }
 
     this.registerKeyProvider(new LocalKeyProvider(this.masterKey));
     if (process.env.NODE_ENV !== 'production') this.registerKeyProvider(new MockKmsKeyProvider());
@@ -124,8 +162,22 @@ export class PayloadEncryptionManager {
     this.tenantKeyProviders.set(tenantId, providerName);
   }
 
-  rotateKeyVersion(newVersion?: number): number {
-    this.keyVersion = newVersion ?? this.keyVersion + 1;
+  rotateKeyVersion(newVersion: number, secret: string): number {
+    if (
+      !Number.isSafeInteger(newVersion) ||
+      newVersion <= this.keyVersion ||
+      this.keyRing.has(newVersion) ||
+      secret.length < 32
+    )
+      throw new Error('Rotation requires a new version and a secret of at least 32 characters');
+    const hash = new Bun.CryptoHasher('sha256');
+    hash.update(secret);
+    const nextKey = Buffer.from(hash.digest());
+    if ([...this.keyRing.values()].some((key) => key.equals(nextKey)))
+      throw new Error('Rotation requires a distinct key');
+    this.keyRing.set(newVersion, nextKey);
+    this.masterKey = nextKey;
+    this.keyVersion = newVersion;
     this.derivedKeyCache.clear();
     return this.keyVersion;
   }
@@ -158,28 +210,32 @@ export class PayloadEncryptionManager {
   /**
    * Derives a recipient/tenant specific 32-byte encryption key using HKDF-SHA256 with LRU caching.
    */
-  deriveRecipientKey(recipientId: string): Buffer {
-    const cached = this.derivedKeyCache.get(recipientId);
+  deriveRecipientKey(recipientId: string, version = this.keyVersion): Buffer {
+    const cacheKey = `${version}:${recipientId}`;
+    const master = this.keyRing.get(version);
+    if (!master) throw new Error(`Unknown encryption key version: ${version}`);
+    const cached = this.derivedKeyCache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
     const recipientBuf = Buffer.from(recipientId);
-    const derived = Buffer.from(hkdfSync('sha256', this.masterKey, recipientBuf, HKDF_INFO, 32));
+    const derived = Buffer.from(hkdfSync('sha256', master, recipientBuf, HKDF_INFO, 32));
 
     if (this.derivedKeyCache.size >= this.maxCacheSize) {
       const firstKey = this.derivedKeyCache.keys().next().value;
       if (firstKey) this.derivedKeyCache.delete(firstKey);
     }
 
-    this.derivedKeyCache.set(recipientId, derived);
+    this.derivedKeyCache.set(cacheKey, derived);
     return derived;
   }
 
   /**
    * Shreds/revokes the encryption key for a specific recipient across memory and Redis cluster.
    */
-  shredRecipientKey(recipientId: string): void {
+  async shredRecipientKey(recipientId: string): Promise<void> {
+    await this.revocations.revoke(recipientId);
     this.revokedRecipientKeys.add(recipientId);
     this.derivedKeyCache.delete(recipientId);
 
@@ -202,8 +258,9 @@ export class PayloadEncryptionManager {
   /**
    * Checks if a recipient key has been cryptographically shredded.
    */
-  isShredded(recipientId: string): boolean {
-    return this.revokedRecipientKeys.has(recipientId);
+  async isShredded(recipientId: string): Promise<boolean> {
+    // Always consult durable storage. Pubsub is an optimization, not the authority.
+    return this.revokedRecipientKeys.has(recipientId) || (await this.revocations.isRevoked(recipientId));
   }
 
   /**
@@ -235,7 +292,18 @@ export class PayloadEncryptionManager {
   /**
    * Decrypts an AES-256-GCM encrypted payload object.
    */
-  decryptPayload<T = unknown>(encrypted: EncryptedPayload): T {
+  async decryptPayload<T = unknown>(encrypted: EncryptedPayload): Promise<T> {
+    if (encrypted?.recipientId && (await this.isShredded(encrypted.recipientId)))
+      throw new CryptographicShreddedError(encrypted.recipientId);
+    return this.decryptValidatedPayload<T>(encrypted);
+  }
+
+  decryptProviderPayload<T>(encrypted: EncryptedPayload): T {
+    if (encrypted.recipientId) throw new Error('Recipient payloads require durable revocation checks');
+    return this.decryptValidatedPayload<T>(encrypted);
+  }
+
+  private decryptValidatedPayload<T>(encrypted: EncryptedPayload): T {
     if (!encrypted || typeof encrypted !== 'object') {
       throw new Error('InvalidEncryptedPayload: Container must be a valid object.');
     }
@@ -243,11 +311,10 @@ export class PayloadEncryptionManager {
       throw new Error('InvalidEncryptedPayload: Missing required iv, authTag, or ciphertext fields.');
     }
 
-    if (encrypted.recipientId && this.isShredded(encrypted.recipientId)) {
-      throw new CryptographicShreddedError(encrypted.recipientId);
-    }
-
-    const key = encrypted.recipientId ? this.deriveRecipientKey(encrypted.recipientId) : this.masterKey;
+    const key = encrypted.recipientId
+      ? this.deriveRecipientKey(encrypted.recipientId, encrypted.version)
+      : this.keyRing.get(encrypted.version);
+    if (!key) throw new Error(`Unknown encryption key version: ${encrypted.version}`);
     const iv = Buffer.from(encrypted.iv, 'hex');
     const authTag = Buffer.from(encrypted.authTag, 'hex');
     const decipher = createDecipheriv('aes-256-gcm', key, iv);
@@ -297,7 +364,7 @@ export function decryptProviderCredentials(raw: unknown): Record<string, string>
         keyArn: typeof rec.keyArn === 'string' ? rec.keyArn : undefined,
         encryptedDek: typeof rec.encryptedDek === 'string' ? rec.encryptedDek : undefined,
       };
-      return payloadEncryptionManager.decryptPayload<Record<string, string>>(envelope);
+      return payloadEncryptionManager.decryptProviderPayload<Record<string, string>>(envelope);
     } catch {
       return {};
     }

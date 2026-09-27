@@ -126,7 +126,7 @@ export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, 
 
   const metadataObj = msg.metadata;
   if (metadataObj?._encryptedEnvelope) {
-    const decrypted = payloadEncryptionManager.decryptPayload<{
+    const decrypted = await payloadEncryptionManager.decryptPayload<{
       recipients: Recipients;
       channels: ChannelRequest[];
       cascade?: CascadeConfig;

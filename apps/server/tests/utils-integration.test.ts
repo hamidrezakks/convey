@@ -16,7 +16,7 @@ import { payloadEncryptionManager } from '../src/utils/payload-encryption';
 import { shardRouter } from '../src/utils/shard-router';
 
 describe('Advanced Utilities & System Integration Suite', () => {
-  it('1. AdaptiveConcurrencyController dynamically scales concurrency based on EMA latency', () => {
+  it('1. AdaptiveConcurrencyController dynamically scales concurrency based on EMA latency', async () => {
     const controller = new AdaptiveConcurrencyController({
       minConcurrency: 2,
       maxConcurrency: 20,
@@ -38,7 +38,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(controller.getConcurrency()).toBeLessThan(20);
   });
 
-  it('2. byteBufferPool acquires and releases pre-allocated buffers cleanly', () => {
+  it('2. byteBufferPool acquires and releases pre-allocated buffers cleanly', async () => {
     const initialCount = byteBufferPool.getAvailableCount();
     const buf1 = byteBufferPool.acquire();
 
@@ -49,7 +49,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(byteBufferPool.getAvailableCount()).toBeGreaterThanOrEqual(initialCount);
   });
 
-  it('3. PayloadEncryptionManager uses pooled buffers and encrypts/decrypts correctly', () => {
+  it('3. PayloadEncryptionManager uses pooled buffers and encrypts/decrypts correctly', async () => {
     const rawData = { userId: 'usr_test', secretPin: '9912' };
     const encrypted = payloadEncryptionManager.encryptPayload(rawData);
 
@@ -58,7 +58,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(encrypted.authTag).toBeDefined();
     expect(encrypted.ciphertext).toBeDefined();
 
-    const decrypted = payloadEncryptionManager.decryptPayload<typeof rawData>(encrypted);
+    const decrypted = await payloadEncryptionManager.decryptPayload<typeof rawData>(encrypted);
     expect(decrypted.userId).toBe('usr_test');
     expect(decrypted.secretPin).toBe('9912');
   });
@@ -75,7 +75,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     chaosEngine.disable();
   });
 
-  it('5. ConsensusAuditGuard computes checksums and resolves anti-entropy state drift', () => {
+  it('5. ConsensusAuditGuard computes checksums and resolves anti-entropy state drift', async () => {
     const payloadA = { state: 'closed', provider: 'ses', updatedAt: 1000 };
     const payloadB = { state: 'closed', provider: 'ses', updatedAt: 1000 };
     const checksumA = consensusAuditGuard.computeChecksum(payloadA);
@@ -93,7 +93,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(reportDrift.resolvedHash).toBe(consensusAuditGuard.computeChecksum(payloadDrift));
   });
 
-  it('6. FullJitterRetry calculates randomized backoff within bounds', () => {
+  it('6. FullJitterRetry calculates randomized backoff within bounds', async () => {
     for (let attempt = 1; attempt <= 5; attempt++) {
       const backoff = FullJitterRetry.calculateBackoffMs(attempt, 1000, 30000);
       expect(backoff).toBeGreaterThanOrEqual(500);
@@ -101,7 +101,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     }
   });
 
-  it('7. HeapMemoryGuard inspects process memory utilization', () => {
+  it('7. HeapMemoryGuard inspects process memory utilization', async () => {
     const status = heapMemoryGuard.getStatus();
     expect(status.heapUsedBytes).toBeGreaterThan(0);
     expect(status.heapTotalBytes).toBeGreaterThan(0);
@@ -110,7 +110,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(typeof heapMemoryGuard.shouldThrottle()).toBe('boolean');
   });
 
-  it('8. ConsistentHashShardRouter maps keys to deterministic shard indices and queue names', () => {
+  it('8. ConsistentHashShardRouter maps keys to deterministic shard indices and queue names', async () => {
     const shardIndex1 = shardRouter.getShardIndex('payments', 'msg_01HQ1');
     const shardIndex2 = shardRouter.getShardIndex('payments', 'msg_01HQ1');
     expect(shardIndex1).toBe(shardIndex2);
@@ -121,7 +121,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(queueName).toBe(`outbox_shard_${shardIndex1}`);
   });
 
-  it('9. CostOptimizationEngine estimates unit costs and ranks channels', () => {
+  it('9. CostOptimizationEngine estimates unit costs and ranks channels', async () => {
     const estimates = costOptimizationEngine.estimateCosts([Channel.SMS, Channel.EMAIL, Channel.CHAT]);
     expect(estimates.length).toBe(3);
 
@@ -133,7 +133,7 @@ describe('Advanced Utilities & System Integration Suite', () => {
     expect(routerRanked).toEqual(ranked);
   });
 
-  it('10. GradualRampController & ProviderCircuitBreaker manage stepped traffic recovery', () => {
+  it('10. GradualRampController & ProviderCircuitBreaker manage stepped traffic recovery', async () => {
     const cb = new ProviderCircuitBreaker({ failureThreshold: 2, resetTimeoutMs: 100 });
     const pId = 'test_ramp_provider';
 

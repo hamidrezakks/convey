@@ -19,33 +19,33 @@ describe('Enterprise PII DLP & Dynamic Redaction Engine', () => {
     disableProviderMock();
   });
 
-  it('Validates credit card checksum using Luhn algorithm', () => {
+  it('Validates credit card checksum using Luhn algorithm', async () => {
     expect(DlpScanner.isValidLuhn('4111111111111111')).toBe(true);
     expect(DlpScanner.isValidLuhn('4111 1111 1111 1111')).toBe(true);
     expect(DlpScanner.isValidLuhn('4111111111111112')).toBe(false); // Invalid check digit
     expect(DlpScanner.isValidLuhn('12345')).toBe(false); // Too short
   });
 
-  it('Masks Luhn-verified credit card numbers while preserving non-card numbers', () => {
+  it('Masks Luhn-verified credit card numbers while preserving non-card numbers', async () => {
     const text = 'Payment with card 4111 1111 1111 1111 for order #98765432101234';
     const masked = DlpScanner.maskCreditCard(text);
     expect(masked).toContain('4111-XXXX-XXXX-1111');
   });
 
-  it('Redacts authentication OTP tokens and verification codes', () => {
+  it('Redacts authentication OTP tokens and verification codes', async () => {
     expect(DlpScanner.maskOtp('Your verification code is 849201')).toBe('Your verification code is [REDACTED_OTP]');
     expect(DlpScanner.maskOtp('Your OTP: 123456')).toBe('Your OTP: [REDACTED_OTP]');
     expect(DlpScanner.maskOtp('Security pin: 9988')).toBe('Security pin: [REDACTED_OTP]');
   });
 
-  it('Redacts Social Security Numbers and API keys', () => {
+  it('Redacts Social Security Numbers and API keys', async () => {
     const text = 'Employee SSN 123-45-6789 using API key sk_live_abcdef1234567890abcdef123456';
     const masked = DlpScanner.sanitize(text);
     expect(masked).toContain('XXX-XX-XXXX');
     expect(masked).toContain('[REDACTED_API_KEY]');
   });
 
-  it('Recursively sanitizes nested objects and arrays', () => {
+  it('Recursively sanitizes nested objects and arrays', async () => {
     const payload = {
       user: {
         name: 'Jane Doe',
@@ -85,9 +85,9 @@ describe('Enterprise PII DLP & Dynamic Redaction Engine', () => {
 
     // Verify envelope still holds raw unredacted channels/content for worker delivery
     if (metadata._encryptedEnvelope) {
-      const decrypted = payloadEncryptionManager.decryptPayload<{ channels: Array<{ content: { text: string } }> }>(
-        metadata._encryptedEnvelope,
-      );
+      const decrypted = await payloadEncryptionManager.decryptPayload<{
+        channels: Array<{ content: { text: string } }>;
+      }>(metadata._encryptedEnvelope);
       expect(decrypted.channels[0].content.text).toBe('Your OTP is 765432');
     }
   });

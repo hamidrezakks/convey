@@ -42,7 +42,7 @@ describe('Acceptance, IDs and encryption latency benchmarks', () => {
     expect(p95).toBeLessThan(25.0); // p95 acceptance latency <25ms
   });
 
-  it('generates 1,000 rapid ULID message IDs with 0 collisions and monotonic sorting', () => {
+  it('generates 1,000 rapid ULID message IDs with 0 collisions and monotonic sorting', async () => {
     const count = 1_000;
     const ids: string[] = new Array(count);
 
@@ -64,7 +64,7 @@ describe('Acceptance, IDs and encryption latency benchmarks', () => {
     }
   });
 
-  it('envelope encryption overhead SLA is < 1.0ms per message over 500 iterations', () => {
+  it('envelope encryption overhead SLA is < 1.0ms per message over 500 iterations', async () => {
     const encManager = new PayloadEncryptionManager('qa_perf_secret_key_32_bytes_ok!');
     const payload = {
       subject: 'Large Performance Payload',
@@ -77,7 +77,7 @@ describe('Acceptance, IDs and encryption latency benchmarks', () => {
 
     for (let i = 0; i < iterations; i++) {
       const encrypted = encManager.encryptPayload(payload);
-      const decrypted = encManager.decryptPayload(encrypted);
+      const decrypted = await encManager.decryptPayload(encrypted);
       expect(decrypted).toBeDefined();
     }
 
