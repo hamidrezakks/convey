@@ -1,11 +1,7 @@
 -- Migration: 0017_report_campaign_hourly
 -- Pre-aggregated rollup tables and indexes for multi-tenant and campaign reporting
 
-ALTER TABLE report_hourly ADD COLUMN IF NOT EXISTS cost_usd NUMERIC(12,4) NOT NULL DEFAULT '0.0000';
 
-CREATE INDEX IF NOT EXISTS idx_report_hourly_team_hour ON report_hourly (team, hour);
-CREATE INDEX IF NOT EXISTS idx_report_hourly_category_hour ON report_hourly (category, hour);
-CREATE INDEX IF NOT EXISTS idx_report_hourly_hour ON report_hourly (hour);
 
 CREATE TABLE IF NOT EXISTS report_campaign_hourly (
   id TEXT PRIMARY KEY,

@@ -3,6 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS suppressions (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  recipient TEXT,
   target_type TEXT NOT NULL DEFAULT 'recipient',
   identifier_type TEXT NOT NULL DEFAULT 'email',
   identifier_hash TEXT NOT NULL DEFAULT '',
