@@ -28,12 +28,12 @@ Convey utilizes PostgreSQL 18+ with **Monthly Range Partitioning** for high-volu
 | Variable | Type | Default | Description |
 | :--- | :---: | :---: | :--- |
 | `DATABASE_URL` | String | `postgres://user:password@localhost:5432/db-convey` | Full PostgreSQL 18 connection URI. Supports standard connection strings, connection poolers (PgBouncer in transaction mode), and Unix socket paths. |
-| `POSTGRES_DB` / `DB_NAME` | String | `db-convey` | Explicit database name override. If specified alongside `DATABASE_URL`, Convey dynamically rewrites the connection URI path to target this database. |
+| `POSTGRES_DB` | String | `db-convey` | Explicit database name override. If specified alongside `DATABASE_URL`, Convey dynamically rewrites the connection URI path to target this database. |
 | `DB_MAX_CONNECTIONS` | Number | `20` | Maximum size of the Postgres connection pool per instance. For high-concurrency worker clusters, size appropriately to prevent exhausting Postgres `max_connections`. |
 
 ### Database Name Precedence & Resolution Logic
 Convey implements deterministic connection string normalization in `src/config/env.ts`:
-1. If `POSTGRES_DB` or `DB_NAME` is explicitly provided, it takes precedence.
+1. If `POSTGRES_DB` is explicitly provided, it takes precedence.
 2. If `DATABASE_URL` is provided without an explicit DB name override, the database name is extracted from the URL pathname.
 3. Fallbacks to `DEFAULT_POSTGRES_DB` (`db-convey`).
 

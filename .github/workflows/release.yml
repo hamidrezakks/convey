@@ -94,7 +94,7 @@ jobs:
       - name: Evaluate Dry Run Flag
         id: evaluate-dryrun
         run: |
-          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'true' }}"
           echo "dry_run=$DRY_RUN" >> $GITHUB_OUTPUT
 
       - name: Compute release candidate

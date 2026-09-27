@@ -22,14 +22,18 @@ Run focused regressions after each step, then migrations against disposable Post
 
 ## Delivery evidence
 
-- Server: 1,032 tests pass; strict-auth: 17 tests pass; console: 144 tests pass.
+- Server: 1,034 tests pass; strict-auth: 17 tests pass; console: 144 tests pass; plugins: 7 tests pass.
 - Six workspace type checks pass. Biome passes with three pre-existing static-only-class warnings.
-- Migrations 0025–0027 apply against disposable PostgreSQL 18 and are safe to rerun.
+- The 23-file canonical baseline initializes atomically against disposable PostgreSQL 18 and accepts exact reruns. Schema comparison preserved 946 columns, 741 constraints, 229 indexes and one trigger, including partitions.
 - Regression coverage includes concurrent receipt replay, cross-provider ID collisions, fail-closed revocation and restart behavior, public-only webhook DNS, budget reconciliation scope/concurrency, price validation and provider readiness gates.
 - Self-review corrected Retry-After propagation, sibling-attempt failure protection, inbound keyword handling, and provider configuration cache publication ordering.
 
 ## Deployment requirements and external verification
 
-Configure production encryption secrets/key ring and explicit provider prices before deploying. Apply migrations before starting workers. Inbound messages without an existing attempt require an operator-configured `inboundTeam` in provider configuration. Revocation is durable logical denial, not physical data erasure. Retain tombstones in backups. External tenant KMS selection is rejected in production until a real envelope integration exists.
+Configure production encryption secrets/key ring and explicit provider prices before deploying. Initialize the current baseline in a fresh database before starting workers; follow the pre-release schema policy when changing persisted formats. Inbound messages without an existing attempt require an operator-configured `inboundTeam` in provider configuration. Revocation is durable logical denial, not physical data erasure. Retain tombstones in backups. External tenant KMS selection is rejected in production until a real envelope integration exists.
 
 All eleven engineering workstreams are implemented; live provider certification and invoice reconciliation require vendor test accounts, designated recipients and provider billing evidence. The 20 incomplete adapters remain disabled. No live sends or vendor certification are claimed. CI is not a release gate for this requested handoff; local results are recorded above.
+
+## Pre-release policy follow-up
+
+Completed in separate commits: consolidate CREATE definitions, enforce atomic baseline initialization and drift rejection, persist the unreleased policy and manual release defaults, correct plugin uniqueness at creation, replace generated ALTER history with CI schema validation, remove old credential/message/configuration readers, and update operational documentation. See [schema baseline](schema-baseline.md). Existing development stores are never reset automatically. Encryption key rotation remains supported.

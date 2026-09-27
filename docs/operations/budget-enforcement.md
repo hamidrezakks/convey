@@ -26,7 +26,7 @@ Reports convert `usedBudgetUsd` and `remainingBudgetUsd` into actual USD units a
 
 ## Rollout and reconciliation
 
-- Stop old API and worker processes, apply canonical migration `0024_budget_reservations.sql`, then deploy all workers together. Old workers do not reserve funds and would bypass the new concurrency guarantee.
+- Initialize the complete canonical schema in a fresh development/test database before starting workers. Pre-release schemas are replaced explicitly rather than upgraded; see [baseline policy](schema-baseline.md).
 - Reconcile historical `budget_usage` with the ledger before relying on a production cap. The migration preserves existing figures; it cannot establish which historical provider calls were charged.
 - Review configured provider estimates and FX rates against the account's pricing. Unknown providers still use the existing generic estimate; it is not a verified vendor price.
 - Investigate outstanding holds using `budget_reservations` filtered by team, month and `state = 'reserved'`. Correlate the opaque message ID, provider and timestamps with provider records.

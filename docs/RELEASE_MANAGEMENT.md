@@ -1,16 +1,16 @@
 # Release management
 
-The release workflow runs on `main` updates and manual dispatch from `main`. It prepares a versioned candidate locally, validates that exact revision, then creates and atomically pushes the root tag and nested Go module tag. Publishers depend on successful preparation and validation.
+Convey is unreleased. The release workflow runs only on explicit manual dispatch from `main`, with dry-run enabled by default. Before publishing the first release, freeze the schema baseline and establish the [forward-migration and compatibility policy](operations/schema-baseline.md). It prepares a versioned candidate locally, validates that exact revision, then creates and atomically pushes the root tag and nested Go module tag. Publishers depend on successful preparation and validation.
 
 ## Candidate sequence
 
 1. Compute the version/changelog using validated inputs to `scripts/release-bump.ts`.
 2. Update package versions and lockfile, then make a local candidate commit in the runner.
-3. Run `.github/actions/validate/action.yml`: formatting/lint, workspace types, selected units, console and SDK suites, canonical database migrations, strict-auth security tests, SDK integration, legacy server/plugin suites, distribution builds and all application container targets.
+3. Run `.github/actions/validate/action.yml`: formatting/lint, workspace types, selected units, console and SDK suites, canonical database migrations, strict-auth security tests, SDK integration, server/plugin suites, distribution builds and all application container targets.
 4. Require a clean tracked working tree after validation.
 5. Push the validated candidate and tags atomically, then create the GitHub release. Downstream jobs publish SDKs and container images from the tag.
 
-A failed check prevents tagging and publishing. The legacy regression failures identified during review have been repaired; those checks remain mandatory. See [verification](operations/hardening-verification.md).
+A failed check prevents tagging and publishing. The regression failures identified during review have been repaired; those checks remain mandatory. See [verification](operations/hardening-verification.md).
 
 ## Dry runs
 

@@ -36,13 +36,13 @@ Convey uses environment variables for all operational tuning. You can specify va
 
 ### Database Migrations
 
-Convey uses Drizzle ORM for schema definitions and zero-downtime migrations:
+Convey uses Drizzle ORM models and one canonical pre-release SQL baseline:
 
 ```bash
-# Generate new migration from schema changes
-bun run db:generate
+# Validate the canonical CREATE definitions
+bun run db:check
 
-# Execute pending migrations against DATABASE_URL
+# Initialize an empty database with the current baseline
 bun run db:migrate
 ```
 
@@ -64,26 +64,20 @@ bun run db:migrate
 
 | Variable | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `ENCRYPTION_MASTER_KEY` | `string` | **Yes** | 64-character hex string (256-bit AES Master Key) |
-| `ENCRYPTION_KEY_VERSION`| `string` | `v1` | Current active key version identifier |
-| `JWT_SECRET` | `string` | **Yes** | Secret for internal microservice tokens |
+| `PAYLOAD_ENCRYPTION_KEY` | `string` | **Production** | Unique high-entropy secret of at least 32 characters |
+| `PAYLOAD_ENCRYPTION_KEYS` | `string` | Optional | JSON object mapping integer key versions to secrets |
+| `PAYLOAD_ENCRYPTION_KEY_VERSION` | `integer` | `1` | Active version from the configured ring |
 
-### Generating a High-Entropy AES-256 Key
+### Generating an encryption secret
 
 ```bash
-# Generate a 256-bit cryptographically secure hexadecimal key
 openssl rand -hex 32
 ```
 
-### Zero-Downtime Key Rotation Runbook
+### Key rotation
 
-1. Append new key with identifier `v2` to your secrets manager:
-   ```bash
-   ENCRYPTION_MASTER_KEY_V2="7f8b9c..."
-   ENCRYPTION_KEY_VERSION="v2"
-   ```
-2. Convey's `PayloadEncryptionManager` automatically retains previous keys (`v1`) in its keyring for decrypting existing records, while using `v2` for all new writes.
-3. Run the background re-encryption worker to upgrade legacy records:
-   ```bash
-   bun run re-encrypt --from=v1 --to=v2
-   ```
+Deploy the complete key ring to every process before selecting the new active version. Retain previous encryption keys until their ciphertext and backups have expired. Unknown versions fail closed. There is no automatic re-encryption command.
+
+### Pre-release database changes
+
+Convey has not had its first release. Update complete CREATE definitions in the canonical schema, validate with `bun run db:check`, and initialize a fresh disposable database with `bun run db:migrate`. The initializer rejects changed baselines without modifying existing data. Do not add upgrade-only ALTER patches or compatibility readers for old development records. Freeze the baseline and introduce forward migrations at the first release.

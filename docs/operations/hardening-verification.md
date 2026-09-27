@@ -1,3 +1,5 @@
+> Historical verification record. Pre-release schema initialization now follows [the canonical baseline policy](schema-baseline.md); migration and upgrade references below describe earlier development checks.
+
 # Hardening verification and remaining work
 
 Reviewed 2026-09-25 on branch `feat/convey-production-hardening`, against original revision `1069f09`. Initial results were local; the PR review also exercised hosted CI and exposed the clean-checkout website generation failure. The subsequent fixes were validated locally against a fresh archive and a newly migrated database. This is not live provider certification. Tests used disposable PostgreSQL 18 and Redis 7.4 services; no real provider messages were sent.
