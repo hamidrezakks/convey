@@ -191,7 +191,7 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
 }
 
 /**
- * Standard batch processor across all shards (backward-compatible).
+ * Batch processor across all shards for operational tooling.
  */
 export async function processOutboxBatch(batchSize = 500): Promise<number> {
   if (heapMemoryGuard.shouldThrottle()) {

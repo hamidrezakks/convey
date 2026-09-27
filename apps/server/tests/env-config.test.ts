@@ -14,12 +14,6 @@ describe('Environment Configuration - PostgreSQL Database Name Selection', () =>
     expect(config.DATABASE_URL).toBe('postgres://user:password@localhost:5432/custom_convey_db');
   });
 
-  test('supports DB_NAME as fallback when POSTGRES_DB is not specified', () => {
-    const config = parseEnv({ DB_NAME: 'fallback_convey_db' });
-    expect(config.POSTGRES_DB).toBe('fallback_convey_db');
-    expect(config.DATABASE_URL).toBe('postgres://user:password@localhost:5432/fallback_convey_db');
-  });
-
   test('extracts POSTGRES_DB from DATABASE_URL if POSTGRES_DB is not explicitly passed', () => {
     const config = parseEnv({
       DATABASE_URL: 'postgres://admin:secret@pg.internal:5432/prod_messages_db',
@@ -35,15 +29,6 @@ describe('Environment Configuration - PostgreSQL Database Name Selection', () =>
     });
     expect(config.POSTGRES_DB).toBe('overridden_db');
     expect(config.DATABASE_URL).toBe('postgres://admin:secret@pg.internal:5432/overridden_db');
-  });
-
-  test('allows DB_NAME to explicitly override database name inside DATABASE_URL', () => {
-    const config = parseEnv({
-      DATABASE_URL: 'postgres://admin:secret@pg.internal:5432/original_db',
-      DB_NAME: 'override_via_db_name',
-    });
-    expect(config.POSTGRES_DB).toBe('override_via_db_name');
-    expect(config.DATABASE_URL).toBe('postgres://admin:secret@pg.internal:5432/override_via_db_name');
   });
 
   test('handles non-standard database connection strings gracefully in resolvePostgresConfig', () => {

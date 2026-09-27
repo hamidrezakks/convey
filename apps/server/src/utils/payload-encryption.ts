@@ -352,34 +352,33 @@ export function encryptProviderCredentials(credentials: Record<string, unknown>)
   return payloadEncryptionManager.encryptPayload(credentials);
 }
 
-/**
- * Transparently checks if raw credentials are encrypted with AES-256-GCM envelope,
- * deciphers them if so, or returns them as-is for backward compatibility.
- */
+/** Stored provider credentials always use the current authenticated envelope format. */
 export function decryptProviderCredentials(raw: unknown): Record<string, string> {
-  if (!raw || typeof raw !== 'object') return {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid provider credential envelope');
   const rec = raw as Record<string, unknown>;
-  if (typeof rec.ciphertext === 'string' && typeof rec.iv === 'string' && typeof rec.authTag === 'string') {
-    try {
-      const envelope: EncryptedPayload = {
-        version: typeof rec.version === 'number' ? rec.version : 1,
-        iv: rec.iv,
-        authTag: rec.authTag,
-        ciphertext: rec.ciphertext,
-        recipientId: typeof rec.recipientId === 'string' ? rec.recipientId : undefined,
-        keyArn: typeof rec.keyArn === 'string' ? rec.keyArn : undefined,
-        encryptedDek: typeof rec.encryptedDek === 'string' ? rec.encryptedDek : undefined,
-      };
-      return payloadEncryptionManager.decryptProviderPayload<Record<string, string>>(envelope);
-    } catch {
-      return {};
-    }
+  if (
+    !Number.isSafeInteger(rec.version) ||
+    Number(rec.version) < 1 ||
+    typeof rec.ciphertext !== 'string' ||
+    typeof rec.iv !== 'string' ||
+    typeof rec.authTag !== 'string'
+  )
+    throw new Error('Invalid provider credential envelope');
+  const decrypted = payloadEncryptionManager.decryptProviderPayload<unknown>(rec as unknown as EncryptedPayload);
+  if (!decrypted || typeof decrypted !== 'object' || Array.isArray(decrypted))
+    throw new Error('Invalid provider credential payload');
+  const credentials: Record<string, string> = {};
+  for (const [key, value] of Object.entries(decrypted)) {
+    if (typeof value !== 'string') throw new Error('Provider credentials must contain string values');
+    credentials[key] = value;
   }
-  const result: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rec)) {
-    result[k] = v !== null && v !== undefined ? String(v) : '';
-  }
-  return result;
+  return credentials;
+}
+
+/** Collision-free tenant boundary for derived payload keys and durable revocation. */
+export function recipientKeyId(team: string, recipientId: string): string {
+  if (!team || !recipientId) throw new Error('Recipient key identity requires a team and recipient');
+  return JSON.stringify([team, recipientId]);
 }
 
 /**

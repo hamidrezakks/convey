@@ -52,20 +52,19 @@ describe('Provider Credentials AES-256-GCM Encryption & Masking Suite', () => {
       expect(decryptProviderCredentials(enc2)).toEqual(creds);
     });
 
-    it('decrypts plain legacy JSON objects for backwards compatibility', () => {
-      const legacy = {
-        accountSid: 'AC_legacy_1234567890',
-        authToken: 'token_legacy_987654321',
-      };
-
-      const result = decryptProviderCredentials(legacy);
-      expect(result).toEqual(legacy);
-    });
-
-    it('safely handles empty or null/undefined credentials without crashing', () => {
-      expect(decryptProviderCredentials(null)).toEqual({});
-      expect(decryptProviderCredentials(undefined)).toEqual({});
-      expect(decryptProviderCredentials({})).toEqual({});
+    it('rejects plaintext, unversioned and malformed stored credentials', () => {
+      for (const value of [
+        null,
+        undefined,
+        {},
+        { apiKey: 'plaintext' },
+        { ...encryptProviderCredentials({ apiKey: 'secret' }), version: undefined },
+      ]) {
+        expect(() => decryptProviderCredentials(value)).toThrow('credential envelope');
+      }
+      const encrypted = encryptProviderCredentials({ apiKey: 'secret' });
+      expect(() => decryptProviderCredentials({ ...encrypted, authTag: '0'.repeat(32) })).toThrow();
+      expect(decryptProviderCredentials(encryptProviderCredentials({}))).toEqual({});
     });
   });
 

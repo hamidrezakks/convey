@@ -32,7 +32,7 @@ describe('Enterprise BYOK & KMS Envelope Encryption', async () => {
     expect(recoveredKey.toString('hex')).toBe(generated.plaintextKey.toString('hex'));
   });
 
-  it('should support key version rotation without breaking legacy decryption', async () => {
+  it('should support key version rotation while retaining previous encryption keys', async () => {
     const manager = new PayloadEncryptionManager();
     const payloadV1 = { version: 'v1-data' };
     const encryptedV1 = manager.encryptPayload(payloadV1, 'user_v1');

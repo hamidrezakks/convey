@@ -85,3 +85,23 @@ it('fails closed when the revocation store cannot be read or written', async () 
   await expect(manager.shredRecipientKey('recipient')).rejects.toThrow('store unavailable');
   expect(() => manager.decryptProviderPayload(envelope)).toThrow('durable revocation');
 });
+
+it('recipient revocation is scoped to its team', async () => {
+  const { recipientKeyId } = await import('../src/utils/payload-encryption');
+  const revoked = new Set<string>();
+  const manager = new PayloadEncryptionManager('tenant-boundary-test-key-at-least-32-characters', {
+    async isRevoked(id) {
+      return revoked.has(id);
+    },
+    async revoke(id) {
+      revoked.add(id);
+    },
+  });
+  const a = recipientKeyId('team-a', 'same-user');
+  const b = recipientKeyId('team-b', 'same-user');
+  const payloadA = manager.encryptPayload('private-a', a);
+  const payloadB = manager.encryptPayload('private-b', b);
+  await manager.shredRecipientKey(a);
+  await expect(manager.decryptPayload(payloadA)).rejects.toThrow(CryptographicShreddedError);
+  expect(await manager.decryptPayload<string>(payloadB)).toBe('private-b');
+});

@@ -36,7 +36,7 @@ export class IdempotencyConflictError extends Error {
 export const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 86_400; // 24 hours
 
 export function getIdempotencyKey(team: string, idempotencyKey: string, isSandbox = false): string {
-  return formatRedisKey(`idem:v2:${JSON.stringify([team, isSandbox ? 'sandbox' : 'production', idempotencyKey])}`);
+  return formatRedisKey(`idem:${JSON.stringify([team, isSandbox ? 'sandbox' : 'production', idempotencyKey])}`);
 }
 
 export function generateOwnerToken(): string {

@@ -121,21 +121,15 @@ import type { CascadeConfig } from '../../modules/messaging/messaging.types';
 export async function resolveRouteAndEnqueue(msg: typeof messages.$inferSelect, publicId: string): Promise<void> {
   const budgetExecutionId =
     typeof msg.metadata?._budgetExecutionId === 'string' ? msg.metadata._budgetExecutionId : undefined;
-  let channels = msg.channels;
-  let recipient = msg.recipients;
-
   const metadataObj = msg.metadata;
-  if (metadataObj?._encryptedEnvelope) {
-    const decrypted = await payloadEncryptionManager.decryptPayload<{
-      recipients: Recipients;
-      channels: ChannelRequest[];
-      cascade?: CascadeConfig;
-    }>(metadataObj._encryptedEnvelope as EncryptedPayload);
-    if (decrypted?.recipients && decrypted?.channels) {
-      recipient = decrypted.recipients;
-      channels = decrypted.channels;
-    }
-  }
+  if (!metadataObj?._encryptedEnvelope) throw new Error('Message payload envelope is required');
+  const decrypted = await payloadEncryptionManager.decryptPayload<{
+    recipients: Recipients;
+    channels: ChannelRequest[];
+    cascade?: CascadeConfig;
+  }>(metadataObj._encryptedEnvelope as EncryptedPayload);
+  if (!decrypted?.recipients || !Array.isArray(decrypted.channels)) throw new Error('Invalid message payload envelope');
+  const { recipients: recipient, channels } = decrypted;
 
   const cascade = metadataObj?.cascade as CascadeConfig | undefined;
   if (cascade?.enabled && cascade?.steps?.length) {
