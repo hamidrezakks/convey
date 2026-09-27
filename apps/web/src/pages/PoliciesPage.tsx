@@ -49,6 +49,28 @@ export function PoliciesPage() {
     setMonthlyBudget(budget?.monthlyBudget ?? 2500);
     setHardStop(budget?.hardStop ?? true);
   }, [budget]);
+  const [reconcileReason, setReconcileReason] = useState('');
+  const [reconciling, setReconciling] = useState(false);
+  const holdsQuery = useQuery({
+    queryKey: ['budget-holds', team],
+    queryFn: () => api.getBudgetHolds(team),
+    enabled: Boolean(team.trim()),
+    retry: false,
+    refetchInterval: 60_000,
+  });
+  async function reconcile(id: string, outcome: 'committed' | 'released') {
+    setReconciling(true);
+    try {
+      await api.reconcileBudgetHold(team, id, outcome, reconcileReason);
+      await Promise.all([holdsQuery.refetch(), refetch()]);
+      setReconcileReason('');
+      toast.success('Reservation reconciled and audit recorded.');
+    } catch {
+      toast.error('Reconciliation failed. Check the evidence note and refresh the reservation.');
+    } finally {
+      setReconciling(false);
+    }
+  }
   const usedAmount = budget?.usedAmount ?? 0;
   const reservedAmount = budget?.reservedAmount ?? 0;
   const usageCurrency = budget?.currency ?? budgetCurrency;
@@ -149,6 +171,57 @@ export function PoliciesPage() {
       {isFetching && <p role="status">Loading budget…</p>}
       {isError && <p role="alert">Budget could not be loaded. Saving is disabled until it loads successfully.</p>}
       {team && budget === null && <p>No budget is configured for this team.</p>}
+      {team && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Unresolved budget reservations</CardTitle>
+            <CardDescription>
+              Oldest 200 holds. Verify provider acceptance before committing or releasing; release only with evidence
+              that no charge occurred.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {holdsQuery.isError && <p role="alert">Reservations could not be loaded.</p>}
+            {holdsQuery.isFetching && <p role="status">Refreshing reservations…</p>}
+            {holdsQuery.data?.some((hold) => hold.stale) && (
+              <p role="alert">Reservations older than one hour require investigation.</p>
+            )}
+            <label className="block">
+              Evidence note
+              <textarea
+                aria-label="Reconciliation evidence"
+                className="block w-full rounded border p-2"
+                value={reconcileReason}
+                onChange={(event) => setReconcileReason(event.target.value)}
+                maxLength={2000}
+              />
+            </label>
+            {holdsQuery.data?.map((hold) => (
+              <div key={hold.id} className="flex flex-wrap items-center gap-3 border-b py-2">
+                <span>
+                  {hold.messageId} · {hold.providerId} · {hold.amount} {hold.currency} ·{' '}
+                  {new Date(hold.createdAt).toLocaleString()}
+                  {hold.stale ? ' · Needs investigation' : ''}
+                </span>
+                <Button
+                  disabled={reconciling || reconcileReason.trim().length < 10}
+                  onClick={() => reconcile(hold.id, 'committed')}
+                >
+                  Confirm charge
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={reconciling || reconcileReason.trim().length < 10}
+                  onClick={() => reconcile(hold.id, 'released')}
+                >
+                  Release hold
+                </Button>
+              </div>
+            ))}
+            {holdsQuery.data?.length === 0 && <p>No unresolved reservations.</p>}
+          </CardContent>
+        </Card>
+      )}
       {/* CORE FINANCIAL GUARDRAIL: Team Financial Budget Cap & Multi-Currency Policy */}
       <Card className="glass-panel border-sky-500/20 dark:border-sky-500/20 shadow-md relative z-30">
         <CardHeader className="pb-4">

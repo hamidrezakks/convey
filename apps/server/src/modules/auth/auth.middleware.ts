@@ -15,6 +15,7 @@ export async function validateApiKey(
   if (!apiKeyRaw) return { valid: false, error: 'API Key missing' };
   const [row] = await db
     .select({
+      id: apiKeys.id,
       tenantId: apiKeys.tenantId,
       team: apiKeys.team,
       keyName: apiKeys.name,
@@ -38,6 +39,7 @@ export async function validateApiKey(
   }
   return {
     valid: true,
+    apiKeyId: row.id,
     tenantId: row.tenantId,
     team: row.team,
     keyName: row.keyName,

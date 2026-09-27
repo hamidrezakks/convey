@@ -45,6 +45,7 @@ export async function setupFreshIsolatedDatabase(customPrefix?: string): Promise
   await db.delete(messages);
   await db.delete(reportHourly);
   await db.delete(suppressions);
+  await queryClient`DELETE FROM budget_reconciliations`;
   await db.delete(budgetReservations);
   await db.delete(budgetUsage);
   await db.delete(budgetPolicies);

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type BudgetPolicyDto, getCurrencyMetadata, isSupportedCurrency } from '@convey/shared';
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, lt, sql } from 'drizzle-orm';
 import { db, type Transaction } from '../../db';
 import { budgetLedger, budgetPolicies, budgetReservations, budgetUsage, teamOwners } from '../../db/schema';
 import { getUtcMonthString } from '../../utils/date';
@@ -122,14 +122,24 @@ export const BudgetService = {
     });
   },
 
-  async settle(id: string, outcome: 'committed' | 'released'): Promise<void> {
+  async settle(
+    id: string,
+    outcome: 'committed' | 'released',
+    audit?: { team: string; actorId: string; reason: string },
+  ): Promise<void> {
     // Resolve the immutable team before acquiring the same lock order as reserve/save.
     const [reference] = await db.select().from(budgetReservations).where(eq(budgetReservations.id, id));
-    if (!reference) throw new BudgetError('Unknown budget reservation');
+    if (!reference || (audit && reference.team !== audit.team)) throw new BudgetError('Unknown budget reservation');
+    if (audit && (!audit.actorId || audit.reason.trim().length < 10 || audit.reason.length > 2000))
+      throw new BudgetError('Reconciliation requires an actor and an evidence note of 10–2000 characters');
     await db.transaction(async (tx) => {
       await lockTeam(tx, reference.team);
       const [hold] = await tx.select().from(budgetReservations).where(eq(budgetReservations.id, id));
       if (hold.state === outcome) return;
+      if (audit)
+        await tx.execute(
+          sql`INSERT INTO budget_reconciliations (reservation_id, team, actor_id, outcome, reason) VALUES (${id}, ${audit.team}, ${audit.actorId}, ${outcome}, ${audit.reason.trim()})`,
+        );
       if (hold.state !== 'reserved') throw new BudgetError('Budget reservation already settled differently');
       if (outcome === 'committed') {
         if (hold.policyId) {
@@ -156,6 +166,24 @@ export const BudgetService = {
         .set({ state: outcome, updatedAt: new Date() })
         .where(eq(budgetReservations.id, id));
     });
+  },
+
+  async listHolds(team: string) {
+    const rows = await db
+      .select()
+      .from(budgetReservations)
+      .where(and(eq(budgetReservations.team, team), eq(budgetReservations.state, 'reserved')))
+      .orderBy(asc(budgetReservations.createdAt))
+      .limit(200);
+    return rows.map((row) => ({
+      id: row.id,
+      messageId: row.messageId,
+      providerId: row.providerId,
+      amount: row.amountInPolicyCurrency,
+      currency: row.policyCurrency,
+      createdAt: row.createdAt.toISOString(),
+      stale: Date.now() - row.createdAt.getTime() > 3600_000,
+    }));
   },
 
   async get(team: string, now = new Date()): Promise<BudgetPolicyDto | null> {

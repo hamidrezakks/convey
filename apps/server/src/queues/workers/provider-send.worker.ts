@@ -16,6 +16,7 @@ import { BudgetService } from '../../modules/policies/budget.service';
 import { estimateBudgetRecipients, estimateBudgetUnits } from '../../modules/policies/budget-estimate';
 import { LeakyBucketGovernor } from '../../modules/policies/leaky-bucket';
 import { PolicyEngine } from '../../modules/policies/policy-engine';
+import { validateProviderPrice } from '../../modules/policies/provider-pricing';
 import { providerCircuitBreaker } from '../../modules/providers/core/circuit-breaker';
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import type { UnifiedRecipient } from '../../modules/providers/core/provider-types';
@@ -476,7 +477,11 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
 
     let reservationId: string | undefined;
     if (!msg.isSandbox) {
-      const rate = getProviderRate(adapter.id);
+      if (process.env.NODE_ENV === 'production' && !providerConfig?.pricing)
+        throw new Error('Configure provider pricing before production sends');
+      const rate = providerConfig?.pricing
+        ? validateProviderPrice(providerConfig.pricing)
+        : getProviderRate(adapter.id);
       const reservation = await BudgetService.reserve({
         key: JSON.stringify([
           data.publicId,
