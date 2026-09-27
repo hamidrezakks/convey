@@ -43,7 +43,7 @@ export function OverviewPage() {
   const { resolvedTheme } = useTheme();
   const { isOps, isEngineer } = useUiMode();
   const { environment, isSandbox } = useEnvironment();
-  const [chartData, setChartData] = useState<Array<{ time: string; rps: number; p95: number }>>([]);
+  const [chartData, setChartData] = useState<Array<{ time: string; rps: number | null; p95: number | null }>>([]);
   const [chartMetric, setChartMetric] = useState<'both' | 'rps' | 'p95'>('both');
 
   // TanStack Query: Poll live telemetry snapshot every 15s
@@ -136,10 +136,10 @@ export function OverviewPage() {
         <div className="space-y-6 lg:space-y-8">
           {/* Top Hero: System Health Summary Banner */}
           <OpsHealthSummary
-            deliveryRate={overviewStats?.deliverySuccessRatePercent ?? 99.85}
-            totalSent={overviewStats?.metrics24h?.totalIngested ?? 12450}
-            avgSpeedMs={telemetry?.latency?.p95Ms ? Math.round(telemetry.latency.p95Ms) : 18}
-            costSavedUsd={overviewStats?.whatsappCostSavings?.estimatedUsdSaved ?? 12.6}
+            deliveryRate={overviewStats?.deliverySuccessRatePercent}
+            totalSent={overviewStats?.metrics24h?.totalIngested}
+            avgSpeedMs={telemetry?.latency?.p95Ms}
+            costSavedUsd={overviewStats?.whatsappCostSavings?.estimatedUsdSaved}
           />
 
           {/* KPI Stat Cards Grid for Ops */}
@@ -236,11 +236,13 @@ export function OverviewPage() {
               </CardHeader>
               <CardContent className="space-y-1.5">
                 <div className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-white tracking-tight">
-                  {telemetry ? `${formatNumber(Math.round(telemetry.throughputRps))} /s` : '4,820 /s'}
+                  {telemetry?.throughputRps != null
+                    ? `${formatNumber(Math.round(telemetry.throughputRps))} /s`
+                    : 'Unavailable'}
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
                   <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-medium">
-                    <ArrowUpRight className="w-3.5 h-3.5" /> +14.2% peak
+                    <ArrowUpRight className="w-3.5 h-3.5" /> Trend unavailable
                   </span>
                   <span className="text-slate-500 dark:text-slate-400">1-RTT Fast-Path</span>
                 </div>
@@ -259,12 +261,12 @@ export function OverviewPage() {
               </CardHeader>
               <CardContent className="space-y-1.5">
                 <div className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-white tracking-tight">
-                  {telemetry ? formatDurationMs(telemetry.latency.p95Ms) : '11.45ms'}
+                  {telemetry ? formatDurationMs(telemetry.latency.p95Ms) : 'Unavailable'}
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium font-mono">SLA: &lt;350ms</span>
                   <span className="text-slate-500 dark:text-slate-400 font-mono">
-                    P99: {telemetry ? formatDurationMs(telemetry.latency.p99Ms) : '28.7ms'}
+                    P99: {telemetry ? formatDurationMs(telemetry.latency.p99Ms) : 'Unavailable'}
                   </span>
                 </div>
               </CardContent>
@@ -282,11 +284,11 @@ export function OverviewPage() {
               </CardHeader>
               <CardContent className="space-y-1.5">
                 <div className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
-                  {overviewStats?.deliverySuccessRatePercent ?? 99.85}%
+                  {overviewStats?.deliverySuccessRatePercent ?? 'Unavailable'}%
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
                   <span className="text-slate-600 dark:text-slate-300 font-mono">
-                    {formatNumber(overviewStats?.metrics24h?.totalIngested ?? 12450)} total
+                    {formatNumber(overviewStats?.metrics24h?.totalIngested)} total
                   </span>
                   <span className="text-rose-600 dark:text-rose-400 font-mono">
                     {overviewStats?.metrics24h?.failed ?? 0} failed
@@ -308,13 +310,13 @@ export function OverviewPage() {
               <CardContent className="space-y-1.5">
                 <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-600 dark:text-amber-300 tracking-tight">
                   $
-                  {overviewStats?.whatsappCostSavings?.estimatedUsdSaved !== undefined
+                  {overviewStats?.whatsappCostSavings?.estimatedUsdSaved != null
                     ? overviewStats.whatsappCostSavings.estimatedUsdSaved.toFixed(2)
-                    : '12.60'}
+                    : 'Unavailable'}
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
                   <span className="text-slate-600 dark:text-slate-300 font-mono">
-                    {overviewStats?.whatsappCostSavings?.templateConvertedToSessionCount ?? 420} sessions
+                    {overviewStats?.whatsappCostSavings?.templateConvertedToSessionCount ?? 'Unavailable'} sessions
                   </span>
                   <span className="text-emerald-600 dark:text-emerald-400">Zero-cost session</span>
                 </div>
@@ -462,13 +464,13 @@ export function OverviewPage() {
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500 dark:text-slate-400 font-mono">outbox-relay</span>
                     <span className="font-mono text-sky-600 dark:text-sky-400 font-semibold">
-                      {telemetry?.queues?.outboxRelayDepth ?? 12} jobs
+                      {telemetry?.queues?.outboxRelayDepth ?? 'Unavailable'} jobs
                     </span>
                   </div>
                   <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-sky-500 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, ((telemetry?.queues?.outboxRelayDepth ?? 12) / 50) * 100)}%` }}
+                      style={{ width: `${Math.min(100, ((telemetry?.queues?.outboxRelayDepth ?? 0) / 50) * 100)}%` }}
                     />
                   </div>
                 </div>
@@ -478,14 +480,14 @@ export function OverviewPage() {
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500 dark:text-slate-400 font-mono">message-dispatch</span>
                     <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                      {telemetry?.queues?.messageDispatchDepth ?? 34} jobs
+                      {telemetry?.queues?.messageDispatchDepth ?? 'Unavailable'} jobs
                     </span>
                   </div>
                   <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-indigo-500 rounded-full transition-all duration-300"
                       style={{
-                        width: `${Math.min(100, ((telemetry?.queues?.messageDispatchDepth ?? 34) / 100) * 100)}%`,
+                        width: `${Math.min(100, ((telemetry?.queues?.messageDispatchDepth ?? 0) / 100) * 100)}%`,
                       }}
                     />
                   </div>
@@ -496,13 +498,13 @@ export function OverviewPage() {
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500 dark:text-slate-400 font-mono">provider-send</span>
                     <span className="font-mono text-purple-600 dark:text-purple-400 font-semibold">
-                      {telemetry?.queues?.providerSendDepth ?? 58} jobs
+                      {telemetry?.queues?.providerSendDepth ?? 'Unavailable'} jobs
                     </span>
                   </div>
                   <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-purple-500 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, ((telemetry?.queues?.providerSendDepth ?? 58) / 150) * 100)}%` }}
+                      style={{ width: `${Math.min(100, ((telemetry?.queues?.providerSendDepth ?? 0) / 150) * 100)}%` }}
                     />
                   </div>
                 </div>
@@ -512,20 +514,21 @@ export function OverviewPage() {
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-slate-400">Worker Concurrency:</span>
                     <span className="text-slate-900 dark:text-white font-mono font-semibold">
-                      {telemetry?.queues?.activeWorkersCount ?? 24} workers
+                      {telemetry?.queues?.activeWorkersCount ?? 'Unavailable'} workers
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-slate-400">V8 Heap Guard:</span>
                     <span className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">
-                      {telemetry?.runtimeGuard?.v8HeapUsedMb ?? 340}MB / {telemetry?.runtimeGuard?.v8HeapTotalMb ?? 512}
-                      MB ({telemetry?.runtimeGuard?.v8HeapSaturationPercent ?? 66}%)
+                      {telemetry?.runtimeGuard?.v8HeapUsedMb ?? 'Unavailable'}MB /{' '}
+                      {telemetry?.runtimeGuard?.v8HeapTotalMb ?? 'Unavailable'}
+                      MB ({telemetry?.runtimeGuard?.v8HeapSaturationPercent ?? 'Unavailable'}%)
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-slate-400">Event Loop Lag:</span>
                     <span className="text-sky-600 dark:text-sky-300 font-mono">
-                      {telemetry?.runtimeGuard?.eventLoopLagMs ?? 1.2}ms
+                      {telemetry?.runtimeGuard?.eventLoopLagMs ?? 'Unavailable'}ms
                     </span>
                   </div>
                 </div>
@@ -583,8 +586,8 @@ export function OverviewPage() {
                     </span>
                   </div>
                   <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">
-                    {telemetry?.subsystems?.circuitBreakers?.closed ?? 82} closed /{' '}
-                    {telemetry?.subsystems?.circuitBreakers?.total ?? 84} total
+                    {telemetry?.subsystems?.circuitBreakers?.closed ?? 'Unavailable'} closed /{' '}
+                    {telemetry?.subsystems?.circuitBreakers?.total ?? 'Unavailable'} total
                   </span>
                 </div>
               </CardContent>

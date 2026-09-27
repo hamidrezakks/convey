@@ -124,14 +124,14 @@ export interface ProviderHealthDto {
   channel: Channel;
   state: CircuitState;
   rampPercentage: number;
-  emaLatencyMs: number;
-  rollingSuccessRatePercent: number;
-  anomalyZScore: number;
+  emaLatencyMs: number | null;
+  rollingSuccessRatePercent: number | null;
+  anomalyZScore: number | null;
   unitCostUsd: number;
   baseCurrency?: string;
   unitCostNative?: number;
   formattedUnitCost?: string;
-  totalCalls24h: number;
+  totalCalls24h: number | null;
   lastTripAt?: string;
   isCanaryHealthy: boolean;
 }
@@ -139,33 +139,41 @@ export interface ProviderHealthDto {
 // Real-Time System Telemetry
 export interface LiveTelemetrySnapshot {
   timestamp: string;
-  throughputRps: number;
+  throughputRps: number | null;
   latency: {
-    p50Ms: number;
-    p95Ms: number;
-    p99Ms: number;
+    p50Ms: number | null;
+    p95Ms: number | null;
+    p99Ms: number | null;
     slaBreachThresholdMs: number;
   };
   queues: {
     outboxRelayDepth: number;
-    messageDispatchDepth: number;
-    providerSendDepth: number;
-    scheduledPromoterDepth: number;
-    customerWebhookDepth: number;
+    messageDispatchDepth: number | null;
+    providerSendDepth: number | null;
+    scheduledPromoterDepth: number | null;
+    customerWebhookDepth: number | null;
     activeWorkersCount: number;
-    autoscalerTargetConcurrency: number;
+    autoscalerTargetConcurrency: number | null;
   };
   runtimeGuard: {
     v8HeapUsedMb: number;
     v8HeapTotalMb: number;
     v8HeapSaturationPercent: number;
     heapGuardThresholdPercent: number;
-    eventLoopLagMs: number;
+    eventLoopLagMs: number | null;
     loadSheddingActive: boolean;
   };
   subsystems: {
-    postgresPool: { status: 'healthy' | 'degraded' | 'error'; activeConnections: number; idleConnections: number };
-    redisCluster: { status: 'healthy' | 'degraded' | 'error'; usedMemoryMb: number; rttMs: number };
+    postgresPool: {
+      status: 'healthy' | 'degraded' | 'error' | 'unknown';
+      activeConnections: number | null;
+      idleConnections: number | null;
+    };
+    redisCluster: {
+      status: 'healthy' | 'degraded' | 'error' | 'unknown';
+      usedMemoryMb: number | null;
+      rttMs: number | null;
+    };
     activePartition: string;
     circuitBreakers: { total: number; closed: number; halfOpen: number; open: number };
   };
@@ -175,7 +183,7 @@ export interface LiveTelemetrySnapshot {
     channel: Channel;
     teamId: string;
     provider: string;
-    latencyMs: number;
+    latencyMs: number | null;
     status: MessageStatus;
     timestamp: string;
   }>;
@@ -469,7 +477,7 @@ export interface WebhookSubscriptionDto {
   secret: string;
   active: boolean;
   successRate?: string;
-  avgLatencyMs?: number;
+  avgLatencyMs?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -486,7 +494,7 @@ export interface ReportingMetrics {
   openRatePercent: number;
   failRatePercent: number;
   totalCostUsd: number;
-  avgLatencyMs?: number;
+  avgLatencyMs?: number | null;
 }
 
 export interface TeamReportDto {
