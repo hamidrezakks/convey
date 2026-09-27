@@ -49,7 +49,10 @@ export function validateWebhookUrl(raw: string): URL {
   return url;
 }
 
-export async function resolveWebhookDestination(raw: string, resolver = lookup) {
+export async function resolveWebhookDestination(
+  raw: string,
+  resolver: (hostname: string, options: { all: true }) => Promise<Array<{ address: string; family: number }>> = lookup,
+) {
   const url = validateWebhookUrl(raw);
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = isIP(hostname)

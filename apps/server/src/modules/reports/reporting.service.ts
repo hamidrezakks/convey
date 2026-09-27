@@ -14,7 +14,7 @@ import {
 } from '@convey/shared';
 import { and, count, eq, gte, isNotNull, lte, sql } from 'drizzle-orm';
 
-import { db } from '../../db';
+import { db, type Transaction } from '../../db';
 
 import {
   budgetLedger,
@@ -40,6 +40,37 @@ export interface RecordMetricParams {
   campaignId?: string;
   costUsd?: number;
   timestamp?: Date;
+}
+
+/** Receipt state and counters commit together, so queue retries cannot double count. */
+export async function recordReceiptMetric(tx: Transaction, params: RecordMetricParams) {
+  const hour = getUtcHourBoundary(params.timestamp || new Date());
+  const country = params.country || 'GLOBAL';
+  const key = (
+    {
+      delivered: 'deliveredCount',
+      opened: 'openedCount',
+      read: 'readCount',
+      failed: 'failedCount',
+      bounced: 'failedCount',
+    } as const
+  )[params.metric as 'delivered'];
+  if (!key) return;
+  await tx
+    .insert(reportHourly)
+    .values({
+      id: buildReportId(params, hour),
+      team: params.team,
+      category: params.category,
+      country,
+      channel: params.channel,
+      hour,
+      [key]: 1,
+    })
+    .onConflictDoUpdate({
+      target: reportHourly.id,
+      set: { [key]: sql`${reportHourly[key]} + 1`, updatedAt: new Date() },
+    });
 }
 
 export function buildReportId(

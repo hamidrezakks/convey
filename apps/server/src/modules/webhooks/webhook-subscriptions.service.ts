@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import { db } from '../../db';
-import { webhookSubscriptions } from '../../db/schema';
-import { customerWebhookDispatchQueue } from '../../queues/queue-definitions';
+import { db, type Transaction } from '../../db';
+import { outbox, teamOwners, webhookSubscriptions } from '../../db/schema';
 import { generateMessageId } from '../../utils/id';
 import { validateWebhookUrl } from '../../utils/webhook-destination';
 
@@ -64,17 +63,44 @@ export const WebhookSubscriptionsService = {
 
     const matchingSubs = subs.filter((sub) => sub.events.includes(eventType) || sub.events.includes('*'));
 
-    const jobs = matchingSubs.map((sub) => ({
-      name: 'dispatch-webhook',
-      data: {
-        subscriptionId: sub.id,
-        eventType,
-        payload,
-      },
-    }));
+    if (matchingSubs.length)
+      await db.insert(outbox).values(
+        matchingSubs.map((sub) => ({
+          id: generateMessageId(),
+          messageId: String(payload.messageId || sub.id),
+          type: 'webhook.customer',
+          payload: { subscriptionId: sub.id, eventType, payload },
+        })),
+      );
+  },
 
-    if (jobs.length > 0) {
-      await customerWebhookDispatchQueue.addBulk(jobs);
-    }
+  async triggerEventForTeam(
+    team: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+    tx: Transaction | typeof db = db,
+  ) {
+    const [owner] = await tx.select().from(teamOwners).where(eq(teamOwners.team, team));
+    if (!owner) return;
+    const subs = await tx
+      .select()
+      .from(webhookSubscriptions)
+      .where(
+        and(
+          eq(webhookSubscriptions.team, team),
+          eq(webhookSubscriptions.tenantId, owner.tenantId),
+          eq(webhookSubscriptions.active, true),
+        ),
+      );
+    const matching = subs.filter((sub) => sub.events.includes(eventType) || sub.events.includes('*'));
+    if (matching.length)
+      await tx.insert(outbox).values(
+        matching.map((sub) => ({
+          id: generateMessageId(),
+          messageId: String(payload.messageId || sub.id),
+          type: 'webhook.customer',
+          payload: { subscriptionId: sub.id, eventType, payload },
+        })),
+      );
   },
 };

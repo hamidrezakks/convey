@@ -40,11 +40,11 @@ test('rejects URL bypasses', () => {
 });
 
 test('rejects mixed DNS responses and pins the validated public address', async () => {
-  const mixed = (async () => [
+  const mixed = async () => [
     { address: '8.8.8.8', family: 4 },
     { address: '10.0.0.1', family: 4 },
-  ]) as typeof import('node:dns/promises').lookup;
+  ];
   await expect(resolveWebhookDestination('https://example.com', mixed)).rejects.toThrow('public');
-  const publicOnly = (async () => [{ address: '8.8.8.8', family: 4 }]) as typeof import('node:dns/promises').lookup;
+  const publicOnly = async () => [{ address: '8.8.8.8', family: 4 }];
   expect((await resolveWebhookDestination('https://example.com/path', publicOnly)).address).toBe('8.8.8.8');
 });

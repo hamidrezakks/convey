@@ -141,48 +141,61 @@ export async function handleSendSuccess(params: {
   statisticalAnomalyDetector.recordLatency(adapterId, latencyMs);
   statisticalAnomalyDetector.analyze(adapterId, latencyMs);
 
-  // A successful send confirms provider acceptance, not recipient delivery.
-  await db.insert(messageAttempts).values({
-    id: attemptId,
-    messageId: data.publicId,
-    channel: data.channel,
-    providerId: adapterId,
-    attemptNo: data.attemptNo,
-    origin: data.origin,
-    state: MessageState.DISPATCHED,
-    providerMessageId,
-    latencyMs,
-    queuedAt: now,
-    startedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
+  await db.transaction(async (tx) => {
+    // A successful send confirms provider acceptance, not recipient delivery.
+    await tx.insert(messageAttempts).values({
+      id: attemptId,
+      messageId: data.publicId,
+      channel: data.channel,
+      providerId: adapterId,
+      attemptNo: data.attemptNo,
+      origin: data.origin,
+      state: MessageState.DISPATCHED,
+      providerMessageId,
+      latencyMs,
+      queuedAt: now,
+      startedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
 
-  await db.insert(messageEvents).values({
-    id: generateMessageId(),
-    messageId: data.publicId,
-    attemptId,
-    channel: data.channel,
-    providerId: adapterId,
-    type: EventType.DELIVERY_ACCEPTED,
-    source: EventSource.WORKER,
-    metadata: { providerMessageId },
-    occurredAt: now,
-    createdAt: now,
-  });
+    await tx.insert(messageEvents).values({
+      id: generateMessageId(),
+      messageId: data.publicId,
+      attemptId,
+      channel: data.channel,
+      providerId: adapterId,
+      type: EventType.DELIVERY_ACCEPTED,
+      source: EventSource.WORKER,
+      metadata: { providerMessageId },
+      occurredAt: now,
+      createdAt: now,
+    });
 
-  const { startDate, endDate } = computePartitionWindow(data.publicId);
-  await db
-    .update(messages)
-    .set({ state: MessageState.DISPATCHED, updatedAt: now })
-    .where(
-      and(
-        eq(messages.publicId, data.publicId),
-        gte(messages.createdAt, startDate),
-        lte(messages.createdAt, endDate),
-        inArray(messages.state, [MessageState.ACCEPTED, MessageState.DISPATCHED]),
-      ),
+    const { startDate, endDate } = computePartitionWindow(data.publicId);
+    await tx
+      .update(messages)
+      .set({ state: MessageState.DISPATCHED, updatedAt: now })
+      .where(
+        and(
+          eq(messages.publicId, data.publicId),
+          gte(messages.createdAt, startDate),
+          lte(messages.createdAt, endDate),
+          inArray(messages.state, [MessageState.ACCEPTED, MessageState.DISPATCHED]),
+        ),
+      );
+
+    await WebhookSubscriptionsService.triggerEventForTeam(
+      msg.team,
+      'message.sent',
+      {
+        messageId: msg.publicId,
+        channel: data.channel,
+        providerId: adapterId,
+      },
+      tx,
     );
+  });
 
   // Populate O(1) Redis Reverse Index for instant Webhook ingestion without DB partition scans
   if (providerMessageId) {
@@ -219,18 +232,6 @@ export async function handleSendSuccess(params: {
     timestamp: now,
   }).catch((err) => {
     logger.warn('ProviderSend', `Metric recording dropped for message '${data.publicId}': ${(err as Error).message}`);
-  });
-
-  await WebhookSubscriptionsService.triggerEventForTenant(msg.team, msg.team, 'message.sent', {
-    messageId: msg.publicId,
-    channel: data.channel,
-    providerId: adapterId,
-    providerMessageId,
-  }).catch((err) => {
-    logger.warn(
-      'ProviderSend',
-      `Webhook dispatch trigger failed for message '${data.publicId}': ${(err as Error).message}`,
-    );
   });
 }
 
@@ -350,22 +351,17 @@ export async function handlePermanentFailure(params: {
   });
 
   const { startDate, endDate } = computePartitionWindow(data.publicId);
-  const currentMsgList = await db
-    .select()
-    .from(messages)
+  await db
+    .update(messages)
+    .set({ state: MessageState.FAILED, completedAt: now, updatedAt: now })
     .where(
-      and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
+      and(
+        eq(messages.publicId, data.publicId),
+        gte(messages.createdAt, startDate),
+        lte(messages.createdAt, endDate),
+        inArray(messages.state, [MessageState.ACCEPTED, MessageState.DISPATCHED, MessageState.SCHEDULED]),
+      ),
     );
-  const currentMsg = currentMsgList[0];
-
-  if (currentMsg && currentMsg.state !== MessageState.DELIVERED) {
-    await db
-      .update(messages)
-      .set({ state: MessageState.FAILED, completedAt: now, updatedAt: now })
-      .where(
-        and(eq(messages.publicId, data.publicId), gte(messages.createdAt, startDate), lte(messages.createdAt, endDate)),
-      );
-  }
 
   if (msg.fallback) {
     const fallbackConfig = msg.fallback as {

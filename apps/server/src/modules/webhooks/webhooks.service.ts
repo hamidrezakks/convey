@@ -1,6 +1,6 @@
 import { env } from '../../config/env';
 import { db } from '../../db';
-import { messageEvents } from '../../db/schema';
+import { messageEvents, outbox } from '../../db/schema';
 import { redisClient } from '../../queues/connection';
 import { webhookIngestQueue } from '../../queues/queue-definitions';
 import { hashString, safeTimingCompare } from '../../utils/crypto';
@@ -124,29 +124,24 @@ export const WebhooksService = {
 
     const eventId = hashString(rawString);
     const jobId = `webhook_${providerId}_${flowType}_${eventId}`;
-    if (await webhookIngestQueue.getJob(jobId)) return { status: WebhookStatus.DUPLICATE_IGNORED };
     let parsedPayload = payload;
     if (typeof payload === 'string') {
       parsedPayload = req?.headers.get('content-type')?.includes('application/x-www-form-urlencoded')
         ? Object.fromEntries(new URLSearchParams(payload))
         : JSON.parse(payload);
     }
-    // Queue persistence is the acknowledgement boundary; never acknowledge a failed enqueue.
-    await webhookIngestQueue.add(
-      JobName.PROCESS_WEBHOOK,
-      {
-        providerId,
-        payload: parsedPayload,
-        headers,
-        flowType,
-        receivedAt: new Date().toISOString(),
-      },
-      {
-        jobId,
-        removeOnComplete: { age: WEBHOOK_DEDUPLICATION_TTL_SECONDS },
-        removeOnFail: { age: WEBHOOK_DEDUPLICATION_TTL_SECONDS },
-      },
-    );
+    // SQL outbox is the durable acknowledgement boundary, including Redis outages.
+    const inserted = await db
+      .insert(outbox)
+      .values({
+        id: jobId,
+        messageId: jobId,
+        type: 'webhook.ingest',
+        payload: { providerId, payload: parsedPayload, headers, flowType, receivedAt: new Date().toISOString() },
+      })
+      .onConflictDoNothing()
+      .returning({ id: outbox.id });
+    if (!inserted.length) return { status: WebhookStatus.DUPLICATE_IGNORED };
 
     return { status: WebhookStatus.ACCEPTED, received: true };
   },
