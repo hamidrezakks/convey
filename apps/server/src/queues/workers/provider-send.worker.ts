@@ -28,10 +28,10 @@ import { WebhookSubscriptionsService } from '../../modules/webhooks/webhook-subs
 import { AdaptiveConcurrencyController } from '../../utils/adaptive-concurrency';
 import { statisticalAnomalyDetector } from '../../utils/anomaly-detector';
 import { chaosEngine } from '../../utils/chaos-engine';
-import { FullJitterRetry } from '../../utils/full-jitter-retry';
 import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
 import { decryptProviderCredentials } from '../../utils/payload-encryption';
+import { providerRetryDelay } from '../../utils/provider-retry';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
 
 export const adaptiveConcurrency = new AdaptiveConcurrencyController();
@@ -237,17 +237,20 @@ export async function handleSendSuccess(params: {
 export async function handleTransientFailure(params: {
   data: SendJobData;
   adapterId: string;
-  error?: { code?: string; message?: string };
+  error?: { code?: string; message?: string; category?: string; retryAfterMs?: number };
   latencyMs: number;
   attemptId: string;
   now: Date;
 }): Promise<void> {
   const { data, adapterId, error, latencyMs, attemptId, now } = params;
-  providerCircuitBreaker.recordFailure(adapterId, false);
-  smartProviderRouter.recordProviderFeedback(adapterId, latencyMs, false);
+  const rateLimited = error?.category === ErrorCategory.RATE_LIMITED;
+  if (!rateLimited) {
+    providerCircuitBreaker.recordFailure(adapterId, false);
+    smartProviderRouter.recordProviderFeedback(adapterId, latencyMs, false);
+  }
   statisticalAnomalyDetector.recordLatency(adapterId, latencyMs);
   const nextAttemptNo = data.attemptNo + 1;
-  const delayMs = FullJitterRetry.calculateBackoffMs(data.attemptNo, 1000, 30000);
+  const delayMs = providerRetryDelay(data.attemptNo, error?.retryAfterMs);
 
   await db.insert(messageAttempts).values({
     id: attemptId,
@@ -257,7 +260,7 @@ export async function handleTransientFailure(params: {
     attemptNo: data.attemptNo,
     origin: data.origin,
     state: MessageState.FAILED,
-    errorCategory: ErrorCategory.TRANSIENT,
+    errorCategory: rateLimited ? ErrorCategory.RATE_LIMITED : ErrorCategory.TRANSIENT,
     errorCode: error?.code || 'SERVER_ERROR',
     errorMessage: error?.message || 'Transient provider server error',
     latencyMs,
@@ -302,7 +305,7 @@ export async function handleTransientFailure(params: {
 export async function handlePermanentFailure(params: {
   data: SendJobData;
   adapterId: string;
-  error?: { code?: string; message?: string };
+  error?: { code?: string; message?: string; category?: string; retryAfterMs?: number };
   errorCategory: ErrorCategory;
   isTransient: boolean;
   latencyMs: number;
@@ -311,7 +314,8 @@ export async function handlePermanentFailure(params: {
   now: Date;
 }): Promise<void> {
   const { data, adapterId, error, errorCategory, isTransient, latencyMs, msg, attemptId, now } = params;
-  if (error?.code !== 'BUDGET_EXCEEDED') providerCircuitBreaker.recordFailure(adapterId, true);
+  if (error?.code !== 'BUDGET_EXCEEDED' && errorCategory !== ErrorCategory.RATE_LIMITED)
+    providerCircuitBreaker.recordFailure(adapterId, true);
 
   await db.insert(messageAttempts).values({
     id: attemptId,
@@ -545,7 +549,7 @@ export async function processProviderSendJob(data: SendJobData): Promise<void> {
       });
     } else {
       const errorCategory = result.error?.category || ErrorCategory.TRANSIENT;
-      const isTransient = errorCategory === ErrorCategory.TRANSIENT;
+      const isTransient = errorCategory === ErrorCategory.TRANSIENT || errorCategory === ErrorCategory.RATE_LIMITED;
 
       if (isTransient && data.attemptNo < 3) {
         await handleTransientFailure({ data, adapterId: adapter.id, error: result.error, latencyMs, attemptId, now });
