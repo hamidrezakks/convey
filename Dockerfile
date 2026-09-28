@@ -57,6 +57,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD bun -e "fetch('http://localhost:3000/health/liveness').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
+USER bun
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["bun", "apps/server/src/index.ts"]
 
@@ -87,6 +88,7 @@ COPY package.json ./
 ENV PORT=5173
 EXPOSE 5173
 
+USER bun
 CMD ["bun", "apps/web/server.ts"]
 
 # ------------------------------------------------------------------------------
@@ -118,4 +120,5 @@ COPY apps/plugins ./apps/plugins
 ENV NODE_ENV=production
 ENV PLUGINS_PORT=3001
 EXPOSE 3001
+USER bun
 CMD ["bun", "apps/plugins/src/index.ts"]

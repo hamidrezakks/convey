@@ -16,3 +16,8 @@ coverage/
 .env.local
 .env.*.local
 *.tsbuildinfo
+
+# Never include deployment environment files from nested workspaces.
+**/.env
+**/.env.*
+!**/.env.example
