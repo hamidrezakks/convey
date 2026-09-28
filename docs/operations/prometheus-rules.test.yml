@@ -1,73 +1,191 @@
-rule_files: 
+rule_files:
   - prometheus-rules.yml
 evaluation_interval: 1m
-tests: 
+tests:
   - interval: 1m
-    input_series: 
+    input_series:
       - series: "up{job=\"convey\",instance=\"mock\"}"
         values: 1+0x15
       - series: "convey_operational_metrics_available{job=\"convey\",instance=\"mock\"}"
         values: 1+0x15
       - series: "convey_budget_stale_reservations{job=\"convey\",instance=\"mock\"}"
         values: 2+0x7 0+0x7
-    alert_rule_test: 
+    alert_rule_test:
       - eval_time: 6m
         alertname: ConveyStaleBudgetHolds
-        exp_alerts: 
-          - exp_labels: 
+        exp_alerts:
+          - exp_labels:
               severity: warning
               owner: convey-operator
               job: convey
               instance: mock
-            exp_annotations: 
+            exp_annotations:
               summary: Uncertain budget holds require evidence-based reconciliation
               runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - eval_time: 10m
         alertname: ConveyStaleBudgetHolds
-        exp_alerts: 
+        exp_alerts:
           []
   - interval: 1m
-    input_series: 
+    input_series:
       - series: "up{job=\"convey\",instance=\"mock\"}"
         values: 0+0x4 1+0x8
-    alert_rule_test: 
+    alert_rule_test:
       - eval_time: 3m
         alertname: ConveyScrapeUnavailable
-        exp_alerts: 
-          - exp_labels: 
+        exp_alerts:
+          - exp_labels:
               severity: critical
               owner: convey-operator
               job: convey
               instance: mock
-            exp_annotations: 
+            exp_annotations:
               &exp_annotations
               summary: Convey metrics target is unavailable or absent
               runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - eval_time: 8m
         alertname: ConveyScrapeUnavailable
-        exp_alerts: 
+        exp_alerts:
           []
       - eval_time: 8m
         alertname: ConveyMetricsMissing
-        exp_alerts: 
-          - exp_labels: 
+        exp_alerts:
+          - exp_labels:
               severity: warning
               owner: convey-operator
               job: convey
               instance: mock
-            exp_annotations: 
+            exp_annotations:
               summary: Convey scrape succeeds but operational metrics are missing
               runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
   - interval: 1m
-    input_series: 
+    input_series:
       []
-    alert_rule_test: 
+    alert_rule_test:
       - eval_time: 3m
         alertname: ConveyScrapeUnavailable
-        exp_alerts: 
-          - exp_labels: 
+        exp_alerts:
+          - exp_labels:
               severity: critical
               owner: convey-operator
               job: convey
-            exp_annotations: 
+            exp_annotations:
               *exp_annotations
+  - interval: 1m
+    input_series:
+      - series: "convey_http_requests_total{status=\"500\",path=\"/v1/messages\"}"
+        values: 0+10x20 200+0x15
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ConveyApiErrors
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              owner: convey-operator
+            exp_annotations:
+              summary: Convey API errors exceed 5 percent
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 30m
+        alertname: ConveyApiErrors
+        exp_alerts:
+          []
+  - interval: 1m
+    input_series:
+      - series: "convey_http_request_duration_seconds_bucket{path=\"/v1/messages\",method=\"POST\",le=\"0.5\"}"
+        values: 0+0x20 10+10x15
+      - series: "convey_http_request_duration_seconds_bucket{path=\"/v1/messages\",method=\"POST\",le=\"1\"}"
+        values: 10+10x35
+      - series: "convey_http_request_duration_seconds_bucket{path=\"/v1/messages\",method=\"POST\",le=\"+Inf\"}"
+        values: 10+10x35
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ConveyAcceptanceLatency
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              owner: convey-operator
+            exp_annotations:
+              summary: Convey message acceptance p95 exceeds 500ms
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 30m
+        alertname: ConveyAcceptanceLatency
+        exp_alerts:
+          []
+  - interval: 1m
+    input_series:
+      - series: convey_outbox_oldest_due_seconds
+        values: 90+0x20 0+0x15
+      - series: convey_operational_metrics_available
+        values: 1+0x35
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ConveyRelayBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              owner: convey-operator
+            exp_annotations:
+              summary: Convey relay has messages overdue by more than a minute
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 30m
+        alertname: ConveyRelayBacklog
+        exp_alerts:
+          []
+  - interval: 1m
+    input_series:
+      - series: convey_messages_failed_last_hour
+        values: 20+0x20 0+0x15
+      - series: convey_messages_delivered_last_hour
+        values: 100+0x35
+      - series: convey_operational_metrics_available
+        values: 1+0x35
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ConveyDeliveryFailures
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              owner: convey-operator
+            exp_annotations:
+              summary: Delivery failures are elevated for messages created in the last hour
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 30m
+        alertname: ConveyDeliveryFailures
+        exp_alerts:
+          []
+  - interval: 1m
+    input_series:
+      - series: convey_provider_circuits_open
+        values: 1+0x20 0+0x15
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ConveyProviderCircuitOpen
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              owner: convey-operator
+            exp_annotations:
+              summary: A provider circuit remains open
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 30m
+        alertname: ConveyProviderCircuitOpen
+        exp_alerts:
+          []
+  - interval: 1m
+    input_series:
+      - series: convey_operational_metrics_available
+        values: 0+0x20 1+0x15
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ConveyMetricsUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              owner: convey-operator
+            exp_annotations:
+              summary: Convey cannot refresh database-backed operational metrics
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 30m
+        alertname: ConveyMetricsUnavailable
+        exp_alerts:
+          []

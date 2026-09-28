@@ -10,14 +10,17 @@ const key = crypto.randomUUID();
 const tenant = crypto.randomUUID();
 const originalAuth = env.CONVEY_REQUIRE_AUTH;
 const durations: number[] = [];
-const count = 200;
-const concurrency = 10;
+const sustained = process.argv.includes('--sustained');
+const count = sustained ? 1000 : 200;
+const concurrency = sustained ? 5 : 10;
+const runStarted = performance.now();
 try {
   env.CONVEY_REQUIRE_AUTH = true;
   await queryClient`INSERT INTO tenants(id,name) VALUES(${tenant},'Mock load fixture')`;
   await queryClient`INSERT INTO api_keys(id,tenant_id,team,key_hash,name) VALUES(${key},${tenant},${team},${hashString(key)},'Mock load fixture')`;
   // No workers are started; this profile measures authenticated durable acceptance only.
   for (let offset = 0; offset < count; offset += concurrency) {
+    const batchStarted = performance.now();
     await Promise.all(
       Array.from({ length: concurrency }, async () => {
         const start = performance.now();
@@ -41,6 +44,7 @@ try {
         if (response.status !== 202) throw new Error(`Acceptance rejected: ${response.status}`);
       }),
     );
+    if (sustained) await Bun.sleep(Math.max(0, 100 - (performance.now() - batchStarted)));
   }
   const [messages] = await queryClient`SELECT count(*)::int AS total FROM messages WHERE team=${team}`;
   const [outbox] =
@@ -56,6 +60,8 @@ try {
       {
         mode: 'mock-only',
         profile: {
+          mode: sustained ? 'sustained 50 requests/second' : 'burst',
+          elapsedMs: Math.round(performance.now() - runStarted),
           count,
           concurrency,
           payload: 'single short email',
@@ -65,7 +71,7 @@ try {
         targets: { p95: 250, p99: 1000 },
         passed: p95 <= 250 && p99 <= 1000,
         limitations:
-          'Synthetic acceptance burst only, not network/container latency, sustained load or vendor delivery',
+          'Synthetic local acceptance only; not network/container latency, long-duration soak or vendor delivery',
       },
       null,
       2,
