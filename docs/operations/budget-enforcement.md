@@ -20,15 +20,15 @@ Platform administrators can use `PUT /v1/admin/budgets/:team` with `monthlyBudge
 
 The console loads the selected team's saved policy, committed usage, reserved amount and remaining funds. Saves perform the real API request and report errors. Other existing policy controls are explicitly disabled previews; saving the budget does not deploy them.
 
-The first policy includes already-recorded spend for the current UTC month, converted from ledger USD using the configured rate. Creating it is blocked while that month's earlier sends still have unresolved holds. Currency changes are rejected after accounting begins, preventing historical amounts from being relabeled. Lowering a cap does not undo prior accepted sends or reservations; subsequent reservations are blocked until sufficient funds are available. Soft caps continue accounting without rejecting new estimates. A depleted hard cap also blocks the existing dispatch-stage precheck, including free channels; direct worker reservations permit a zero-cost send when no additional spend is incurred.
+The first policy includes already-recorded spend for the current UTC month, converted from ledger USD using the configured rate. Creating it is blocked while that month's earlier sends still have unresolved holds. Currency changes are rejected after accounting begins, preventing historical amounts from being relabeled. Lowering a cap does not undo prior accepted sends or reservations; subsequent reservations are blocked until sufficient funds are available. Soft caps continue accounting without rejecting new estimates. Budget checks occur at atomic provider reservation after pricing is known. Free sends remain allowed when the cap is exhausted or lowered below existing exposure; positive estimates are blocked.
 
 Reports convert `usedBudgetUsd` and `remainingBudgetUsd` into actual USD units and include outstanding reservations when calculating utilization and remaining funds. Teams without a policy no longer receive an invented $1,000 budget.
 
 ## Rollout and reconciliation
 
 - Initialize the complete canonical schema in a fresh development/test database before starting workers. Pre-release schemas are replaced explicitly rather than upgraded; see [baseline policy](schema-baseline.md).
-- Reconcile historical `budget_usage` with the ledger before relying on a production cap. The migration preserves existing figures; it cannot establish which historical provider calls were charged.
-- Review configured provider estimates and FX rates against the account's pricing. Unknown providers still use the existing generic estimate; it is not a verified vendor price.
+- For a restored current-baseline database, reconcile usage, ledger and outstanding holds before enabling dispatch. Pre-release initialization does not upgrade historical stores.
+- Review configured provider estimates and FX rates against the account's pricing. Production providers require explicit configured prices; a development estimate is not verified vendor pricing.
 - Investigate outstanding holds using `budget_reservations` filtered by team, month and `state = 'reserved'`. Correlate the opaque message ID, provider and timestamps with provider records.
 - After confirming acceptance, use the internal `BudgetService.settle(id, 'committed')`. After confirming no acceptance, use `BudgetService.settle(id, 'released')`. These operations serialize with reservations and update accounting atomically. Never delete a hold or edit monthly totals to free funds while its outcome is unknown.
 - If a worker crashes before sending or after acceptance, its hold remains until reconciliation. A committed charge does not guarantee all later message-status writes completed; repair status from provider evidence without re-sending the old job. There is no claim of exactly-once delivery across a third-party network.
@@ -37,7 +37,7 @@ Reports convert `usedBudgetUsd` and `remainingBudgetUsd` into actual USD units a
 
 The dedicated budget suite exercises concurrent cap exhaustion, duplicate jobs and settlement, rollback after a ledger write failure, single rejection versus uncertain bulk acceptance, sandbox isolation, intentional replays and stale jobs, month rollover, FX conversion, tiny-cost rounding, SMS segmentation, policy edits, existing spend, invalid values and report currency units. Strict-auth tests verify the actual read/write endpoints and role boundaries. Console tests verify saved state and load failure behavior.
 
-At this revision, 1,018 server tests, 17 strict-auth tests and 143 console tests pass locally; all six workspace typechecks pass. Biome retains three existing warnings. Hosted PR checks are the final merge gate. No production deployment or vendor billing reconciliation was performed.
+At this revision, 1,018 server tests, 17 strict-auth tests and 143 console tests pass locally; all six workspace typechecks pass. Biome retains three existing warnings. Release publication runs mandatory validation; local implementation handoffs do not wait for hosted CI. No production deployment or vendor billing reconciliation was performed.
 
 ## Operator reconciliation
 

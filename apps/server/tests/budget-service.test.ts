@@ -326,6 +326,41 @@ describe('Durable budget enforcement', () => {
     expect((await BudgetService.reserve(charge(hard, 1))).allowed).toBe(false);
     expect((await BudgetService.reserve(charge(hard, 0))).allowed).toBe(true);
   });
+  it('permits free reservations after a cap is lowered below existing exposure', async () => {
+    const team = await policy('1');
+    const paid = await BudgetService.reserve(charge(team, 1));
+    await BudgetService.settle(paid.id, 'committed');
+    await db.update(budgetPolicies).set({ monthlyBudgetUsd: '0' }).where(eq(budgetPolicies.team, team));
+    expect((await BudgetService.reserve(charge(team, 0))).allowed).toBe(true);
+    expect((await BudgetService.reserve(charge(team, 0.0001))).allowed).toBe(false);
+    expect((await BudgetService.get(team))?.usedAmount).toBe(1);
+  });
+  it('preserves ledger and hold invariants through concurrent settlement and repeated reconciliation', async () => {
+    const team = await policy('1');
+    const attempts = await Promise.all(
+      Array.from({ length: 40 }, (_, i) => BudgetService.reserve(charge(team, 0.1, `parallel-${i}`))),
+    );
+    const accepted = attempts.filter((row) => row.allowed);
+    expect(accepted).toHaveLength(10);
+    await Promise.all(
+      accepted
+        .slice(0, 4)
+        .flatMap((row) => [BudgetService.settle(row.id, 'committed'), BudgetService.settle(row.id, 'committed')]),
+    );
+    await Promise.all(accepted.slice(4, 7).map((row) => BudgetService.settle(row.id, 'released')));
+    const state = await BudgetService.get(team);
+    expect(state?.usedAmount).toBe(0.4);
+    expect(state?.reservedAmount).toBe(0.3);
+    const ledger = await db.select().from(budgetLedger).where(eq(budgetLedger.team, team));
+    expect(ledger).toHaveLength(4);
+    expect(ledger.reduce((sum, row) => sum + Number(row.amountInPolicyCurrency), 0)).toBeCloseTo(state!.usedAmount, 4);
+    for (const row of accepted)
+      expect((await BudgetService.reserve(charge(team, 0.1, `parallel-${attempts.indexOf(row)}`))).reason).toBe(
+        'duplicate',
+      );
+    // Unknown outcomes remain reserved even after retries; they never expire to free capacity.
+    expect((await BudgetService.get(team))?.reservedAmount).toBe(0.3);
+  });
   it('rejects corrupt amounts, unknown currencies and duplicate team policies', async () => {
     const team = await policy('1');
     for (const bad of [-1, NaN, Infinity]) await expect(BudgetService.reserve(charge(team, bad))).rejects.toThrow();
