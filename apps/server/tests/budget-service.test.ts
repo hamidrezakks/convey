@@ -36,7 +36,7 @@ async function policy(limit: string, currency = 'USD', hardStop = true) {
     .values({ id: team, team, currency, monthlyBudgetUsd: limit, hardStop: String(hardStop) });
   return team;
 }
-function charge(team: string, amount = 0.01, key = crypto.randomUUID()) {
+function charge(team: string, amount = 0.01, key: string = crypto.randomUUID()) {
   return { key, team, amount, messageId: generateMessageId(), channel: 'sms', providerId: 'test', currency: 'USD' };
 }
 afterAll(async () => {
