@@ -1,0 +1,73 @@
+rule_files: 
+  - prometheus-rules.yml
+evaluation_interval: 1m
+tests: 
+  - interval: 1m
+    input_series: 
+      - series: "up{job=\"convey\",instance=\"mock\"}"
+        values: 1+0x15
+      - series: "convey_operational_metrics_available{job=\"convey\",instance=\"mock\"}"
+        values: 1+0x15
+      - series: "convey_budget_stale_reservations{job=\"convey\",instance=\"mock\"}"
+        values: 2+0x7 0+0x7
+    alert_rule_test: 
+      - eval_time: 6m
+        alertname: ConveyStaleBudgetHolds
+        exp_alerts: 
+          - exp_labels: 
+              severity: warning
+              owner: convey-operator
+              job: convey
+              instance: mock
+            exp_annotations: 
+              summary: Uncertain budget holds require evidence-based reconciliation
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 10m
+        alertname: ConveyStaleBudgetHolds
+        exp_alerts: 
+          []
+  - interval: 1m
+    input_series: 
+      - series: "up{job=\"convey\",instance=\"mock\"}"
+        values: 0+0x4 1+0x8
+    alert_rule_test: 
+      - eval_time: 3m
+        alertname: ConveyScrapeUnavailable
+        exp_alerts: 
+          - exp_labels: 
+              severity: critical
+              owner: convey-operator
+              job: convey
+              instance: mock
+            exp_annotations: 
+              &exp_annotations
+              summary: Convey metrics target is unavailable or absent
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+      - eval_time: 8m
+        alertname: ConveyScrapeUnavailable
+        exp_alerts: 
+          []
+      - eval_time: 8m
+        alertname: ConveyMetricsMissing
+        exp_alerts: 
+          - exp_labels: 
+              severity: warning
+              owner: convey-operator
+              job: convey
+              instance: mock
+            exp_annotations: 
+              summary: Convey scrape succeeds but operational metrics are missing
+              runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
+  - interval: 1m
+    input_series: 
+      []
+    alert_rule_test: 
+      - eval_time: 3m
+        alertname: ConveyScrapeUnavailable
+        exp_alerts: 
+          - exp_labels: 
+              severity: critical
+              owner: convey-operator
+              job: convey
+            exp_annotations: 
+              *exp_annotations
