@@ -25,11 +25,11 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
 
     const body = (await response.json()) as ApiResponse;
     expect(body.timestamp).toBeDefined();
-    expect(Number(body.throughputRps)).toBeGreaterThan(0);
-    expect(Number((body.latency as ApiResponse).p95Ms)).toBeGreaterThan(0);
+    expect(body.throughputRps).toBeNull();
+    expect((body.latency as ApiResponse).p95Ms).toBeNull();
     expect((body.queues as ApiResponse).providerSendDepth).toBeDefined();
     expect((body.runtimeGuard as ApiResponse).heapGuardThresholdPercent).toBe(85.0);
-    expect(((body.subsystems as ApiResponse).postgresPool as ApiResponse).status).toBe('healthy');
+    expect(((body.subsystems as ApiResponse).postgresPool as ApiResponse).status).toBe('unknown');
   });
 
   it('GET /v1/admin/messages lists messages with pagination and filtering', async () => {
@@ -211,8 +211,8 @@ describe('Convey Admin & Telemetry API Test Suite', () => {
     );
     expect(testRes.status).toBe(200);
     const testBody = (await testRes.json()) as ApiResponse;
-    expect(testBody.success).toBe(true);
-    expect(Number(testBody.latencyMs)).toBeGreaterThan(0);
+    expect(testBody.success).toBe(false);
+    expect(testBody.latencyMs).toBeNull();
 
     // 4. Export .env Vault
     const exportRes = await app.handle(new Request('http://localhost:3000/v1/admin/providers/env-export'));

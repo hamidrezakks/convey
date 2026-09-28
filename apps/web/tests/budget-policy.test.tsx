@@ -20,11 +20,17 @@ const loaded: BudgetPolicyDto = {
 };
 const get = spyOn(api, 'getBudget');
 const save = spyOn(api, 'saveBudget');
+const holds = spyOn(api, 'getBudgetHolds').mockResolvedValue([]);
+const reconcile = spyOn(api, 'reconcileBudgetHold').mockResolvedValue({ success: true });
 afterAll(() => {
+  holds.mockRestore();
+  reconcile.mockRestore();
   get.mockRestore();
   save.mockRestore();
 });
 afterEach(() => {
+  holds.mockResolvedValue([]);
+  reconcile.mockClear();
   get.mockReset();
   save.mockReset();
 });
@@ -58,4 +64,30 @@ it('shows load errors and prevents saving fabricated defaults', async () => {
   await waitFor(() => expect(view.getByRole('alert').textContent).toContain('could not be loaded'));
   expect(view.getByText('Save Budget').closest('button')?.disabled).toBe(true);
   expect(save).not.toHaveBeenCalled();
+});
+
+it('shows stale holds and requires evidence before reconciliation', async () => {
+  get.mockResolvedValue(loaded);
+  holds.mockResolvedValue([
+    {
+      id: 'hold',
+      messageId: 'message',
+      providerId: 'provider',
+      amount: '0.50',
+      currency: 'EUR',
+      createdAt: new Date().toISOString(),
+      stale: true,
+    },
+  ]);
+  const view = mount();
+  fireEvent.change(view.getByLabelText('Budget team ID'), { target: { value: 'alpha' } });
+  await waitFor(() => expect(view.getByText('Confirm charge')).toBeDefined());
+  expect(view.getByText('Confirm charge').closest('button')?.disabled).toBe(true);
+  fireEvent.change(view.getByLabelText('Reconciliation evidence'), {
+    target: { value: 'Vendor confirmed acceptance' },
+  });
+  fireEvent.click(view.getByText('Confirm charge'));
+  await waitFor(() =>
+    expect(reconcile).toHaveBeenCalledWith('alpha', 'hold', 'committed', 'Vendor confirmed acceptance'),
+  );
 });

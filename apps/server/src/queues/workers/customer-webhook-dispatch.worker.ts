@@ -8,6 +8,7 @@ import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
 import { formatBullMQPrefix } from '../../utils/redis-keys';
 import { TraceContext, type TraceContextData } from '../../utils/trace-context';
+import { postCustomerWebhook } from '../../utils/webhook-destination';
 import { redisConnectionOptions } from '../connection';
 import { customerWebhookDispatchQueue } from '../queue-definitions';
 
@@ -59,17 +60,8 @@ export async function processCustomerWebhookJob(data: CustomerWebhookJobData): P
   let errorMsg: string | null = null;
 
   try {
-    const res = await fetch(sub.url, {
-      method: 'POST',
-      headers,
-      body: payloadJson,
-      signal: AbortSignal.timeout(10000), // 10s timeout
-    });
-
-    statusCode = res.status;
-    if (!res.ok) {
-      errorMsg = `HTTP Error ${res.status}: ${res.statusText}`;
-    }
+    statusCode = await postCustomerWebhook(sub.url, headers, payloadJson);
+    if (statusCode < 200 || statusCode >= 300) errorMsg = `HTTP Error ${statusCode}`;
   } catch (err: unknown) {
     errorMsg = err instanceof Error ? err.message : String(err);
   }

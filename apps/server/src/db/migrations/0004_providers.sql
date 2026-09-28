@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS providers (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE providers ADD COLUMN IF NOT EXISTS base_currency TEXT NOT NULL DEFAULT 'USD';
 
 CREATE INDEX IF NOT EXISTS idx_providers_channel_priority ON providers (channel, priority, enabled);
 CREATE INDEX IF NOT EXISTS idx_providers_channel_enabled ON providers (channel, enabled);

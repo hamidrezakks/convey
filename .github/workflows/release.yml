@@ -1,9 +1,6 @@
 name: Release & Deployment Pipeline
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       bump_type:
@@ -31,7 +28,7 @@ on:
         description: 'Dry Run Mode (Simulate without committing, tagging, or publishing)'
         required: false
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: release-${{ github.ref }}
@@ -97,7 +94,7 @@ jobs:
       - name: Evaluate Dry Run Flag
         id: evaluate-dryrun
         run: |
-          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'true' }}"
           echo "dry_run=$DRY_RUN" >> $GITHUB_OUTPUT
 
       - name: Compute release candidate

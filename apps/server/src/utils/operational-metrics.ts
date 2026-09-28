@@ -16,6 +16,7 @@ export function createOperationalMetrics(registry: Registry) {
     'retry_attempts_last_hour',
     'Provider attempts created in the last hour with attempt number above one',
   );
+  const staleHolds = gauge('budget_stale_reservations', 'Unresolved budget reservations older than one hour');
   const openCircuits = gauge('provider_circuits_open', 'Provider circuits currently open in this process');
   let refreshedAt = 0;
   let pending: Promise<void> | undefined;
@@ -25,6 +26,7 @@ export function createOperationalMetrics(registry: Registry) {
       const rows = await queryClient.begin(async (sql) => {
         await sql`SET LOCAL statement_timeout = '2000ms'`;
         return sql`SELECT
+          (SELECT count(*) FROM budget_reservations WHERE state = 'reserved' AND created_at < now() - interval '1 hour') AS stale_holds,
           (SELECT count(*) FROM outbox WHERE state IN ('pending', 'processing') AND available_at <= now()) AS backlog,
           (SELECT coalesce(extract(epoch FROM now() - min(available_at)), 0) FROM outbox WHERE state IN ('pending', 'processing') AND available_at <= now()) AS age,
           (SELECT count(*) FROM messages WHERE created_at >= now() - interval '1 hour' AND state IN ('delivered', 'opened', 'read')) AS delivered,
@@ -32,6 +34,7 @@ export function createOperationalMetrics(registry: Registry) {
           (SELECT count(*) FROM message_attempts WHERE created_at >= now() - interval '1 hour' AND attempt_no > 1) AS retries`;
       });
       const row = rows[0];
+      staleHolds.set(Number(row.stale_holds));
       backlog.set(Number(row.backlog));
       age.set(Number(row.age));
       delivered.set(Number(row.delivered));

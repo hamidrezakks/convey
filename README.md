@@ -4,6 +4,8 @@ Convey is a standalone communication service built with Bun, Elysia, PostgreSQL 
 
 ## Current status
 
+Convey is **pre-release**. Schema changes update the canonical CREATE definitions; use fresh disposable stores after a baseline change. Backward compatibility starts with the first published release. See the [schema and release policy](docs/operations/schema-baseline.md).
+
 The production-hardening branch adds authenticated administration, database-backed roles, team ownership, scoped message access, signed webhook ingestion, recoverable outbox claims and release validation. The review fixes pass the canonical-schema server, security, console, plugin and SDK checks. This is **not a production-readiness certification**; see [verification results and rollout requirements](docs/operations/hardening-verification.md) before deploying.
 
 Implemented paths include message acceptance and scheduling, team-scoped idempotency, provider dispatch, message history, failed-message replay, and the authenticated console. Public message identifiers are opaque `msg_<ULID>` values.
@@ -23,7 +25,7 @@ Experimental resilience utilities, benchmark results and provider catalog entrie
 
 ## Local setup
 
-Use the Bun version in `.bun-version`, PostgreSQL 18 and a compatible Redis service. Use a disposable database for tests; several legacy tests create or remove fixtures.
+Use the Bun version in `.bun-version`, PostgreSQL 18 and a compatible Redis service. Use a disposable database for tests; several integration tests create or remove fixtures.
 
 ```sh
 bun install --frozen-lockfile

@@ -3,17 +3,17 @@ import { useI18n } from '../../i18n';
 import { Card, CardContent } from '../ui/card';
 
 export interface OpsHealthSummaryProps {
-  deliveryRate?: number;
-  totalSent?: number;
-  avgSpeedMs?: number;
-  costSavedUsd?: number;
+  deliveryRate?: number | null;
+  totalSent?: number | null;
+  avgSpeedMs?: number | null;
+  costSavedUsd?: number | null;
 }
 
 export function OpsHealthSummary({
-  deliveryRate = 99.85,
+  deliveryRate,
   totalSent: _totalSent,
-  avgSpeedMs = 12,
-  costSavedUsd = 12.6,
+  avgSpeedMs,
+  costSavedUsd,
 }: OpsHealthSummaryProps) {
   const { t } = useI18n();
 
@@ -30,15 +30,15 @@ export function OpsHealthSummary({
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h2 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-white tracking-tight whitespace-normal sm:whitespace-nowrap">
-                  {t('mode.systemHealthy')}
+                  Service overview
                 </h2>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 whitespace-nowrap shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  100% Operational
+                  Live observations
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed max-w-xl">
-                {t('mode.systemHealthyDesc')}
+                Unavailable measurements are shown explicitly.
               </p>
             </div>
           </div>
@@ -55,7 +55,7 @@ export function OpsHealthSummary({
                   {t('mode.deliverySuccess')}
                 </div>
                 <div className="text-sm sm:text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                  {deliveryRate}%
+                  {deliveryRate ?? 'Unavailable'}%
                 </div>
               </div>
             </div>
@@ -70,7 +70,11 @@ export function OpsHealthSummary({
                   {t('mode.averageDeliverySpeed')}
                 </div>
                 <div className="text-sm sm:text-base font-bold font-mono text-amber-600 dark:text-amber-400">
-                  {avgSpeedMs < 1000 ? `${avgSpeedMs}ms` : `${(avgSpeedMs / 1000).toFixed(2)}s`}
+                  {avgSpeedMs == null
+                    ? 'Unavailable'
+                    : avgSpeedMs < 1000
+                      ? `${avgSpeedMs}ms`
+                      : `${(avgSpeedMs / 1000).toFixed(2)}s`}
                 </div>
               </div>
             </div>
@@ -85,7 +89,7 @@ export function OpsHealthSummary({
                   {t('mode.totalCostSaved')}
                 </div>
                 <div className="text-sm sm:text-base font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                  ${costSavedUsd.toFixed(2)}
+                  ${costSavedUsd?.toFixed(2) ?? 'Unavailable'}
                 </div>
               </div>
             </div>

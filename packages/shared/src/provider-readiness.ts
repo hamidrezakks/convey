@@ -1,4 +1,4 @@
-/** These legacy placeholders must not be advertised as usable native integrations. */
+/** These incomplete placeholders must not be advertised as usable native integrations. */
 export const INCOMPLETE_NATIVE_PROVIDERS = [
   'afro-sms',
   'burst-sms',

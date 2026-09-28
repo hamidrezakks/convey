@@ -54,7 +54,7 @@
     "biome:check": "biome check .",
     "biome:format": "biome format --write .",
     "biome:lint": "biome lint .",
-    "db:generate": "bun --filter @convey/server db:generate",
+    "db:check": "bun --filter @convey/server db:check",
     "db:migrate": "bun --filter @convey/server db:migrate",
     "db:seed:million": "bun --filter @convey/server db:seed:million",
     "typecheck": "bun --filter @convey/website generate && bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p apps/plugins/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p packages/sdk/tsconfig.json",

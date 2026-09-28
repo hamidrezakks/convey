@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { messages } from '../../db/schema';
+import { CascadeManager } from '../../modules/messaging/cascade-manager';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
 import { JobName, MessageState, QueueName } from '../../modules/messaging/messaging.types';
 import { logger } from '../../utils/logger';
@@ -19,6 +20,11 @@ export interface CallbackJobData {
 export async function processCallbackJob(data: CallbackJobData): Promise<void> {
   const { messageId, channel, event, timestamp } = data;
   logger.info('CallbackWorker', `Processed status callback for ${messageId} (${channel}: ${event}) at ${timestamp}`);
+
+  if ([MessageState.DELIVERED, MessageState.OPENED, MessageState.READ].includes(event as MessageState)) {
+    await CascadeManager.cancelRemainingSteps(messageId);
+    return;
+  }
 
   // Trigger automated fallback if delivery failed or bounced and fallback rules are defined
   if (event === MessageState.FAILED || event === MessageState.BOUNCED) {

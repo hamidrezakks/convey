@@ -1,7 +1,7 @@
 import { Channel, type MessageStatus, type SuppressionReason } from '@convey/shared';
 import type { Elysia } from 'elysia';
 import { AdminDocs } from '../../openapi';
-import { guardApiRequest } from '../auth/auth.middleware';
+import { guardApiRequest, verifyApiAuth } from '../auth/auth.middleware';
 import { jsonResponse } from '../messaging/messaging.controller';
 import { BudgetError, BudgetService } from '../policies/budget.service';
 import { CarrierCostMatrix } from '../policies/carrier-cost-matrix';
@@ -204,6 +204,24 @@ export function adminController(app: Elysia) {
         return jsonResponse(policies, 200);
       })
 
+      .get('/budgets/:team/holds', async ({ params }) => jsonResponse(await BudgetService.listHolds(params.team), 200))
+      .post('/budgets/:team/holds/:id/reconcile', async ({ params, body, headers }) => {
+        const input = body as { outcome?: string; reason?: string };
+        if (!input || !['committed', 'released'].includes(input.outcome || '') || typeof input.reason !== 'string')
+          return jsonResponse({ error: 'Outcome and evidence note are required' }, 400);
+        const auth = await verifyApiAuth(headers);
+        try {
+          await BudgetService.settle(params.id, input.outcome as 'committed' | 'released', {
+            team: params.team,
+            actorId: auth.apiKeyId || 'development',
+            reason: input.reason,
+          });
+          return jsonResponse({ success: true }, 200);
+        } catch (error) {
+          if (error instanceof BudgetError) return jsonResponse({ error: error.message }, 409);
+          throw error;
+        }
+      })
       .get('/budgets/:team', async ({ params }: { params: { team: string } }) => {
         try {
           return jsonResponse(await BudgetService.get(params.team), 200);

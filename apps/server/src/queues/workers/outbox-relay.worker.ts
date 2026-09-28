@@ -6,7 +6,14 @@ import { heapMemoryGuard } from '../../utils/heap-guard';
 import { logger } from '../../utils/logger';
 import { createTaskLoop, type TaskLoop } from '../../utils/task-loop';
 import { type BunNativeRedis, redisClient } from '../connection';
-import { dispatchBulkQueue, dispatchHighQueue, dispatchNormalQueue } from '../queue-definitions';
+import {
+  callbackQueue,
+  customerWebhookDispatchQueue,
+  dispatchBulkQueue,
+  dispatchHighQueue,
+  dispatchNormalQueue,
+  webhookIngestQueue,
+} from '../queue-definitions';
 
 export type { OutboxPayload };
 
@@ -34,6 +41,7 @@ function buildJobBatches(pendingRecords: Array<typeof outbox.$inferSelect>) {
   const bulkPriorityJobs: QueueJobItem[] = [];
 
   for (const record of pendingRecords) {
+    if (record.type.startsWith('webhook.')) continue;
     const payload = record.payload;
     const priorityKey = payload.priority || MessagePriority.NORMAL;
     const jobItem: QueueJobItem = {
@@ -63,6 +71,27 @@ function buildJobBatches(pendingRecords: Array<typeof outbox.$inferSelect>) {
 /**
  * Dispatches prepared job batches to BullMQ queues in parallel.
  */
+async function dispatchWebhookRecords(records: OutboxRecord[]) {
+  for (const record of records) {
+    const queue =
+      record.type === 'webhook.ingest'
+        ? webhookIngestQueue
+        : record.type === 'webhook.customer'
+          ? customerWebhookDispatchQueue
+          : record.type === 'webhook.callback'
+            ? callbackQueue
+            : null;
+    if (!queue) continue;
+    await queue.add(record.type === 'webhook.ingest' ? JobName.PROCESS_WEBHOOK : record.type, record.payload, {
+      jobId: `outbox_${record.id}`,
+      attempts: 10,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: { age: 86400 },
+      removeOnFail: false,
+    });
+  }
+}
+
 async function dispatchToBullMQQueues(batches: {
   highPriorityJobs: QueueJobItem[];
   normalPriorityJobs: QueueJobItem[];
@@ -144,6 +173,7 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
   const batches = buildJobBatches(pendingRecords);
   const claimedIds = pendingRecords.map((record) => record.id);
   try {
+    await dispatchWebhookRecords(pendingRecords);
     await dispatchToBullMQQueues(batches);
     await db
       .update(outbox)
@@ -161,7 +191,7 @@ export async function processOutboxBatchForShard(shardId: number, batchSize = 25
 }
 
 /**
- * Standard batch processor across all shards (backward-compatible).
+ * Batch processor across all shards for operational tooling.
  */
 export async function processOutboxBatch(batchSize = 500): Promise<number> {
   if (heapMemoryGuard.shouldThrottle()) {
@@ -211,6 +241,7 @@ export async function processOutboxBatch(batchSize = 500): Promise<number> {
   const batches = buildJobBatches(pendingRecords);
   const claimedIds = pendingRecords.map((record) => record.id);
   try {
+    await dispatchWebhookRecords(pendingRecords);
     await dispatchToBullMQQueues(batches);
     await db
       .update(outbox)

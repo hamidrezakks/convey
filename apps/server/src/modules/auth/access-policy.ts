@@ -6,6 +6,7 @@ export enum UserRole {
 }
 
 export interface AuthIdentity {
+  apiKeyId?: string;
   tenantId: string;
   team: string;
   keyName: string;

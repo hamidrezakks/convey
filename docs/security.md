@@ -45,7 +45,7 @@ Convey verifies the exact body before parsing JSON or form data. Timestamps outs
 
 The queue uses a deterministic identifier derived from provider, flow and body, and retains completed/failed jobs for 24 hours. This suppresses duplicate enqueue within the retention window; it is not permanent exactly-once processing. Identical legitimate callback bodies can also deduplicate during that period. Queue write failures return an error so the sender can retry.
 
-`CONVEY_ALLOW_UNSIGNED_WEBHOOKS=true` is only honored outside production. It exists for isolated legacy tests and simulators. Do not use it as production migration strategy.
+`CONVEY_ALLOW_UNSIGNED_WEBHOOKS=true` is only honored outside production. It exists for isolated tests and simulators. Do not use it as production migration strategy.
 
 ## Logs and storage
 

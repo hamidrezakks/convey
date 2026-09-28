@@ -146,7 +146,7 @@ export function ProvidersPage() {
         enableSorting: true,
         cell: ({ row }) => (
           <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
-            {formatDurationMs(row.emaLatencyMs ?? 22)}
+            {formatDurationMs(row.emaLatencyMs)}
           </span>
         ),
       },
@@ -157,7 +157,7 @@ export function ProvidersPage() {
         enableSorting: true,
         cell: ({ row }) => (
           <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-            {(row.rollingSuccessRatePercent ?? 100).toFixed(1)}%
+            {row.rollingSuccessRatePercent?.toFixed(1) ?? 'Unavailable'}%
           </span>
         ),
       },
@@ -254,9 +254,7 @@ export function ProvidersPage() {
         header: t('providers.colLatency'),
         enableSorting: true,
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-sky-600 dark:text-sky-300">
-            {formatDurationMs(row.emaLatencyMs ?? 0)}
-          </span>
+          <span className="font-mono text-xs text-sky-600 dark:text-sky-300">{formatDurationMs(row.emaLatencyMs)}</span>
         ),
       },
       {
@@ -266,7 +264,7 @@ export function ProvidersPage() {
         enableSorting: true,
         cell: ({ row }) => (
           <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-            {(row.rollingSuccessRatePercent ?? 100).toFixed(1)}%
+            {row.rollingSuccessRatePercent?.toFixed(1) ?? 'Unavailable'}%
           </span>
         ),
       },
@@ -283,7 +281,7 @@ export function ProvidersPage() {
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
             }`}
           >
-            Z: {(row.anomalyZScore ?? 0).toFixed(2)}
+            Z: {row.anomalyZScore?.toFixed(2) ?? 'Unavailable'}
           </span>
         ),
       },

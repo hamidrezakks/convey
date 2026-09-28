@@ -91,7 +91,9 @@ export function WebhooksPage() {
         id: 'avgLatencyMs',
         header: t('webhooks.colLatency'),
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">{row.avgLatencyMs || 35}ms</span>
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
+            {row.avgLatencyMs ?? 'Unavailable'}ms
+          </span>
         ),
       },
       {

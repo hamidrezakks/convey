@@ -6,6 +6,7 @@ import {
   type DlqReplayRequest,
   type DlqReplayResult,
   formatCurrencyAmount,
+  isNativeProviderIncomplete,
   type LiveTelemetrySnapshot,
   type MessageDetailDto,
   type MessagePriority,
@@ -46,6 +47,7 @@ import { AuditLogService, UserRole } from '../auth/audit-log.service';
 import { DlqService } from '../messaging/dlq.service';
 import { computePartitionWindow, fetchMessageByPublicId, MessagingService } from '../messaging/messaging.service';
 import type { SendMessageRequest } from '../messaging/messaging.types';
+import { validateProviderPrice } from '../policies/provider-pricing';
 import { CircuitState as InternalCircuitState, providerCircuitBreaker } from '../providers/core/circuit-breaker';
 import { selfHealingEngine } from '../providers/core/self-healing';
 import { getProviderBaseCurrency, getProviderRate, getProviderUnitCost } from '../providers/core/smart-router';
@@ -83,7 +85,7 @@ export class AdminService {
       const [msgStats] = await db
         .select({
           total: count(),
-          delivered: count(sql`CASE WHEN ${messages.state} IN ('delivered', 'provider_accepted') THEN 1 END`),
+          delivered: count(sql`CASE WHEN ${messages.state} IN ('delivered', 'opened', 'read') THEN 1 END`),
           failed: count(sql`CASE WHEN ${messages.state} = 'failed' THEN 1 END`),
         })
         .from(messages)
@@ -119,28 +121,28 @@ export class AdminService {
         activeSuppressions: totalActiveSuppressions,
       },
       latencyPercentiles: {
-        p50Ms: 3.42,
-        p95Ms: 8.95,
-        p99Ms: 24.1,
+        p50Ms: null,
+        p95Ms: null,
+        p99Ms: null,
         slaThresholdMs: 350.0,
       },
       queues: {
         outboxRelay: totalDlqCount,
-        messageDispatch: 0,
-        providerSend: 0,
-        scheduledPromoter: 0,
-        customerWebhook: 0,
+        messageDispatch: null,
+        providerSend: null,
+        scheduledPromoter: null,
+        customerWebhook: null,
         activeWorkers: Object.keys(readiness.activeWorkers || {}).length,
       },
       runtime: {
         heapUsedMb: Number((memory.heapUsed / 1024 / 1024).toFixed(1)),
         heapTotalMb: Number((memory.heapTotal / 1024 / 1024).toFixed(1)),
         heapSaturationPercent: Number(((memory.heapUsed / memory.heapTotal) * 100).toFixed(1)),
-        eventLoopLagMs: 0.85,
+        eventLoopLagMs: null,
       },
       whatsappCostSavings: {
-        templateConvertedToSessionCount: 0,
-        estimatedUsdSaved: 0.0,
+        templateConvertedToSessionCount: null,
+        estimatedUsdSaved: null,
       },
     };
   }
@@ -181,6 +183,7 @@ export class AdminService {
           occurredAt: messageEvents.occurredAt,
         })
         .from(messageEvents)
+        .where(gte(messageEvents.createdAt, new Date(Date.now() - 86400_000)))
         .orderBy(desc(messageEvents.occurredAt))
         .limit(10);
 
@@ -198,33 +201,33 @@ export class AdminService {
 
     return {
       timestamp: new Date().toISOString(),
-      throughputRps: Number(Math.min(5000, 100 + outboxPending * 5).toFixed(1)),
+      throughputRps: null,
       latency: {
-        p50Ms: 3.5,
-        p95Ms: 8.2,
-        p99Ms: 18.0,
+        p50Ms: null,
+        p95Ms: null,
+        p99Ms: null,
         slaBreachThresholdMs: 350.0,
       },
       queues: {
         outboxRelayDepth: outboxPending,
-        messageDispatchDepth: 0,
-        providerSendDepth: 0,
-        scheduledPromoterDepth: 0,
-        customerWebhookDepth: 0,
-        activeWorkersCount: Object.keys(readiness.activeWorkers || {}).length || 8,
-        autoscalerTargetConcurrency: 16,
+        messageDispatchDepth: null,
+        providerSendDepth: null,
+        scheduledPromoterDepth: null,
+        customerWebhookDepth: null,
+        activeWorkersCount: Object.keys(readiness.activeWorkers || {}).length,
+        autoscalerTargetConcurrency: null,
       },
       runtimeGuard: {
         v8HeapUsedMb: Number((memory.heapUsed / 1024 / 1024).toFixed(1)),
         v8HeapTotalMb: Number((memory.heapTotal / 1024 / 1024).toFixed(1)),
         v8HeapSaturationPercent: Number(((memory.heapUsed / memory.heapTotal) * 100).toFixed(1)),
         heapGuardThresholdPercent: 85.0,
-        eventLoopLagMs: 0.95,
+        eventLoopLagMs: null,
         loadSheddingActive: false,
       },
       subsystems: {
-        postgresPool: { status: 'healthy', activeConnections: 12, idleConnections: 8 },
-        redisCluster: { status: 'healthy', usedMemoryMb: 14.5, rttMs: 0.35 },
+        postgresPool: { status: 'unknown', activeConnections: null, idleConnections: null },
+        redisCluster: { status: 'unknown', usedMemoryMb: null, rttMs: null },
         activePartition: `messages_y${new Date().getFullYear()}m${String(new Date().getMonth() + 1).padStart(2, '0')}`,
         circuitBreakers: {
           total: breakerCounts.closed + breakerCounts.halfOpen + breakerCounts.open,
@@ -239,7 +242,7 @@ export class AdminService {
         channel: (e.channel?.toUpperCase() || 'EMAIL') as Channel,
         teamId: e.teamId || 'team_core',
         provider: e.provider || 'system',
-        latencyMs: 12.5,
+        latencyMs: null,
         status: e.status,
         timestamp: e.occurredAt.toISOString(),
       })),
@@ -510,14 +513,14 @@ export class AdminService {
         channel: p.channel,
         state,
         rampPercentage: state === CircuitState.HALF_OPEN ? 20 : state === CircuitState.CLOSED ? 100 : 0,
-        emaLatencyMs: p.avgLat,
-        rollingSuccessRatePercent: state === CircuitState.OPEN ? 0.0 : state === CircuitState.HALF_OPEN ? 85.0 : 99.8,
-        anomalyZScore: state === CircuitState.OPEN ? 3.4 : 0.25,
+        emaLatencyMs: null,
+        rollingSuccessRatePercent: null,
+        anomalyZScore: null,
         unitCostUsd,
         baseCurrency,
         unitCostNative,
         formattedUnitCost: formatCurrencyAmount(unitCostNative, baseCurrency),
-        totalCalls24h: Math.floor(Math.random() * 5000 + 1200),
+        totalCalls24h: null,
         isCanaryHealthy: state !== CircuitState.OPEN,
       });
     }
@@ -1207,7 +1210,7 @@ export class AdminService {
             displayName: item.displayName,
             channel: item.channel.toLowerCase(),
             baseCurrency,
-            enabled: true,
+            enabled: false,
             isPrimary: item.defaultPriority === 1,
             priority: item.defaultPriority,
             weight: item.defaultWeight,
@@ -1217,20 +1220,7 @@ export class AdminService {
             createdAt: now,
             updatedAt: now,
           })
-          .onConflictDoUpdate({
-            target: providers.id,
-            set: {
-              displayName: item.displayName,
-              channel: item.channel.toLowerCase(),
-              baseCurrency,
-              enabled: true,
-              priority: item.defaultPriority,
-              weight: item.defaultWeight,
-              credentials: encryptedCredentials,
-              config,
-              updatedAt: now,
-            },
-          });
+          .onConflictDoNothing();
       } catch (err) {
         logger.warn('AdminService', `Could not persist seed provider ${item.id} to DB`, {
           error: (err as Error).message,
@@ -1285,7 +1275,8 @@ export class AdminService {
           const envLines = Object.entries(credentialsMasked).map(([k, v]) => `${k}=${v}`);
           const rate = getProviderRate(p.id);
           const baseCurrency = p.baseCurrency || rate.currency || 'USD';
-          const unitCost = rate.cost;
+          const storedPrice = (p.config as { pricing?: unknown } | null)?.pricing;
+          const unitCost = storedPrice ? validateProviderPrice(storedPrice).cost : rate.cost;
 
           const rawConfig = (p.config as Record<string, unknown>) || {};
           const configMasked = { ...rawConfig };
@@ -1366,6 +1357,8 @@ export class AdminService {
     weight?: number;
     fallbackProviderId?: string;
   }) {
+    if (isNativeProviderIncomplete(data.providerId))
+      throw new Error('Provider is unavailable pending vendor-specific contract certification');
     const catalog = this.getProviderCatalog();
     const catalogItem = catalog.find((c) => c.id === data.providerId);
     const displayName = catalogItem?.displayName || data.providerId.toUpperCase();
@@ -1403,6 +1396,7 @@ export class AdminService {
 
     // Merge Proxy Credentials if proxy.auth is provided with masked password
     let incomingConfig = (data.config ??
+      existingRows[0]?.config ??
       (existingIndex >= 0 ? this.configuredProviders[existingIndex].config : {})) as Record<string, unknown>;
     if (incomingConfig?.proxy) {
       const incomingProxy = { ...(incomingConfig.proxy as ProviderProxyConfig) };
@@ -1426,6 +1420,12 @@ export class AdminService {
     // Encrypt for database storage
     const encryptedCredentials = encryptProviderCredentials(mergedCredentials);
     const now = new Date().toISOString();
+    if (data.unitCost !== undefined)
+      incomingConfig = {
+        ...incomingConfig,
+        pricing: validateProviderPrice({ cost: data.unitCost, currency: baseCurrency }),
+      };
+    if (incomingConfig.pricing !== undefined) validateProviderPrice(incomingConfig.pricing);
     const newConfig = {
       id:
         existingIndex >= 0
@@ -1445,20 +1445,6 @@ export class AdminService {
       createdAt: existingIndex >= 0 ? this.configuredProviders[existingIndex].createdAt : now,
       updatedAt: now,
     };
-
-    if (existingIndex >= 0) {
-      this.configuredProviders[existingIndex] = newConfig;
-    } else {
-      this.configuredProviders.push(newConfig);
-    }
-
-    // Invalidate local in-memory cache and notify cluster
-    invalidateProviderConfigCache(data.providerId);
-    try {
-      await redisClient.publish(formatPubSubChannel('provider-config-updated'), data.providerId);
-    } catch {
-      // non-blocking
-    }
 
     // Persist into database providers table with encrypted credentials
     try {
@@ -1500,6 +1486,21 @@ export class AdminService {
         'AdminService',
         `Failed to persist configured provider ${data.providerId} to database: ${(err as Error).message}`,
       );
+      throw err;
+    }
+
+    if (existingIndex >= 0) {
+      this.configuredProviders[existingIndex] = newConfig;
+    } else {
+      this.configuredProviders.push(newConfig);
+    }
+
+    // Invalidate local in-memory cache and notify cluster
+    invalidateProviderConfigCache(data.providerId);
+    try {
+      await redisClient.publish(formatPubSubChannel('provider-config-updated'), data.providerId);
+    } catch {
+      // non-blocking
     }
 
     const credentialsMasked = maskProviderCredentials(mergedCredentials);
@@ -1563,7 +1564,7 @@ export class AdminService {
     targetTestUrl?: string,
   ) {
     const hasKeys = Object.keys(credentials).length > 0;
-    let latency = Math.round(15 + Math.random() * 30);
+    let latency: number | null = null;
     let diagnostics: ProxyDiagnosticResult | undefined;
 
     const proxyConfig = config?.proxy as ProviderProxyConfig | undefined;
@@ -1579,7 +1580,7 @@ export class AdminService {
           proxyHost: proxyConfig.host,
           proxyPort: proxyConfig.port,
           handshakeLatencyMs: 0,
-          e2eLatencyMs: latency,
+          e2eLatencyMs: latency ?? 0,
           error: (err as Error).message,
           timestamp: new Date().toISOString(),
         };
@@ -1609,12 +1610,12 @@ export class AdminService {
     }
 
     return {
-      success: true,
+      success: Boolean(diagnostics?.success),
       providerId,
       latencyMs: latency,
       message: diagnostics
         ? `Connection successful through ${proxyConfig?.type.toUpperCase()} proxy (${proxyConfig?.host}:${proxyConfig?.port}).`
-        : `Connection successful: Authenticated against ${providerId.toUpperCase()} API endpoint with 200 OK.`,
+        : 'Credentials are configured, but live authentication has not been verified. Use a designated vendor test account and recipient for certification.',
       testedAt: new Date().toISOString(),
       diagnostics,
     };

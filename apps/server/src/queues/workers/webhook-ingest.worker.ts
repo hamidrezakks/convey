@@ -1,9 +1,8 @@
+import { createHash } from 'node:crypto';
 import { Worker } from 'bullmq';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { messageAttempts, messageEvents, messages } from '../../db/schema';
-
-import { CascadeManager } from '../../modules/messaging/cascade-manager';
+import { messageAttempts, messageEvents, messages, outbox, providers } from '../../db/schema';
 import { computePartitionWindow } from '../../modules/messaging/messaging.service';
 import {
   Channel,
@@ -16,14 +15,15 @@ import {
 } from '../../modules/messaging/messaging.types';
 import { ProviderRegistry } from '../../modules/providers/core/provider-registry';
 import { WhatsAppSessionTracker } from '../../modules/providers/whatsapp/session-tracker';
-import { ReportingService } from '../../modules/reports/reporting.service';
+import { ReportingService, recordReceiptMetric } from '../../modules/reports/reporting.service';
 import { SuppressionsService } from '../../modules/suppressions/suppressions.service';
+import { WebhookSubscriptionsService } from '../../modules/webhooks/webhook-subscriptions.service';
 import { buildAttemptTimestampUpdates } from '../../utils/attempts';
 import { generateMessageId } from '../../utils/id';
 import { logger } from '../../utils/logger';
+import { resolveMonotonicState } from '../../utils/message-state';
 import { formatBullMQPrefix, formatRedisKey } from '../../utils/redis-keys';
 import { redisClient, redisConnectionOptions } from '../connection';
-import { callbackQueue, customerWebhookDispatchQueue } from '../queue-definitions';
 
 // ============================================================================
 // Constants & Configuration
@@ -34,6 +34,8 @@ const OPT_IN_KEYWORDS = new Set(['START', 'UNSTOP', 'YES']);
 
 export const TERMINAL_STATES = new Set<string>([
   MessageState.DELIVERED,
+  MessageState.OPENED,
+  MessageState.READ,
   MessageState.FAILED,
   MessageState.BOUNCED,
   MessageState.CANCELLED,
@@ -85,12 +87,7 @@ export function mapStatusToMetric(status: string): MetricType | null {
 }
 
 export function resolveTargetMessageState(currentState: string, newStatus: string): string {
-  if (TERMINAL_STATES.has(currentState) && !TERMINAL_STATES.has(newStatus)) {
-    if (newStatus !== MessageState.OPENED && newStatus !== MessageState.READ) {
-      return currentState;
-    }
-  }
-  return newStatus;
+  return resolveMonotonicState(currentState, newStatus);
 }
 
 export function extractWebhookEvents(
@@ -137,7 +134,7 @@ export function buildWebhookMessageEventRecord(
     messageId: attempt.messageId,
     attemptId: attempt.id,
     channel: attempt.channel,
-    providerId: ev.providerId || attempt.providerId,
+    providerId: attempt.providerId,
     type: `delivery.${ev.normalizedStatus}`,
     source: EventSource.WORKER,
     metadata: { raw: ev.rawPayload },
@@ -188,15 +185,13 @@ export async function handleComplianceKeywords(team: string, senderPhone: string
       identifierType: senderPhone.includes('@') ? IdentifierType.EMAIL : IdentifierType.PHONE,
       reason: 'inbound_opt_out',
       channel: 'ALL',
-    }).catch((err) => logger.warn('WebhookIngest', `Suppression add warning: ${(err as Error).message}`));
+    });
 
     logger.info('WebhookIngest', `Recipient '${senderPhone}' auto-suppressed via keyword '${normalizedKeyword}'`);
   } else if (OPT_IN_KEYWORDS.has(normalizedKeyword)) {
     const existingSupp = await SuppressionsService.findSuppressionByIdentifier(team, senderPhone);
     if (existingSupp) {
-      await SuppressionsService.deleteSuppression(team, existingSupp.id).catch((err) =>
-        logger.warn('WebhookIngest', `Suppression delete warning: ${(err as Error).message}`),
-      );
+      await SuppressionsService.deleteSuppression(team, existingSupp.id);
       logger.info('WebhookIngest', `Recipient '${senderPhone}' un-suppressed via keyword '${normalizedKeyword}'`);
     }
   }
@@ -207,6 +202,7 @@ export async function handleInboundMessage(params: {
   ev: IngestedWebhookEvent;
   inboundData: InboundMessageData;
   now: Date;
+  messageId?: string;
 }): Promise<void> {
   const { effectiveProviderId, ev, inboundData, now } = params;
   const { senderPhone, inboundText, team } = inboundData;
@@ -217,12 +213,17 @@ export async function handleInboundMessage(params: {
   // 2. Handle compliance opt-in/opt-out keywords
   await handleComplianceKeywords(team, senderPhone, inboundText);
 
-  // 3. Record inbound audit event in messageEvents table
-  await db
-    .insert(messageEvents)
-    .values({
+  const receiptId = createHash('sha256')
+    .update(JSON.stringify([effectiveProviderId, team, ev.providerMessageId, ev.rawPayload]))
+    .digest('hex');
+  await db.transaction(async (tx) => {
+    const inserted = await tx.execute(
+      sql`INSERT INTO webhook_event_receipts (id) VALUES (${receiptId}) ON CONFLICT DO NOTHING RETURNING id`,
+    );
+    if (!inserted.length) return;
+    await tx.insert(messageEvents).values({
       id: generateMessageId(),
-      messageId: ev.providerMessageId.startsWith('msg_') ? ev.providerMessageId : `inbound_${Date.now()}`,
+      messageId: params.messageId || `inbound_${receiptId}`,
       channel: Channel.CHAT,
       providerId: effectiveProviderId,
       type: 'inbound.message',
@@ -230,23 +231,19 @@ export async function handleInboundMessage(params: {
       metadata: { raw: ev.rawPayload, sender: senderPhone, text: inboundText },
       occurredAt: ev.timestamp,
       createdAt: now,
-    })
-    .catch((err) => logger.warn('WebhookIngest', `Inbound event insert warning: ${(err as Error).message}`));
-
-  // 4. Dispatch inbound message event to customer webhook subscribers
-  await customerWebhookDispatchQueue
-    .add('dispatch-webhook', {
+    });
+    await WebhookSubscriptionsService.triggerEventForTeam(
       team,
-      event: 'inbound.message_received',
-      data: {
+      'inbound.message_received',
+      {
         from: senderPhone,
         body: inboundText,
         channel: Channel.CHAT,
-        providerId: effectiveProviderId,
         receivedAt: ev.timestamp.toISOString(),
       },
-    })
-    .catch(() => {});
+      tx,
+    );
+  });
 }
 
 // ============================================================================
@@ -271,6 +268,9 @@ export async function findCorrelatedAttempt(
       .from(messageAttempts)
       .where(
         and(
+          eq(messageAttempts.messageId, cMsgId),
+          eq(messageAttempts.providerId, effectiveProviderId),
+          eq(messageAttempts.providerMessageId, providerMessageId),
           cAttemptId ? eq(messageAttempts.id, cAttemptId) : eq(messageAttempts.messageId, cMsgId),
           gte(messageAttempts.createdAt, cStartDate),
           lte(messageAttempts.createdAt, cEndDate),
@@ -289,6 +289,7 @@ export async function findCorrelatedAttempt(
     .from(messageAttempts)
     .where(
       and(
+        eq(messageAttempts.providerId, effectiveProviderId),
         eq(messageAttempts.providerMessageId, providerMessageId),
         gte(messageAttempts.createdAt, fallbackStart),
         lte(messageAttempts.createdAt, now),
@@ -310,6 +311,7 @@ export async function findCorrelatedAttempt(
     .from(messageAttempts)
     .where(
       and(
+        eq(messageAttempts.providerId, effectiveProviderId),
         eq(messageAttempts.messageId, providerMessageId),
         gte(messageAttempts.createdAt, pStart),
         lte(messageAttempts.createdAt, pEnd),
@@ -333,85 +335,80 @@ export async function handleStatusUpdate(
     lte(messages.createdAt, endDate),
   );
 
-  const msgList = await db.select().from(messages).where(partitionWhere);
-  const currentMsgState = msgList[0]?.state || MessageState.ACCEPTED;
-
-  const targetState = resolveTargetMessageState(currentMsgState, ev.normalizedStatus);
-  const isTerminalStatus = TERMINAL_STATES.has(targetState);
-
-  const updatedMsg = await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
+    const [msg] = await tx.select().from(messages).where(partitionWhere).for('update');
+    if (!msg) throw new Error('Receipt message is not yet available');
+    const attemptWhere = and(
+      eq(messageAttempts.id, attempt.id),
+      gte(messageAttempts.createdAt, startDate),
+      lte(messageAttempts.createdAt, endDate),
+    );
+    const [current] = await tx.select().from(messageAttempts).where(attemptWhere).for('update');
+    if (!current) throw new Error('Receipt attempt is not yet available');
+    const attemptState = resolveMonotonicState(current.state, ev.normalizedStatus);
+    if (attemptState === current.state) return;
     await tx
       .update(messageAttempts)
-      .set(buildAttemptTimestampUpdates(ev.normalizedStatus, ev.timestamp, now))
+      .set(buildAttemptTimestampUpdates(attemptState, ev.timestamp, now))
+      .where(attemptWhere);
+    const siblings = await tx
+      .select()
+      .from(messageAttempts)
       .where(
         and(
-          eq(messageAttempts.id, attempt.id),
+          eq(messageAttempts.messageId, attempt.messageId),
           gte(messageAttempts.createdAt, startDate),
           lte(messageAttempts.createdAt, endDate),
         ),
       );
-
-    const updatedMessages = await tx
+    let targetState = resolveMonotonicState(msg.state, attemptState);
+    if (
+      [MessageState.FAILED, MessageState.BOUNCED].includes(targetState as MessageState) &&
+      siblings.some((s) => !TERMINAL_STATES.has(s.state))
+    )
+      targetState = msg.state;
+    await tx
       .update(messages)
       .set({
         state: targetState,
-        ...(isTerminalStatus ? { completedAt: ev.timestamp } : {}),
+        ...(TERMINAL_STATES.has(targetState) ? { completedAt: ev.timestamp } : {}),
         updatedAt: now,
       })
-      .where(partitionWhere)
-      .returning();
-
+      .where(partitionWhere);
     await tx.insert(messageEvents).values(buildWebhookMessageEventRecord(attempt, ev, now));
-
-    return updatedMessages[0];
+    const metric = mapStatusToMetric(attemptState);
+    if (metric)
+      await recordReceiptMetric(tx, {
+        team: msg.team,
+        category: msg.category,
+        country: msg.country,
+        channel: attempt.channel,
+        metric,
+        timestamp: ev.timestamp,
+      });
+    await WebhookSubscriptionsService.triggerEventForTeam(
+      msg.team,
+      `message.${attemptState}`,
+      {
+        messageId: msg.publicId,
+        channel: attempt.channel,
+        status: attemptState,
+        timestamp: ev.timestamp.toISOString(),
+      },
+      tx,
+    );
+    await tx.insert(outbox).values({
+      id: generateMessageId(),
+      messageId: msg.publicId,
+      type: 'webhook.callback',
+      payload: {
+        messageId: msg.publicId,
+        channel: attempt.channel,
+        event: attemptState,
+        timestamp: ev.timestamp.toISOString(),
+      },
+    });
   });
-
-  if (updatedMsg) {
-    await recordWebhookMetric(updatedMsg, attempt.channel, ev.normalizedStatus, ev.timestamp);
-    if (
-      ev.normalizedStatus === MessageState.DELIVERED ||
-      ev.normalizedStatus === MessageState.OPENED ||
-      ev.normalizedStatus === MessageState.READ
-    ) {
-      await CascadeManager.cancelRemainingSteps(attempt.messageId);
-    }
-
-    const rawPayloadObj =
-      typeof ev.rawPayload === 'object' && ev.rawPayload !== null
-        ? (ev.rawPayload as Record<string, unknown>)
-        : undefined;
-
-    const inboundText = ((rawPayloadObj?.body || rawPayloadObj?.Body || rawPayloadObj?.text || '') as string).trim();
-    const senderIdentifier = (
-      (rawPayloadObj?.senderPhone || rawPayloadObj?.From || rawPayloadObj?.from || '') as string
-    ).trim();
-
-    if (inboundText && senderIdentifier) {
-      await handleComplianceKeywords(updatedMsg.team, senderIdentifier, inboundText);
-      await customerWebhookDispatchQueue
-        .add('dispatch-webhook', {
-          team: updatedMsg.team,
-          event: 'inbound.message_received',
-          data: {
-            from: senderIdentifier,
-            body: inboundText,
-            channel: attempt.channel,
-            providerId: attempt.providerId,
-            receivedAt: ev.timestamp.toISOString(),
-          },
-        })
-        .catch(() => {});
-    }
-  }
-
-  await callbackQueue
-    .add('send-callback', {
-      messageId: attempt.messageId,
-      channel: attempt.channel,
-      event: ev.normalizedStatus,
-      timestamp: ev.timestamp.toISOString(),
-    })
-    .catch(() => {});
 }
 
 // ============================================================================
@@ -423,7 +420,8 @@ export async function processSingleWebhookEvent(
   defaultProviderId: string,
   now: Date,
 ): Promise<void> {
-  const effectiveProviderId = ev.providerId || defaultProviderId;
+  // The verified ingress provider owns correlation; payload fields cannot select another provider.
+  const effectiveProviderId = defaultProviderId;
   const rawPayloadObj =
     typeof ev.rawPayload === 'object' && ev.rawPayload !== null
       ? (ev.rawPayload as Record<string, unknown>)
@@ -434,6 +432,10 @@ export async function processSingleWebhookEvent(
     if (rawPayloadObj?.isInboundUserMessage) {
       const inboundData = parseInboundMessageData(rawPayloadObj);
       if (inboundData) {
+        const [provider] = await db.select().from(providers).where(eq(providers.id, effectiveProviderId));
+        const config = provider?.config as { inboundTeam?: string } | undefined;
+        if (!config?.inboundTeam) throw new Error('Inbound provider requires an operator-configured inboundTeam');
+        inboundData.team = config.inboundTeam;
         await handleInboundMessage({
           effectiveProviderId,
           ev,
@@ -446,15 +448,32 @@ export async function processSingleWebhookEvent(
 
     // 2. STATUS UPDATE / DELIVERY RECEIPT FLOW
     const attempt = await findCorrelatedAttempt(effectiveProviderId, ev.providerMessageId, now);
-    if (attempt) {
-      await handleStatusUpdate(attempt, ev, now);
+    if (!attempt) throw new Error('Receipt arrived before its attempt is available');
+    const inboundData = parseInboundMessageData(rawPayloadObj);
+    if (inboundData?.inboundText) {
+      const { startDate, endDate } = computePartitionWindow(attempt.messageId);
+      const [msg] = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.publicId, attempt.messageId),
+            gte(messages.createdAt, startDate),
+            lte(messages.createdAt, endDate),
+          ),
+        );
+      if (!msg) throw new Error('Inbound message owner is not available');
+      inboundData.team = msg.team;
+      await handleInboundMessage({ effectiveProviderId, ev, inboundData, now, messageId: msg.publicId });
     }
+    await handleStatusUpdate(attempt, ev, now);
   } catch (err) {
     logger.error(
       'WebhookIngest',
       `Error processing webhook event for provider '${effectiveProviderId}', msgId '${ev.providerMessageId}': ${(err as Error).message}`,
       err as Error,
     );
+    throw err;
   }
 }
 
@@ -468,7 +487,13 @@ export async function processWebhookEvent(params: ProcessWebhookParams): Promise
   if (!events.length) return;
 
   // Process all events in the batch with Promise.allSettled for fault isolation
-  await Promise.allSettled(events.map((ev) => processSingleWebhookEvent(ev, providerId, now)));
+  const results = await Promise.allSettled(events.map((ev) => processSingleWebhookEvent(ev, providerId, now)));
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length)
+    throw new AggregateError(
+      failures.map((result) => result.reason),
+      'Receipt batch incomplete',
+    );
 }
 
 export const webhookIngestWorker = new Worker(

@@ -5,15 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 
 export interface OpsKpiGridProps {
   overviewStats?: {
-    deliverySuccessRatePercent?: number;
+    deliverySuccessRatePercent?: number | null;
     metrics24h?: {
-      totalIngested?: number;
-      delivered?: number;
-      failed?: number;
+      totalIngested?: number | null;
+      delivered?: number | null;
+      failed?: number | null;
     };
     whatsappCostSavings?: {
-      estimatedUsdSaved?: number;
-      templateConvertedToSessionCount?: number;
+      estimatedUsdSaved?: number | null;
+      templateConvertedToSessionCount?: number | null;
     };
   };
 }
@@ -21,12 +21,12 @@ export interface OpsKpiGridProps {
 export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
   const { t } = useI18n();
 
-  const successRate = overviewStats?.deliverySuccessRatePercent ?? 99.85;
-  const totalIngested = overviewStats?.metrics24h?.totalIngested ?? 12450;
-  const delivered = overviewStats?.metrics24h?.delivered ?? 12431;
-  const failed = overviewStats?.metrics24h?.failed ?? 19;
-  const costSaved = overviewStats?.whatsappCostSavings?.estimatedUsdSaved ?? 12.6;
-  const convertedSessions = overviewStats?.whatsappCostSavings?.templateConvertedToSessionCount ?? 420;
+  const successRate = overviewStats?.deliverySuccessRatePercent;
+  const totalIngested = overviewStats?.metrics24h?.totalIngested;
+  const delivered = overviewStats?.metrics24h?.delivered;
+  const failed = overviewStats?.metrics24h?.failed;
+  const costSaved = overviewStats?.whatsappCostSavings?.estimatedUsdSaved;
+  const convertedSessions = overviewStats?.whatsappCostSavings?.templateConvertedToSessionCount;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -42,11 +42,11 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
         </CardHeader>
         <CardContent className="space-y-1.5">
           <div className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
-            {successRate.toFixed(2)}%
+            {successRate?.toFixed(2) ?? 'Unavailable'}%
           </div>
           <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
             <span className="text-slate-600 dark:text-slate-300 font-medium">{formatNumber(delivered)} delivered</span>
-            <span className="text-rose-600 dark:text-rose-400 font-medium">{failed} issues</span>
+            <span className="text-rose-600 dark:text-rose-400 font-medium">{failed ?? 'Unavailable'} issues</span>
           </div>
         </CardContent>
       </Card>
@@ -69,7 +69,7 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
             <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-medium">
               <ArrowUpRight className="w-3.5 h-3.5" /> High throughput
             </span>
-            <span className="text-slate-500 dark:text-slate-400">Across 5 channels</span>
+            <span className="text-slate-500 dark:text-slate-400">Across configured channels</span>
           </div>
         </CardContent>
       </Card>
@@ -86,10 +86,10 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
         </CardHeader>
         <CardContent className="space-y-1.5">
           <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-600 dark:text-amber-300 tracking-tight">
-            &lt; 25 ms
+            Unavailable
           </div>
           <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Near-instant</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Measurement unavailable</span>
             <span className="text-slate-500 dark:text-slate-400">Global edge routing</span>
           </div>
         </CardContent>
@@ -107,10 +107,12 @@ export function OpsKpiGrid({ overviewStats }: OpsKpiGridProps) {
         </CardHeader>
         <CardContent className="space-y-1.5">
           <div className="text-2xl sm:text-3xl font-bold font-mono text-indigo-600 dark:text-indigo-300 tracking-tight">
-            ${costSaved.toFixed(2)}
+            ${costSaved?.toFixed(2) ?? 'Unavailable'}
           </div>
           <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800/60">
-            <span className="text-slate-700 dark:text-slate-300 font-medium">{convertedSessions} sessions</span>
+            <span className="text-slate-700 dark:text-slate-300 font-medium">
+              {convertedSessions ?? 'Unavailable'} sessions
+            </span>
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">Free plain text</span>
           </div>
         </CardContent>

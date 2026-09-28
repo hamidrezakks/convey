@@ -14,7 +14,7 @@ import {
 } from '@convey/shared';
 import { and, count, eq, gte, isNotNull, lte, sql } from 'drizzle-orm';
 
-import { db } from '../../db';
+import { db, type Transaction } from '../../db';
 
 import {
   budgetLedger,
@@ -40,6 +40,37 @@ export interface RecordMetricParams {
   campaignId?: string;
   costUsd?: number;
   timestamp?: Date;
+}
+
+/** Receipt state and counters commit together, so queue retries cannot double count. */
+export async function recordReceiptMetric(tx: Transaction, params: RecordMetricParams) {
+  const hour = getUtcHourBoundary(params.timestamp || new Date());
+  const country = params.country || 'GLOBAL';
+  const key = (
+    {
+      delivered: 'deliveredCount',
+      opened: 'openedCount',
+      read: 'readCount',
+      failed: 'failedCount',
+      bounced: 'failedCount',
+    } as const
+  )[params.metric as 'delivered'];
+  if (!key) return;
+  await tx
+    .insert(reportHourly)
+    .values({
+      id: buildReportId(params, hour),
+      team: params.team,
+      category: params.category,
+      country,
+      channel: params.channel,
+      hour,
+      [key]: 1,
+    })
+    .onConflictDoUpdate({
+      target: reportHourly.id,
+      set: { [key]: sql`${reportHourly[key]} + 1`, updatedAt: new Date() },
+    });
 }
 
 export function buildReportId(
@@ -491,7 +522,7 @@ export const ReportingService = {
                 openRatePercent: delivered > 0 ? Number(((opened / delivered) * 100).toFixed(2)) : 0.0,
                 failRatePercent: sent > 0 ? Number(((failed / sent) * 100).toFixed(2)) : 0.0,
                 totalCostUsd: Number.parseFloat(r.costUsd || '0'),
-                avgLatencyMs: 42,
+                avgLatencyMs: null,
               },
               costPerDeliveredUsd:
                 delivered > 0 ? Number((Number.parseFloat(r.costUsd || '0') / delivered).toFixed(4)) : 0.015,
@@ -510,7 +541,7 @@ export const ReportingService = {
                 openRatePercent,
                 failRatePercent,
                 totalCostUsd: Number((totalCostUsd * 0.45).toFixed(2)),
-                avgLatencyMs: 38,
+                avgLatencyMs: null,
               },
               costPerDeliveredUsd: 0.015,
             },
@@ -526,7 +557,7 @@ export const ReportingService = {
                 openRatePercent,
                 failRatePercent,
                 totalCostUsd: Number((totalCostUsd * 0.35).toFixed(2)),
-                avgLatencyMs: 45,
+                avgLatencyMs: null,
               },
               costPerDeliveredUsd: 0.0075,
             },
@@ -542,7 +573,7 @@ export const ReportingService = {
                 openRatePercent,
                 failRatePercent,
                 totalCostUsd: Number((totalCostUsd * 0.2).toFixed(2)),
-                avgLatencyMs: 55,
+                avgLatencyMs: null,
               },
               costPerDeliveredUsd: 0.001,
             },
@@ -771,7 +802,7 @@ export const ReportingService = {
           openRatePercent,
           failRatePercent,
           totalCostUsd: Number(stats.costUsd.toFixed(2)),
-          avgLatencyMs: 44,
+          avgLatencyMs: null,
         },
         activeCampaignsCount: campaignCountMap.get(teamId) || 0,
       });
@@ -1030,7 +1061,7 @@ export const ReportingService = {
           openRatePercent,
           failRatePercent,
           totalCostUsd: Number(stats.costUsd.toFixed(2)),
-          avgLatencyMs: 42,
+          avgLatencyMs: null,
         },
         costPerDeliveredUsd,
       });

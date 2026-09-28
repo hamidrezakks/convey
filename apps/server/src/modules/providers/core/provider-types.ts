@@ -100,6 +100,7 @@ export interface ProviderSendResult {
   error?: {
     code: string;
     category: ErrorCategory;
+    retryAfterMs?: number;
     message: string;
   };
   metadata?: Record<string, unknown>;

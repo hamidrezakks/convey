@@ -47,12 +47,8 @@ export async function initializePluginTables() {
       topic_preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
       unsubscribe_token TEXT NOT NULL UNIQUE,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT uq_recipient_preferences_tenant_recipient UNIQUE (tenant_id, recipient_id)
+      CONSTRAINT uq_recipient_preferences_tenant_team_recipient UNIQUE (tenant_id, team, recipient_id)
     );
-
-    ALTER TABLE recipient_preferences DROP CONSTRAINT IF EXISTS uq_recipient_preferences_tenant_recipient;
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_recipient_preferences_tenant_team_recipient
-      ON recipient_preferences (tenant_id, team, recipient_id);
 
     CREATE INDEX IF NOT EXISTS idx_recipient_preferences_recipient ON recipient_preferences (tenant_id, recipient_id);
 

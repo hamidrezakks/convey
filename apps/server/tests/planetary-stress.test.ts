@@ -97,7 +97,7 @@ describe('Planetary-Scale Concurrency, Stress & Resilience Verification Suite', 
   });
 
   // 2. Deficit Weighted Round Robin (DRR) Fair-Share Saturation & Jain's Fairness Index
-  it('maintains Jain Fairness Index (JFI >= 0.95) and zero starvation under 5,000-task multi-tenant flood', () => {
+  it('maintains Jain Fairness Index (JFI >= 0.95) and zero starvation under 5,000-task multi-tenant flood', async () => {
     const scheduler = new DeficitWeightedRoundRobinScheduler<string>();
     const totalEnterpriseTenants = 50;
     const totalProTenants = 100;
@@ -152,7 +152,7 @@ describe('Planetary-Scale Concurrency, Stress & Resilience Verification Suite', 
   });
 
   // 3. Downstream Provider Avalanche & Circuit Breaker State Transitions
-  it('trips ProviderCircuitBreaker to OPEN in <1ms during 100% provider blackout and ramps back up via GradualRamp', () => {
+  it('trips ProviderCircuitBreaker to OPEN in <1ms during 100% provider blackout and ramps back up via GradualRamp', async () => {
     const breaker = new ProviderCircuitBreaker({
       failureThreshold: 5,
       resetTimeoutMs: 500,
@@ -257,7 +257,7 @@ describe('Planetary-Scale Concurrency, Stress & Resilience Verification Suite', 
   });
 
   // 6. Zero-Trust AES-256-GCM Envelope Encryption Concurrency
-  it('executes 500 concurrent envelope encryptions/decryptions with zero data corruption or memory leaks', () => {
+  it('executes 500 concurrent envelope encryptions/decryptions with zero data corruption or memory leaks', async () => {
     const complexPayload = {
       orderId: 'ORD-99887766',
       customer: { name: 'Alice Walker', ssn: '123-45-6789' },
@@ -274,7 +274,7 @@ describe('Planetary-Scale Concurrency, Stress & Resilience Verification Suite', 
       const encrypted = payloadEncryptionManager.encryptPayload(complexPayload, recipientId);
       expect(encrypted).toBeDefined();
 
-      const decrypted = payloadEncryptionManager.decryptPayload(encrypted) as typeof complexPayload;
+      const decrypted = await payloadEncryptionManager.decryptPayload<typeof complexPayload>(encrypted);
       expect(decrypted.orderId).toBe(complexPayload.orderId);
       expect(decrypted.customer.ssn).toBe(complexPayload.customer.ssn);
       expect(decrypted.items.length).toBe(2);
@@ -285,7 +285,7 @@ describe('Planetary-Scale Concurrency, Stress & Resilience Verification Suite', 
   });
 
   // 7. V8 Heap Memory Guard & Traffic Governor Load-Shedding
-  it('sheds low-priority marketing traffic during simulated load while admitting 100% of critical OTP alerts', () => {
+  it('sheds low-priority marketing traffic during simulated load while admitting 100% of critical OTP alerts', async () => {
     const governor = new TrafficGovernor({
       maxLagMs: 50,
       shedThresholdRatio: 0.7,

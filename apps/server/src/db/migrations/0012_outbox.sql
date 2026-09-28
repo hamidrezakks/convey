@@ -17,3 +17,5 @@ CREATE TABLE IF NOT EXISTS outbox (
 
 CREATE INDEX IF NOT EXISTS idx_outbox_pending_relay ON outbox (state, available_at) WHERE state = 'pending';
 CREATE INDEX IF NOT EXISTS idx_outbox_processed_cutoff ON outbox (state, processed_at);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_processing_lease ON outbox (locked_at) WHERE state = 'processing';

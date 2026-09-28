@@ -5,9 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatNumber(num: number): string {
+export function formatNumber(num: number | null | undefined): string {
   if (num === undefined || num === null || Number.isNaN(num)) {
-    return '0';
+    return 'Unavailable';
   }
   if (num >= 1_000_000) {
     return `${(num / 1_000_000).toFixed(2)}M`;
@@ -18,9 +18,9 @@ export function formatNumber(num: number): string {
   return num.toLocaleString();
 }
 
-export function formatDurationMs(ms: number): string {
+export function formatDurationMs(ms: number | null | undefined): string {
   if (ms === undefined || ms === null || Number.isNaN(ms)) {
-    return '0ms';
+    return 'Unavailable';
   }
   if (ms < 0.001) {
     return '0ms';

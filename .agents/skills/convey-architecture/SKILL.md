@@ -18,6 +18,7 @@ Use this skill when designing, building, or refactoring features, provider adapt
 - **Transactional Outbox Pattern**: Send endpoints write to `messages` + `outbox` in 1 Postgres transaction. `outbox-relay.worker.ts` polls `outbox` using `FOR UPDATE SKIP LOCKED` and enqueues to BullMQ.
 
 ## 3. Database Performance & Range Partitioning
+- **Pre-release baseline**: Convey is unreleased. Update complete CREATE definitions in canonical migrations; do not add ALTER TABLE upgrade patches or backward-compatibility paths. Changed baselines require fresh disposable stores. Freeze the baseline and introduce forward migrations only when the owner makes the first release.
 - **PostgreSQL 18 Monthly Partitioning**: High-volume tables (`messages`, `message_attempts`, `message_events`, `budget_ledger`) use range partitioning by month (`PARTITION BY RANGE (created_at)`).
 - **Partition Pruning Mandatory**: Always include timestamp bounds (`gte(createdAt, startDate)`, `lte(createdAt, endDate)`) using `computePartitionWindow(publicId)` on partitioned table queries and updates to avoid full partition scans.
 - **Fast-Path Send Acceptance**: Keep send acceptance to 1 DragonflyDB `SET NX` call + 1 PostgreSQL 18 transaction.

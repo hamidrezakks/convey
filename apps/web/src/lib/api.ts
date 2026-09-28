@@ -55,28 +55,28 @@ export interface OverviewData {
     activeSuppressions: number;
   };
   latencyPercentiles: {
-    p50Ms: number;
-    p95Ms: number;
-    p99Ms: number;
+    p50Ms: number | null;
+    p95Ms: number | null;
+    p99Ms: number | null;
     slaThresholdMs: number;
   };
   queues: {
     outboxRelay: number;
-    messageDispatch: number;
-    providerSend: number;
-    scheduledPromoter: number;
-    customerWebhook: number;
+    messageDispatch: number | null;
+    providerSend: number | null;
+    scheduledPromoter: number | null;
+    customerWebhook: number | null;
     activeWorkers: number;
   };
   runtime: {
     heapUsedMb: number;
     heapTotalMb: number;
     heapSaturationPercent: number;
-    eventLoopLagMs: number;
+    eventLoopLagMs: number | null;
   };
   whatsappCostSavings: {
-    templateConvertedToSessionCount: number;
-    estimatedUsdSaved: number;
+    templateConvertedToSessionCount: number | null;
+    estimatedUsdSaved: number | null;
   };
 }
 
@@ -221,6 +221,26 @@ export const api = {
     return httpClient.delete(`suppressions/${id}`).json<{ success: boolean; id: string }>();
   },
 
+  async getBudgetHolds(team: string) {
+    return httpClient.get(`budgets/${encodeURIComponent(team)}/holds`).json<
+      Array<{
+        id: string;
+        messageId: string;
+        providerId: string;
+        amount: string;
+        currency: string;
+        createdAt: string;
+        stale: boolean;
+      }>
+    >();
+  },
+  async reconcileBudgetHold(team: string, id: string, outcome: 'committed' | 'released', reason: string) {
+    return httpClient
+      .post(`budgets/${encodeURIComponent(team)}/holds/${encodeURIComponent(id)}/reconcile`, {
+        json: { outcome, reason },
+      })
+      .json();
+  },
   async getBudget(team: string): Promise<BudgetPolicyDto | null> {
     return httpClient.get(`budgets/${encodeURIComponent(team)}`).json<BudgetPolicyDto | null>();
   },

@@ -15,9 +15,6 @@ CREATE TABLE IF NOT EXISTS budget_ledger (
   PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
-ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD';
-ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(16, 8) NOT NULL DEFAULT '1.00000000';
-ALTER TABLE budget_ledger ADD COLUMN IF NOT EXISTS amount_in_policy_currency NUMERIC(12, 4) NOT NULL DEFAULT '0.0000';
 
 CREATE INDEX IF NOT EXISTS idx_budget_ledger_team_created ON budget_ledger (team, created_at);
 CREATE INDEX IF NOT EXISTS idx_budget_ledger_msg_created ON budget_ledger (message_id, created_at);

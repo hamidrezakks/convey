@@ -29,7 +29,7 @@ import { shardRouter } from '../src/utils/shard-router';
 
 describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   describe('1. Boundary & Extreme Payload Stress', () => {
-    it('accepts and processes 1MB+ large HTML payload correctly', () => {
+    it('accepts and processes 1MB+ large HTML payload correctly', async () => {
       const largeHtml = `<div>${'A'.repeat(1_000_000)}</div>`;
       const request: SendMessageRequest = {
         idempotencyKey: 'qa_large_payload_001',
@@ -55,7 +55,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
       expect((records.messageRecord.metadata as Record<string, unknown>)?._encryptedEnvelope).toBeDefined();
     });
 
-    it('encrypts and decrypts complex UTF-8, multi-byte emojis, and special chars without corruption', () => {
+    it('encrypts and decrypts complex UTF-8, multi-byte emojis, and special chars without corruption', async () => {
       const encManager = new PayloadEncryptionManager('qa_special_secret_32_bytes_len_!');
       const rawPayload = {
         subject: 'Notification: 🚀 🔥 ⚡️ 🎉 Hello World! مرحبا, 世界, 안녕하세요',
@@ -65,12 +65,12 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
       const encrypted = encManager.encryptPayload(rawPayload);
       expect(encrypted.ciphertext).toBeDefined();
 
-      const decrypted = encManager.decryptPayload<typeof rawPayload>(encrypted);
+      const decrypted = await encManager.decryptPayload<typeof rawPayload>(encrypted);
       expect(decrypted.subject).toBe(rawPayload.subject);
       expect(decrypted.tags).toEqual(rawPayload.tags);
     });
 
-    it('strictly rejects missing or mismatched channel recipient parameters', () => {
+    it('strictly rejects missing or mismatched channel recipient parameters', async () => {
       // Email channel without email recipient
       const err1 = validateChannelRecipients([{ channel: Channel.EMAIL, content: { subject: 'Hi' } }], {});
       expect(err1).toContain('Valid email address is required');
@@ -109,7 +109,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('3. Cryptographic Tamper Detection & Security Enforcement', () => {
-    it('decryption fails cleanly when authTag or ciphertext is tampered', () => {
+    it('decryption fails cleanly when authTag or ciphertext is tampered', async () => {
       const encManager = new PayloadEncryptionManager('qa_tamper_key_32_bytes_length_!');
       const encrypted = encManager.encryptPayload({ secretToken: 'top_secret_998' });
 
@@ -120,7 +120,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
         authTag: `${tamperedAuthChar}${encrypted.authTag.slice(1)}`,
       };
 
-      expect(() => encManager.decryptPayload(tamperedAuthTag)).toThrow();
+      await expect(encManager.decryptPayload(tamperedAuthTag)).rejects.toThrow();
 
       // Tamper ciphertext deterministically
       const tamperedCipherChar = encrypted.ciphertext[0] === 'a' ? 'b' : 'a';
@@ -129,7 +129,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
         ciphertext: `${tamperedCipherChar}${encrypted.ciphertext.slice(1)}`,
       };
 
-      expect(() => encManager.decryptPayload(tamperedCiphertext)).toThrow();
+      await expect(encManager.decryptPayload(tamperedCiphertext)).rejects.toThrow();
     });
   });
 
@@ -211,7 +211,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('7. Bun Native Crypto Determinism & Collision Resistance', () => {
-    it('1,000 rapid SHA-256 and MD5 hash calculations execute with zero collisions', () => {
+    it('1,000 rapid SHA-256 and MD5 hash calculations execute with zero collisions', async () => {
       const shaSet = new Set<string>();
       const shardIndexSet = new Set<number>();
 
@@ -233,7 +233,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('8. System Readiness & Graceful Shutdown State Transitions', () => {
-    it('tracks app readiness and component statuses cleanly', () => {
+    it('tracks app readiness and component statuses cleanly', async () => {
       const initialStatus = appReadiness.getStatus();
       expect(initialStatus).toBeDefined();
       expect(typeof initialStatus.ready).toBe('boolean');
@@ -244,7 +244,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('9. Multi-Channel Fallback Cascade Recovery', () => {
-    it('ranks candidate fallback channels by unit cost optimization', () => {
+    it('ranks candidate fallback channels by unit cost optimization', async () => {
       const candidateChannels: Channel[] = [Channel.SMS, Channel.EMAIL, Channel.CHAT];
       const optimizedOrder = smartProviderRouter.rankChannelsByCost(candidateChannels);
 
@@ -297,7 +297,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('12. Anomaly Detection & Fraud Burst Alerting', () => {
-    it('detects high latency spikes via statistical Z-Score analysis', () => {
+    it('detects high latency spikes via statistical Z-Score analysis', async () => {
       const pId = `qa_anomaly_prov_${Date.now()}`;
 
       // Record baseline latencies (~50ms with natural variance)
@@ -318,7 +318,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('13. Tenant SLA Priority Preemption', () => {
-    it('upgrades priority when Enterprise tenant approaches SLA threshold', () => {
+    it('upgrades priority when Enterprise tenant approaches SLA threshold', async () => {
       const tenantId = 'enterprise_team_sla';
 
       // Record slow delivery latencies (400ms) approaching SLA breach
@@ -339,7 +339,7 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
   });
 
   describe('14. Zero-Trust Key Rotation & Payload Security', () => {
-    it('encrypts payloads with key versioning and verifies decryptability', () => {
+    it('encrypts payloads with key versioning and verifies decryptability', async () => {
       const manager = new PayloadEncryptionManager('qa_rotation_key_32_bytes_len_!');
       const data = { secretPin: 1234, token: 'rot_9982' };
 
@@ -348,14 +348,14 @@ describe('Comprehensive System Edge-Case & Resiliency Suite', () => {
       expect(enc.iv).toBeDefined();
       expect(enc.authTag).toBeDefined();
 
-      const dec = manager.decryptPayload<typeof data>(enc);
+      const dec = await manager.decryptPayload<typeof data>(enc);
       expect(dec.secretPin).toBe(1234);
       expect(dec.token).toBe('rot_9982');
     });
   });
 
   describe('15. Queue Autoscaler Dynamic Worker Scaling', () => {
-    it('dynamically calculates desired worker concurrency based on queue depth', () => {
+    it('dynamically calculates desired worker concurrency based on queue depth', async () => {
       const reportLow = queueAutoscaler.computeOptimalConcurrency('outbox_shard_0', 5);
       expect(reportLow.recommendedConcurrency).toBe(2);
 

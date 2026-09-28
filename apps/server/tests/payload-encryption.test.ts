@@ -5,8 +5,8 @@ import {
   PayloadEncryptionManager,
 } from '../src/utils/payload-encryption';
 
-describe('Payload Encryption & Distributed Cryptographic Shredding', () => {
-  it('encrypts and decrypts sensitive payload with AES-256-GCM envelope', () => {
+describe('Payload Encryption & Distributed Cryptographic Shredding', async () => {
+  it('encrypts and decrypts sensitive payload with AES-256-GCM envelope', async () => {
     const manager = new PayloadEncryptionManager();
     const originalPayload = {
       recipients: { phone: '+14155550199' },
@@ -20,26 +20,27 @@ describe('Payload Encryption & Distributed Cryptographic Shredding', () => {
     expect(encrypted.ciphertext).toBeDefined();
     expect(encrypted.recipientId).toBe('user_123');
 
-    const decrypted = manager.decryptPayload<typeof originalPayload>(encrypted);
+    const decrypted = await manager.decryptPayload<typeof originalPayload>(encrypted);
     expect(decrypted).toEqual(originalPayload);
   });
 
   it('instant cryptographic shredding revokes recipient decryption across instances', async () => {
     const manager = new PayloadEncryptionManager();
+    const recipientId = `user_gdpr_${crypto.randomUUID()}`;
     const originalPayload = { secret: 'confidential' };
 
-    const encrypted = manager.encryptPayload(originalPayload, 'user_gdpr_delete');
-    const decryptedBefore = manager.decryptPayload<typeof originalPayload>(encrypted);
+    const encrypted = manager.encryptPayload(originalPayload, recipientId);
+    const decryptedBefore = await manager.decryptPayload<typeof originalPayload>(encrypted);
     expect(decryptedBefore).toEqual(originalPayload);
 
     // GDPR Right to be Forgotten: Shred key
-    await manager.shredRecipientKey('user_gdpr_delete');
+    await manager.shredRecipientKey(recipientId);
 
     // Decryption MUST fail with CryptographicShreddedError
-    expect(() => manager.decryptPayload(encrypted)).toThrow(CryptographicShreddedError);
+    await expect(manager.decryptPayload(encrypted)).rejects.toThrow(CryptographicShreddedError);
   });
 
-  it('caches derived HKDF recipient keys for optimal throughput', () => {
+  it('caches derived HKDF recipient keys for optimal throughput', async () => {
     const manager = new PayloadEncryptionManager();
 
     const key1 = manager.deriveRecipientKey('user_1');
@@ -48,13 +49,59 @@ describe('Payload Encryption & Distributed Cryptographic Shredding', () => {
     expect(key1).toBe(key2); // Same Buffer instance from LRU cache
   });
 
-  it('validates invalid container objects defensively', () => {
+  it('validates invalid container objects defensively', async () => {
     const manager = new PayloadEncryptionManager();
 
     expect(() => manager.encryptPayload(null)).toThrow(/Invalid payload/);
-    expect(() => manager.decryptPayload(null as unknown as EncryptedPayload)).toThrow(/InvalidEncryptedPayload/);
-    expect(() =>
+    await expect(manager.decryptPayload(null as unknown as EncryptedPayload)).rejects.toThrow(
+      /InvalidEncryptedPayload/,
+    );
+    await expect(
       manager.decryptPayload({ version: 1, iv: '', authTag: '', ciphertext: '' } as EncryptedPayload),
-    ).toThrow(/Missing required/);
+    ).rejects.toThrow(/Missing required/);
   });
+});
+
+it('a new manager observes durable revocation after restart', async () => {
+  const id = `revocation_${crypto.randomUUID()}`;
+  const first = new PayloadEncryptionManager('restart-test-key-at-least-32-characters');
+  const envelope = first.encryptPayload({ secret: 'private' }, id);
+  await first.shredRecipientKey(id);
+  const restarted = new PayloadEncryptionManager('restart-test-key-at-least-32-characters');
+  await expect(restarted.decryptPayload(envelope)).rejects.toThrow(CryptographicShreddedError);
+});
+
+it('fails closed when the revocation store cannot be read or written', async () => {
+  const manager = new PayloadEncryptionManager('store-outage-test-key-at-least-32-characters', {
+    async isRevoked() {
+      throw new Error('store unavailable');
+    },
+    async revoke() {
+      throw new Error('store unavailable');
+    },
+  });
+  const envelope = manager.encryptPayload('secret', 'recipient');
+  await expect(manager.decryptPayload(envelope)).rejects.toThrow('store unavailable');
+  await expect(manager.shredRecipientKey('recipient')).rejects.toThrow('store unavailable');
+  expect(() => manager.decryptProviderPayload(envelope)).toThrow('durable revocation');
+});
+
+it('recipient revocation is scoped to its team', async () => {
+  const { recipientKeyId } = await import('../src/utils/payload-encryption');
+  const revoked = new Set<string>();
+  const manager = new PayloadEncryptionManager('tenant-boundary-test-key-at-least-32-characters', {
+    async isRevoked(id) {
+      return revoked.has(id);
+    },
+    async revoke(id) {
+      revoked.add(id);
+    },
+  });
+  const a = recipientKeyId('team-a', 'same-user');
+  const b = recipientKeyId('team-b', 'same-user');
+  const payloadA = manager.encryptPayload('private-a', a);
+  const payloadB = manager.encryptPayload('private-b', b);
+  await manager.shredRecipientKey(a);
+  await expect(manager.decryptPayload(payloadA)).rejects.toThrow(CryptographicShreddedError);
+  expect(await manager.decryptPayload<string>(payloadB)).toBe('private-b');
 });

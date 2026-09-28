@@ -6,7 +6,7 @@ import { getUtcMonthBoundary } from '../../utils/date';
 import { DlpScanner } from '../../utils/dlp-scanner';
 import { heapMemoryGuard } from '../../utils/heap-guard';
 import { generateMessageId, parseMessageIdTimestamp } from '../../utils/id';
-import { payloadEncryptionManager } from '../../utils/payload-encryption';
+import { payloadEncryptionManager, recipientKeyId } from '../../utils/payload-encryption';
 import { shardRouter } from '../../utils/shard-router';
 import { TraceContext } from '../../utils/trace-context';
 import { trafficGovernor } from '../../utils/traffic-governor';
@@ -97,7 +97,9 @@ export function buildMessageAndOutboxRecords(request: SendMessageRequest, now: D
   const initialMessageState = isExplicitlyScheduled ? MessageState.SCHEDULED : MessageState.ACCEPTED;
   const effectivePriority = tenantSlaManager.getRecommendedPriority(request.team, TenantTier.PRO, request.priority);
   const traceCtx = TraceContext.create();
-  const recipientId = resolveRecipientId(request.recipients, request.userId);
+  const identity = resolveRecipientId(request.recipients, request.userId);
+  if (!identity) throw new Error('Recipient identity is required');
+  const recipientId = recipientKeyId(request.team, identity);
 
   let effectiveChannels = request.channels;
   if (request.template) {

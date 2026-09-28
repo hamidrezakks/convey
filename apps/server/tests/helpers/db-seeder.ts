@@ -47,7 +47,7 @@ export async function seedDatabaseWithRealisticData() {
     await queryClient`INSERT INTO api_keys(id,tenant_id,team,key_hash,name) VALUES(${`key_${team}`},${tenantId},${team},${hashString(`test_key_${team}`)},${team}) ON CONFLICT(id) DO UPDATE SET key_hash=EXCLUDED.key_hash, active=true`;
   }
 
-  // 3. Seed Campaigns with Raw SQL for backward compatibility with schema constraints
+  // 3. Seed Campaigns against the canonical schema
   for (let c = 1; c <= 10; c++) {
     const id = `campaign_scen_${c}`;
     const extId = `ext_cmp_${c}`;
@@ -63,7 +63,7 @@ export async function seedDatabaseWithRealisticData() {
     );
   }
 
-  // 4. Seed Providers with Raw SQL for backward compatibility
+  // 4. Seed Providers with encrypted credentials
   const providerList = [
     {
       id: 'ses',
