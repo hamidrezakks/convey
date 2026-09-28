@@ -60,7 +60,9 @@
     "typecheck": "bun --filter @convey/website generate && bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p apps/plugins/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p packages/sdk/tsconfig.json",
     "postinstall": "bun scripts/patch-openapi.ts",
     "test:server:ci": "bun scripts/test-server-ci.ts",
-    "test:server:performance": "bun scripts/test-server-ci.ts --performance"
+    "test:server:performance": "bun scripts/test-server-ci.ts --performance",
+    "qualification:inventory": "bun scripts/qualification/provider-inventory.ts",
+    "qualification:inventory:check": "bun scripts/qualification/provider-inventory.ts --check"
   },
   "devDependencies": {
     "@aws-sdk/client-sesv2": "^3.749.0",
