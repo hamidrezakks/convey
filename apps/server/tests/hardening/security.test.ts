@@ -144,10 +144,13 @@ describe('Real API security boundaries', () => {
     expect((await call('/v1/admin/providers', 'admin')).status).toBe(200);
   });
   test('single and bulk sends reject another team before any write', async () => {
+    const before = await queryClient`SELECT count(*)::int AS count FROM messages WHERE team IN (${teamA},${teamB})`;
     expect((await call('/v1/messages', 'a', 'POST', payload(teamB))).status).toBe(403);
     expect((await call('/v1/messages/bulk', 'a', 'POST', { messages: [payload(teamA), payload(teamB)] })).status).toBe(
       403,
     );
+    const after = await queryClient`SELECT count(*)::int AS count FROM messages WHERE team IN (${teamA},${teamB})`;
+    expect(after[0].count).toBe(before[0].count);
   });
   test('message status, timeline, trace and receipts enforce ownership', async () => {
     const id = await accept(teamA, 'a');

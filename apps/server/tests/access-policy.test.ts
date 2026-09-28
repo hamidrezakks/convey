@@ -41,3 +41,21 @@ describe('credential access policy', () => {
     expect(() => parseEnv({ NODE_ENV: 'production', CONVEY_REQUIRE_AUTH: 'false' })).toThrow();
   });
 });
+
+// Exhaustive role/scope/method matrix; route integration is covered by hardening/security.test.ts.
+test('all stored roles obey the platform, mutation and sandbox matrix', () => {
+  for (const role of Object.values(UserRole)) {
+    for (const scope of ['tenant', 'platform'] as const) {
+      for (const sandboxOnly of [false, true]) {
+        for (const method of ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']) {
+          const actor = { ...identity, role, scope, sandboxOnly };
+          const read = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+          const platformAllowed = scope === 'platform' && !sandboxOnly && (read || role === UserRole.ORG_ADMIN);
+          expect(authorizeRequest(actor, method, true)?.status ?? 200).toBe(platformAllowed ? 200 : 403);
+          const tenantAllowed = read || role === UserRole.ORG_ADMIN || role === UserRole.DEVELOPER;
+          expect(authorizeRequest(actor, method)?.status ?? 200).toBe(tenantAllowed ? 200 : 403);
+        }
+      }
+    }
+  }
+});

@@ -353,7 +353,10 @@ describe('Durable budget enforcement', () => {
     expect(state?.reservedAmount).toBe(0.3);
     const ledger = await db.select().from(budgetLedger).where(eq(budgetLedger.team, team));
     expect(ledger).toHaveLength(4);
-    expect(ledger.reduce((sum, row) => sum + Number(row.amountInPolicyCurrency), 0)).toBeCloseTo(state!.usedAmount, 4);
+    expect(ledger.reduce((sum, row) => sum + Number(row.amountInPolicyCurrency), 0)).toBeCloseTo(
+      state?.usedAmount ?? -1,
+      4,
+    );
     for (const row of accepted)
       expect((await BudgetService.reserve(charge(team, 0.1, `parallel-${attempts.indexOf(row)}`))).reason).toBe(
         'duplicate',
