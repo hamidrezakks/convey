@@ -71,19 +71,24 @@ async function buildSdk() {
     process.exit(tscProc.exitCode);
   }
 
-  // Create dual declaration file for CommonJS (index.d.cts)
-  const dtsPath = resolve(distDir, 'index.d.ts');
-  const dtsMapPath = resolve(distDir, 'index.d.ts.map');
-  const dctsPath = resolve(distDir, 'index.d.cts');
-  const dctsMapPath = resolve(distDir, 'index.d.cts.map');
-
-  if (existsSync(dtsPath)) {
-    const dtsContent = readFileSync(dtsPath, 'utf8');
-    writeFileSync(dctsPath, dtsContent);
-  }
-  if (existsSync(dtsMapPath)) {
-    const dtsMapContent = readFileSync(dtsMapPath, 'utf8');
-    writeFileSync(dctsMapPath, dtsMapContent);
+  // NodeNext requires explicit extensions and a separate CommonJS declaration graph.
+  // Rewriting only index.d.cts leaves its re-exports pointing at ESM declarations.
+  for (const file of new Bun.Glob('**/*.d.ts').scanSync(distDir)) {
+    const path = resolve(distDir, file);
+    const original = readFileSync(path, 'utf8').replace(/\n?\/\/# sourceMappingURL=.*$/gm, '');
+    const declarations = (extension: string) =>
+      original.replace(/(['"])(\.{1,2}\/[^'"]+)\1/g, (_match, quote: string, specifier: string) => {
+        const target = existsSync(resolve(dirname(path), `${specifier}.d.ts`))
+          ? specifier
+          : existsSync(resolve(dirname(path), specifier, 'index.d.ts'))
+            ? `${specifier}/index`
+            : undefined;
+        if (!target) throw new Error(`Unresolved declaration import ${specifier} in ${file}`);
+        return `${quote}${target}.${extension}${quote}`;
+      });
+    writeFileSync(path, declarations('js'));
+    writeFileSync(path.replace(/\.d\.ts$/, '.d.cts'), declarations('cjs'));
+    rmSync(`${path}.map`, { force: true });
   }
 
   // 5. Verification & Summary
