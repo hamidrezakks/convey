@@ -119,19 +119,32 @@ describe('Real API security boundaries', () => {
     expect(saved.reservedAmount).toBe(0);
     expect((await call(path, 'admin', 'PUT', { ...body, monthlyBudget: 0, hardStop: false })).status).toBe(200);
   });
-  test('all protected route families reject absent credentials', async () => {
-    for (const path of [
-      '/v1/admin/overview',
-      '/v1/messages/not-found',
-      '/v1/dlq',
-      '/v1/templates',
-      '/v1/batches',
-      '/v1/suppressions',
-      '/v1/webhook-subscriptions',
-      '/v1/sandbox/messages',
-      '/v1/auth/session',
-    ]) {
-      expect((await call(path)).status).toBe(401);
+  test('every registered API-key route rejects absent credentials', async () => {
+    const schemaBodies: Record<string, unknown> = {
+      '/v1/suppressions/bulk': { items: [] },
+      '/v1/suppressions/': { identifier: 'mock@example.test', reason: 'MANUAL_BLOCK' },
+      '/v1/templates/': { slug: 'mock', name: 'Mock' },
+      '/v1/templates/:slug/versions': { version: '1.0.0', channels: {} },
+      '/v1/templates/:slug/publish': { version: '1.0.0' },
+      '/v1/templates/render': { channel: 'email' },
+      '/v1/templates/partials': { name: 'mock', content: 'Mock' },
+      '/v1/webhook-subscriptions/': { url: 'https://example.test/mock', events: [] },
+      '/v1/batches/': { totalCount: 1 },
+    };
+    const routes = app.routes.filter(
+      (route) =>
+        route.path.startsWith('/v1/') && !route.path.startsWith('/v1/webhooks/') && !route.path.startsWith('/v1/t/'),
+    );
+    expect(routes.length).toBeGreaterThan(60);
+    for (const route of routes) {
+      const path = route.path.replace(/:[^/]+/g, 'not-found');
+      const response = await call(
+        path,
+        undefined,
+        route.method,
+        ['GET', 'HEAD', 'OPTIONS'].includes(route.method) ? undefined : (schemaBodies[route.path] ?? {}),
+      );
+      expect(response.status, `${route.method} ${route.path}`).toBe(401);
     }
   });
   test('stored scope and role control platform access', async () => {
