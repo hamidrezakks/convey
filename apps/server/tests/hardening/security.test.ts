@@ -249,7 +249,7 @@ test('real log metadata redaction removes nested credentials and recipients', ()
 test('outbox queue failure releases its claim and stale claims can be recovered', async () => {
   const id = generateMessageId();
   const shard = 99; // Reserved fixture shard; production scheduler does not poll it.
-  await queryClient`INSERT INTO outbox(id,message_id,shard_id,type,payload,state,available_at) VALUES(${id},${id},${shard},'message_dispatch',${JSON.stringify({ publicId: id, team: teamA, priority: 'normal' })}::jsonb,'pending',now())`;
+  await queryClient`INSERT INTO outbox(id,message_id,shard_id,type,payload,state,available_at) VALUES(${id},${id},${shard},'message_dispatch',${JSON.stringify({ publicId: id, team: teamA, priority: 'normal' })}::jsonb,'pending',now()-interval '1 second')`;
   const original = dispatchNormalQueue.addBulk;
   try {
     dispatchNormalQueue.addBulk = async () => {
