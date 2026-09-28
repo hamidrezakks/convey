@@ -145,7 +145,8 @@
       "plugins health",
       "console HTTP"
     ],
-    "images": "sha256:39f8df48fca43dad339ee48c294b19d3b14620f23b59b4445ad0aacae6282d96\nsha256:79291822707bb328161c67e056c8f241767dae971dc32f87fd7581bd760498a0\nsha256:6be8f70b3ea9883875833da4bf074214a91cc2ff807c0f2c4df9751c0656ebe7"
+    "images": "sha256:c8bf89abfd98d7c5d01ac319c804efa95b2b9ef637f19301b75dc7b4f1601c61\nsha256:2f8aea609c330d5851ceafcaefac37e53b10d4b00dd9d02c5c3d399c7b07793b\nsha256:e7bca947a59e751a2b4d6accb4af3b6adf38fad69620b1141bc6cda9fb69e99b",
+    "buildCommit": "bbaf283"
   },
   "openReleaseGates": [
     "Live provider delivery, vendor API changes and invoice evidence are deliberately outside the requested mock-only verification.",

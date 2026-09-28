@@ -1,84 +1,84 @@
-groups: 
+groups:
   - name: convey-http
-    rules: 
+    rules:
       - alert: ConveyApiErrors
         expr: "sum(rate(convey_http_requests_total{status=~\"5..\",path!=\"/metrics\"}[5m])) / clamp_min(sum(rate(convey_http_requests_total{path!=\"/metrics\"}[5m])), 0.01) > 0.05"
         for: 5m
-        labels: 
+        labels:
           severity: critical
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Convey API errors exceed 5 percent
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyAcceptanceLatency
         expr: "histogram_quantile(0.95, sum by (le) (rate(convey_http_request_duration_seconds_bucket{path=~\"/v1/messages/?|/v1/messages/bulk\",method=\"POST\"}[5m]))) > 0.5"
         for: 10m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Convey message acceptance p95 exceeds 500ms
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyRelayBacklog
         expr: convey_outbox_oldest_due_seconds > 60 and convey_operational_metrics_available == 1
         for: 5m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Convey relay has messages overdue by more than a minute
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyDeliveryFailures
         expr: "convey_messages_failed_last_hour / clamp_min(convey_messages_failed_last_hour + convey_messages_delivered_last_hour, 1) > 0.05 and convey_messages_failed_last_hour > 10 and convey_operational_metrics_available == 1"
         for: 5m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Delivery failures are elevated for messages created in the last hour
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyProviderCircuitOpen
         expr: convey_provider_circuits_open > 0
         for: 5m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: A provider circuit remains open
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyMetricsUnavailable
         expr: convey_operational_metrics_available == 0
         for: 2m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Convey cannot refresh database-backed operational metrics
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyStaleBudgetHolds
         expr: convey_budget_stale_reservations > 0 and convey_operational_metrics_available == 1
         for: 5m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Uncertain budget holds require evidence-based reconciliation
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyScrapeUnavailable
         expr: "up{job=\"convey\"} == 0 or absent(up{job=\"convey\"})"
         for: 2m
-        labels: 
+        labels:
           severity: critical
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Convey metrics target is unavailable or absent
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
       - alert: ConveyMetricsMissing
         expr: "up{job=\"convey\"} == 1 unless on(job,instance) convey_operational_metrics_available"
         for: 2m
-        labels: 
+        labels:
           severity: warning
           owner: convey-operator
-        annotations: 
+        annotations:
           summary: Convey scrape succeeds but operational metrics are missing
           runbook_url: https://github.com/hamidrezakks/convey/blob/main/docs/operations/incident-runbook.md
