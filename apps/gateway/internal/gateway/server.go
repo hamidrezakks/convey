@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -125,6 +126,9 @@ func request(ctx context.Context, client *http.Client, cfg Config, method, path 
 	if err != nil {
 		return nil, err
 	}
+	// Do not let the transport replay a body after an ambiguous connection failure,
+	// including when callers supply an Idempotency-Key header.
+	req.GetBody = nil
 	req.Header = h
 	return client.Do(req)
 }
@@ -217,13 +221,14 @@ func handle(c fiber.Ctx, cfg Config, client *http.Client, resolver customer.Reso
 	}
 	ctx, cancel := context.WithTimeout(c.Context(), cfg.Timeout)
 	defer cancel()
-	body := c.Body()
+	body := c.Request().Body()
 	h := headers(c)
 	if c.Method() == "POST" && (path == "/v1/messages" || path == "/v1/messages/bulk") {
 		if encoding := c.Get("Content-Encoding"); encoding != "" && encoding != "identity" {
 			return respond(c, &failure{415, "UNSUPPORTED_ENCODING", "message submissions require uncompressed JSON"})
 		}
-		if !strings.HasPrefix(strings.ToLower(c.Get("Content-Type")), "application/json") {
+		mediaType, _, parseErr := mime.ParseMediaType(c.Get("Content-Type"))
+		if parseErr != nil || mediaType != "application/json" {
 			return respond(c, &failure{415, "UNSUPPORTED_MEDIA_TYPE", "message submissions require application/json"})
 		}
 		scope, err := authenticate(ctx, c, cfg, client)
@@ -258,7 +263,7 @@ func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *http
 			return err
 		}
 		go func() {
-			if err := app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+			if err := app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true}); err != nil && !errors.Is(err, net.ErrClosed) {
 				slog.Error("gateway listener stopped")
 				_ = shutdown.Shutdown(fx.ExitCode(1))
 			}
@@ -266,6 +271,7 @@ func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *http
 		return nil
 	}, OnStop: func(ctx context.Context) error {
 		err := app.ShutdownWithContext(ctx)
+		_ = listener.Close()
 		client.CloseIdleConnections()
 		return err
 	}})

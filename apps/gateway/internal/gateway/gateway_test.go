@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -324,5 +326,29 @@ func TestConfigValidation(t *testing.T) {
 		if _, err := LoadConfig(); err == nil {
 			t.Errorf("accepted invalid origin %q", bad)
 		}
+	}
+}
+
+func TestCompressedCallbackPreservesSignedBytes(t *testing.T) {
+	var zipped bytes.Buffer
+	writer := gzip.NewWriter(&zipped)
+	_, _ = writer.Write([]byte(`{"signed":"payload"}`))
+	_ = writer.Close()
+	app := fixture(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		if !bytes.Equal(b, zipped.Bytes()) || r.Header.Get("Content-Encoding") != "gzip" {
+			t.Error("compressed callback changed")
+		}
+		w.WriteHeader(204)
+	})
+	req := httptest.NewRequest("POST", "/v1/webhooks/example", bytes.NewReader(zipped.Bytes()))
+	req.Header.Set("Content-Encoding", "gzip")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 204 {
+		t.Fatal(resp.StatusCode)
 	}
 }
