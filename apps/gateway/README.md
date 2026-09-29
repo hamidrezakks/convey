@@ -130,3 +130,7 @@ docker build -t convey-gateway apps/gateway  # from repository root
 ```
 
 Tests use local mock servers only. They cover scope/role rejection before lookup, recipient overrides, all channel fields, fallback/cascade address collection, bulk lookup deduplication/failures, raw callbacks, redirects, upstream errors, deadlines, bounded lookup concurrency, API inventory parity and Fx startup/shutdown. Actual customer integration remains dependent on an agreed customer-service contract.
+
+### Local qualification
+
+The feature branch passed 16 top-level tests (plus table/subtests) with the race detector, `go vet`, the repository Biome check (three pre-existing warnings), and a non-root/read-only container startup and graceful-stop smoke test. `govulncheck` v1.8.0 reports no affected symbols or imported packages. Its remaining module-only advisory is GO-2026-5932 for the unused `golang.org/x/crypto/openpgp` package. No real customer service or delivery provider was contacted. Hosted CI was not awaited.
