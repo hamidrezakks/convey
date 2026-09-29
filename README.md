@@ -16,6 +16,7 @@ Experimental resilience utilities, benchmark results and provider catalog entrie
 
 | Directory | Purpose |
 | --- | --- |
+| `apps/gateway` | Go recipient-resolution proxy for non-admin APIs; [usage and adapter contract](apps/gateway/README.md) |
 | `apps/server` | HTTP API, workers, database migrations and provider modules |
 | `apps/web` | React operator console and same-origin production proxy |
 | `apps/plugins` | Optional inbox and preference APIs |

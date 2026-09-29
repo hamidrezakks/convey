@@ -5,6 +5,6 @@
 3. Exercise real HTTP mocks: authentication boundaries, channel/fallback recipients, bulk failures, raw webhook bytes, transparent upstream errors, timeouts, and route inventory coverage.
 4. Add a non-root container, minimal configuration, operator/client examples and CI. Review locally, commit each step, open a stacked PR without waiting for hosted CI.
 
-Customer API is not supplied yet. Initial replaceable contract: GET /v1/customers/{userId}?team=... with verified X-Convey-Tenant-Id, X-Convey-Team and X-Convey-Sandbox headers. Return tenantId, team, userId and recipients. Never use unverified caller tenant headers. Optional dedicated customer bearer token. This contract must match the actual customer service before live use.
+Customer API is intentionally unspecified by the owner. The Resolver interface supports single or bulk adapters; the included configurable HTTP reference contract uses single GET /v1/customers/{userId}?team=... with verified X-Convey-Tenant-Id, X-Convey-Team and X-Convey-Sandbox headers. Return tenantId, team, userId and recipients. Never use unverified caller tenant headers. Optional dedicated customer bearer token. This contract must match the actual customer service before live use.
 
 Convey owns authorization, delivery and idempotency. The gateway authenticates enriched sends with /v1/auth/session before customer lookup. Customer data is not cached across requests; changed contact data can cause a safe upstream idempotency conflict on a retry. No automatic send retries or hidden durable state.
