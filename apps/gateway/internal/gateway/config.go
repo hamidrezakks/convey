@@ -1,0 +1,42 @@
+package gateway
+
+import (
+	"fmt"
+	"net/url"
+	"os"
+	"time"
+)
+
+type Config struct {
+	Listen        string
+	ConveyURL     string
+	CustomerURL   string
+	CustomerToken string
+	CustomerMode  string
+	CustomerPath  string
+	Timeout       time.Duration
+}
+
+func LoadConfig() (Config, error) {
+	c := Config{Listen: env("GATEWAY_LISTEN", ":8080"), ConveyURL: os.Getenv("CONVEY_URL"), CustomerURL: os.Getenv("CUSTOMER_URL"), CustomerToken: os.Getenv("CUSTOMER_TOKEN"), CustomerMode: env("CUSTOMER_LOOKUP_MODE", "single"), Timeout: 15 * time.Second}
+	c.CustomerPath = env("CUSTOMER_LOOKUP_PATH", "/v1/customers/{userId}")
+	if c.CustomerMode == "bulk" {
+		c.CustomerPath = env("CUSTOMER_LOOKUP_PATH", "/v1/customers/resolve")
+	}
+	if c.CustomerMode != "single" && c.CustomerMode != "bulk" {
+		return c, fmt.Errorf("CUSTOMER_LOOKUP_MODE must be single or bulk")
+	}
+	for name, raw := range map[string]string{"CONVEY_URL": c.ConveyURL, "CUSTOMER_URL": c.CustomerURL} {
+		u, err := url.Parse(raw)
+		if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return c, fmt.Errorf("%s must be an HTTP(S) origin without credentials, path or query", name)
+		}
+	}
+	return c, nil
+}
+func env(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
