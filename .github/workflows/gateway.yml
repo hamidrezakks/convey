@@ -23,6 +23,7 @@ jobs:
           test -z "$(gofmt -l .)"
           go test -race ./...
           go vet ./...
+          go run ./cmd/simulator
           go build ./cmd/gateway
       - name: Build non-root container
         run: docker build -t convey-gateway:test apps/gateway

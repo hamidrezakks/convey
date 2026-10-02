@@ -73,7 +73,9 @@
     "qualification:access": "NODE_ENV=test bun scripts/qualification/access-inventory.ts",
     "qualification:access:check": "NODE_ENV=test bun scripts/qualification/access-inventory.ts --check",
     "dev:gateway": "cd apps/gateway && go run ./cmd/gateway",
-    "test:gateway": "cd apps/gateway && go test -race ./..."
+    "test:gateway": "cd apps/gateway && go test -race ./...",
+    "simulate:gateway": "cd apps/gateway && go run ./cmd/simulator",
+    "mock:gateway": "cd apps/gateway && go run ./cmd/simulator --serve"
   },
   "devDependencies": {
     "@aws-sdk/client-sesv2": "^3.749.0",

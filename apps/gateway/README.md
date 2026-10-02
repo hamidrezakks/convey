@@ -121,6 +121,10 @@ Admin routes, unknown methods/routes, metrics and Swagger are not exposed. Canon
 
 Convey's existing idempotency key is preserved. Fresh lookup on a retry can observe changed contact information and cause Convey's payload-conflict response. The gateway deliberately does not hide that with a stale PII cache. Save an accepted message ID and inspect its outcome; for exact payload replay, retain the originally resolved recipient snapshot in your trusted application workflow. An unresolved send must not be resubmitted with a new key merely to bypass a conflict.
 
+## Mock simulator
+
+Run `bun run simulate:gateway` from the repository root for automatic loopback qualification, or `bun run mock:gateway` for an interactive gateway with synthetic customer profiles. Both customer lookup modes are covered. See [simulator instructions and scope](SIMULATOR.md).
+
 ## Verification and container
 
 ```sh
@@ -133,4 +137,7 @@ Tests use local mock servers only. They cover scope/role rejection before lookup
 
 ### Local qualification
 
-The feature branch passed 16 top-level tests (plus table/subtests) with the race detector, `go vet`, the repository Biome check (three pre-existing warnings), and a non-root/read-only container startup and graceful-stop smoke test. `govulncheck` v1.8.0 reports no affected symbols or imported packages. Its remaining module-only advisory is GO-2026-5932 for the unused `golang.org/x/crypto/openpgp` package. No real customer service or delivery provider was contacted. Hosted CI was not awaited.
+The initial feature branch passed 16 top-level tests (plus table/subtests) with the race detector, `go vet`, the repository Biome check (three pre-existing warnings), and a non-root/read-only container startup and graceful-stop smoke test. `govulncheck` v1.8.0 reports no affected symbols or imported packages. Its remaining module-only advisory is GO-2026-5932 for the unused `golang.org/x/crypto/openpgp` package. No real customer service or delivery provider was contacted. Hosted CI was not awaited.
+
+
+Expanded qualification (2026-10-02) adds a real-HTTP simulator, complete route-forwarding checks, request-limit coverage, fuzz seeds and regressions for sanitized authentication headers, callback trailing slashes, and proxy isolation from HTTP parse-error middleware. The simulator uses only its own mock services. Detailed commands and limits are in SIMULATOR.md.
