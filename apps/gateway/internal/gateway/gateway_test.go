@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/hamidrezakks/convey/apps/gateway/internal/customer"
+	"github.com/valyala/fasthttp"
 	"go.uber.org/fx"
 )
 
@@ -351,4 +353,147 @@ func TestCompressedCallbackPreservesSignedBytes(t *testing.T) {
 	if resp.StatusCode != 204 {
 		t.Fatal(resp.StatusCode)
 	}
+}
+
+func TestAuthenticationUsesSameSanitizedHeadersAsForwarding(t *testing.T) {
+	var lookupSandbox bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/session" {
+			fmt.Fprintf(w, `{"tenantId":"t1","team":"orders","role":"DEVELOPER","isSandbox":%t}`, r.Header.Get("X-Convey-Sandbox") == "true")
+			return
+		}
+		if lookupSandbox != (r.Header.Get("X-Convey-Sandbox") == "true") {
+			t.Error("lookup and send used different environments")
+		}
+		w.WriteHeader(202)
+	}))
+	defer upstream.Close()
+	client := NewClient()
+	defer client.CloseIdleConnections()
+	app := NewApp(Config{ConveyURL: upstream.URL, Timeout: time.Second}, client, resolverFunc(func(_ context.Context, scope customer.Scope, _ []string) (map[string]customer.Recipients, error) {
+		lookupSandbox = scope.Sandbox
+		return map[string]customer.Recipients{"u1": {"email": raw(`"sandbox@example.test"`)}}, nil
+	}))
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(sample))
+	req.Header.Set("Authorization", "Bearer good")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Connection", "X-Convey-Sandbox")
+	req.Header.Set("X-Convey-Sandbox", "true")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 202 {
+		t.Fatal(resp.StatusCode)
+	}
+	if lookupSandbox {
+		t.Error("hop-by-hop sandbox header influenced lookup")
+	}
+}
+
+func TestCallbackPreservesTrailingSlash(t *testing.T) {
+	app := fixture(t, nil, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/v1/webhooks/twilio/status/" {
+			t.Errorf("changed callback URL: %s", r.URL)
+		}
+		w.WriteHeader(204)
+	})
+	code, _, _ := call(t, app, "POST", "/v1/webhooks/twilio/status/", `{"event":"test"}`, "")
+	if code != 204 {
+		t.Fatal(code)
+	}
+}
+
+// This checks HTTP forwarding for every exposed route; it does not replace
+// Convey's domain validation tests for each endpoint's payload schema.
+func TestEveryAllowedRouteForwards(t *testing.T) {
+	resolver := resolverFunc(func(context.Context, customer.Scope, []string) (map[string]customer.Recipients, error) {
+		return map[string]customer.Recipients{"u1": {"email": raw(`"mock@example.test"`)}}, nil
+	})
+	app := fixture(t, resolver, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Mock-Method", r.Method)
+		w.Header().Set("X-Mock-Path", r.URL.Path)
+		w.Header().Set("X-Mock-Query", r.URL.RawQuery)
+		w.WriteHeader(418)
+	})
+	for method, patterns := range routes {
+		for _, pattern := range patterns {
+			if pattern == "/v1/auth/session" {
+				continue
+			}
+			parts := strings.Split(pattern, "/")
+			for i, p := range parts {
+				if strings.HasPrefix(p, ":") {
+					parts[i] = "example"
+				}
+			}
+			path := strings.Join(parts, "/")
+			body := sample
+			if path == "/v1/messages/bulk" {
+				body = `{"messages":[` + sample + `]}`
+			}
+			t.Run(method+" "+pattern, func(t *testing.T) {
+				code, _, headers := call(t, app, method, path+"?cursor=a%2Bb&limit=10", body, "good")
+				if code != 418 || headers.Get("X-Mock-Method") != method || headers.Get("X-Mock-Path") != path || headers.Get("X-Mock-Query") != "cursor=a%2Bb&limit=10" {
+					t.Fatalf("route not transparently forwarded: %d %v", code, headers)
+				}
+			})
+		}
+	}
+}
+
+func TestSubmissionLimitsAndMediaTypes(t *testing.T) {
+	app := fixture(t, resolverFunc(func(context.Context, customer.Scope, []string) (map[string]customer.Recipients, error) {
+		t.Error("lookup for invalid request")
+		return nil, nil
+	}), func(http.ResponseWriter, *http.Request) { t.Error("forwarded invalid request") })
+	for _, tc := range []struct {
+		name, body, media, encoding string
+		status                      int
+	}{
+		{"oversized", strings.Repeat("x", (4<<20)+1), "application/json", "", 413},
+		{"wrong type", sample, "application/json-invalid", "", 415},
+		{"compressed", sample, "application/json", "gzip", 415},
+		{"too many messages", `{"messages":[` + strings.Repeat(sample+",", 500) + sample + `]}`, "application/json", "", 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/v1/messages/bulk", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", tc.media)
+			req.Header.Set("Authorization", "Bearer good")
+			if tc.encoding != "" {
+				req.Header.Set("Content-Encoding", tc.encoding)
+			}
+			resp, err := app.Test(req)
+			if tc.status == 413 && errors.Is(err, fasthttp.ErrBodyTooLarge) {
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != tc.status {
+				t.Fatalf("got %d want %d", resp.StatusCode, tc.status)
+			}
+		})
+	}
+}
+
+func FuzzEnrichmentRejectsMalformedInput(f *testing.F) {
+	for _, seed := range []string{sample, `null`, `[]`, `{"messages":[null]}`, `{"channels":[null]}`, `{"userId":"u1","idempotencyKey":"x","channels":[{"channel":"email"}],"recipients":42}`} {
+		f.Add(seed, false)
+		f.Add(seed, true)
+	}
+	resolver := resolverFunc(func(context.Context, customer.Scope, []string) (map[string]customer.Recipients, error) {
+		return nil, customer.ErrNotFound
+	})
+	f.Fuzz(func(t *testing.T, body string, bulk bool) {
+		if len(body) > 64<<10 {
+			t.Skip()
+		}
+		out, err := enrich(context.Background(), resolver, customer.Scope{TenantID: "t", Team: "orders"}, []byte(body), bulk)
+		if err == nil && !json.Valid(out) {
+			t.Fatal("returned invalid JSON")
+		}
+	})
 }

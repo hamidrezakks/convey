@@ -155,9 +155,10 @@ func relay(c fiber.Ctx, resp *http.Response) error {
 	return c.Status(resp.StatusCode).Send(b)
 }
 func authenticate(ctx context.Context, c fiber.Ctx, cfg Config, client *http.Client) (customer.Scope, error) {
+	sanitized := headers(c)
 	h := make(http.Header)
 	for _, key := range []string{"Authorization", "X-API-Key", "X-Convey-Sandbox", "X-Convey-Environment"} {
-		if v := c.Get(key); v != "" {
+		if v := sanitized.Get(key); v != "" {
 			h.Set(key, v)
 		}
 	}
@@ -202,7 +203,8 @@ func NewApp(cfg Config, client *http.Client, resolver customer.Resolver) *fiber.
 	app.Get("/healthz", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
 	// Readiness reports listener availability. Dependency failures surface on requests.
 	app.Get("/readyz", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ready"}) })
-	app.Use(func(c fiber.Ctx) error {
+	// A terminal route, not middleware: Fiber traverses middleware on HTTP parse errors.
+	app.All("/*", func(c fiber.Ctx) error {
 		start := time.Now()
 		err := handle(c, cfg, client, resolver)
 		// Never log URLs, request bodies, credentials, user IDs, or customer addresses.
@@ -244,7 +246,7 @@ func handle(c fiber.Ctx, cfg Config, client *http.Client, resolver customer.Reso
 		h.Del("Digest")
 		h.Set("Content-Type", "application/json")
 	}
-	target := path
+	target := string(c.Request().URI().PathOriginal())
 	if q := string(c.Request().URI().QueryString()); q != "" {
 		target += "?" + q
 	}
