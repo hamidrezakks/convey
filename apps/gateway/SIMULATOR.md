@@ -96,5 +96,7 @@ This does **not** certify real customer-service integration, Convey's delivery w
 - Statement coverage: customer adapter 87.7%, gateway 88.9%, simulator 79.3%. Thin command entry points are checked by running their binaries rather than by the coverage harness.
 - Static analysis and repository formatting passed, with three existing unrelated Biome warnings.
 - Linux amd64/arm64 gateway builds passed. The interactive simulator accepted a mock send and exited cleanly on SIGTERM, closing its listener.
-- The Docker daemon was unavailable for this follow-up, so a new container runtime check could not run. The original feature's container evidence is separate.
+- Docker follow-up: the production image built on Linux arm64, and the complete 54-check simulator passed inside a Linux container with external networking disabled.
+- The production scratch image passed single and bulk customer lookup checks on an isolated internal Docker network: readiness, single/bulk acceptance, email and fallback-phone enrichment, invalid credentials, cross-team requests, missing customers, blocked admin routes, no forwarding of rejected messages, and exact callback bytes/trailing slash. Both containers ran as UID 10001 with a read-only filesystem, all capabilities dropped and no-new-privileges; both exited with code 0 on SIGTERM. Test containers and their network were removed.
+- Tested image: `sha256:ec9e52f51bd8e5a67c9fb70d2369445f51d77fb030d2c2abca2f28df7c644268` (`linux/arm64`). This runtime result does not claim amd64 container execution.
 - Hosted CI was not awaited. No production endpoints or delivery vendors were used.

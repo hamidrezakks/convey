@@ -4,6 +4,8 @@ An independent Go 1.27.1 service using Fiber 3.5.0 and Uber Fx 1.24.0. Applicati
 
 **The customer API is deliberately abstract.** The real endpoint is not known yet. `internal/customer.Resolver` is the application boundary; the included HTTP implementation is a reference contract, not an assertion about your customer service. Replace `NewResolver`'s Fx provider or adapt `customer.HTTP` when the service contract is available. Both single-user and native bulk lookup are supported.
 
+Start with [Using the gateway](USAGE.md) for single/bulk requests, multiple channels, overrides, error handling and Docker usage. For a runnable fake customer service, see [the simulator](SIMULATOR.md).
+
 ## Run
 
 ```sh
@@ -139,5 +141,6 @@ Tests use local mock servers only. They cover scope/role rejection before lookup
 
 The initial feature branch passed 16 top-level tests (plus table/subtests) with the race detector, `go vet`, the repository Biome check (three pre-existing warnings), and a non-root/read-only container startup and graceful-stop smoke test. `govulncheck` v1.8.0 reports no affected symbols or imported packages. Its remaining module-only advisory is GO-2026-5932 for the unused `golang.org/x/crypto/openpgp` package. No real customer service or delivery provider was contacted. Hosted CI was not awaited.
 
-
 Expanded qualification (2026-10-02) adds a real-HTTP simulator, complete route-forwarding checks, request-limit coverage, fuzz seeds and regressions for sanitized authentication headers, callback trailing slashes, and proxy isolation from HTTP parse-error middleware. The simulator uses only its own mock services. Detailed commands and limits are in SIMULATOR.md.
+
+The Docker follow-up also passed all 54 simulator checks in Linux and verified the production image with single/bulk mock adapters, recipient enrichment, rejection boundaries, callback preservation, non-root/read-only operation and graceful shutdown. See [recorded verification](SIMULATOR.md#recorded-verification-2026-10-02) for the image and platform.
