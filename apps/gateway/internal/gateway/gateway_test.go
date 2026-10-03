@@ -497,3 +497,32 @@ func FuzzEnrichmentRejectsMalformedInput(f *testing.F) {
 		}
 	})
 }
+
+func TestBatchingConfigAndOverload(t *testing.T) {
+	t.Setenv("CONVEY_URL", "http://localhost:3000")
+	t.Setenv("CUSTOMER_URL", "http://localhost:4000")
+	t.Setenv("CUSTOMER_LOOKUP_MODE", "")
+	t.Setenv("CUSTOMER_LOOKUP_PATH", "")
+	t.Setenv("CUSTOMER_BATCH_WAIT", "")
+	cfg, err := LoadConfig()
+	if err != nil || cfg.CustomerMode != "bulk" || cfg.BatchWait != 300*time.Millisecond {
+		t.Fatalf("defaults: %+v %v", cfg, err)
+	}
+	for _, value := range []string{"-1ms", "2s", "bad"} {
+		t.Setenv("CUSTOMER_BATCH_WAIT", value)
+		if _, err := LoadConfig(); err == nil {
+			t.Errorf("accepted %q", value)
+		}
+	}
+	t.Setenv("CUSTOMER_BATCH_WAIT", "0s")
+	if cfg, err := LoadConfig(); err != nil || cfg.BatchWait != 0 {
+		t.Fatal(cfg, err)
+	}
+	app := fixture(t, resolverFunc(func(context.Context, customer.Scope, []string) (map[string]customer.Recipients, error) {
+		return nil, customer.ErrBusy
+	}), func(http.ResponseWriter, *http.Request) { t.Error("overload forwarded") })
+	status, body, header := call(t, app, "POST", "/v1/messages", sample, "good")
+	if status != 503 || header.Get("Retry-After") != "1" || !strings.Contains(string(body), "CUSTOMER_BUSY") {
+		t.Fatalf("%d %s %v", status, body, header)
+	}
+}

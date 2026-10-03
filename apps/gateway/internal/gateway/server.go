@@ -31,6 +31,9 @@ func respond(c fiber.Ctx, err error) error {
 	if !errors.As(err, &f) {
 		f = &failure{502, "UPSTREAM_UNAVAILABLE", "upstream request failed"}
 	}
+	if f.status == 503 {
+		c.Set("Retry-After", "1")
+	}
 	return c.Status(f.status).JSON(fiber.Map{"error": fiber.Map{"code": f.code, "message": f.message}})
 }
 
@@ -45,7 +48,8 @@ func NewResolver(c Config, client *outbound.Client) (customer.Resolver, error) {
 	if c.CustomerMode == "bulk" && strings.Contains(c.CustomerPath, "{") {
 		return nil, errors.New("bulk lookup path cannot have placeholders")
 	}
-	return &customer.HTTP{Client: client, BaseURL: c.CustomerURL, Token: c.CustomerToken, Mode: c.CustomerMode, Path: c.CustomerPath}, nil
+	adapter := &customer.HTTP{Client: client, BaseURL: c.CustomerURL, Token: c.CustomerToken, Mode: c.CustomerMode, Path: c.CustomerPath}
+	return customer.NewBatcher(adapter, c.BatchWait), nil
 }
 func allowed(method, path string) bool {
 	for _, pattern := range routes[method] {
@@ -185,7 +189,7 @@ func NewApp(cfg Config, client *outbound.Client, resolver customer.Resolver) *fi
 		start := time.Now()
 		err := handle(c, cfg, client, resolver)
 		// Never log URLs, request bodies, credentials, user IDs, or customer addresses.
-		slog.Info("gateway request", "method", c.Method(), "status", c.Response().StatusCode(), "duration_ms", time.Since(start).Milliseconds())
+		slog.Debug("gateway request", "method", c.Method(), "status", c.Response().StatusCode(), "duration_ms", time.Since(start).Milliseconds())
 		return err
 	})
 	return app
@@ -233,7 +237,7 @@ func handle(c fiber.Ctx, cfg Config, client *outbound.Client, resolver customer.
 	}
 	return relay(c, resp)
 }
-func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *outbound.Client, shutdown fx.Shutdowner) {
+func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *outbound.Client, resolver customer.Resolver, shutdown fx.Shutdowner) {
 	var listener net.Listener
 	lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
 		var err error
@@ -251,6 +255,9 @@ func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *outb
 	}, OnStop: func(ctx context.Context) error {
 		err := app.ShutdownWithContext(ctx)
 		_ = listener.Close()
+		if closer, ok := resolver.(interface{ Close(context.Context) error }); ok {
+			err = errors.Join(err, closer.Close(ctx))
+		}
 		client.CloseIdleConnections()
 		return err
 	}})

@@ -72,14 +72,22 @@ func Start(mode string) (*Harness, error) {
 	if mode == "bulk" {
 		path = "/v1/customers/resolve"
 	}
-	cfg := gateway.Config{ConveyURL: h.convey.URL, CustomerURL: h.directory.URL, CustomerToken: "mock-directory-secret", CustomerMode: mode, CustomerPath: path, Timeout: time.Second}
+	cfg := gateway.Config{ConveyURL: h.convey.URL, CustomerURL: h.directory.URL, CustomerToken: "mock-directory-secret", CustomerMode: mode, CustomerPath: path, Timeout: time.Second, BatchWait: customer.BatchWait}
 	out := gateway.NewClient()
-	deferOnClose := out.CloseIdleConnections
-	h.outboundClose = deferOnClose
+	h.outboundClose = out.CloseIdleConnections
 	resolver, err := gateway.NewResolver(cfg, out)
 	if err != nil {
 		h.Close()
 		return nil, err
+	}
+	previousClose := h.outboundClose
+	h.outboundClose = func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if closer, ok := resolver.(interface{ Close(context.Context) error }); ok {
+			_ = closer.Close(ctx)
+		}
+		previousClose()
 	}
 	h.app = gateway.NewApp(cfg, out, resolver)
 	h.listener, err = net.Listen("tcp", "127.0.0.1:0")
@@ -539,6 +547,7 @@ func (h *Harness) scenarios(ctx context.Context, out io.Writer) error {
 		return err
 	}
 	beforeCount := h.count()
+	beforeLookups := h.lookupRequests.Load()
 	var concurrent sync.WaitGroup
 	failures := make(chan error, 40)
 	for i := range 40 {
@@ -559,6 +568,10 @@ func (h *Harness) scenarios(ctx context.Context, out io.Writer) error {
 	if err = check("40 concurrent HTTP submissions", h.count() == beforeCount+40); err != nil {
 		return err
 	}
+	if err = check("concurrent lookups coalesced", h.lookupRequests.Load()-beforeLookups < 40); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "%s: 40 concurrent requests used %d customer HTTP calls\n", h.Mode, h.lookupRequests.Load()-beforeLookups)
 	if err = check("no customer scope/credential violations", h.faults.Load() == 0); err != nil {
 		return err
 	}

@@ -44,6 +44,8 @@ func (r *Response) Release() {
 	large := len(e.request.Body()) > AuthLimit || len(e.response.Body()) > AuthLimit
 	clear(e.request.Body())
 	clear(e.response.Body())
+	e.request.ReleaseBody(AuthLimit)
+	e.response.ReleaseBody(AuthLimit)
 	e.request.Reset()
 	e.response.Reset()
 	if !large {

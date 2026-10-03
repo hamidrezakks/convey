@@ -14,7 +14,7 @@ import (
 
 func main() {
 	serve := flag.Bool("serve", false, "keep a local gateway and mock services running for manual requests")
-	mode := flag.String("mode", "single", "customer lookup mode for --serve: single or bulk")
+	mode := flag.String("mode", "bulk", "customer lookup mode for --serve: single or bulk")
 	flag.Parse()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

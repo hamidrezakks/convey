@@ -44,9 +44,11 @@ func (h *HTTP) Resolve(ctx context.Context, scope Scope, ids []string) (map[stri
 				r, err := h.single(ctx, scope, id)
 				mu.Lock()
 				if err != nil {
-					if first == nil {
+					if first == nil || errors.Is(first, ErrNotFound) {
 						first = err
-						cancel()
+						if !errors.Is(err, ErrNotFound) {
+							cancel()
+						}
 					}
 				} else {
 					results[id] = r
@@ -64,7 +66,7 @@ func (h *HTTP) Resolve(ctx context.Context, scope Scope, ids []string) (map[stri
 	close(jobs)
 	wg.Wait()
 	if first != nil {
-		return nil, first
+		return results, first
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -114,7 +116,7 @@ func (h *HTTP) bulk(ctx context.Context, scope Scope, ids []string) (map[string]
 		out[r.UserID] = r.Recipients
 	}
 	if len(out) != len(wanted) {
-		return nil, ErrNotFound
+		return out, ErrNotFound
 	}
 	return out, nil
 }

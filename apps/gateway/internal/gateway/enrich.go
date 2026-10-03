@@ -137,6 +137,9 @@ func enrich(ctx context.Context, resolver customer.Resolver, scope customer.Scop
 		var err error
 		resolved, err = resolver.Resolve(ctx, scope, ids)
 		if err != nil {
+			if errors.Is(err, customer.ErrBusy) || errors.Is(err, customer.ErrClosed) {
+				return nil, &failure{503, "CUSTOMER_BUSY", "customer lookup capacity unavailable"}
+			}
 			if errors.Is(err, customer.ErrNotFound) {
 				return nil, &failure{422, "RECIPIENT_NOT_FOUND", "customer could not be resolved"}
 			}

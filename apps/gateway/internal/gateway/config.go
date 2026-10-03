@@ -15,10 +15,19 @@ type Config struct {
 	CustomerMode  string
 	CustomerPath  string
 	Timeout       time.Duration
+	BatchWait     time.Duration
 }
 
 func LoadConfig() (Config, error) {
-	c := Config{Listen: env("GATEWAY_LISTEN", ":8080"), ConveyURL: os.Getenv("CONVEY_URL"), CustomerURL: os.Getenv("CUSTOMER_URL"), CustomerToken: os.Getenv("CUSTOMER_TOKEN"), CustomerMode: env("CUSTOMER_LOOKUP_MODE", "single"), Timeout: 15 * time.Second}
+	c := Config{Listen: env("GATEWAY_LISTEN", ":8080"), ConveyURL: os.Getenv("CONVEY_URL"), CustomerURL: os.Getenv("CUSTOMER_URL"), CustomerToken: os.Getenv("CUSTOMER_TOKEN"), CustomerMode: env("CUSTOMER_LOOKUP_MODE", "bulk"), Timeout: 15 * time.Second}
+	c.BatchWait = 300 * time.Millisecond
+	if raw := os.Getenv("CUSTOMER_BATCH_WAIT"); raw != "" {
+		wait, err := time.ParseDuration(raw)
+		if err != nil || wait < 0 || wait > time.Second {
+			return c, fmt.Errorf("CUSTOMER_BATCH_WAIT must be between 0s and 1s")
+		}
+		c.BatchWait = wait
+	}
 	c.CustomerPath = env("CUSTOMER_LOOKUP_PATH", "/v1/customers/{userId}")
 	if c.CustomerMode == "bulk" {
 		c.CustomerPath = env("CUSTOMER_LOOKUP_PATH", "/v1/customers/resolve")
