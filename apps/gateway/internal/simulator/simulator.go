@@ -40,6 +40,7 @@ type Harness struct {
 	app               *fiber.App
 	listener          net.Listener
 	client            *http.Client
+	outboundClose     func()
 	serveDone         chan error
 	mu                sync.Mutex
 	customers         map[string]customer.Recipients
@@ -61,7 +62,7 @@ func Start(mode string) (*Harness, error) {
 	if mode != "single" && mode != "bulk" {
 		return nil, fmt.Errorf("unknown lookup mode %q", mode)
 	}
-	h := &Harness{Mode: mode, client: gateway.NewClient(), messages: map[string]stored{}, keys: map[string]string{}, serveDone: make(chan error, 1)}
+	h := &Harness{Mode: mode, client: &http.Client{Timeout: 3 * time.Second}, messages: map[string]stored{}, keys: map[string]string{}, serveDone: make(chan error, 1)}
 	if err := json.Unmarshal(fixture, &h.customers); err != nil {
 		return nil, err
 	}
@@ -72,12 +73,15 @@ func Start(mode string) (*Harness, error) {
 		path = "/v1/customers/resolve"
 	}
 	cfg := gateway.Config{ConveyURL: h.convey.URL, CustomerURL: h.directory.URL, CustomerToken: "mock-directory-secret", CustomerMode: mode, CustomerPath: path, Timeout: time.Second}
-	resolver, err := gateway.NewResolver(cfg, h.client)
+	out := gateway.NewClient()
+	deferOnClose := out.CloseIdleConnections
+	h.outboundClose = deferOnClose
+	resolver, err := gateway.NewResolver(cfg, out)
 	if err != nil {
 		h.Close()
 		return nil, err
 	}
-	h.app = gateway.NewApp(cfg, h.client, resolver)
+	h.app = gateway.NewApp(cfg, out, resolver)
 	h.listener, err = net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		h.Close()
@@ -117,6 +121,9 @@ func (h *Harness) Close() {
 			h.convey.Close()
 		}
 		h.client.CloseIdleConnections()
+		if h.outboundClose != nil {
+			h.outboundClose()
+		}
 	})
 }
 func send(w http.ResponseWriter, status int, v any) {

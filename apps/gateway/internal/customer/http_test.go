@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hamidrezakks/convey/apps/gateway/internal/outbound"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,7 +45,7 @@ func TestHTTPModesAndScopeValidation(t *testing.T) {
 			if mode == "bulk" {
 				path = "/resolve"
 			}
-			adapter := HTTP{Client: server.Client(), BaseURL: server.URL, Token: "directory-token", Mode: mode, Path: path}
+			adapter := HTTP{Client: outbound.New(), BaseURL: server.URL, Token: "directory-token", Mode: mode, Path: path}
 			out, err := adapter.Resolve(context.Background(), scope, []string{"a", "b"})
 			if err != nil || len(out) != 2 {
 				t.Fatalf("%v %v", out, err)
@@ -62,7 +63,7 @@ func TestHTTPModesAndScopeValidation(t *testing.T) {
 func TestCustomerFailures(t *testing.T) {
 	for _, body := range []string{`{}`, `{"tenantId":"other","team":"orders","userId":"a","recipients":{"email":"leak"}}`, `{"tenantId":"tenant","team":"orders","userId":"wrong","recipients":{"email":"leak"}}`} {
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) }))
-		h := HTTP{Client: s.Client(), BaseURL: s.URL, Mode: "single", Path: "/customers/{userId}"}
+		h := HTTP{Client: outbound.New(), BaseURL: s.URL, Mode: "single", Path: "/customers/{userId}"}
 		_, err := h.Resolve(context.Background(), Scope{TenantID: "tenant", Team: "orders"}, []string{"a"})
 		s.Close()
 		if err == nil {
@@ -78,7 +79,7 @@ func TestBulkRejectsDuplicateMissingAndForeignUsers(t *testing.T) {
 		}
 		b, _ := json.Marshal(map[string]any{"customers": records})
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(b) }))
-		h := HTTP{Client: s.Client(), BaseURL: s.URL, Mode: "bulk", Path: "/resolve"}
+		h := HTTP{Client: outbound.New(), BaseURL: s.URL, Mode: "bulk", Path: "/resolve"}
 		_, err := h.Resolve(context.Background(), Scope{TenantID: "t", Team: "x"}, []string{"a", "b"})
 		s.Close()
 		if err == nil {
@@ -106,7 +107,7 @@ func TestSingleLookupConcurrencyIsBounded(t *testing.T) {
 	for i := range ids {
 		ids[i] = fmt.Sprint(i)
 	}
-	h := HTTP{Client: s.Client(), BaseURL: s.URL, Mode: "single", Path: "/customers/{userId}"}
+	h := HTTP{Client: outbound.New(), BaseURL: s.URL, Mode: "single", Path: "/customers/{userId}"}
 	_, err := h.Resolve(context.Background(), Scope{TenantID: "t", Team: "x"}, ids)
 	if err != nil || peak.Load() > 8 {
 		t.Fatalf("peak=%d err=%v", peak.Load(), err)

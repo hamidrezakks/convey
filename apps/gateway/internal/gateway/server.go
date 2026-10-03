@@ -1,11 +1,9 @@
 package gateway
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"mime"
 	"net"
@@ -17,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/hamidrezakks/convey/apps/gateway/internal/customer"
+	"github.com/hamidrezakks/convey/apps/gateway/internal/outbound"
 	"go.uber.org/fx"
 )
 
@@ -35,14 +34,8 @@ func respond(c fiber.Ctx, err error) error {
 	return c.Status(f.status).JSON(fiber.Map{"error": fiber.Map{"code": f.code, "message": f.message}})
 }
 
-func NewClient() *http.Client {
-	return &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{
-		Proxy: nil, MaxIdleConns: 128, MaxIdleConnsPerHost: 64, MaxConnsPerHost: 128, IdleConnTimeout: 90 * time.Second,
-		TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 10 * time.Second, DisableCompression: true,
-		DialContext: (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-	}}
-}
-func NewResolver(c Config, client *http.Client) (customer.Resolver, error) {
+func NewClient() *outbound.Client { return outbound.New() }
+func NewResolver(c Config, client *outbound.Client) (customer.Resolver, error) {
 	if !strings.HasPrefix(c.CustomerPath, "/") || strings.HasPrefix(c.CustomerPath, "//") || strings.ContainsAny(c.CustomerPath, "?#\\") || strings.Contains(c.CustomerPath, "..") {
 		return nil, errors.New("CUSTOMER_LOOKUP_PATH must be an absolute path")
 	}
@@ -121,30 +114,16 @@ func headers(c fiber.Ctx) http.Header {
 	h.Del("Content-Length")
 	return h
 }
-func request(ctx context.Context, client *http.Client, cfg Config, method, path string, h http.Header, body []byte) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(cfg.ConveyURL, "/")+path, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
+func request(ctx context.Context, client *outbound.Client, cfg Config, method, path string, h http.Header, body []byte) (*outbound.Response, error) {
+	limit := outbound.ProxyLimit
+	if path == "/v1/auth/session" {
+		limit = outbound.AuthLimit
 	}
-	// Do not let the transport replay a body after an ambiguous connection failure,
-	// including when callers supply an Idempotency-Key header.
-	req.GetBody = nil
-	req.Header = h
-	return client.Do(req)
+	return client.Request(ctx, method, strings.TrimRight(cfg.ConveyURL, "/")+path, h, body, limit)
 }
-func readResponse(resp *http.Response, limit int64) ([]byte, error) {
-	defer resp.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil || int64(len(b)) > limit {
-		return nil, errors.New("upstream body exceeds limit or is unreadable")
-	}
-	return b, nil
-}
-func relay(c fiber.Ctx, resp *http.Response) error {
-	b, err := readResponse(resp, 32<<20)
-	if err != nil {
-		return respond(c, err)
-	}
+func relay(c fiber.Ctx, resp *outbound.Response) error {
+	defer resp.Release()
+	b := append([]byte(nil), resp.Body()...)
 	stripHop(resp.Header)
 	resp.Header.Del("Content-Length")
 	for k, values := range resp.Header {
@@ -154,7 +133,7 @@ func relay(c fiber.Ctx, resp *http.Response) error {
 	}
 	return c.Status(resp.StatusCode).Send(b)
 }
-func authenticate(ctx context.Context, c fiber.Ctx, cfg Config, client *http.Client) (customer.Scope, error) {
+func authenticate(ctx context.Context, c fiber.Ctx, cfg Config, client *outbound.Client) (customer.Scope, error) {
 	sanitized := headers(c)
 	h := make(http.Header)
 	for _, key := range []string{"Authorization", "X-API-Key", "X-Convey-Sandbox", "X-Convey-Environment"} {
@@ -169,10 +148,8 @@ func authenticate(ctx context.Context, c fiber.Ctx, cfg Config, client *http.Cli
 	if err != nil {
 		return customer.Scope{}, err
 	}
-	b, err := readResponse(resp, 64<<10)
-	if err != nil {
-		return customer.Scope{}, err
-	}
+	defer resp.Release()
+	b := resp.Body()
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return customer.Scope{}, &failure{resp.StatusCode, "UNAUTHORIZED", "credential rejected"}
 	}
@@ -191,7 +168,7 @@ func authenticate(ctx context.Context, c fiber.Ctx, cfg Config, client *http.Cli
 	}
 	return identity.Scope, nil
 }
-func NewApp(cfg Config, client *http.Client, resolver customer.Resolver) *fiber.App {
+func NewApp(cfg Config, client *outbound.Client, resolver customer.Resolver) *fiber.App {
 	app := fiber.New(fiber.Config{AppName: "Convey recipient gateway", BodyLimit: 4 << 20, ReadTimeout: 15 * time.Second, WriteTimeout: 20 * time.Second, IdleTimeout: 60 * time.Second, ErrorHandler: func(c fiber.Ctx, err error) error {
 		var f *fiber.Error
 		if errors.As(err, &f) {
@@ -213,7 +190,7 @@ func NewApp(cfg Config, client *http.Client, resolver customer.Resolver) *fiber.
 	})
 	return app
 }
-func handle(c fiber.Ctx, cfg Config, client *http.Client, resolver customer.Resolver) error {
+func handle(c fiber.Ctx, cfg Config, client *outbound.Client, resolver customer.Resolver) error {
 	path, err := canonical(string(c.Request().URI().PathOriginal()))
 	if err != nil {
 		return respond(c, err)
@@ -256,7 +233,7 @@ func handle(c fiber.Ctx, cfg Config, client *http.Client, resolver customer.Reso
 	}
 	return relay(c, resp)
 }
-func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *http.Client, shutdown fx.Shutdowner) {
+func RegisterLifecycle(lc fx.Lifecycle, app *fiber.App, cfg Config, client *outbound.Client, shutdown fx.Shutdowner) {
 	var listener net.Listener
 	lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
 		var err error

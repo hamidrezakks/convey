@@ -1,12 +1,11 @@
 package customer
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"github.com/hamidrezakks/convey/apps/gateway/internal/outbound"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,7 +18,7 @@ var ErrUnavailable = errors.New("customer lookup unavailable")
 // HTTP implements a deliberately small reference protocol; adapt this implementation
 // to the customer service, or inject another Resolver through Fx.
 type HTTP struct {
-	Client                     *http.Client
+	Client                     *outbound.Client
 	BaseURL, Token, Mode, Path string
 }
 type record struct {
@@ -120,31 +119,24 @@ func (h *HTTP) bulk(ctx context.Context, scope Scope, ids []string) (map[string]
 	return out, nil
 }
 func (h *HTTP) request(ctx context.Context, scope Scope, method, path string, body []byte) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(h.BaseURL, "/")+path, bytes.NewReader(body))
-	if err != nil {
-		return nil, ErrUnavailable
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Convey-Tenant-Id", scope.TenantID)
-	req.Header.Set("X-Convey-Team", scope.Team)
-	req.Header.Set("X-Convey-Sandbox", fmt.Sprint(scope.Sandbox))
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/json")
+	headers.Set("X-Convey-Tenant-Id", scope.TenantID)
+	headers.Set("X-Convey-Team", scope.Team)
+	headers.Set("X-Convey-Sandbox", fmt.Sprint(scope.Sandbox))
 	if h.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+h.Token)
+		headers.Set("Authorization", "Bearer "+h.Token)
 	}
-	resp, err := h.Client.Do(req)
+	resp, err := h.Client.Request(ctx, method, strings.TrimRight(h.BaseURL, "/")+path, headers, body, outbound.CustomerLimit)
 	if err != nil {
 		return nil, ErrUnavailable
 	}
-	defer resp.Body.Close()
+	defer resp.Release()
 	if resp.StatusCode == 404 {
 		return nil, ErrNotFound
 	}
 	if resp.StatusCode != 200 {
 		return nil, ErrUnavailable
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20+1))
-	if err != nil || len(b) > 4<<20 {
-		return nil, ErrUnavailable
-	}
-	return b, nil
+	return append([]byte(nil), resp.Body()...), nil
 }
