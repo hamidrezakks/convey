@@ -142,7 +142,7 @@ const result = await send('/v1/messages/bulk', {
 console.log(result.items);
 ```
 
-The gateway accepts up to 500 messages and deduplicates customer lookups for repeated user IDs within the request. If any required customer/address cannot be resolved, it forwards none of that submission. Convey's own bulk response and per-item outcomes still need to be inspected. Single/bulk **customer lookup mode** is independent of single/bulk **message submission**.
+The gateway accepts up to 500 messages and deduplicates customer lookups for repeated user IDs within the request. If any required customer/address cannot be resolved, it forwards none of that submission. Convey's own bulk response and per-item outcomes still need to be inspected. With the default bulk customer adapter, concurrent submissions in the same tenant/team/sandbox share a lookup: flush at 100 waiting requests, 100 unique users, or 300 ms after the first request. Larger submissions are split into lookup chunks of at most 100 users. Convey still receives each original submission separately. Single/bulk **customer lookup mode** is independent of single/bulk **message submission**.
 
 ### Override one address
 
@@ -179,6 +179,7 @@ The gateway does not infer WhatsApp from a phone number. Fields required by fall
 | 401 / 403 | Check the credential, role and matching team. Lookup must not proceed with rejected credentials. |
 | 413 / 415 | Keep requests below 4 MiB and send uncompressed `application/json`. |
 | 422 `RECIPIENT_NOT_FOUND` / `RECIPIENT_MISSING` | Correct the user ID or customer address before resubmitting. |
+| 503 `CUSTOMER_BUSY` | The bounded lookup queue is full or closing. Honor `Retry-After: 1` and retry with the same idempotency key. |
 | 502 `CUSTOMER_UNAVAILABLE` | Investigate the customer adapter, response shape, scope and connectivity. |
 | 502 `UPSTREAM_UNAVAILABLE` | Investigate Convey connectivity/auth-session availability. A send timeout can leave acceptance uncertain. |
 | Upstream 409 | Inspect the original request and idempotency conflict. |
@@ -188,7 +189,9 @@ Reuse the exact original payload and idempotency key for a transport retry. The 
 
 ## Connect an existing service
 
-For the default HTTP adapter, set `CONVEY_URL` and `CUSTOMER_URL`. Supply `CUSTOMER_TOKEN` if your customer endpoint requires authentication. Choose `CUSTOMER_LOOKUP_MODE=single` or `bulk` and optionally set `CUSTOMER_LOOKUP_PATH`.
+For the default HTTP adapter, set `CONVEY_URL` and `CUSTOMER_URL`. Supply `CUSTOMER_TOKEN` if your customer endpoint requires authentication. Choose `CUSTOMER_LOOKUP_MODE=single` or `bulk` (default) and optionally set `CUSTOMER_LOOKUP_PATH`.
+
+A low-traffic lookup may wait up to 300 ms to collect neighbours, plus worker queue and network time within the overall request deadline. Set `CUSTOMER_BATCH_WAIT=0s` to remove intentional collection delay, or a shorter value such as `25ms` for latency-sensitive traffic. See [batching and performance](PERFORMANCE.md).
 
 **The real customer endpoint is not defined yet.** Match the reference contract in [README.md](README.md#customer-adapter-contract), or implement `customer.Resolver`. The gateway cannot automatically adapt arbitrary response shapes. Single mode defaults to `GET /v1/customers/{userId}?team=...`; bulk mode defaults to `POST /v1/customers/resolve`.
 

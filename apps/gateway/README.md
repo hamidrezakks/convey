@@ -2,7 +2,7 @@
 
 An independent Go 1.27.1 service using Fiber 3.5.0 and Uber Fx 1.24.0. Applications send a `userId`; this gateway resolves missing delivery addresses and forwards the request to an existing Convey service. Convey remains independent of the customer directory. No database, Redis, migrations, or cross-request customer cache is required.
 
-**The customer API is deliberately abstract.** The real endpoint is not known yet. `internal/customer.Resolver` is the application boundary; the included HTTP implementation is a reference contract, not an assertion about your customer service. Replace `NewResolver`'s Fx provider or adapt `customer.HTTP` when the service contract is available. Both single-user and native bulk lookup are supported.
+**The customer API is deliberately abstract.** The real endpoint is not known yet. `internal/customer.Resolver` is the application boundary; the included HTTP implementation is a reference contract, not an assertion about your customer service. Replace `NewResolver`'s Fx provider or adapt `customer.HTTP` when the service contract is available. Both single-user and native bulk lookup are supported. Bulk is the default: concurrent calls can share one customer-service request.
 
 Start with [Using the gateway](USAGE.md) for single/bulk requests, multiple channels, overrides, error handling and Docker usage. For a runnable fake customer service, see [the simulator](SIMULATOR.md).
 
@@ -19,9 +19,10 @@ Only two origins are required. URLs must contain no credentials, base path, quer
 | --- | --- | --- |
 | `CONVEY_URL` | required | Existing Convey API origin |
 | `CUSTOMER_URL` | required | Customer API origin |
-| `CUSTOMER_LOOKUP_MODE` | `single` | `single` GET lookups or `bulk` POST lookup |
+| `CUSTOMER_LOOKUP_MODE` | `bulk` | `single` GET lookups or `bulk` POST lookup |
 | `CUSTOMER_LOOKUP_PATH` | `/v1/customers/{userId}` or `/v1/customers/resolve` | Adapter endpoint path for the chosen mode |
 | `CUSTOMER_TOKEN` | absent | Dedicated customer API bearer credential, never the caller's Convey credential |
+| `CUSTOMER_BATCH_WAIT` | `300ms` | Maximum collection wait, `0s`–`1s`; `0s` disables intentional waiting |
 | `GATEWAY_LISTEN` | `:8080` | Listener address |
 
 Use the same caller API key and SDK configuration as Convey, changing only the API base URL to this gateway. The gateway has no privileged Convey service key. It verifies message-submission credentials against `/v1/auth/session` before looking up customer data. Convey must have authentication enabled. Tenant and platform callers may enrich only their credential's own team; a missing team is filled from the verified identity. Read-only roles cannot trigger customer lookup.
@@ -46,7 +47,9 @@ curl http://localhost:8080/v1/messages \
 
 The gateway fills `recipients.email` and `recipients.phone`; Convey dispatches both channels. Explicit nonempty recipient fields take precedence. `userId` remains required. The gateway looks up missing fields required by primary channels **and fallback/cascade steps**, so a later SMS fallback also gets its phone number. It supports email, SMS, WhatsApp, Telegram, Slack, FCM and APNs using Convey's actual recipient fields. It does not infer a WhatsApp address from `phone`, and it does not copy unrelated profile data into messages.
 
-Bulk requests use `POST /v1/messages/bulk` with `{"messages":[...]}` (or Convey's bare-array form), up to 500 items. The gateway validates all teams, deduplicates unresolved user IDs per request, and completes recipient resolution before making one bulk submission. A missing customer or required address rejects the entire gateway submission with 422. The downstream bulk API still owns acceptance semantics; this is not a new cross-service transaction guarantee.
+See [performance and batching](PERFORMANCE.md) for the 300 ms / 100-request batcher, resource bounds and measured results.
+
+Bulk requests use `POST /v1/messages/bulk` with `{"messages":[...]}` (or Convey's bare-array form), up to 500 items. The gateway validates all teams, deduplicates unresolved user IDs within and across requests sharing the verified scope, and completes recipient resolution before making one bulk submission. A missing customer or required address rejects the entire gateway submission with 422. The downstream bulk API still owns acceptance semantics; this is not a new cross-service transaction guarantee.
 
 ## Customer adapter contract
 
@@ -88,7 +91,7 @@ Return only available fields. Single lookups use at most eight concurrent HTTP r
 {"tenantId":"tenant-1","team":"orders","isSandbox":false,"userIds":["customer-482","customer-483"]}
 ```
 
-Return `{"customers":[<record above>, <second record>]}` with exactly one record per requested user. Extra IDs, duplicates, missing users and cross-scope records are rejected. A different REST endpoint, response envelope, GraphQL or gRPC service can implement:
+Return `{"customers":[<record above>, <second record>]}` with one record per found user. Omit missing users from a successful 200 response so only submissions depending on those users fail. Extra IDs, duplicate records and cross-scope records invalidate the whole customer response. A whole-response 404 or malformed response affects every submission sharing that lookup. Lookup chunks contain at most 100 unique IDs. A different REST endpoint, response envelope, GraphQL or gRPC service can implement:
 
 ```go
 type Resolver interface {
@@ -96,7 +99,7 @@ type Resolver interface {
 }
 ```
 
-No HTTP or Fiber types cross this boundary. Resolver implementations must honor cancellation, scope checks and missing-user semantics. Tests inject an in-memory implementation.
+No HTTP or Fiber types cross this boundary. Resolver implementations must honor cancellation, scope checks and missing-user semantics. Tests inject an in-memory implementation. The production batcher wraps this interface; `ErrNotFound` may accompany partial results for found users, allowing unaffected submissions to succeed. Other errors invalidate that lookup chunk.
 
 ## Proxy surface
 
@@ -115,9 +118,9 @@ Admin routes, unknown methods/routes, metrics and Swagger are not exposed. Canon
 ## Reliability and privacy
 
 - 4 MiB incoming body/customer response limit, 32 MiB upstream response limit, 15-second end-to-end deadline and bounded outbound connections.
-- No automatic POST retries and no redirect following. Retry-after/status information is returned to the caller.
+- Fiber clients with pooled request/response buffers perform all outbound calls. No automatic retries and no redirect following. Retry-after/status information is returned to the caller.
 - Caller auth is forwarded only to Convey. The customer adapter receives only its dedicated token and verified scope.
-- Logs contain method, status and duration, without bodies, query strings, user IDs, addresses or credentials.
+- Request logs use debug level (off by default) and contain only method, status and duration. No bodies, query strings, user IDs, addresses or credentials are logged.
 - Fx binds the listener during startup and drains Fiber during shutdown. The image runs as UID 10001.
 - Explicit recipient overrides are permitted, matching Convey's API. This is not a policy limiting users to their own addresses.
 
@@ -144,3 +147,5 @@ The initial feature branch passed 16 top-level tests (plus table/subtests) with 
 Expanded qualification (2026-10-02) adds a real-HTTP simulator, complete route-forwarding checks, request-limit coverage, fuzz seeds and regressions for sanitized authentication headers, callback trailing slashes, and proxy isolation from HTTP parse-error middleware. The simulator uses only its own mock services. Detailed commands and limits are in SIMULATOR.md.
 
 The Docker follow-up also passed all 54 simulator checks in Linux and verified the production image with single/bulk mock adapters, recipient enrichment, rejection boundaries, callback preservation, non-root/read-only operation and graceful shutdown. See [recorded verification](SIMULATOR.md#recorded-verification-2026-10-02) for the image and platform.
+
+Performance follow-up (2026-10-03): scoped batching and pooled Fiber clients are now enabled. [PERFORMANCE.md](PERFORMANCE.md) records defaults, limits, latency tradeoffs, reproducible CPU/allocation measurements and updated 56-scenario Docker verification.

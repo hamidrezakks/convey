@@ -17,6 +17,8 @@ type Recipients map[string]json.RawMessage
 
 // Resolver must authorize every lookup for the supplied verified scope. Implementations
 // return one entry per requested ID or an error, and must respect ctx cancellation.
+// ErrNotFound may accompany partial results; the batcher distributes those only
+// to submissions whose complete ID set was found. Other errors fail the chunk.
 // Gateway calls it once per submission with unique IDs. Implementations may use a
 // native bulk endpoint, bounded single lookups, gRPC, or another customer protocol.
 type Resolver interface {

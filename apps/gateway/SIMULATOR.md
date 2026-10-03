@@ -100,3 +100,9 @@ This does **not** certify real customer-service integration, Convey's delivery w
 - The production scratch image passed single and bulk customer lookup checks on an isolated internal Docker network: readiness, single/bulk acceptance, email and fallback-phone enrichment, invalid credentials, cross-team requests, missing customers, blocked admin routes, no forwarding of rejected messages, and exact callback bytes/trailing slash. Both containers ran as UID 10001 with a read-only filesystem, all capabilities dropped and no-new-privileges; both exited with code 0 on SIGTERM. Test containers and their network were removed.
 - Tested image: `sha256:ec9e52f51bd8e5a67c9fb70d2369445f51d77fb030d2c2abca2f28df7c644268` (`linux/arm64`). This runtime result does not claim amd64 container execution.
 - Hosted CI was not awaited. No production endpoints or delivery vendors were used.
+
+## Batching verification (2026-10-03)
+
+The simulator now uses the production 300 ms collection interval in both lookup modes. There are 56 checks (28 per mode), including an assertion that concurrent requests share customer lookups. Forty concurrent requests for the same user used one customer HTTP call in each mode. The expanded race suite also covers the 100-request threshold, 100-user chunk limit, scope isolation, cancellation, partial results, overload, shutdown, response-size limits and pool ownership.
+
+All 56 scenarios passed on the host and inside Linux Docker with external networking disabled. The production Linux arm64 image passed the isolated single/bulk runtime checks with non-root/read-only/cap-drop settings and clean SIGTERM exits. Image: `sha256:7602b912dddc7645949f3287882bc3ea9b324f9171db1777e63f8468295d1df7`. No vendor sends or real customer endpoints were used; hosted CI was not awaited. Benchmark commands and measured resource usage are in [PERFORMANCE.md](PERFORMANCE.md).
