@@ -26,6 +26,10 @@ runs:
         bun run biome:check
         bun run typecheck
         bun run db:check
+        bun run qualification:inventory:check
+        bun run qualification:access:check
+        bun run qualification:typecheck
+        bun test scripts/qualification/reconciliation.test.ts
         bun test apps/server/tests/access-policy.test.ts apps/server/tests/tenant-scope.test.ts apps/server/tests/env-config.test.ts apps/server/tests/full-jitter-retry.test.ts apps/server/tests/trace-context.test.ts
         bun run test:web
         bun run test:sdks
@@ -38,6 +42,8 @@ runs:
         CONVEY_REQUIRE_AUTH=true bun test packages/sdk/tests/integration.test.ts
         CONVEY_ALLOW_UNSIGNED_WEBHOOKS=true bun run test:server:ci
         bun run test:plugins
+        bun run qualification:recovery
+        bun run qualification:alerts
     - name: Build distributable applications and SDKs
       if: inputs.phase == 'all' || inputs.phase == 'build'
       shell: bash
@@ -51,10 +57,13 @@ runs:
         test -f packages/sdk/dist/index.cjs
         test -f packages/sdk/dist/index.d.ts
         test -f packages/sdk/dist/index.d.cts
+        bun run qualification:artifacts
+        bun run qualification:python
     - name: Verify container targets
       if: inputs.phase == 'all' || inputs.phase == 'build'
       shell: bash
       run: |
         for target in server web plugins; do
-          docker build --target "$target" -t "convey-validation:$target" .
+          docker build --target "$target" -t "convey-qualification:$target" .
         done
+        bun run qualification:containers

@@ -245,7 +245,7 @@ export class SmartProviderRouter {
       })
       .sort((a, b) => b.score - a.score);
 
-    const selected = ranked[0]?.provider || preferredProviderId || 'ses';
+    const selected = ranked[0]?.provider || preferredProviderId || getDefaultProviderForChannel(channel);
     const selectedItem = ranked.find((r) => r.provider === selected) || ranked[0];
 
     return {
@@ -272,7 +272,7 @@ export class SmartProviderRouter {
     const healthyAdapters = configured.filter((a) => providerCircuitBreaker.canExecute(a.id));
 
     if (!healthyAdapters.length) {
-      return preferredProviderId || 'ses';
+      return preferredProviderId || getDefaultProviderForChannel(channel);
     }
 
     // 3. Canary Exploration: 5% random selection across healthy secondary adapters

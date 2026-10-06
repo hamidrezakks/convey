@@ -1,6 +1,8 @@
 # V1 release-readiness plan
 
-Status: planned, not implemented or certified by this document. Updated 2026-09-28.
+Status: repeatable mock qualification implemented; release gates remain open as documented in [qualification results](v1-qualification.md). Updated 2026-09-28.
+
+The owner selected mock-only verification. No live accounts, recipients or spend are used. The acceptance criteria below remain the release target; completion of tooling does not certify untested provider capabilities or production operating limits.
 
 ## Objective and boundaries
 

@@ -97,6 +97,7 @@ export const BudgetService = {
         if (
           enforceLimit &&
           policy.hardStop === 'true' &&
+          units(converted) > 0n &&
           units(usage.used) + units(usage.reserved) + units(converted) > units(policy.monthlyBudgetUsd)
         ) {
           return { allowed: false, id, reason: 'budget' as const };

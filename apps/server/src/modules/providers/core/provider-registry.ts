@@ -597,7 +597,9 @@ class ProviderRegistryStore {
     configMap?: Record<string, Record<string, unknown>>,
   ): GenericProviderAdapter[] {
     const allAdapters = this.getByChannel(channel);
-    return allAdapters.filter((adapter) => this.hasSetup(adapter.id, configMap?.[adapter.id], channel));
+    return allAdapters.filter((adapter) =>
+      this.hasSetup(adapter.id, configMap ? configMap[adapter.id] : this.lastKnownGoodConfigs.get(adapter.id), channel),
+    );
   }
 
   getActiveProviders(): string[] {

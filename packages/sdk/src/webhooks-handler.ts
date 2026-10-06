@@ -45,7 +45,7 @@ export interface WebhookHandler<_T = Record<string, unknown>> {
    * Node.js / Express middleware handler.
    */
   expressHandler(
-    req: { body?: unknown; headers: Record<string, string | string[] | undefined>; rawBody?: string | Buffer },
+    req: { body?: unknown; headers: Record<string, string | string[] | undefined>; rawBody?: string | Uint8Array },
     res: { status: (code: number) => { json: (data: unknown) => void; send: (data: string) => void } },
     next?: (err?: unknown) => void,
   ): Promise<void>;
@@ -105,8 +105,8 @@ export function createWebhookHandler<T = Record<string, unknown>>(config: Webhoo
         let rawBody = '';
         if (typeof req.rawBody === 'string') {
           rawBody = req.rawBody;
-        } else if (Buffer.isBuffer(req.rawBody)) {
-          rawBody = req.rawBody.toString('utf-8');
+        } else if (req.rawBody instanceof Uint8Array) {
+          rawBody = new TextDecoder().decode(req.rawBody);
         } else if (typeof req.body === 'string') {
           rawBody = req.body;
         } else if (req.body && typeof req.body === 'object') {

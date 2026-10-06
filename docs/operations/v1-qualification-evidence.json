@@ -1,0 +1,158 @@
+{
+  "date": "2026-09-28",
+  "implementationCommit": "4a98ba2c3ce558ac98d02bbb5cff7c39d01f34e0",
+  "review": "self-review; no independent reviewer claimed",
+  "mode": "mock-only; no live sends or vendor charges",
+  "environment": {
+    "host": "macOS ARM64",
+    "bun": "1.4.2",
+    "containerBun": "1.4.0",
+    "node": "22.22.0",
+    "python": "3.14.4",
+    "go": "1.27.0",
+    "postgres": "18",
+    "redis": "7.4",
+    "promtool": "3.5.0"
+  },
+  "tests": {
+    "server": {
+      "passed": 1041,
+      "failed": 0
+    },
+    "strictAuth": {
+      "passed": 17,
+      "failed": 0
+    },
+    "console": {
+      "passed": 144,
+      "failed": 0
+    },
+    "plugins": {
+      "passed": 7,
+      "failed": 0
+    },
+    "typescriptSdk": {
+      "passed": 100,
+      "failed": 0
+    },
+    "pythonSdk": {
+      "run": 22,
+      "skipped": 1,
+      "failed": 0
+    },
+    "goSdk": {
+      "passed": 12,
+      "failed": 0,
+      "race": true
+    },
+    "billingEvidenceComparator": {
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "checks": {
+    "workspaceTypes": "six workspaces passed",
+    "qualificationTypes": "passed",
+    "biome": "passed; three existing static-class warnings",
+    "canonicalSchema": "23 files; no ALTER history",
+    "inventory": "87 adapters and 82 registered API routes",
+    "prometheus": "all nine alert rules exercised; target absence and recovery scenarios included"
+  },
+  "recovery": {
+    "mode": "mock-only",
+    "baseline": "284069c889dfdfb37d50ade68ed3220903477d8d225b40326d9c058b495851bc",
+    "restoreAndRestartMs": 627,
+    "totalMs": 2503,
+    "preserved": ["baseline", "tenant", "uncertain hold", "pending outbox", "revocation"],
+    "limitations": "Synthetic database snapshot; not a production RPO/RTO or queue-loss certification"
+  },
+  "burst": {
+    "mode": "mock-only",
+    "profile": {
+      "count": 200,
+      "concurrency": 10,
+      "payload": "single short email",
+      "transport": "in-process app.handle; local PostgreSQL and Redis"
+    },
+    "acceptanceMs": {
+      "p95": 27.76,
+      "p99": 51.43,
+      "max": 59.152874999999995
+    },
+    "targets": {
+      "p95": 250,
+      "p99": 1000
+    },
+    "passed": true,
+    "limitations": "Synthetic acceptance burst only, not network/container latency, sustained load or vendor delivery"
+  },
+  "sustained": {
+    "mode": "mock-only",
+    "profile": {
+      "mode": "sustained 50 requests/second",
+      "elapsedMs": 20525,
+      "count": 1000,
+      "concurrency": 5,
+      "payload": "single short email",
+      "transport": "in-process app.handle; local PostgreSQL and Redis"
+    },
+    "acceptanceMs": {
+      "p95": 91.41,
+      "p99": 123.57,
+      "max": 164.452041
+    },
+    "targets": {
+      "p95": 250,
+      "p99": 1000
+    },
+    "passed": true,
+    "limitations": "Synthetic local acceptance only; not network/container latency, long-duration soak or vendor delivery"
+  },
+  "typescriptArtifact": {
+    "mode": "mock-only",
+    "npm": {
+      "filename": "convey-sdk-1.0.0.tgz",
+      "integrity": "sha512-/z5Bi9OwAH3JJv/DlQ645poXwS0SyKxppWz7xV0SA0K/M7CXwgB5b8Rl0eNjr6/xIn+kwhjnTAemjhQno+Wimw=="
+    },
+    "checks": [
+      "Node ESM request serialization",
+      "Node CommonJS import",
+      "Bun ESM request serialization",
+      "TypeScript NodeNext ESM/CommonJS types",
+      "external Go consumer compilation"
+    ],
+    "limitations": "Go uses a local module replacement, not a published tag. Python wheel verification runs separately."
+  },
+  "pythonArtifact": {
+    "mode": "mock-only",
+    "wheel": "convey_sdk-1.0.0-py3-none-any.whl",
+    "sha256": "837d190c40c241e7f2a7cbff4ac457bd0c26e426134cce348af9c97b6b712792",
+    "result": "isolated installed wheel imports successfully"
+  },
+  "containers": {
+    "mode": "mock-only",
+    "network": "internal; external egress disabled",
+    "checks": [
+      "production image startup as non-root",
+      "authenticated API",
+      "real worker -> mock HTTP provider",
+      "atomic budget settlement",
+      "scheduled dispatch does not send early",
+      "signed durable receipt and duplicate suppression",
+      "hard-cap blocks paid provider call",
+      "free route works after cap reduction",
+      "restart preserves message and charge",
+      "plugins health",
+      "console HTTP"
+    ],
+    "images": "sha256:c8bf89abfd98d7c5d01ac319c804efa95b2b9ef637f19301b75dc7b4f1601c61\nsha256:2f8aea609c330d5851ceafcaefac37e53b10d4b00dd9d02c5c3d399c7b07793b\nsha256:e7bca947a59e751a2b4d6accb4af3b6adf38fad69620b1141bc6cda9fb69e99b",
+    "buildCommit": "bbaf283"
+  },
+  "openReleaseGates": [
+    "Live provider delivery, vendor API changes and invoice evidence are deliberately outside the requested mock-only verification.",
+    "Not all 87 adapter capabilities are certified; 20 incomplete adapters remain disabled.",
+    "Long-duration soak, deployment-scale PITR/queue-loss drills, alert receiver routing and AMD64 runtime qualification remain unverified.",
+    "Published Go tag resolution and all minimum supported runtime versions need candidate-release verification.",
+    "First publication still requires owner scope approval, baseline freeze and post-release migration/compatibility transition."
+  ]
+}

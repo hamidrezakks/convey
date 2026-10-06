@@ -250,25 +250,8 @@ export async function processDispatchJob(publicId: string): Promise<void> {
     return;
   }
 
-  // 2. Policy check: Financial Budget
-  const budgetCheck = msg.isSandbox ? { allowed: true } : await PolicyEngine.checkBudget(msg.team);
-  if (!budgetCheck.allowed) {
-    await db
-      .update(messages)
-      .set({ state: MessageState.FAILED, completedAt: now, updatedAt: now })
-      .where(partitionWhere);
-
-    await db.insert(messageEvents).values({
-      id: generateMessageId(),
-      messageId: publicId,
-      type: EventType.POLICY_BUDGET_EXCEEDED,
-      source: EventSource.ROUTER,
-      metadata: { policyId: budgetCheck.policyId, team: msg.team },
-      occurredAt: now,
-      createdAt: now,
-    });
-    return;
-  }
+  // Budget enforcement belongs to the atomic provider reservation, after the
+  // actual price is known. A coarse precheck incorrectly rejects free routes.
 
   // 3. Suppression check
   const extracted = extractRecipientIdentifiers(msg.recipients, msg.userId);

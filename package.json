@@ -60,7 +60,18 @@
     "typecheck": "bun --filter @convey/website generate && bunx tsc --noEmit -p apps/server/tsconfig.json && bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p apps/website/tsconfig.json && bunx tsc --noEmit -p apps/plugins/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p packages/sdk/tsconfig.json",
     "postinstall": "bun scripts/patch-openapi.ts",
     "test:server:ci": "bun scripts/test-server-ci.ts",
-    "test:server:performance": "bun scripts/test-server-ci.ts --performance"
+    "test:server:performance": "bun scripts/test-server-ci.ts --performance",
+    "qualification:inventory": "bun scripts/qualification/provider-inventory.ts",
+    "qualification:inventory:check": "bun scripts/qualification/provider-inventory.ts --check",
+    "qualification:recovery": "bun scripts/qualification/recovery.ts",
+    "qualification:artifacts": "bun scripts/qualification/sdk-artifacts.ts",
+    "qualification:python": "python3 scripts/qualification/python-artifact.py",
+    "qualification:load": "bun scripts/qualification/acceptance-load.ts",
+    "qualification:containers": "bun scripts/qualification/container-smoke.ts",
+    "qualification:alerts": "docker run --rm --entrypoint /bin/promtool -v \"$PWD/docs/operations:/rules:ro\" -w /rules prom/prometheus:v3.5.0 test rules prometheus-rules.test.yml",
+    "qualification:typecheck": "bunx tsc --noEmit -p scripts/qualification/tsconfig.json",
+    "qualification:access": "NODE_ENV=test bun scripts/qualification/access-inventory.ts",
+    "qualification:access:check": "NODE_ENV=test bun scripts/qualification/access-inventory.ts --check"
   },
   "devDependencies": {
     "@aws-sdk/client-sesv2": "^3.749.0",

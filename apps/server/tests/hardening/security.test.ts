@@ -119,19 +119,32 @@ describe('Real API security boundaries', () => {
     expect(saved.reservedAmount).toBe(0);
     expect((await call(path, 'admin', 'PUT', { ...body, monthlyBudget: 0, hardStop: false })).status).toBe(200);
   });
-  test('all protected route families reject absent credentials', async () => {
-    for (const path of [
-      '/v1/admin/overview',
-      '/v1/messages/not-found',
-      '/v1/dlq',
-      '/v1/templates',
-      '/v1/batches',
-      '/v1/suppressions',
-      '/v1/webhook-subscriptions',
-      '/v1/sandbox/messages',
-      '/v1/auth/session',
-    ]) {
-      expect((await call(path)).status).toBe(401);
+  test('every registered API-key route rejects absent credentials', async () => {
+    const schemaBodies: Record<string, unknown> = {
+      '/v1/suppressions/bulk': { items: [] },
+      '/v1/suppressions/': { identifier: 'mock@example.test', reason: 'MANUAL_BLOCK' },
+      '/v1/templates/': { slug: 'mock', name: 'Mock' },
+      '/v1/templates/:slug/versions': { version: '1.0.0', channels: {} },
+      '/v1/templates/:slug/publish': { version: '1.0.0' },
+      '/v1/templates/render': { channel: 'email' },
+      '/v1/templates/partials': { name: 'mock', content: 'Mock' },
+      '/v1/webhook-subscriptions/': { url: 'https://example.test/mock', events: [] },
+      '/v1/batches/': { totalCount: 1 },
+    };
+    const routes = app.routes.filter(
+      (route) =>
+        route.path.startsWith('/v1/') && !route.path.startsWith('/v1/webhooks/') && !route.path.startsWith('/v1/t/'),
+    );
+    expect(routes.length).toBeGreaterThan(60);
+    for (const route of routes) {
+      const path = route.path.replace(/:[^/]+/g, 'not-found');
+      const response = await call(
+        path,
+        undefined,
+        route.method,
+        ['GET', 'HEAD', 'OPTIONS'].includes(route.method) ? undefined : (schemaBodies[route.path] ?? {}),
+      );
+      expect(response.status, `${route.method} ${route.path}`).toBe(401);
     }
   });
   test('stored scope and role control platform access', async () => {
@@ -144,10 +157,13 @@ describe('Real API security boundaries', () => {
     expect((await call('/v1/admin/providers', 'admin')).status).toBe(200);
   });
   test('single and bulk sends reject another team before any write', async () => {
+    const before = await queryClient`SELECT count(*)::int AS count FROM messages WHERE team IN (${teamA},${teamB})`;
     expect((await call('/v1/messages', 'a', 'POST', payload(teamB))).status).toBe(403);
     expect((await call('/v1/messages/bulk', 'a', 'POST', { messages: [payload(teamA), payload(teamB)] })).status).toBe(
       403,
     );
+    const after = await queryClient`SELECT count(*)::int AS count FROM messages WHERE team IN (${teamA},${teamB})`;
+    expect(after[0].count).toBe(before[0].count);
   });
   test('message status, timeline, trace and receipts enforce ownership', async () => {
     const id = await accept(teamA, 'a');
@@ -246,7 +262,7 @@ test('real log metadata redaction removes nested credentials and recipients', ()
 test('outbox queue failure releases its claim and stale claims can be recovered', async () => {
   const id = generateMessageId();
   const shard = 99; // Reserved fixture shard; production scheduler does not poll it.
-  await queryClient`INSERT INTO outbox(id,message_id,shard_id,type,payload,state,available_at) VALUES(${id},${id},${shard},'message_dispatch',${JSON.stringify({ publicId: id, team: teamA, priority: 'normal' })}::jsonb,'pending',now())`;
+  await queryClient`INSERT INTO outbox(id,message_id,shard_id,type,payload,state,available_at) VALUES(${id},${id},${shard},'message_dispatch',${JSON.stringify({ publicId: id, team: teamA, priority: 'normal' })}::jsonb,'pending',now()-interval '1 second')`;
   const original = dispatchNormalQueue.addBulk;
   try {
     dispatchNormalQueue.addBulk = async () => {
