@@ -1,0 +1,13 @@
+{
+  "alice": {
+    "email": "alice@example.test",
+    "phone": "+12025550101",
+    "whatsapp": "+12025550101",
+    "telegramChatId": "mock-telegram-alice",
+    "slack": { "channelId": "MOCK-ALICE" },
+    "fcmTokens": ["mock-fcm-alice"],
+    "apnsTokens": ["mock-apns-alice"]
+  },
+  "bob": { "email": "bob@example.test", "phone": "+12025550102" },
+  "email-only": { "email": "email-only@example.test" }
+}

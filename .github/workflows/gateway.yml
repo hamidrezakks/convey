@@ -1,0 +1,29 @@
+name: Recipient gateway
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    paths: ['apps/gateway/**', 'docs/operations/api-access-matrix.md', '.github/workflows/gateway.yml']
+  pull_request:
+    paths: ['apps/gateway/**', 'docs/operations/api-access-matrix.md', '.github/workflows/gateway.yml']
+permissions:
+  contents: read
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/gateway/go.mod
+          cache-dependency-path: apps/gateway/go.sum
+      - name: Test, vet and build
+        working-directory: apps/gateway
+        run: |
+          test -z "$(gofmt -l .)"
+          go test -race ./...
+          go vet ./...
+          go run ./cmd/simulator
+          go build ./cmd/gateway
+      - name: Build non-root container
+        run: docker build -t convey-gateway:test apps/gateway
