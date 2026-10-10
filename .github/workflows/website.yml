@@ -53,19 +53,15 @@ jobs:
           docker compose -f docker-compose.website.yml config --quiet
           WEBSITE_IMAGE_TAG="$GITHUB_SHA" docker compose -f deploy/website/compose.yaml config --quiet
       - name: Build and typecheck the website
-        run: docker build --target builder -f apps/website/Dockerfile -t convey-website-builder .
+        run: docker build --target artifact --output type=local,dest=standalone -f apps/website/Dockerfile .
       - name: Package Linux standalone output
         run: |
-          container=$(docker create convey-website-builder)
-          trap 'docker rm -f "$container" >/dev/null' EXIT
-          mkdir -p standalone
-          docker cp "$container:/app/apps/website/.next/standalone/." standalone/
           tar --dereference --hard-dereference -czf website.tar.gz -C standalone .
       - name: Smoke test the production container
         run: |
           mkdir smoke
           cp deploy/website/Dockerfile.runtime smoke/Dockerfile.runtime
-          mv standalone smoke/standalone
+          python3 scripts/extract-website.py smoke/standalone < website.tar.gz
           docker build -f smoke/Dockerfile.runtime -t convey-website:test smoke
           docker run -d --name convey-website-test --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --tmpfs /tmp \
@@ -73,8 +69,10 @@ jobs:
             -p 127.0.0.1:5174:3000 convey-website:test
           trap 'docker logs convey-website-test; docker rm -f convey-website-test' EXIT
           curl --fail --retry 20 --retry-delay 2 --retry-all-errors http://127.0.0.1:5174/healthz
-          curl --fail --silent http://127.0.0.1:5174/ | grep -q Convey
-          curl --fail --silent http://127.0.0.1:5174/docs/gateway | grep -q 'Recipient Gateway'
+          curl --fail --silent --show-error http://127.0.0.1:5174/ -o smoke-home.html
+          grep -q Convey smoke-home.html
+          curl --fail --silent --show-error http://127.0.0.1:5174/docs/gateway -o smoke-gateway.html
+          grep -q 'Recipient Gateway' smoke-gateway.html
           curl --fail --silent 'http://127.0.0.1:5174/api/search?query=gateway' | python3 -c 'import json,sys; assert len(json.load(sys.stdin)) > 0'
       - uses: actions/upload-artifact@v4
         with:
@@ -111,4 +109,5 @@ jobs:
       - name: Verify public Cloudflare endpoint
         run: |
           curl --fail --retry 5 --retry-delay 5 --retry-all-errors https://convey.barnamekon.com/healthz
-          curl --fail --silent https://convey.barnamekon.com/docs/gateway | grep -q 'Recipient Gateway'
+          curl --fail --silent --show-error https://convey.barnamekon.com/docs/gateway -o deployed-gateway.html
+          grep -q 'Recipient Gateway' deployed-gateway.html

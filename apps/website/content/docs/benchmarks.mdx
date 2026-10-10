@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 # Benchmark Evidence & Limits
 
-Convey's most explicitly scoped qualification measurements are recorded in [v1-qualification-evidence.json](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-qualification-evidence.json), dated **2026-09-28**, for implementation commit `4a98ba2c3ce558ac98d02bbb5cff7c39d01f34e0`.
+Convey's most explicitly scoped qualification measurements are recorded in [v1-qualification-evidence.json](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/docs/operations/v1-qualification-evidence.json), dated **2026-09-28**, for implementation commit `4a98ba2c3ce558ac98d02bbb5cff7c39d01f34e0`.
 
 <Callout type="info" title="Local acceptance measurements">
   These runs used in-process `app.handle` requests, a local PostgreSQL 18 and Redis 7.4, Bun 1.4.2, and a macOS ARM64 host with mock providers. They exclude network/container latency and real vendor delivery. They do not establish a public latency SLA, sustained production capacity, or regional failover correctness.
@@ -28,7 +28,7 @@ HTTP 202 records durable acceptance. Provider transport, retries, subsequent rec
 
 ## Historical Micro-Engine Report
 
-The repository's [historical benchmark report](https://github.com/hamidrezakks/convey/blob/main/docs/benchmarks.md) includes isolated operations such as shard hashing, tracing, template rendering, encryption, and Redis reservations. The landing's micro-engine table reproduces selected values from that report.
+The repository's [historical benchmark report](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/docs/benchmarks.md) includes isolated operations such as shard hashing, tracing, template rendering, encryption, and Redis reservations. The landing's micro-engine table reproduces selected values from that report.
 
 These operation rates cannot be added together or treated as message-delivery capacity. The historical report lacks complete hardware, commit, fixture, and repeatability metadata, and its figures are not current qualification claims. Results for mocked webhook handling do not measure a live provider's receipt throughput.
 

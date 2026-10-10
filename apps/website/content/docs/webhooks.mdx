@@ -5,7 +5,7 @@ description: Customer event subscriptions, the current signed wire envelope, and
 
 # Webhooks
 
-Customer webhooks deliver message and inbound events from Convey to your application. Provider webhooks travel in the other direction and use provider-specific validation. The [repository API reference](https://github.com/hamidrezakks/convey/blob/main/docs/api.md) documents both route families.
+Customer webhooks deliver message and inbound events from Convey to your application. Provider webhooks travel in the other direction and use provider-specific validation. The [repository API reference](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/docs/api.md) documents both route families.
 
 ## Create a customer subscription
 
@@ -44,7 +44,7 @@ The dispatcher sends this envelope:
 
 `event` identifies the event, the outer `timestamp` is the dispatch time, and `data` varies by event. Workers emit `message.sent`, receipt events such as `message.delivered`, `message.opened`, `message.read`, `message.failed`, and `message.bounced`, and `inbound.message_received`. Availability depends on the provider and receipt evidence. `message.sent` records provider acceptance, not recipient delivery.
 
-The current envelope has no stable event ID. Handlers should tolerate duplicates and delayed or out-of-order receipts, using application state and the message/channel/event data to make repeated processing safe. The [dispatcher source](https://github.com/hamidrezakks/convey/blob/main/apps/server/src/queues/workers/customer-webhook-dispatch.worker.ts) defines the wire payload.
+The current envelope has no stable event ID. Handlers should tolerate duplicates and delayed or out-of-order receipts, using application state and the message/channel/event data to make repeated processing safe. The [dispatcher source](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/apps/server/src/queues/workers/customer-webhook-dispatch.worker.ts) defines the wire payload.
 
 ## Verify the signature before parsing
 
@@ -83,4 +83,4 @@ Return a `2xx` response after accepting the event. The dispatcher uses a 10-seco
 
 ## Inbound provider receipts
 
-Configure upstream vendors to call `POST /v1/webhooks/:provider`. WhatsApp status and incoming endpoints also exist at `/v1/webhooks/:provider/status` and `/v1/webhooks/:provider/incoming`, with GET verification routes for supported handshakes. Provider-specific signatures, secrets, and supported events depend on the adapter. The customer `X-Convey-Signature` scheme does not verify vendor requests; check the [capability matrix](https://github.com/hamidrezakks/convey/blob/main/docs/operations/provider-capability-matrix.md) for evidence.
+Configure upstream vendors to call `POST /v1/webhooks/:provider`. WhatsApp status and incoming endpoints also exist at `/v1/webhooks/:provider/status` and `/v1/webhooks/:provider/incoming`, with GET verification routes for supported handshakes. Provider-specific signatures, secrets, and supported events depend on the adapter. The customer `X-Convey-Signature` scheme does not verify vendor requests; check the [capability matrix](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/docs/operations/provider-capability-matrix.md) for evidence.

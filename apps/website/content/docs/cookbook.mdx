@@ -5,7 +5,7 @@ description: Scheduling, channel fallback, bulk outcomes, sandbox scope, and fai
 
 # Integration Cookbook
 
-These recipes build on the complete request in the [API reference](/docs/api-reference). Convey is pre-release; run integrations against your own deployment and consult the [V1 contract candidate](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-contracts.md) for current limits.
+These recipes build on the complete request in the [API reference](/docs/api-reference). Convey is pre-release; run integrations against your own deployment and consult the [V1 contract candidate](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/docs/operations/v1-contracts.md) for current limits.
 
 ## Schedule a message
 
@@ -40,7 +40,7 @@ Provide both `recipients.whatsapp` and `recipients.phone`. Set the initial `chan
 }
 ```
 
-Merge this fragment into a complete send request. The WhatsApp template and provider configuration must exist. The provider-send worker queues this `failed` rule after final failure. Provider choice belongs to configured routing. See the [fallback state machine](https://github.com/hamidrezakks/convey/blob/main/docs/fallback-state-machine.md) for processing details.
+Merge this fragment into a complete send request. The WhatsApp template and provider configuration must exist. The provider-send worker queues this `failed` rule after final failure. Provider choice belongs to configured routing. See the [fallback state machine](https://github.com/hamidrezakks/convey/blob/a2daf909f9deb825a29cb571bf18b9c3efd94008/docs/fallback-state-machine.md) for processing details.
 
 ## Handle bulk results
 

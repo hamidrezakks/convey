@@ -2,7 +2,7 @@
 
 This runbook covers the Next.js documentation website at `https://convey.barnamekon.com`. It is a separate deployment from the Convey API, gateway, workers, and databases. Its deployment target is the existing production VM at `204.168.246.189`, under `/opt/convey-website`.
 
-Initial deployment verification is pending. A successful local build alone does not establish that DNS, TLS, production routing, or the hosted pages work; record the production checks below after deployment.
+Initial live website verification is pending. During setup, the proxied DNS record, Full (strict) mode, and Let's Encrypt origin certificate were verified. Record the container and hosted-page checks below after deployment.
 
 ## Deployment files and runtime
 
@@ -15,7 +15,7 @@ The container listens on port `3000`, with no host port published. It joins the 
 
 The runtime uses UID `1000`, a read-only root filesystem, and writable temporary filesystems at `/tmp` and `/app/apps/website/.next/cache`. It serves the standalone Next.js output and copied static assets; API services and their credentials are not part of this container.
 
-Website builds use `next build --webpack` to honor the repository's existing Webpack shim and produce standalone output. The Docker `builder` stage uses Bun 1.4 on Alpine; the runtime uses Node.js 22 on Alpine, keeping native dependencies on the same libc family. The container's port `3000` differs from the website development server's port `5174`.
+Website builds use `next build --webpack` with the repository's explicit `@` and `.source` aliases and produce standalone output. The Docker dependency stage installs with `--linker=hoisted`, so packaging the standalone tree does not leave references to isolated `.bun` dependencies. The `builder` stage uses Bun 1.4 on Alpine; the runtime uses Node.js 22 on Alpine, keeping native dependencies on the same libc family. The container's port `3000` differs from the website development server's port `5174`.
 
 Build the repository image from the repository root:
 
@@ -32,6 +32,8 @@ docker compose -p convey-website -f docker-compose.website.yml up -d --build --w
 ## One-time VM setup
 
 Use the existing administrator connection to `root@204.168.246.189` for setup. The dedicated CI credential is for artifact deployment and cannot replace trusted infrastructure files.
+
+The VM needs Docker with the Compose plugin, Python 3, `curl`, `flock`, and GNU core utilities, in addition to the existing Traefik installation.
 
 Create `/opt/convey-website/releases` and install the trusted runtime files in:
 
@@ -85,7 +87,9 @@ Do not put private keys, SSH credential values, or application secrets in the re
 
 The workflow runs build/test checks for pull requests when website, shared-package, or deployment/build files change. Matching pushes to `main` deploy the website. Manual `workflow_dispatch` runs default to `main`, and deployment remains restricted to main; use a main commit for an approved manual redeployment.
 
-The Ubuntu runner builds the standalone output inside the Docker builder stage, which copies `.next/static` into the standalone directory. It extracts that output, creates a tar archive with symlinks dereferenced, and sends it over SSH with `deploy <SHA>`. This transfers built application files, rather than executing a checkout's deployment scripts on the VM.
+The Ubuntu runner builds through the Docker `artifact` stage, which exports only the standalone tree after the `builder` stage copies `.next/static` into it. It packages that output with both symlinks and hard links dereferenced. CI validates/extracts the archive with `scripts/extract-website.py` and smoke-tests a production container built from the extracted output before uploading the artifact.
+
+The deploy job streams that same gzip tar archive over SSH with `deploy <SHA>`. This transfers built application files, rather than executing a checkout's deployment scripts on the VM.
 
 The VM's trusted helper validates and extracts the stream into `/opt/convey-website/releases/<SHA>/standalone` and saves its compressed archive digest as `archive.sha256`. The artifact root must contain `apps/website/server.js` and `apps/website/.next/BUILD_ID`; only directories and regular files are accepted. Input and extracted content are bounded, and archive links are rejected.
 
@@ -117,7 +121,14 @@ Record the deployed SHA, workflow run, health result, route checks, and any rema
 
 Keep the preceding successful directory under `/opt/convey-website/releases/<SHA>` and its `convey-website:<SHA>` image. Rollback uses that artifact with the trusted runtime files; it does not rebuild a historical checkout or change Traefik/DNS.
 
-In an administrator shell on the VM, set `previous_sha` to the prior successful 40-character SHA. If its image was removed, rebuild it from the retained artifact first:
+Use one administrator shell on the VM and hold the helper's deployment lock to prevent a simultaneous CI activation:
+
+```bash
+exec 9>/opt/convey-website/.deploy.lock
+flock -x 9
+```
+
+Set `previous_sha` to the prior successful 40-character SHA. If its image was removed, rebuild it from the retained artifact first:
 
 ```bash
 docker build -f /opt/convey-website/runtime/Dockerfile.runtime \
@@ -145,6 +156,7 @@ After both checks pass, update the release pointer atomically:
 rollback_pointer="/opt/convey-website/.current-rollback-$$"
 ln -s "releases/$previous_sha" "$rollback_pointer"
 mv -Tf "$rollback_pointer" /opt/convey-website/current
+flock -u 9
 ```
 
 Repeat the public smoke checks. The helper's automatic rollback already preserves the previous pointer; this manual pointer update is for an administrator-initiated rollback.

@@ -11,7 +11,7 @@ COPY apps/web/package.json ./apps/web/
 COPY apps/website/package.json ./apps/website/
 COPY apps/mock-server/package.json ./apps/mock-server/
 COPY scripts/patch-openapi.ts ./scripts/patch-openapi.ts
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --linker=hoisted
 
 FROM dependencies AS builder
 COPY packages/shared ./packages/shared
@@ -20,6 +20,10 @@ RUN bun --filter @convey/website generate \
     && bunx tsc --noEmit -p apps/website/tsconfig.json \
     && bun run build:website \
     && cp -r apps/website/.next/static apps/website/.next/standalone/apps/website/.next/static
+
+# Export only the deployable tree, without exporting the build dependency image.
+FROM scratch AS artifact
+COPY --from=builder /app/apps/website/.next/standalone /
 
 FROM node:22-alpine AS runner
 WORKDIR /app
