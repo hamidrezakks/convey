@@ -41,7 +41,7 @@ export function OmnichannelPlayground() {
       setRecipient('+14155552671');
       setBody('Your order #ORD-98421 has shipped! Tracking: https://track.convey.internal');
     } else if (newChannel === 'slack') {
-      setRecipient('#alerts-infrastructure');
+      setRecipient('C0123456789');
       setBody(':rotating_light: Alert: High database connection pool utilization resolved.');
     } else if (newChannel === 'push') {
       setRecipient('fcm_token_9f8a3c1e2b4d5e6f...');
@@ -52,113 +52,137 @@ export function OmnichannelPlayground() {
 
   // Generate code dynamically based on current form state
   const getGeneratedCode = (): string => {
-    if (lang === 'curl') {
-      return `curl -X POST https://api.convey.internal/v1/messages/send \\
-  -H "Authorization: Bearer cv_live_9f8a3c1e2b4d5e6f" \\
-  -H "Content-Type: application/json" \\
-  -H "Idempotency-Key: ord_99218_dispatch" \\
-  -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" \\
-  -d '{
-    "channel": "${channel}",
-    "recipient": "${recipient}",
-    "priority": "${priority}",
-    "content": {
-      ${channel === 'email' ? `"subject": "${subject}",\n      ` : ''}"body": "${body}"
-    },
-    "routing": {
-      "strategy": "${strategy}",
-      "fallbackChain": ["vonage", "infobip"]
-    }
-  }'`;
-    }
+    const quoted = (value: string) => JSON.stringify(value);
+    const priorityMap: Record<string, string> = {
+      CRITICAL: 'critical',
+      HIGH: 'transactional',
+      DEFAULT: 'normal',
+      LOW: 'marketing',
+    };
+    const recipients =
+      channel === 'email'
+        ? { email: recipient }
+        : channel === 'sms'
+          ? { phone: recipient }
+          : channel === 'whatsapp'
+            ? { whatsapp: recipient }
+            : channel === 'slack'
+              ? { slack: { channelId: recipient } }
+              : { fcmTokens: [recipient] };
+    const content =
+      channel === 'email' ? { subject, text: body } : channel === 'push' ? { title: subject, body } : { text: body };
+    const payload = {
+      idempotencyKey: 'example-dispatch-482',
+      userId: 'customer-482',
+      team: 'orders',
+      category: 'TRANSACTIONAL',
+      country: 'US',
+      priority: priorityMap[priority],
+      recipients,
+      channels: [{ channel: channel === 'push' ? 'fcm' : channel, content }],
+    };
+    const policyNote = `Routing preview: ${strategy}; configure provider policy on the server.`;
 
+    if (lang === 'curl') {
+      const shellJson = JSON.stringify(payload, null, 2).replace(/'/g, "'\\''");
+      return `# ${policyNote}
+# The team must match the authenticated key.
+curl -X POST http://localhost:3000/v1/messages \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '${shellJson}'`;
+    }
     if (lang === 'typescript') {
       return `import { Convey } from '@convey/sdk';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
-  baseUrl: 'https://api.convey.internal',
+  baseUrl: 'http://localhost:3000',
+  teamId: 'orders', // Must match the authenticated key
 });
 
+// ${policyNote}
 const response = await convey.messages.send({
   channel: '${channel.toUpperCase()}',
-  recipient: '${recipient}',
+  recipient: ${quoted(recipient)},
   priority: '${priority}',
-  idempotencyKey: 'ord_99218_dispatch',
+  idempotencyKey: 'example-dispatch-482',
   content: {
-    ${channel === 'email' ? `subject: '${subject}',\n    ` : ''}body: '${body}',
+    ${channel === 'email' || channel === 'push' ? `subject: ${quoted(subject)},\n    ` : ''}body: ${quoted(body)},
   },
 });
 
-console.log(\`Accepted: \${response.publicId} (\${response.status})\`);`;
+console.log(response.messageId, response.state);`;
     }
-
     if (lang === 'python') {
       return `import os
 from convey import Convey, Channel, MessagePriority
 
 client = Convey(
-    api_key=os.environ.get("CONVEY_API_KEY", "cv_live_..."),
-    base_url="https://api.convey.internal",
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
 )
 
+# ${policyNote}
 response = client.messages.send(
     channel=Channel.${channel.toUpperCase()},
-    recipient="${recipient}",
+    recipient=${quoted(recipient)},
     priority=MessagePriority.${priority},
-    idempotency_key="ord_99218_dispatch",
+    idempotency_key="example-dispatch-482",
     content={
-        ${channel === 'email' ? `"subject": "${subject}",\n        ` : ''}"body": "${body}",
+        ${channel === 'email' || channel === 'push' ? `"subject": ${quoted(subject)},\n        ` : ''}"body": ${quoted(body)},
     },
 )
 
-print(f"Accepted: {response.public_id} (Status: {response.status})")`;
+print(response.message_id, response.state)`;
     }
-
     if (lang === 'go') {
+      const goChannels = { sms: 'SMS', email: 'Email', whatsapp: 'WhatsApp', slack: 'Slack', push: 'Push' };
+      const goPriorities: Record<string, string> = {
+        CRITICAL: 'Critical',
+        HIGH: 'High',
+        DEFAULT: 'Default',
+        LOW: 'Low',
+      };
       return `package main
 
 import (
     "context"
     "fmt"
     "os"
-
-    "github.com/hamidrezakks/convey/packages/sdk-go"
+    convey "github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
     client := convey.NewClient(os.Getenv("CONVEY_API_KEY"),
-        convey.WithBaseURL("https://api.convey.internal"),
+        convey.WithBaseURL("http://localhost:3000"),
+        convey.WithTeamID("orders"),
     )
-
+    // ${policyNote}
     res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
-        Channel:        convey.Channel${channel.toUpperCase()},
-        Recipient:      "${recipient}",
-        Priority:       convey.Priority${priority === 'CRITICAL' ? 'Critical' : priority === 'HIGH' ? 'High' : 'Normal'},
-        IdempotencyKey: "ord_99218_dispatch",
+        Channel: convey.Channel${goChannels[channel]},
+        Recipient: ${quoted(recipient)},
+        Priority: convey.Priority${goPriorities[priority]},
+        IdempotencyKey: "example-dispatch-482",
         Content: &convey.MessageContent{
-            ${channel === 'email' ? `Subject: "${subject}",\n            ` : ''}Body: "${body}",
+            ${channel === 'email' || channel === 'push' ? `Subject: ${quoted(subject)},\n            ` : ''}Body: ${quoted(body)},
         },
     })
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Printf("Accepted: %s (Status: %s)\\n", res.PublicID, res.Status)
+    if err != nil { panic(err) }
+    fmt.Println(res.MessageID, res.State)
 }`;
     }
-
     return '';
   };
 
   const handleSendTest = () => {
     setIsSending(true);
     setTimeout(() => {
-      const randomUlidSuffix = Math.random().toString(36).substring(2, 10).toUpperCase();
       const latency = Number((Math.random() * 2 + 1.2).toFixed(2));
       setSimulatedResponse({
         status: 'ACCEPTED',
-        publicId: `msg_01JB61Z8${randomUlidSuffix}77`,
+        publicId: 'msg_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         latencyMs: latency,
         traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
         timestamp: new Date().toISOString(),
@@ -185,21 +209,22 @@ func main() {
             <span>Interactive Omnichannel Playground</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            Try Sending Any Message in Seconds
+            Explore Message Requests & Simulated Acceptance
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Configure parameters across SMS, Email, WhatsApp, Slack, and Push. Copy production SDK code in TypeScript,
-            Python, Go, or cURL.
+            Configure SMS, Email, WhatsApp, Slack, and Push examples for repository SDKs or cURL. This browser demo
+            makes no API call; IDs and timing are simulated. Replace the sample key scope and idempotency key for real
+            requests.
           </p>
         </div>
 
         {/* Channel Selector Bar */}
         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           {[
-            { id: 'sms', label: 'SMS', icon: MessageSquare, badge: 'Twilio / Vonage' },
-            { id: 'email', label: 'Email', icon: Mail, badge: 'SES / Resend' },
+            { id: 'sms', label: 'SMS', icon: MessageSquare, badge: 'Configured SMS' },
+            { id: 'email', label: 'Email', icon: Mail, badge: 'Configured Email' },
             { id: 'whatsapp', label: 'WhatsApp', icon: Radio, badge: 'Meta Cloud API' },
-            { id: 'slack', label: 'Slack', icon: MessageSquare, badge: 'Block Kit' },
+            { id: 'slack', label: 'Slack', icon: MessageSquare, badge: 'Channel ID' },
             { id: 'push', label: 'Push', icon: Bell, badge: 'FCM / APNs' },
           ].map((c) => {
             const isActive = channel === c.id;
@@ -238,7 +263,7 @@ func main() {
                 Message Parameters
               </span>
               <Badge variant="success" size="sm">
-                Live Ingestion
+                Browser Simulation
               </Badge>
             </div>
 
@@ -251,7 +276,7 @@ func main() {
                   : channel === 'push'
                     ? 'Device Token'
                     : channel === 'slack'
-                      ? 'Channel Name'
+                      ? 'Channel ID'
                       : 'E.164 Phone Number'}
                 )
               </label>
@@ -304,7 +329,7 @@ func main() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Routing Strategy</label>
+                <label className="text-xs font-medium text-slate-300">Routing Policy Preview</label>
                 <select
                   value={strategy}
                   onChange={(e) => setStrategy(e.target.value)}
@@ -327,7 +352,7 @@ func main() {
               onClick={handleSendTest}
               disabled={isSending}
             >
-              {isSending ? 'Ingesting via Fast-Path...' : 'Send Test Ingestion (Sub-15ms)'}
+              {isSending ? 'Simulating Acceptance...' : 'Simulate Acceptance (No API Call)'}
             </Button>
           </div>
 
@@ -391,10 +416,10 @@ func main() {
                 <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold font-mono">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    HTTP 202 ACCEPTED
+                    SIMULATED HTTP 202 ACCEPTED
                   </div>
                   <span className="font-mono text-slate-400 text-[11px]">
-                    Ingestion Latency: <strong className="text-sky-400">{simulatedResponse.latencyMs}ms</strong>
+                    Illustrative Timing: <strong className="text-sky-400">{simulatedResponse.latencyMs}ms</strong>
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2 text-[11px] font-mono text-slate-300 pt-1">

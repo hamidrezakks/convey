@@ -1,226 +1,75 @@
 ---
-title: Enterprise Production Cookbook
-description: Production-grade architectural recipes for Next.js App Router, Server Actions, Elysia microservices, Express API gateways, Edge runtimes, and OpenTelemetry APM tracing with @convey/sdk.
+title: Integration Cookbook
+description: Scheduling, channel fallback, bulk outcomes, sandbox scope, and failed-message replay using current contracts.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+# Integration Cookbook
 
-# Enterprise Production Cookbook
+These recipes build on the complete request in the [API reference](/docs/api-reference). Convey is pre-release; run integrations against your own deployment and consult the [V1 contract candidate](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-contracts.md) for current limits.
 
-Battle-tested recipes, framework integrations, and operational patterns for `@convey/sdk`.
+## Schedule a message
 
----
+Add `scheduledAt` and optionally `expiresAt` to a valid send body:
 
-## 1. Next.js App Router (14/15) & Server Actions
-
-### Singleton Client Instance (`src/lib/convey.ts`)
-
-```typescript
-import { Convey } from '@convey/sdk';
-
-if (!process.env.CONVEY_API_KEY) {
-  throw new Error('Missing CONVEY_API_KEY environment variable');
+```json
+{
+  "scheduledAt": "2027-01-10T09:00:00.000Z",
+  "expiresAt": "2027-01-10T10:00:00.000Z"
 }
-
-export const convey = new Convey({
-  apiKey: process.env.CONVEY_API_KEY,
-  teamId: process.env.CONVEY_TEAM_ID || 'web-app',
-  timeoutMs: 8000,
-});
 ```
 
-### Idempotent User Onboarding Action (`src/app/actions/auth.ts`)
+These fields are additions to the full message request. Use future ISO timestamps. Explicit future scheduling returns `state: "scheduled"` plus `scheduledAt`; acceptance does not promise delivery at an exact time.
 
-```typescript
-'use server';
+## Fall back from WhatsApp to SMS
 
-import { convey } from '@/lib/convey';
-import { ConveyConflictError, ConveyRateLimitError } from '@convey/sdk';
+Provide both `recipients.whatsapp` and `recipients.phone`. Set the initial `channels` array to WhatsApp, then include the SMS content in the fallback rule:
 
-export async function sendWelcomeNotification(user: { id: string; email: string; name: string }) {
-  try {
-    const response = await convey.messages.send({
-      channel: 'EMAIL',
-      recipient: user.email,
-      priority: 'HIGH',
-      content: {
-        subject: `Welcome to our platform, ${user.name}!`,
-        body: `<p>Hi ${user.name}, we are excited to have you on board!</p>`,
-      },
-      metadata: {
-        userId: user.id,
-        signupSource: 'marketing_landing_page',
-      },
-      idempotencyKey: `user_welcome_${user.id}`,
-    });
-
-    return { success: true, messageId: response.publicId };
-  } catch (error) {
-    if (error instanceof ConveyConflictError) {
-      return { success: true, alreadyDispatched: true };
-    }
-    if (error instanceof ConveyRateLimitError) {
-      return { success: false, error: `Rate limited. Retry in ${error.retryAfterSeconds}s` };
-    }
-    return { success: false, error: 'Failed to send notification.' };
+```json
+{
+  "recipients": { "whatsapp": "+14155552671", "phone": "+14155552671" },
+  "channels": [{
+    "channel": "whatsapp",
+    "content": { "template": "order_confirmed", "language": "en", "variables": { "orderId": "10928" } }
+  }],
+  "fallback": {
+    "rules": [{
+      "when": { "channel": "whatsapp", "event": "failed" },
+      "send": [{ "channel": "sms", "content": { "text": "Order 10928 is confirmed." } }]
+    }]
   }
 }
 ```
 
----
+Merge this fragment into a complete send request. The WhatsApp template and provider configuration must exist. The provider-send worker queues this `failed` rule after final failure. Provider choice belongs to configured routing. See the [fallback state machine](https://github.com/hamidrezakks/convey/blob/main/docs/fallback-state-machine.md) for processing details.
 
-## 2. High-Throughput Elysia & Bun Microservice
+## Handle bulk results
 
-```typescript
-import { Elysia, t } from 'elysia';
-import { Convey } from '@convey/sdk';
+Split input into chunks of at most 500 complete requests, each with a distinct idempotency key. Submit `{ "messages": [...] }` to `/v1/messages/bulk`. A `202` response is the batch envelope: check each item's `index`, `statusCode`, and `body`. Retry the same logical message with the same body/key; do not generate a new key simply because the connection failed.
 
-const convey = new Convey({
-  apiKey: process.env.CONVEY_API_KEY!,
-  baseUrl: process.env.CONVEY_API_URL || 'http://localhost:3000',
-});
+## Exercise sandbox scope
 
-export const notificationService = new Elysia({ prefix: '/api/v1' })
-  .post(
-    '/send-sms-otp',
-    async ({ body, set }) => {
-      const result = await convey.messages.send({
-        channel: 'SMS',
-        recipient: body.phone,
-        priority: 'CRITICAL',
-        content: {
-          body: `Your one-time authentication code is: ${body.otp}`,
-        },
-        category: 'SECURITY',
-      });
+Use a sandbox-scoped key or send `X-Convey-Sandbox: true` with an authorized key. The server derives sandbox selection from authentication/headers. Inspect recent records with `GET /v1/sandbox/messages`. Shared configuration resources have separate access restrictions, so a sandbox key cannot configure production providers or customer subscriptions.
 
-      set.status = 202;
-      return {
-        success: true,
-        messageId: result.publicId,
-        state: result.status,
-      };
-    },
-    {
-      body: t.Object({
-        phone: t.String(),
-        otp: t.String(),
-      }),
-    },
-  );
-```
+## Preview a failed-message correction
 
----
+First inspect a failed message with `/v1/dlq` and its timeline. A mutated replay can change recipients, channels, or metadata:
 
-## 3. Cloudflare Workers & Edge Runtimes
-
-```typescript
-import { Convey } from '@convey/sdk';
-
-export interface Env {
-  CONVEY_API_KEY: string;
-}
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const convey = new Convey({
-      apiKey: env.CONVEY_API_KEY,
-    });
-
-    const res = await convey.messages.send({
-      channel: 'EMAIL',
-      recipient: 'alerts@enterprise.com',
-      priority: 'HIGH',
-      content: {
-        subject: 'Edge Incident Alert',
-        body: '<p>High latency detected on CDN POP edge node.</p>',
-      },
-    });
-
-    return Response.json({ success: true, messageId: res.publicId });
-  },
-};
-```
-
----
-
-## 4. Dead-Letter Queue (DLQ) Auto-Remediation Script
-
-```typescript
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({
-  apiKey: process.env.CONVEY_API_KEY!,
-});
-
-async function remediateDlq() {
-  console.log('Inspecting DLQ for transient failures...');
-
-  const dlqStream = convey.dlq.listAutoPaging({ limit: 100 });
-  const transientMessageIds: string[] = [];
-
-  for await (const item of dlqStream) {
-    if (item.failureCategory === 'TRANSIENT' || item.failureCategory === 'RATE_LIMITED') {
-      transientMessageIds.push(item.messageId);
+```bash
+curl http://localhost:3000/v1/dlq/replay-mutated \
+  -H "Authorization: Bearer $CONVEY_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messageIds": ["msg_01J0N7C0W7X2R6S8V9Q9B1E4G3"],
+    "dryRun": true,
+    "mutations": {
+      "recipients": { "email": "corrected@example.com" },
+      "metadata": { "remediationReason": "Recipient corrected their email" }
     }
-  }
-
-  console.log(`Found ${transientMessageIds.length} transient errors eligible for auto-replay.`);
-
-  // Replay in batches of 50
-  for (let i = 0; i < transientMessageIds.length; i += 50) {
-    const batch = transientMessageIds.slice(i, i + 50);
-    const result = await convey.dlq.replay({ messageIds: batch });
-    console.log(`Replayed batch: ${result.replayedCount} succeeded, ${result.failedCount} failed.`);
-  }
-}
-
-remediateDlq().catch(console.error);
+  }'
 ```
 
----
+Review `dryRunResults`; a dry run reports payload changes without dispatching or testing an actual provider route. After reviewing the changes, use `dryRun: false` to replay eligible failures. An intentional replay is another execution and can incur another provider charge. Ordinary replay uses `POST /v1/dlq/replay` with only `messageIds`.
 
-## 5. Distributed Tracing with OpenTelemetry Spans
+## Receive delivery events
 
-```typescript
-import { trace } from '@opentelemetry/api';
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({
-  apiKey: process.env.CONVEY_API_KEY!,
-});
-
-export async function sendTracedEmail(recipient: string, subject: string, body: string) {
-  const tracer = trace.getTracer('notification-service');
-
-  return tracer.startActiveSpan('dispatch_email_notification', async (span) => {
-    try {
-      const spanContext = span.spanContext();
-
-      // Format W3C traceparent header: 00-<trace_id>-<span_id>-<trace_flags>
-      const traceparent = `00-${spanContext.traceId}-${spanContext.spanId}-01`;
-
-      // Pass traceparent to Convey SDK to automatically stitch distributed waterfall
-      const response = await convey.messages.send(
-        {
-          channel: 'EMAIL',
-          recipient,
-          content: { subject, body },
-        },
-        { traceparent },
-      );
-
-      span.setAttribute('convey.message_id', response.publicId);
-      span.setAttribute('convey.status', response.status);
-
-      return response;
-    } catch (err) {
-      span.recordException(err as Error);
-      throw err;
-    } finally {
-      span.end();
-    }
-  });
-}
-```
+Use the [webhook recipe](/docs/webhooks) to create a customer subscription and verify the raw signed body. The server sends `{ event, timestamp, data }`. Make application updates safe to repeat; receipts can arrive after polling has already observed a newer state.

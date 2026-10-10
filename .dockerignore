@@ -21,3 +21,9 @@ coverage/
 **/.env
 **/.env.*
 !**/.env.example
+
+# Host build output and platform-specific workspace dependencies are not image inputs.
+**/node_modules/
+**/.next/
+**/.source/
+**/dist/

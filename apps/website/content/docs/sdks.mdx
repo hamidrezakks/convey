@@ -1,265 +1,131 @@
 ---
 title: Client Libraries & SDKs
-description: Official zero-dependency SDKs for TypeScript/Node/Bun, Go, and Python with mandatory Base URL resolution, fluent builders, lifecycle awaiters, middlewares, and webhook framework adapters.
+description: Repository SDKs for TypeScript, Python, and Go with verified send examples and current limitations.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+# Client Libraries & SDKs
 
-# Official Client Libraries & SDKs
+Convey includes TypeScript/JavaScript, Python, and Go SDK source packages. The project is pre-release; package manifests and environment preset URLs do not establish a published release or hosted service. Use a local package or a release artifact you have validated, and point the client at your own deployment.
 
-Convey provides production-tested, zero-dependency client SDKs across **TypeScript/JavaScript** (Node.js, Bun, Edge runtimes), **Go**, and **Python** (Sync & Async) with built-in connection pooling, exponential jittered retries, client-side rate limiting, W3C distributed tracing, and lifecycle polling awaiters.
+| Language | Repository package | Declared runtime |
+| :--- | :--- | :--- |
+| TypeScript / JavaScript | [`packages/sdk`](https://github.com/hamidrezakks/convey/tree/main/packages/sdk) (`@convey/sdk`) | Node.js 18+ or Bun 1+ |
+| Python | [`packages/sdk-py`](https://github.com/hamidrezakks/convey/tree/main/packages/sdk-py) (`convey-sdk`) | Python 3.10+ |
+| Go | [`packages/sdk-go`](https://github.com/hamidrezakks/convey/tree/main/packages/sdk-go) | Go 1.22+ |
 
-<Callout type="warn">
-  **Strict Base URL Requirement**: Convey SDKs strictly require an explicit base URL or environment preset (`ConveyEnvironment.PRODUCTION`, `US`, `EU`, `STAGING`, `LOCAL`, `SANDBOX`, or `CONVEY_BASE_URL` env var). If no base URL is supplied, the SDK immediately throws `ConveyConfigurationError` to prevent misdirected communications.
-</Callout>
+The SDKs include send normalization, retries, tracing, and HMAC signature helpers. Client APIs use ergonomic channel and priority enums; the server's [wire payload](/docs/api-reference) uses lowercase channel values, `recipients`, and `channels`.
 
----
+## Use the local packages
 
-## Language SDK Matrix
+From a repository checkout, install workspace dependencies and build the TypeScript SDK:
 
-| Language | Package / Module | Runtimes | Key Features |
-| :--- | :--- | :--- | :--- |
-| **TypeScript / JS** | `@convey/sdk` | Node.js 18+, Bun, Deno, Cloudflare Workers | Zero deps, Fluent DSL, Middlewares, Rate Limiter, Webhook Handlers |
-| **Go** | `github.com/hamidrezakks/convey/packages/sdk-go` | Go 1.22+ | Zero deps, HTTP/2 pooling, RoundTripper interceptors, Polling |
-| **Python** | `convey-sdk` | Python 3.10+ | Zero deps, Sync + Asyncio native, Fluent Builder, Webhook Handlers |
-
----
-
-## 1. TypeScript & Bun SDK (`@convey/sdk`)
-
-### Installation
-
-<Tabs items={['Bun', 'npm', 'pnpm', 'yarn']}>
-  <Tab value="Bun">
 ```bash
-bun add @convey/sdk
+bun install
+bun run --cwd packages/sdk build
 ```
-  </Tab>
-  <Tab value="npm">
-```bash
-npm install @convey/sdk
-```
-  </Tab>
-  <Tab value="pnpm">
-```bash
-pnpm add @convey/sdk
-```
-  </Tab>
-  <Tab value="yarn">
-```bash
-yarn add @convey/sdk
-```
-  </Tab>
-</Tabs>
 
-### Initialization with Presets & Interceptors
+Link the built `packages/sdk` directory into your consuming application as a local dependency. Install the Python package with `python -m pip install ./packages/sdk-py`. For Go, use a local module replacement for `github.com/hamidrezakks/convey/packages/sdk-go` pointing at your checkout's `packages/sdk-go` directory.
+
+## TypeScript
 
 ```typescript
-import { Convey, ConveyEnvironment } from '@convey/sdk';
+import { Channel, Convey, MessagePriority } from '@convey/sdk';
 
-const convey = new Convey({
+const client = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
-  environment: ConveyEnvironment.PRODUCTION, // Canonical: https://api.convey.dev
-  rateLimiter: { maxRequestsPerSecond: 100, maxBurst: 20 },
+  baseUrl: process.env.CONVEY_BASE_URL ?? 'http://localhost:3000',
+  teamId: 'payments',
 });
 
-// Attach custom request/response interceptor
-convey.use({
-  name: 'tenant-tracer',
-  onRequest: (ctx) => {
-    ctx.headers['x-tenant-id'] = 'tenant_99';
-    return ctx;
-  },
-  onResponse: (ctx) => {
-    console.log(`[HTTP ${ctx.response.status}] took ${ctx.durationMs}ms`);
-    return ctx;
-  },
-});
-```
-
-### Fluent Message Builder & Delivery Polling
-
-```typescript
-// 1. Fluent Builder Dispatch
-const message = await convey
-  .message()
-  .to('alex.doe@example.com')
-  .email({
-    subject: 'Your Monthly Invoice #INV-2026-08',
-    html: '<p>Hi Alex, your invoice of <strong>$149.00</strong> is ready.</p>',
-  })
-  .priority('HIGH')
-  .team('finance')
-  .send();
-
-console.log(`Accepted: ${message.publicId}`);
-
-// 2. Await Delivery Lifecycle
-const deliveredMessage = await convey.messages.waitForDelivery(message.publicId, {
-  pollIntervalMs: 500,
-  timeoutMs: 30000,
-});
-console.log(`Delivered status: ${deliveredMessage.status}`);
-```
-
-### Webhook Framework Handlers
-
-```typescript
-// Next.js App Router (app/api/webhooks/convey/route.ts)
-import { Convey } from '@convey/sdk';
-
-const handler = Convey.webhooks.createHandler({
-  secret: process.env.CONVEY_WEBHOOK_SECRET!,
-  handlers: {
-    'message.delivered': (event) => console.log('Delivered:', event.data.messageId),
-    'message.failed': (event) => console.warn('Failed:', event.data.messageId),
-  },
+const accepted = await client.messages.send({
+  channel: Channel.EMAIL,
+  recipient: 'customer@example.com',
+  userId: 'customer-42',
+  team: 'payments',
+  category: 'transactional',
+  country: 'US',
+  priority: MessagePriority.HIGH,
+  idempotencyKey: 'order-10928-confirmation',
+  content: { subject: 'Order confirmed', body: 'Your order is confirmed.' },
 });
 
-export async function POST(req: Request) {
-  return handler.handleRequest(req);
-}
+console.log(accepted.messageId, accepted.state);
 ```
 
----
+`MessagePriority.HIGH` maps to the wire priority `transactional`; `DEFAULT` maps to `normal`, and `LOW` maps to `marketing`. The send response supplies `messageId`, `publicId`, and a lowercase `state`; these SDK aliases differ from the raw REST response. The TypeScript client requires an explicit `baseUrl`, environment preset, or `CONVEY_BASE_URL`.
 
-## 2. Go SDK (`packages/sdk-go`)
+## Python
 
-### Installation
+```python
+import os
+from convey import Channel, Convey, MessagePriority
 
-```bash
-go get github.com/hamidrezakks/convey/packages/sdk-go
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url=os.environ.get("CONVEY_BASE_URL", "http://localhost:3000"),
+    team_id="payments",
+)
+
+accepted = client.messages.send(
+    channel=Channel.EMAIL,
+    recipient="customer@example.com",
+    user_id="customer-42",
+    team="payments",
+    category="transactional",
+    country="US",
+    priority=MessagePriority.HIGH,
+    idempotency_key="order-10928-confirmation",
+    content={"subject": "Order confirmed", "text": "Your order is confirmed."},
+)
+
+print(accepted.message_id, accepted.state)
 ```
 
-### Initialization & Fluent Builder
+`AsyncConvey` exposes asynchronous resource methods; await `client.messages.send(...)` with the same request fields.
+
+## Go
 
 ```go
 package main
 
 import (
-	"context"
-	"fmt"
-	"time"
+    "context"
+    "fmt"
+    "os"
 
-	"github.com/hamidrezakks/convey/packages/sdk-go"
+    "github.com/hamidrezakks/convey/packages/sdk-go"
 )
 
 func main() {
-	client := convey.NewClient("sk_live_...",
-		convey.WithEnvironment(convey.EnvProduction),
-		convey.WithRateLimiter(50, 10),
-		convey.WithTimeout(10*time.Second),
-	)
-
-	// Fluent Message Builder
-	resp, err := client.Messages.Builder().
-		To("customer@example.com").
-		Email("Order Update", "<p>Shipped!</p>").
-		Priority(convey.PriorityHigh).
-		Team("logistics").
-		Send(context.Background())
-
-	if err != nil {
-		panic(err)
-	}
-
-	// Polling awaiter
-	detail, err := client.Messages.WaitForDelivery(context.Background(), resp.PublicID,
-		convey.WithPollInterval(500*time.Millisecond),
-		convey.WithPollTimeout(30*time.Second),
-	)
-
-	fmt.Printf("Message status: %s\n", detail.Status)
+    client := convey.NewClient(os.Getenv("CONVEY_API_KEY"),
+        convey.WithBaseURL("http://localhost:3000"),
+        convey.WithTeamID("payments"),
+    )
+    accepted, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
+        Channel: convey.ChannelEmail,
+        Recipient: "customer@example.com",
+        UserID: "customer-42",
+        Team: "payments",
+        Category: "transactional",
+        Country: "US",
+        Priority: convey.PriorityHigh,
+        IdempotencyKey: "order-10928-confirmation",
+        Content: &convey.MessageContent{
+            Subject: "Order confirmed",
+            Body: "Your order is confirmed.",
+        },
+    })
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println(accepted.MessageID, accepted.State)
 }
 ```
 
-### Webhook HTTP Handler (Standard `net/http`)
+## Current integration limits
 
-```go
-func main() {
-	handler := convey.NewWebhookHandler(os.Getenv("CONVEY_WEBHOOK_SECRET"), map[string]convey.WebhookEventHandler{
-		"message.delivered": func(event *convey.WebhookEvent) error {
-			fmt.Printf("Delivered: %s\n", event.ID)
-			return nil
-		},
-	})
+Use a team authorized by your key; setting `teamId` or `team_id` does not grant access. Retain an explicit idempotency key for an application-level retry of the same send. Acceptance is not delivery.
 
-	http.HandleFunc("/webhooks/convey", handler)
-	http.ListenAndServe(":8080", nil)
-}
-```
+Some SDK status, trace, batch, and webhook event types still differ from current server responses. Bulk SDK normalization also does not retain all per-item REST error information. Use the [REST reference](/docs/api-reference) for wire shapes and inspect raw bulk outcomes when partial failures matter. Avoid relying on lifecycle polling or typed framework event routing until that contract is qualified for your SDK version.
 
----
-
-## 3. Python SDK (`convey-sdk`)
-
-### Installation
-
-```bash
-pip install convey-sdk
-```
-
-### Synchronous & Asynchronous Clients
-
-```python
-from convey import Convey, AsyncConvey, ConveyEnvironment, MessagePriority
-
-# Synchronous Client
-client = Convey(
-    api_key="sk_live_...",
-    environment=ConveyEnvironment.PRODUCTION,
-    rate_limiter={"requests_per_second": 50, "burst": 10},
-)
-
-# Fluent Message Builder
-res = (
-    client.message()
-    .to("user@example.com")
-    .email(subject="Security Alert", html="<p>New login detected</p>")
-    .priority(MessagePriority.CRITICAL)
-    .send()
-)
-
-# Lifecycle Polling
-delivered = client.messages.wait_for_delivery(res.public_id, timeout_s=30.0)
-print(f"Message Status: {delivered.status}")
-```
-
-### FastAPI / Starlette Webhook Integration
-
-```python
-from fastapi import FastAPI, Request
-from convey import WebhookHandler
-
-app = FastAPI()
-handler = WebhookHandler(
-    secret="whsec_...",
-    handlers={
-        "message.delivered": lambda event: print(f"Delivered: {event.id}"),
-    },
-)
-
-@app.post("/api/webhooks/convey")
-async def convey_webhook(request: Request):
-    return await handler.handle_fastapi(request)
-```
-
----
-
-## Comprehensive Error Handling
-
-All SDKs map HTTP and network error states into strongly-typed exceptions:
-
-| Error Type | Trigger HTTP Status | Description |
-| :--- | :--- | :--- |
-| `ConveyConfigurationError` | N/A (Client-Side) | Missing or invalid `baseUrl` / `environment` |
-| `ConveyValidationError` | HTTP 400 | Invalid payload, missing required schema fields |
-| `ConveyAuthenticationError` | HTTP 401 | Invalid or expired API Key |
-| `ConveyForbiddenError` | HTTP 403 | Tenant permissions or quota boundary exceeded |
-| `ConveyNotFoundError` | HTTP 404 | Entity or message ID not found |
-| `ConveyConflictError` | HTTP 409 | Idempotency key payload mismatch |
-| `ConveyRateLimitError` | HTTP 429 | Rate limit exceeded (`Retry-After` seconds exposed) |
-| `ConveyTimeoutError` | N/A | Request exceeded configured timeout deadline |
-| `ConveyNetworkError` | N/A | DNS resolution failure or socket reset |
-| `ConveySecurityError` | N/A | Webhook HMAC-SHA256 signature verification failure |
+For customer callbacks, follow the [webhook verification example](/docs/webhooks). It verifies the exact body and reads the server's `event`, `timestamp`, and `data` envelope.

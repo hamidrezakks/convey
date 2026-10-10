@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Installed as a root-owned forced SSH command. Uploaded builds contain no
+# deployment scripts, Dockerfile or Compose authority used by this helper.
+set -Eeuo pipefail
+
+reject_command() {
+  printf '%s\n' 'invalid deployment command: expected deploy <40 lowercase hex SHA>' >&2
+  exit 64
+}
+
+if [[ ${SSH_ORIGINAL_COMMAND+x} ]]; then
+  [[ $# -eq 0 ]] || reject_command
+  command_text=$SSH_ORIGINAL_COMMAND
+else
+  [[ $# -eq 2 && $1 == deploy ]] || reject_command
+  command_text="deploy $2"
+fi
+[[ $command_text =~ ^deploy\ ([0-9a-f]{40})$ ]] || reject_command
+release_sha=${BASH_REMATCH[1]}
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+umask 022
+readonly base=/opt/convey-website
+readonly runtime=$base/runtime
+readonly origin_host=convey.barnamekon.com
+readonly archive_limit=536870912
+readonly release=$base/releases/$release_sha
+[[ $EUID -eq 0 ]] || { printf '%s\n' 'deployment helper requires its installed root identity' >&2; exit 1; }
+[[ -f $runtime/Dockerfile.runtime && -f $runtime/compose.yaml && -f $runtime/extract-website.py ]] || {
+  printf '%s\n' 'trusted runtime configuration is missing' >&2
+  exit 1
+}
+
+mkdir -p "$base/releases"
+chmod 755 "$base" "$base/releases"
+exec 9>"$base/.deploy.lock"
+flock -x 9
+
+previous_sha=''
+if [[ -L $base/current ]]; then
+  previous_path=$(readlink "$base/current")
+  [[ $previous_path =~ ^releases/([0-9a-f]{40})$ ]] || {
+    printf '%s\n' 'current release pointer is invalid' >&2
+    exit 1
+  }
+  previous_sha=${BASH_REMATCH[1]}
+  [[ -d $base/releases/$previous_sha && -f $base/releases/$previous_sha/archive.sha256 ]] || {
+    printf '%s\n' 'previous release is incomplete' >&2
+    exit 1
+  }
+elif [[ -e $base/current ]]; then
+  printf '%s\n' 'current release pointer must be a symlink' >&2
+  exit 1
+fi
+
+staging=$(mktemp -d "$base/releases/.incoming-$release_sha.XXXXXX")
+link_staging="$base/.current-$$"
+activated=false
+deployment_succeeded=false
+
+compose_release() {
+  WEBSITE_IMAGE_TAG=$1 docker compose --project-name convey-website \
+    --project-directory "$runtime" -f "$runtime/compose.yaml" "${@:2}"
+}
+
+finish() {
+  local result=$?
+  trap - EXIT INT TERM
+  set +e
+  if [[ $result -ne 0 && $activated == true && $deployment_succeeded != true ]]; then
+    if [[ -n $previous_sha ]]; then
+      printf 'Deployment failed; restoring %s\n' "$previous_sha" >&2
+      compose_release "$previous_sha" up -d --no-build --wait --wait-timeout 120
+      if [[ $? -ne 0 ]]; then
+        printf '%s\n' 'ROLLBACK FAILED: operator intervention required; current pointer preserved' >&2
+      fi
+    else
+      compose_release "$release_sha" down
+      if [[ $? -ne 0 ]]; then
+        printf '%s\n' 'Failed initial deployment cleanup requires operator intervention' >&2
+      fi
+    fi
+  fi
+  rm -f -- "$link_staging"
+  if [[ -n $staging && -d $staging ]]; then rm -rf -- "$staging"; fi
+  exit "$result"
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Bound input even if the sender supplies an endless or enormous stream.
+head -c "$((archive_limit + 1))" > "$staging/archive.tar.gz"
+archive_size=$(stat -c %s "$staging/archive.tar.gz")
+if (( archive_size > archive_limit )); then
+  printf '%s\n' 'archive rejected: compressed stream exceeds 512 MiB' >&2
+  exit 1
+fi
+archive_digest=$(sha256sum "$staging/archive.tar.gz")
+archive_digest=${archive_digest%% *}
+
+if [[ -e $release || -L $release ]]; then
+  [[ -d $release && ! -L $release && -f $release/archive.sha256 ]] || {
+    printf '%s\n' 'existing release is incomplete or unsafe' >&2
+    exit 1
+  }
+  [[ $(cat "$release/archive.sha256") == "$archive_digest" ]] || {
+    printf '%s\n' 'immutable release SHA already has a different artifact' >&2
+    exit 1
+  }
+  rm -rf -- "$staging"
+  staging=''
+else
+  python3 "$runtime/extract-website.py" "$staging/standalone" < "$staging/archive.tar.gz"
+  printf '%s\n' "$archive_digest" > "$staging/archive.sha256"
+  rm -- "$staging/archive.tar.gz"
+  chmod 755 "$staging"
+  mv -- "$staging" "$release"
+  staging=''
+fi
+
+# The build context supplies files only; the Dockerfile stays outside the archive.
+# Preserve an already built SHA tag rather than replacing it on a repeated upload.
+if ! docker image inspect "convey-website:$release_sha" >/dev/null 2>&1; then
+  docker build --file "$runtime/Dockerfile.runtime" --tag "convey-website:$release_sha" "$release"
+fi
+activated=true
+compose_release "$release_sha" up -d --no-build --wait --wait-timeout 120
+
+# Check local Traefik with real host/SNI and normal certificate verification,
+# bypassing Cloudflare DNS/cache. Redirects are not treated as a healthy origin.
+origin_status=$(curl --silent --show-error --fail --retry 5 --retry-delay 2 \
+  --retry-all-errors --connect-timeout 5 --max-time 15 --proto '=https' \
+  --resolve "$origin_host:443:127.0.0.1" --output /dev/null --write-out '%{http_code}' \
+  "https://$origin_host/healthz")
+[[ $origin_status == 200 ]] || {
+  printf 'Origin health check returned HTTP %s\n' "$origin_status" >&2
+  exit 1
+}
+
+ln -s "releases/$release_sha" "$link_staging"
+mv -Tf -- "$link_staging" "$base/current"
+deployment_succeeded=true
+printf 'Deployed website release %s\n' "$release_sha"

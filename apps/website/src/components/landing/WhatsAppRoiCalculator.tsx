@@ -26,15 +26,14 @@ export function WhatsAppRoiCalculator() {
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Autonomous WhatsApp 24h Cost Autopilot</span>
+            <span>Illustrative WhatsApp Session Model</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            Calculate Your WhatsApp Delivery Savings
+            Explore Assumed WhatsApp Cost Savings
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Convey automatically intercepts outbound WhatsApp messages to engaged users and delivers them as{' '}
-            <strong className="text-slate-200">$0.00 plain-text session messages</strong> instead of paying expensive
-            Meta template fees ($0.03 - $0.08).
+            This model assumes eligible session messages cost $0 and all other messages use the fee you enter. It
+            excludes provider surcharges and operating costs; it does not fetch vendor prices.
           </p>
         </div>
 
@@ -47,7 +46,7 @@ export function WhatsAppRoiCalculator() {
                 Volume & Profile
               </span>
               <Badge variant="outline" size="sm">
-                Real-Time ROI
+                Illustrative Estimate
               </Badge>
             </div>
 
@@ -80,7 +79,7 @@ export function WhatsAppRoiCalculator() {
             {/* Engagement Rate Slider */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <label className="font-medium text-slate-300">24h Customer Reply Rate</label>
+                <label className="font-medium text-slate-300">Assumed Eligible Session Share</label>
                 <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
                   {engagementRate}% in 24h
                 </span>
@@ -93,11 +92,11 @@ export function WhatsAppRoiCalculator() {
                 value={engagementRate}
                 onChange={(e) => setEngagementRate(Number(e.target.value))}
                 className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                aria-label="24h Customer Reply Rate"
+                aria-label="Assumed Eligible Session Share"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                 <span>5% (Low)</span>
-                <span>45% (Typical)</span>
+                <span>45% (Example)</span>
                 <span>90% (Active)</span>
               </div>
             </div>
@@ -105,7 +104,7 @@ export function WhatsAppRoiCalculator() {
             {/* Meta Template Fee Slider */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <label className="font-medium text-slate-300">Average Meta Template Fee</label>
+                <label className="font-medium text-slate-300">Assumed Template Fee</label>
                 <span className="font-mono font-bold text-purple-400 text-xs sm:text-sm">
                   ${templateFee.toFixed(3)}/msg
                 </span>
@@ -118,12 +117,12 @@ export function WhatsAppRoiCalculator() {
                 value={templateFee}
                 onChange={(e) => setTemplateFee(Number(e.target.value))}
                 className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                aria-label="Average Meta Template Fee"
+                aria-label="Assumed Template Fee"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>$0.030 (Utility)</span>
-                <span>$0.055 (Standard)</span>
-                <span>$0.090 (Marketing)</span>
+                <span>$0.030 (Example)</span>
+                <span>$0.055 (Example)</span>
+                <span>$0.090 (Example)</span>
               </div>
             </div>
           </div>
@@ -139,15 +138,15 @@ export function WhatsAppRoiCalculator() {
               <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent border border-emerald-500/30 space-y-1">
                 <div className="text-xs text-emerald-400 font-semibold font-mono flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4" />
-                  <span>Annual Net Expenditure Savings</span>
+                  <span>Modeled Annual Fee Difference</span>
                 </div>
                 <div className="text-2xl sm:text-4xl font-extrabold text-white font-mono truncate">
                   {formatCurrency(annualSavings)}
                   <span className="text-xs sm:text-sm font-normal text-slate-400 font-sans ml-1.5 sm:ml-2">/ year</span>
                 </div>
                 <div className="text-xs text-slate-300 pt-1">
-                  You save <strong className="text-emerald-300">{formatCurrency(monthlySavings)}/mo</strong> (
-                  {savingsPercent}% reduction) automatically!
+                  Modeled difference: <strong className="text-emerald-300">{formatCurrency(monthlySavings)}/mo</strong>{' '}
+                  ({savingsPercent}% reduction) under these assumptions.
                 </div>
               </div>
 
@@ -155,7 +154,7 @@ export function WhatsAppRoiCalculator() {
               <div className="space-y-3 pt-1">
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs gap-2">
-                    <span className="text-slate-400 truncate">Traditional Provider (100% Template Fee):</span>
+                    <span className="text-slate-400 truncate">All Messages at Assumed Template Fee:</span>
                     <span className="font-mono text-rose-400 font-bold shrink-0">
                       {formatCurrency(traditionalCost)}/mo
                     </span>
@@ -167,7 +166,7 @@ export function WhatsAppRoiCalculator() {
 
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs gap-2">
-                    <span className="text-slate-400 truncate">Convey Autonomous 24h Autopilot:</span>
+                    <span className="text-slate-400 truncate">Assumed Eligible Session Conversion:</span>
                     <span className="font-mono text-emerald-400 font-bold shrink-0">
                       {formatCurrency(conveyCost)}/mo
                     </span>
@@ -184,9 +183,9 @@ export function WhatsAppRoiCalculator() {
 
             {/* Explanation Note */}
             <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-[11px] sm:text-xs text-slate-400 leading-relaxed">
-              <strong className="text-slate-200">How it works</strong>: Convey tracks inbound user replies via webhooks
-              and sets an in-memory 24-hour session lease. Outbound messages in this window are automatically delivered
-              as $0.00 plain-text session messages with zero code changes.
+              <strong className="text-slate-200">Configuration matters</strong>: Session conversion requires enabled
+              provider configuration, a tracked inbound reply, and available template body text. Actual eligibility,
+              fees, and delivery must be checked with your provider; estimates are not invoice reconciliation.
             </div>
           </div>
         </div>

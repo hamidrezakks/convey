@@ -1,147 +1,107 @@
 ---
-title: Production Deployment & DevOps
-description: Self-hosting runbooks for Docker, Kubernetes, Helm, horizontal pod autoscaling (HPA), zero-data-loss graceful shutdown, and Prometheus observability.
+title: Containers & Deployment
+description: Build the checked-in Docker targets, configure evaluation stacks, and understand pre-release deployment requirements.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+Convey is pre-release. The repository supplies Docker targets and Compose configurations for development and evaluation; these do not establish production readiness. The API requires PostgreSQL 18 and a Redis-compatible queue store, and starts its background workers in the same process.
 
-# Production Deployment
+## Build local images
 
-Convey is engineered for cloud-native deployment with zero external runtime dependencies.
+From the repository root:
 
----
-
-## 1. Docker Compose Deployment
-
-The fastest way to deploy Convey in production is using Docker Compose with PostgreSQL 18 and DragonflyDB:
-
-```yaml
-version: '3.8'
-
-services:
-  convey-api:
-    image: convey/server:latest
-    ports:
-      - '3000:3000'
-    environment:
-      - DATABASE_URL=postgresql://convey:password@postgres:5432/convey
-      - REDIS_URL=redis://redis:6379
-      - PAYLOAD_ENCRYPTION_KEY=${PAYLOAD_ENCRYPTION_KEY:?Set a unique encryption secret}
-      - NODE_ENV=production
-    depends_on:
-      - postgres
-      - redis
-    restart: always
-
-  convey-worker:
-    image: convey/server:latest
-    command: ["bun", "run", "worker"]
-    environment:
-      - DATABASE_URL=postgresql://convey:password@postgres:5432/convey
-      - REDIS_URL=redis://redis:6379
-      - PAYLOAD_ENCRYPTION_KEY=${PAYLOAD_ENCRYPTION_KEY:?Set a unique encryption secret}
-      - BULLMQ_CONCURRENCY=50
-    depends_on:
-      - postgres
-      - redis
-    restart: always
-
-  postgres:
-    image: postgres:18-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=convey
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=convey
-
-  redis:
-    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
-    command: ["dragonfly", "--cache_mode=true"]
-    volumes:
-      - dragonflydata:/data
-
-volumes:
-  pgdata:
-  dragonflydata:
+```bash
+docker build --target server -t convey-server:local .
+docker build --target web -t convey-web:local .
+docker build --target plugins -t convey-plugins:local .
+docker build --target mock-server -t convey-mock-server:local .
 ```
 
----
+These commands create local tags. The application Compose files build their targets from source and tag them `convey-server:latest`, `convey-web:latest` and `convey-mock-server:latest` where specified. This guide does not assume published Convey images. The Go [gateway](/docs/gateway) has its own `apps/gateway/Dockerfile` and is not included in the root Compose stack.
 
-## 2. Kubernetes Manifests with HPA
+## Unified evaluation stack
 
-Deploy Convey on Kubernetes with automated horizontal scaling:
+`docker-compose.yml` includes PostgreSQL, DragonflyDB, the API, optional plugins, the console and a provider simulator. Its mock gateway assigns provider-domain network aliases. Its development credentials, public port mappings, `latest` Dragonfly image and cache-mode configuration require review before deployment.
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: convey-api
-  labels:
-    app: convey-api
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: convey-api
-  template:
-    metadata:
-      labels:
-        app: convey-api
-    spec:
-      containers:
-        - name: convey
-          image: convey/server:1.0.0
-          ports:
-            - containerPort: 3000
-          readinessProbe:
-            httpGet:
-              path: /health/readiness
-              port: 3000
-            initialDelaySeconds: 3
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "500m"
-              memory: "512Mi"
-            limits:
-              cpu: "2000m"
-              memory: "2048Mi"
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: convey-api-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: convey-api
-  minReplicas: 3
-  maxReplicas: 20
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
+```bash
+cp .env.example .env
 ```
 
----
+Edit `.env` before startup. For this stack, use container-network URLs:
 
-## 3. Zero-Data-Loss Graceful Shutdown
+```ini
+NODE_ENV=production
+CONVEY_REQUIRE_AUTH=true
+POSTGRES_DB=db-convey
+DATABASE_URL=postgres://convey:convey@postgres:5432/db-convey
+REDIS_URL=redis://redis:6379
+```
 
-When receiving `SIGTERM` (e.g., during Kubernetes rolling upgrades), Convey's `GracefulShutdownOrchestrator` executes the following sequence:
+Generate independent encryption and webhook secrets with `openssl rand -hex 32`, and set `PAYLOAD_ENCRYPTION_KEY` and `CONVEY_WEBHOOK_SECRET` to the generated values in `.env`. Production refuses missing or invalid encryption secrets. Keep database credentials and names consistent across PostgreSQL, core and plugins.
 
-1. **Stops Ingestion Admission**: Closes HTTP server port 3000 to new connections.
-2. **Drains BullMQ Workers**: Allows active provider requests up to 15 seconds to acknowledge.
-3. **Flushes Micro-Batches**: Commits all pending in-memory telemetry receipts to PostgreSQL 18.
-4. **Closes Connection Pools**: Closes PostgreSQL 18 connection pool and DragonflyDB connections cleanly.
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs convey-server
+curl --fail http://localhost:3000/health/readiness
+```
+
+The root example's native `localhost` URLs do not reach Compose database or Redis services from inside a container. Unsigned simulator callbacks can be rejected by the authenticated webhook path; successful acceptance or simulator output is not evidence of verified real-provider delivery.
+
+Provision an active tenant in PostgreSQL, then run the key script against that database:
+
+```bash
+docker compose exec convey-server   bun apps/server/scripts/create-api-key.ts TENANT_ID TEAM application DEVELOPER tenant production
+```
+
+Create a separate `ORG_ADMIN platform production` credential for console administration. See [quickstart](/docs/quickstart) for tenant bootstrap and an authenticated request.
+
+## Separate infrastructure and applications
+
+`docker-compose.resources.yml` creates `convey-network`; `docker-compose.service.yml` expects that external network and builds server, plugins and console targets. The resource configuration has a Redis alias of `redis`, so set `REDIS_URL=redis://redis:6379` explicitly; the service file's `convey-redis` fallback does not match the resource container name.
+
+Use `DATABASE_URL=postgres://convey:convey@convey-postgres:5432/db-convey`, or your actual database URL, and remove mock provider credentials for real delivery. Supply independent secrets as above.
+
+```bash
+docker compose -f docker-compose.resources.yml up -d
+docker compose -f docker-compose.resources.yml ps
+docker compose -f docker-compose.service.yml up -d --build
+docker compose -f docker-compose.service.yml logs convey-server
+```
+
+Start application services only after the infrastructure is healthy. There is no separate worker service or `bun run worker` script. The console uses `CONVEY_API_INTERNAL_URL` and `CONVEY_PLUGINS_INTERNAL_URL` for runtime same-origin proxying.
+
+For additional provider simulation, `docker-compose.providers.yml` is an overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.providers.yml up -d --build
+```
+
+## Schema initialization
+
+The server entrypoint runs `bun apps/server/src/db/migrate.ts` when `AUTO_MIGRATE` is `true` or `1` (default `true`). It initializes the canonical schema and creates monthly partitions from three months back through six months ahead. Startup then checks database/Redis connectivity, configures providers and starts background loops.
+
+To control initialization explicitly, set `AUTO_MIGRATE=false` and run:
+
+```bash
+docker compose -f docker-compose.service.yml run --rm -e AUTO_MIGRATE=false   convey-server bun apps/server/src/db/migrate.ts
+```
+
+The initializer rejects changed pre-release baselines and unmarked nonempty schemas. It does not upgrade or drop an existing database. Provision fresh disposable databases and queue namespaces after baseline or persisted-format changes; preserve development data separately if needed.
+
+## Health and monitoring
+
+| Endpoint | Meaning |
+| --- | --- |
+| `/health/liveness` | The HTTP process is alive; this is the image's healthcheck. |
+| `/health/readiness` | Bootstrap readiness and component/worker state; returns `503` when unready. |
+| `/health` | Live database/Redis checks and readiness details. |
+| `/metrics` | Prometheus exposition; restrict network access. |
+| `/swagger` | Generated OpenAPI UI; restrict exposure as needed. |
+
+The console defaults to host port `5173`. The documentation website runs separately on `5174`; see the [website deployment guide](https://github.com/hamidrezakks/convey/blob/main/docs/deployment-website.md) for its own container and CI configuration. Plugins listen internally on `3001` in Compose.
+
+## Shutdown and rollout requirements
+
+`SIGTERM` and `SIGINT` mark readiness false, stop background loops, await BullMQ worker closures, flush metrics and webhook buffers, then close connections. Configure ingress to stop routing to unready instances and allow time for active jobs to drain. The implementation does not establish a fixed 15-second drain deadline or a zero-data-loss guarantee.
+
+Before external exposure, configure HTTPS, independent secrets, network restrictions, durable queue storage, database backups and restore validation, monitoring, and verified signed vendor callback ingress. Load and recovery qualification must reflect your actual providers and deployment. No Kubernetes manifests or Helm chart are supplied in this repository; orchestration-specific resources and rollout policies need their own validation.

@@ -55,7 +55,7 @@ export function Navbar() {
             <span className="font-display font-bold text-base tracking-tight text-white flex items-center gap-1.5">
               CONVEY
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                v1.0
+                pre-release
               </span>
             </span>
           </div>
@@ -238,7 +238,7 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-slate-950 font-bold text-sm shadow-lg shadow-sky-500/20"
             >
-              <span>Get Started in 2 Minutes</span>
+              <span>Open the Setup Guide</span>
               <ArrowUpRight className="w-4 h-4" />
             </Link>
           </div>

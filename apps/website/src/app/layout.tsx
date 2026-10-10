@@ -6,10 +6,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: {
     template: '%s | Convey',
-    default: 'Convey — Planetary-Scale Communication Infrastructure & Messaging Gateway',
+    default: 'Convey — Communication Service & Recipient Gateway',
   },
   description:
-    'High-throughput, fault-tolerant notification engine and message gateway. Sub-15ms send acceptance, zero-trust envelope encryption, 88+ turnkey provider integrations, transactional outbox, and autonomous WhatsApp session cost optimization.',
+    'Self-hosted, pre-release communication service with durable message acceptance, encrypted payload storage, provider adapters, client SDKs, and an optional Go recipient gateway.',
   keywords: [
     'convey',
     'notification engine',

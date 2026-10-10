@@ -1,4 +1,5 @@
 import { Activity, BarChart3, Cpu, Zap } from 'lucide-react';
+import Link from 'next/link';
 import { Badge } from '../ui/Badge';
 
 export function BenchmarkSection() {
@@ -9,14 +10,14 @@ export function BenchmarkSection() {
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Activity className="w-3.5 h-3.5" />
-            <span>High-Throughput Verification</span>
+            <span>Recorded Local Measurements</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            Verified Sub-Millisecond Benchmarks
+            Acceptance Benchmarks & Their Limits
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Measured with HDR nanosecond-precision histograms on Bun 1.4. Zero mock overhead, verified across
-            single-core micro-engines and high-concurrency ingestion.
+            The 2026-09-28 qualification run used in-process requests, local PostgreSQL 18 and Redis 7.4 on macOS ARM64,
+            with mock providers. These are acceptance measurements, not delivery latency or a public SLA.
           </p>
         </div>
 
@@ -27,15 +28,15 @@ export function BenchmarkSection() {
               <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="space-y-1">
-              <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">5,258,082</div>
-              <div className="text-xs font-semibold text-slate-300">SIMD Shard Routing (ops/sec)</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">27.76 ms</div>
+              <div className="text-xs font-semibold text-slate-300">Burst Acceptance (p95)</div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Murmur32v3 hash computed in &lt; 1 µs using native C++ SIMD instructions on Bun 1.4 without buffer
-              allocations.
+              200 short-email requests with 10 concurrent calls through app.handle. Provider delivery and
+              network/container latency were excluded.
             </p>
             <div className="text-[11px] font-mono text-sky-400 pt-2 border-t border-slate-800/80">
-              Latency p99: 0.001ms
+              Burst p99: 51.43ms
             </div>
           </div>
 
@@ -44,14 +45,15 @@ export function BenchmarkSection() {
               <Cpu className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="space-y-1">
-              <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">5,069,708</div>
-              <div className="text-xs font-semibold text-slate-300">W3C Distributed Tracing (ops/sec)</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">91.41 ms</div>
+              <div className="text-xs font-semibold text-slate-300">Sustained Acceptance (p95)</div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Zero-allocation traceparent parsing and span header injection for high-throughput distributed tracing.
+              1,000 short-email requests at a configured 50 requests per second and concurrency 5. The recorded run
+              lasted about 20.5 seconds.
             </p>
             <div className="text-[11px] font-mono text-cyan-400 pt-2 border-t border-slate-800/80">
-              Latency p99: 0.001ms
+              Sustained p99: 123.57ms
             </div>
           </div>
 
@@ -60,18 +62,28 @@ export function BenchmarkSection() {
               <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="space-y-1">
-              <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">10,233</div>
-              <div className="text-xs font-semibold text-slate-300">Webhook Ingestion (events/sec)</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">202</div>
+              <div className="text-xs font-semibold text-slate-300">Acceptance Contract</div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Inbound delivery receipt and WhatsApp status handshake ingestion through Elysia.js with micro-batch
-              commit.
+              A successful send response records durable acceptance. Use status queries and signed events for later
+              outcomes, and benchmark your own deployment.
             </p>
             <div className="text-[11px] font-mono text-emerald-400 pt-2 border-t border-slate-800/80">
-              Latency p95: 0.209ms
+              Acceptance is not recipient delivery
             </div>
           </div>
         </div>
+
+        <p className="text-xs text-slate-400 leading-relaxed">
+          The micro-engine values below reproduce the repository’s historical benchmark report. Its hardware, commit,
+          and repeatability metadata are incomplete. Isolated operation throughput does not represent message delivery
+          capacity.{' '}
+          <Link href="/docs/benchmarks" className="text-sky-400 hover:underline">
+            Read the evidence and methodology
+          </Link>
+          .
+        </p>
 
         {/* Detailed Micro-Engine Benchmark Table */}
         <div className="rounded-2xl border border-slate-800 bg-[#090d16] overflow-hidden shadow-2xl">
@@ -79,11 +91,11 @@ export function BenchmarkSection() {
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-sky-400 shrink-0" />
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-200 font-mono truncate">
-                Micro-Engine Performance SLA Table
+                Historical Micro-Engine Report
               </span>
             </div>
             <Badge variant="outline" size="sm" className="text-[10px] shrink-0">
-              HDR Percentiles
+              Recorded Percentiles
             </Badge>
           </div>
 
@@ -103,7 +115,7 @@ export function BenchmarkSection() {
                 {[
                   {
                     op: 'ConsistentHashShardRouter',
-                    cat: 'SIMD Murmur32v3',
+                    cat: 'Murmur32v3',
                     ops: '5,258,082/s',
                     p50: '< 0.001ms',
                     p95: '< 0.001ms',

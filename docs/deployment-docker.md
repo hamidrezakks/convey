@@ -1,173 +1,122 @@
-# Convey Docker & Container Deployment Guide
+# Docker and container deployment
 
-This guide details containerized deployment for **Convey**, providing production-grade configurations for modular deployments, single-command local orchestration, and discrete provider mock simulation.
+Convey is pre-release. The checked-in Dockerfile and Compose files support development and evaluation; they are not a production-readiness certification. Review [verified behavior](operations/hardening-verification.md), [schema policy](operations/schema-baseline.md), [security](security.md) and [configuration](configuration-env.md) before external exposure.
 
----
+## Images and service topology
 
-## 1. Containerization Architecture
+The root Dockerfile uses Bun `1.4.0` and has four application targets:
 
-Convey follows a decoupled, cloud-native container topology:
+| Target | Entrypoint | Default port |
+| --- | --- | --- |
+| `server` | `docker-entrypoint.sh`, then `bun apps/server/src/index.ts` | `3000` |
+| `web` | `bun apps/web/server.ts` | `5173` |
+| `plugins` | `bun apps/plugins/src/index.ts` | `3001` |
+| `mock-server` | `bun apps/mock-server/src/index.ts` | `4000` |
 
-```text
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                     SHARED DOCKER BRIDGE NETWORK: convey-network                        │
-├───────────────────────────────────┬────────────────────────────────────────────────────┤
-│ 🗄️ STATEFUL RESOURCES LAYER       │ ⚡ STATELESS SERVICE & MOCK SIMULATOR LAYER        │
-│ (docker-compose.resources.yml)    │ (docker-compose.service.yml & providers.yml)       │
-│                                   │                                                    │
-│ ┌───────────────────────────────┐ │ ┌────────────────────────────────────────────────┐ │
-│ │ postgres (PostgreSQL 18)      │ │ │ convey-server (Bun 1.4 API + Workers)          │ │
-│ │ • Monthly Partitioned Ledger  │◄┼─┼─│ • Port: 3000                                 │ │
-│ │ • Port: 5432                  │ │ └────────────────────────────────────────────────┘ │
-│ └───────────────────────────────┘ │                 ▲                 ▲                │
-│                                   │                 │                 │ Outbound HTTP  │
-│ ┌───────────────────────────────┐ │ ┌───────────────┴────────┐ ┌──────┴──────────────┐ │
-│ │ redis (DragonflyDB)           │ │ │ convey-web             │ │ mock-providers      │ │
-│ │ • BullMQ Queues & Fast Locks  │◄┼─┤ (React 19 Console)     │ │ (Discrete/Gateway)  │ │
-│ │ • Port: 6379                  │ │ │ • Port: 5173           │ │ • Ports: 4000-4018  │ │
-│ └───────────────────────────────┘ │ └────────────────────────┘ └─────────────────────┘ │
-└───────────────────────────────────┴────────────────────────────────────────────────────┘
+The server starts the API and workers together; no separate `bun run worker` script is supplied. The Go [recipient gateway](../apps/gateway/USAGE.md) has a separate `apps/gateway/Dockerfile`, and is not a service in the root Compose files. The documentation website also runs separately (`bun run dev:website`, port `5174`); see [website deployment](deployment-website.md) for its own container and CI configuration.
+
+Build local images from the repository root:
+
+```sh
+docker build --target server -t convey-server:local .
+docker build --target web -t convey-web:local .
+docker build --target plugins -t convey-plugins:local .
+docker build --target mock-server -t convey-mock-server:local .
 ```
 
----
+Compose builds its application targets and sets local image tags where specified. Do not assume a published `convey/server` image. No Kubernetes manifests or Helm chart are provided.
 
-## 2. Option A: Modular Dual Compose (Recommended for Production / Cloud)
+## Unified evaluation stack
 
-Deploying resources independently allows you to manage lifecycle, backups, and restarts of PostgreSQL and Redis without affecting or redeploying the application service layer.
+`docker-compose.yml` includes PostgreSQL 18, DragonflyDB, server, plugins, console and a mock gateway with provider-domain aliases. Copy `.env.example` to `.env`, then adjust connection URLs for the container network:
 
-### Step 1: Start Infrastructure Resources
+```ini
+NODE_ENV=production
+CONVEY_REQUIRE_AUTH=true
+POSTGRES_DB=db-convey
+DATABASE_URL=postgres://convey:convey@postgres:5432/db-convey
+REDIS_URL=redis://redis:6379
+```
 
-```bash
-# Start PostgreSQL 18 and DragonflyDB in the background
+Set independent generated values for `PAYLOAD_ENCRYPTION_KEY` and `CONVEY_WEBHOOK_SECRET` (`openssl rand -hex 32` for each). Production rejects missing or invalid encryption secrets. The native `localhost` URLs in `.env.example` cannot reach another container; override them explicitly. Keep PostgreSQL credentials and names consistent with the database service and plugin connection URL.
+
+```sh
+docker compose up -d --build
+docker compose ps
+docker compose logs convey-server
+curl --fail http://localhost:3000/health/readiness
+```
+
+This stack contains development credentials and mock provider configuration. Signed webhook ingestion can reject unsigned simulator callbacks. An accepted message or simulated send does not prove real-provider delivery. Do not use simulator domain aliases for a live provider deployment.
+
+After initialization, provision an active tenant using PostgreSQL administration and create a key inside the server container:
+
+```sh
+docker compose exec convey-server   bun apps/server/scripts/create-api-key.ts TENANT_ID TEAM application DEVELOPER tenant production
+```
+
+The script registers globally unique team ownership and prints the secret once. Application requests must use that team. Create an `ORG_ADMIN platform production` credential separately for console administration. See [README setup](../README.md#local-setup).
+
+`docker compose down` stops the unified stack while preserving its data volumes. Volume deletion removes local data and must be a deliberate disposal decision, never an upgrade method.
+
+## Separate resources and applications
+
+`docker-compose.resources.yml` creates PostgreSQL, DragonflyDB and the `convey-network` bridge. `docker-compose.service.yml` expects that external network and starts server, plugins and console. Start infrastructure and confirm health before starting applications.
+
+For this topology, set the database URL to the resource container and the Redis URL to its actual network alias:
+
+```ini
+DATABASE_URL=postgres://convey:convey@convey-postgres:5432/db-convey
+REDIS_URL=redis://redis:6379
+```
+
+The service file's `convey-redis` fallback does not match the resource's `convey-dragonfly` container or aliases; explicitly configuring the working `redis` alias avoids that mismatch. Supply authentication/encryption/webhook settings as above, and remove mock credentials when using real vendors.
+
+```sh
 docker compose -f docker-compose.resources.yml up -d
-```
-
-Verify resource health:
-```bash
-# Check container status and healthchecks
 docker compose -f docker-compose.resources.yml ps
+docker compose -f docker-compose.service.yml up -d --build
+docker compose -f docker-compose.service.yml logs convey-server
 ```
 
-### Step 2: Start Convey Services
+The console proxies core requests through `CONVEY_API_INTERNAL_URL=http://convey-server:3000` and plugin requests through `CONVEY_PLUGINS_INTERNAL_URL=http://convey-plugins:3001`. Plugins are internal on port `3001`; the console's default host port is `5173`. The checked-in files expose PostgreSQL and Redis ports; restrict these before external deployment.
 
-Once the resources are healthy, launch the Convey API Server and Mission Control Console:
+## Provider simulation overlay
 
-```bash
-# Start Convey server and Web UI
-docker compose -f docker-compose.service.yml up -d
+`docker-compose.providers.yml` adds discrete provider simulators. Use it with the base file:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.providers.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.providers.yml logs mock-resend
 ```
 
-Check logs and status:
-```bash
-# View real-time server logs
-docker compose -f docker-compose.service.yml logs -f convey-server
+These simulators and the repository's Docker test scripts are evaluation tools, not production certification. Use isolated stores for destructive fixtures and review script prerequisites before running them.
+
+## Canonical schema initialization
+
+The server entrypoint defaults `AUTO_MIGRATE` to `true`. Values `true` or `1` run `bun apps/server/src/db/migrate.ts` before executing the server command. This initializes the current canonical baseline and monthly partitions, from three months back through six months ahead. The baseline fingerprint protects existing data: unchanged baselines are repeatable; changed baselines or nonempty unmarked schemas are rejected.
+
+To control initialization explicitly, set `AUTO_MIGRATE=false` for normal startup, then initialize once:
+
+```sh
+docker compose -f docker-compose.service.yml run --rm -e AUTO_MIGRATE=false   convey-server bun apps/server/src/db/migrate.ts
 ```
 
----
+Convey does not drop or upgrade development data. After schema or persisted queue changes, stop producers/workers and provision fresh disposable databases and queue namespaces. Preserve anything needed separately. Initialize core storage before optional plugin startup. Forward migrations begin with the first release.
 
-## 3. Option B: Unified Single-Command Deployment
+## Health, shutdown and deployment requirements
 
-For rapid local testing and single-node evaluation with universal mock provider simulation:
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /health/liveness` | Process responds; root image healthcheck uses this path. |
+| `GET /health/readiness` | Bootstrap readiness and component/worker state; `503` when unready. |
+| `GET /health` | Live DB/Redis connectivity and readiness details. |
+| `GET /metrics` | Prometheus exposition; restrict monitoring access. |
+| `GET /swagger` | OpenAPI UI; apply network/access restrictions as needed. |
+| Mock `GET /health` | Simulator health only. |
 
-```bash
-# Start all resources, services, and mock gateway together
-docker compose up -d
-```
+The readiness endpoint reports bootstrap state; it is not an end-to-end delivery probe. The aggregate `/health` endpoint actively checks database and Redis connectivity.
 
-To stop all containers and preserve data volumes:
-```bash
-docker compose down
-```
+On `SIGTERM` or `SIGINT`, the shutdown orchestrator marks readiness false, stops polling and maintenance, awaits worker closures, flushes buffers and closes connections. It does not close the listener first or enforce a fixed 15-second drain deadline. Arrange ingress removal on unready instances and sufficient termination time, then qualify interruption/recovery with your workload.
 
-To stop and remove all volumes:
-```bash
-docker compose down -v
-```
-
----
-
-## 4. Option C: Discrete Multi-Container Provider Simulation Topology
-
-To run each third-party communication provider in its own isolated Docker container (with official domain aliases such as `api.resend.com`, `api.twilio.com`, `slack.com`, `fcm.googleapis.com`, `events.pagerduty.com`):
-
-```bash
-# Start all services with discrete provider containers
-docker compose -f docker-compose.yml -f docker-compose.providers.yml up -d
-```
-
-### Viewing Discrete Provider Container Logs Live:
-```bash
-# View Resend Email logs
-docker compose -f docker-compose.providers.yml logs -f mock-resend
-
-# View Twilio SMS logs
-docker compose -f docker-compose.providers.yml logs -f mock-twilio
-
-# View Slack Chat logs
-docker compose -f docker-compose.providers.yml logs -f mock-slack
-
-# View FCM Push logs
-docker compose -f docker-compose.providers.yml logs -f mock-fcm
-
-# View PagerDuty Tool logs
-docker compose -f docker-compose.providers.yml logs -f mock-pagerduty
-```
-
-### Running Automated Production Verification:
-```bash
-# Executes automated multi-channel delivery validation with public ULID asserts and status polling
-bun run test:prod:docker
-```
-
----
-
-## 5. Automatic Database Migrations & Partition Setup
-
-The container entrypoint (`docker-entrypoint.sh`) checks the `AUTO_MIGRATE` environment variable (defaults to `true`). 
-
-On container startup, it automatically:
-1. Executes all canonical SQL migrations in `apps/server/src/db/migrations/`.
-2. Verifies and creates monthly range partitions (`past 3 months to next 6 months`).
-3. Bootstraps the Elysia HTTP server and outbox workers.
-
-To run migrations manually at any time:
-```bash
-docker compose -f docker-compose.service.yml run --rm convey-server bun apps/server/src/db/migrate.ts
-```
-
----
-
-## 6. Building Docker Images Manually
-
-You can build specific multi-stage targets directly with Docker:
-
-```bash
-# Build Convey Server image
-docker build -t convey-server:latest --target server .
-
-# Build Convey Web Mission Control image
-docker build -t convey-web:latest --target web .
-
-# Build Convey Mock Server image
-docker build -t convey-mock-server:latest --target mock-server .
-```
-
----
-
-## 7. Healthchecks & Verification
-
-| Service | Port | Healthcheck Endpoint / Command |
-| :--- | :--- | :--- |
-| **Convey Server API** | `3000` | `GET http://localhost:3000/health/liveness` |
-| **Convey Readiness Probe** | `3000` | `GET http://localhost:3000/health/readiness` |
-| **Mock Provider Gateway** | `4000` | `GET http://localhost:4000/health` |
-| **Discrete Mock Resend** | `4001` | `GET http://localhost:4001/health` |
-| **Discrete Mock Twilio** | `4003` | `GET http://localhost:4003/health` |
-| **Discrete Mock Slack** | `4004` | `GET http://localhost:4004/health` |
-| **Discrete Mock FCM** | `4005` | `GET http://localhost:4005/health` |
-| **Discrete Mock PagerDuty** | `4007` | `GET http://localhost:4007/health` |
-| **Prometheus Telemetry** | `3000` | `GET http://localhost:3000/metrics` |
-| **Swagger OpenAPI Docs** | `3000` | `http://localhost:3000/swagger` |
-| **Mission Control Console** | `5173` | `http://localhost:5173` |
-| **PostgreSQL 18** | `5432` | `pg_isready -U convey -d db-convey` |
-| **DragonflyDB** | `6379` | `redis-cli ping` |
+Before live exposure, configure HTTPS, independent credentials and secrets, infrastructure network restrictions, durable queue storage and tested backups/restores. The supplied DragonflyDB command enables cache mode and does not establish production queue durability merely by mounting a volume. Pin and validate infrastructure images, test signed vendor callback ingress, and use [operational metrics](operations/metrics.md) for alerts. Validate actual providers, load, retry behavior and recovery in your deployment before making throughput, availability or zero-data-loss claims.

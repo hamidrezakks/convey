@@ -1,130 +1,99 @@
 ---
-title: Provider Ecosystem & Implementation Status
-description: Configuration references and implementation limits for provider integrations.
+title: Provider Catalog & Readiness
+description: Provider configuration, disabled adapter gates, offline contract coverage, and live-certification boundaries.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
-# Provider Ecosystem
+# Provider Catalog & Readiness
 
-Convey contains **88 provider module entries**. Twenty incomplete native SMS adapters are disabled. Module presence and mock tests do not certify live delivery or optional-feature parity. See `docs/provider-porting-matrix.md` in the repository for the per-provider audit and remaining work.
+Convey includes adapter modules and catalog metadata for email, SMS, WhatsApp, push, chat, and tool transports. A catalog entry describes an integration boundary; it does not establish live delivery, vendor feature parity, measured latency, or current account health.
 
----
+<Callout type="info" title="Twenty incomplete native adapters remain unavailable">
+  Credentials, registry overrides, or administrative registration cannot enable an incomplete adapter. Seeding creates disabled entries and preserves existing credentials. Vendor-specific contract evidence is required before an adapter can leave the unavailable cohort.
+</Callout>
 
-## Provider Catalog
+## Readiness Evidence
 
-### 1. Email (20 Adapters)
-- **AWS SES v2**: IAM SigV4 authentication, dedicated IP pools, SNS event destinations.
-- **Resend**: Modern React Email support, broadcast batching, domain auto-verification.
-- **Twilio SendGrid**: Sub-user management, dynamic templates, click tracking.
-- **Postmark**: Transactional fast-path delivery, dedicated outbound streams.
-- **Mailgun**: MIME multi-part rendering, EU region data residency.
+Keep three kinds of information separate:
 
-### 2. SMS (39 Adapters)
-- **Twilio SMS**: Global shortcodes, alphanumeric sender IDs, GSM-7 packing.
-- **Vonage (Nexmo)**: Adaptive carrier routing, 2-way virtual numbers.
-- **Plivo**: Powerpack sender pools, automatic MMS fallback.
-- **Infobip**: High-concurrency enterprise SMPP & HTTP endpoints, HLR lookup.
-- **MessageBird (Bird)**: Omnichannel conversations API, carrier failover.
+- **Adapter declarations:** Implemented request/response transformers and declared capability flags.
+- **Offline contract coverage:** Fixtures exercising vendor URLs, authentication, payload encoding, response validation, errors, throttling, uncertain acceptance, and receipt behavior. The initial focused qualification covers Resend and Twilio, with broader transport suites retained.
+- **Live certification:** Designated vendor accounts and approved recipients, observed delivery receipts, and pricing reconciled against vendor records. Mock fixtures do not satisfy this stage.
 
-### 3. WhatsApp Business (6 Adapters)
-- **Meta WhatsApp Cloud API**: Direct Graph API integration, $0.00 24-hour customer reply session window optimization, HSM template catalog auto-sync.
-- **Twilio WhatsApp**: Sandbox verification, interactive call-to-action buttons.
-- **Infobip WhatsApp**: Multi-region media attachments, location payloads.
+The [capability matrix](https://github.com/hamidrezakks/convey/blob/main/docs/operations/provider-capability-matrix.md) and [porting audit](https://github.com/hamidrezakks/convey/blob/main/docs/provider-porting-matrix.md) record declarations and implementation gaps. The [certification gates](https://github.com/hamidrezakks/convey/blob/main/docs/operations/provider-certification.md) define what evidence is needed. `provider-certification-evidence.json` tracks vendor-specific evidence for removing an adapter from the unavailable cohort; generic adapter-shape tests do not meet that gate.
 
-### 4. Push Notifications (8 Adapters)
-- **Firebase Cloud Messaging (FCM v1)**: HTTP/2 token multicast, high-priority background wakes.
-- **Apple Push Notification service (APNs)**: Direct HTTP/2 with JWT token authentication (`.p8`), Live Activities, VoIP push.
-- **OneSignal**: Cross-platform player tagging and rich push media.
+## Configuration
 
-### 5. Chat & Collaboration (17 Adapters)
-- **Slack**: Webhook URLs, OAuth2 Bot tokens, Interactive Block Kit messages.
-- **Discord**: Webhook execution, rich embeds with attachments.
-- **Telegram Bot API**: Inline keyboards, MarkdownV2 formatting.
-- **Microsoft Teams**: Adaptive Cards 1.5, Office 365 Connector webhooks.
+Platform administrators can use the web console or `POST /v1/admin/providers/register`. Tenant and sandbox keys cannot perform platform writes. Query `/v1/admin/providers/catalog` and `/v1/admin/providers/configured` for the deployment's entries rather than assuming the landing catalog is live state.
 
----
+The examples below show registration request shapes for adapters present in the repository. Credentials are placeholders. **Costs are illustrative configured estimates, not vendor price quotes.** Production sends require an explicit validated provider price; `unitCost` and `baseCurrency` persist `config.pricing: { cost, currency }`. Estimates do not reconcile invoices.
 
-## Provider Configuration Schemas
-
-Configure providers in Mission Control UI (`:5173`) or pass credentials via environment variables:
-
-<Tabs items={['Email (Resend & SES)', 'SMS (Twilio & Vonage)', 'WhatsApp Cloud API', 'Push (APNs & FCM)']}>
-  <Tab value="Email (Resend & SES)">
+<Tabs items={['Resend Email', 'Twilio SMS', 'WhatsApp Business']}>
+  <Tab value="Resend Email">
 ```json
 {
-  "provider": "resend",
-  "apiKey": "re_123456789",
-  "fromEmail": "notifications@yourdomain.com",
-  "replyTo": "support@yourdomain.com"
+  "providerId": "resend",
+  "channel": "EMAIL",
+  "credentials": {
+    "apiKey": "replace-with-your-provider-key",
+    "from": "notifications@yourdomain.example"
+  },
+  "baseCurrency": "USD",
+  "unitCost": 0.01,
+  "isPrimary": true
 }
 ```
   </Tab>
-
-  <Tab value="SMS (Twilio & Vonage)">
+  <Tab value="Twilio SMS">
 ```json
 {
-  "provider": "twilio",
-  "accountSid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  "authToken": "your_auth_token_here",
-  "fromNumber": "+18005550199"
+  "providerId": "twilio",
+  "channel": "SMS",
+  "credentials": {
+    "accountSid": "replace-with-your-account-sid",
+    "authToken": "replace-with-your-auth-token",
+    "from": "+12025550123"
+  },
+  "baseCurrency": "USD",
+  "unitCost": 0.01,
+  "isPrimary": true
 }
 ```
   </Tab>
-
-  <Tab value="WhatsApp Cloud API">
+  <Tab value="WhatsApp Business">
 ```json
 {
-  "provider": "whatsapp_cloud",
-  "phoneNumberId": "100918273645",
-  "accessToken": "EAAX...",
-  "wabaId": "200192837465"
-}
-```
-  </Tab>
-
-  <Tab value="Push (APNs & FCM)">
-```json
-{
-  "provider": "apns",
-  "teamId": "DEF1234567",
-  "keyId": "ABC9876543",
-  "bundleId": "com.acme.app",
-  "privateKey": "-----BEGIN PRIVATE KEY-----\n..."
+  "providerId": "whatsapp-business",
+  "channel": "WHATSAPP",
+  "credentials": {
+    "phoneNumberId": "replace-with-your-phone-number-id",
+    "accessToken": "replace-with-your-access-token",
+    "appSecret": "replace-with-your-app-secret"
+  },
+  "config": {
+    "sessionOptimization": { "enabled": true },
+    "pricing": { "cost": 0.01, "currency": "USD" }
+  },
+  "isPrimary": true
 }
 ```
   </Tab>
 </Tabs>
 
----
+Provider-specific credentials and required sender fields come from the adapter configuration types. These values are persisted and encrypted through the registration path; arbitrary environment variables alone do not register an account.
 
-## Dynamic Routing Strategies
+## Routing & Failure Handling
 
-When dispatching messages, you can select one of four autonomous routing strategies:
+Primary selection, priorities, weights, and `fallbackProviderId` are provider configuration. The message contract supports channel-level `fallback.rules` and `cascade`; it does not accept the landing's former `routing.strategy` or `fallbackChain` payloads. See [API reference](/docs/api-reference) for the accepted shapes.
 
-1. **`SMART_SCORECARD`** (Default):
-   Calculates a real-time weight score based on **70% Delivery Rate + 20% Latency SLA + 10% Unit Cost**. Traffic automatically routes away from degraded providers.
-2. **`PRIMARY_FALLBACK`**:
-   Attempts delivery through the primary provider. If the request encounters a 5xx error or rate limit (429), it immediately falls back through the ordered `fallbackChain`.
-3. **`LEAST_COST`**:
-   Selects the lowest rate-card provider for the recipient's country code and currency.
-4. **`ROUND_ROBIN`**:
-   Distributes traffic uniformly across all healthy configured providers.
+Retries are bounded and respect throttling. A network timeout is not proof the provider rejected a send. Delivery receipts and read events are provider-specific, and signed ingress needs each vendor's own scheme and correlation coverage. Customer event consumers must verify exact signed bytes, deduplicate event IDs, and tolerate out-of-order events.
 
----
+## WhatsApp Session Conversion
 
-## Zero-Cost Mock Sandbox Mode
+Conversion is opt-in through provider configuration. The interceptor checks a tracked active session and requires template body text before converting a template to text. If those prerequisites are absent, the original template remains. Actual eligibility and fees must be verified with the provider; the repository's saved-cost metadata and landing calculator are estimates.
 
-For testing without incurring carrier charges or configuring API credentials, enable the Mock Sandbox provider:
+## Sandbox
 
-```json
-{
-  "routing": {
-    "strategy": "PRIMARY_FALLBACK",
-    "fallbackChain": ["mock-sandbox"]
-  }
-}
-```
-
-The mock provider immediately simulates realistic carrier delivery receipts (DLR) with 99.8% success rates.
+Use a scoped sandbox credential or the SDK's supported sandbox request option to test acceptance without production provider calls. Sandbox scope is part of authentication and idempotency isolation, and it does not consume production budget. A simulated outcome is not a live provider receipt or a measured delivery success rate. See [configuration](/docs/configuration) and [SDKs](/docs/sdks).

@@ -1,62 +1,57 @@
 ---
 title: Introduction to Convey
-description: Planetary-scale, fault-tolerant communication engine and notification gateway engineered for extreme reliability and sub-15ms throughput.
+description: Self-hosted communication service, client SDKs, provider adapters, and an optional Go recipient gateway.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Card, Cards } from 'fumadocs-ui/components/card';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 # Welcome to Convey
 
-**Convey** is a standalone, ultra-high-throughput communication gateway and notification infrastructure built natively on **Bun 1.4**, **Elysia.js**, **PostgreSQL 18**, and **DragonflyDB**.
+**Convey** is a standalone communication service built with Bun, Elysia, PostgreSQL 18, and BullMQ on a Redis-compatible store. It accepts messages durably, then processes delivery asynchronously through configured provider adapters. The repository also includes a web console, optional plugins, TypeScript/Python/Go SDKs, and an independent Go recipient gateway.
 
-It provides synchronous sub-15ms message ingestion acceptance, zero-trust AES-256-GCM envelope encryption at rest, a Deficit Round Robin multi-tenant scheduler, an autonomous WhatsApp 24h session cost autopilot, and 88+ turnkey provider adapters.
-
-<Callout type="info" title="Zero External Vendor Lock-in">
-  Convey is completely self-contained with no external cloud SaaS dependencies. It compiles into a single binary deployment or Docker container with full observability.
+<Callout type="info" title="Pre-release candidate">
+  Current qualification targets one regional deployment and uses mock providers. HTTP 202 means accepted work, not recipient delivery. Catalog entries and offline fixtures do not establish live-provider certification, a public SLA, geographic failover, or a compliance certification.
 </Callout>
 
----
-
-## Core Technical Pillars
+## Core Building Blocks
 
 <Cards>
-  <Card title="⚡ Fast-Path Ingestion" href="/docs/architecture#fast-path-ingestion">
-    1-RTT DragonflyDB `SET NX` idempotency lease and synchronous PostgreSQL 18 insert in under 15ms (p99).
+  <Card title="Durable Acceptance" href="/docs/architecture#fast-path-ingestion">
+    Scoped idempotency reservations and a PostgreSQL message/outbox transaction precede asynchronous dispatch.
   </Card>
-  <Card title="🔒 Zero-Trust Encryption" href="/docs/architecture#zero-trust-encryption">
-    AES-256-GCM envelope encryption at rest with field-level initialization vectors (IV).
+  <Card title="Encrypted Payload Storage" href="/docs/architecture#zero-trust-encryption">
+    AES-256-GCM protects stored recipient handles and payloads. Operators own key management and recovery.
   </Card>
-  <Card title="⚖️ Deficit Round Robin" href="/docs/architecture#fairness-scheduler">
-    Multi-tenant bandwidth arbitration with Jain's Fairness Index `JFI >= 0.95`.
+  <Card title="Dispatch Scheduling" href="/docs/architecture#fairness-scheduler">
+    Workers combine priority, tenant scheduling, configured routing, and bounded retries.
   </Card>
-  <Card title="💬 WhatsApp Cost Autopilot" href="/docs/architecture#whatsapp-cost-optimization">
-    Automatic $0.00 plain text window conversion during active 24h user reply sessions.
+  <Card title="Go Recipient Gateway" href="/docs/gateway">
+    Send a userId to resolve missing delivery addresses from your customer service before forwarding to Convey.
   </Card>
 </Cards>
-
----
 
 ## Explore the Documentation
 
 <Cards>
-  <Card title="🚀 Quickstart Guide" href="/docs/quickstart">
-    Get Convey running locally in under 2 minutes with Docker Compose or Bun.
+  <Card title="Quickstart" href="/docs/quickstart">
+    Start local services, prepare the database, and submit a message with a scoped key.
   </Card>
-  <Card title="🏛️ System Architecture" href="/docs/architecture">
-    Deep-dive into Transactional Outbox, Monthly Partitioning, and Circuit Breakers.
+  <Card title="System Architecture" href="/docs/architecture">
+    Follow acceptance, outbox processing, encryption, scheduling, and provider outcomes.
   </Card>
-  <Card title="📡 REST API Reference" href="/docs/api-reference">
-    Comprehensive OpenAPI 3.1 endpoint specification for message dispatch and queries.
+  <Card title="REST API Reference" href="/docs/api-reference">
+    Use the current wire request, response, authentication, and error contracts.
   </Card>
-  <Card title="🔌 88+ Turnkey Providers" href="/docs/providers">
-    Turnkey setup guides for Email, SMS, WhatsApp, Push, and Chat integrations.
+  <Card title="Provider Readiness" href="/docs/providers">
+    Distinguish adapter declarations, contract fixtures, disabled adapters, and live qualification.
   </Card>
-  <Card title="💻 Client SDKs" href="/docs/sdks">
-    Official production libraries for TypeScript/Bun, Python AsyncIO, and Go.
+  <Card title="Client SDKs" href="/docs/sdks">
+    Use repository TypeScript, Python, and Go clients with your own service URL.
   </Card>
-  <Card title="📊 Verified Benchmarks" href="/docs/benchmarks">
-    HDR latency percentiles and micro-engine throughput measurements (5.2M ops/s).
+  <Card title="Benchmark Evidence" href="/docs/benchmarks">
+    Read measured local acceptance results and the limits of historical micro-engine reports.
   </Card>
 </Cards>
+
+The authoritative candidate contracts and qualification evidence live in [docs/operations/v1-contracts.md](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-contracts.md) and [v1-qualification-evidence.json](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-qualification-evidence.json). Release publication remains an explicit owner action.

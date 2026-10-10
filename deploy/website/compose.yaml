@@ -1,0 +1,25 @@
+services:
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    image: convey-website:${WEBSITE_IMAGE_TAG:?Set the release commit SHA}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /app/apps/website/.next/cache:rw,noexec,nosuid,size=64m,uid=1000,gid=1000
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      HOSTNAME: 0.0.0.0
+      PORT: '3000'
+    networks:
+      traefik-public:
+        aliases: [convey-website]
+networks:
+  traefik-public:
+    external: true

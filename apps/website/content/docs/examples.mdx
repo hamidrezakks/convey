@@ -1,271 +1,65 @@
 ---
-title: Production Architectural Examples & Recipes
-description: 10 copy-pasteable, battle-tested recipes for mission-critical notification patterns in production environments using @convey/sdk, PostgreSQL 18, and DragonflyDB.
+title: Integration Examples
+description: Verified TypeScript send and raw REST status examples, with links to SDK examples and operational contracts.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+# Integration Examples
 
-# Production Architectural Recipes
+Use these examples with a configured local or self-hosted server. Set `CONVEY_API_KEY` to an authorized credential and choose its team. The [SDK guide](/docs/sdks) explains local package setup; Convey has not yet had its first release.
 
-These recipes illustrate battle-tested implementation patterns for mission-critical workloads using **Convey**, **PostgreSQL 18**, and **DragonflyDB**.
+## Send an SMS from TypeScript
 
----
-
-## 1. High-Security 2FA / OTP with Dynamic Omnichannel Fallback
-
-This recipe dispatches an authentication code via SMS, and automatically falls back to WhatsApp if the SMS provider encounters delivery degradation or carrier timeouts.
-
-<Tabs items={['TypeScript SDK', 'cURL']}>
-  <Tab value="TypeScript SDK">
 ```typescript
-import { Convey } from '@convey/sdk';
+import { Channel, Convey, MessagePriority } from '@convey/sdk';
 
-const convey = new Convey({
+const client = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
-  baseUrl: 'https://api.convey.internal',
+  baseUrl: process.env.CONVEY_BASE_URL ?? 'http://localhost:3000',
+  teamId: 'payments',
 });
 
-async function sendTwoFactorOtp(userId: string, phoneNumber: string, otpCode: string) {
-  const response = await convey.messages.send({
-    channel: 'SMS',
-    recipient: phoneNumber,
-    priority: 'CRITICAL',
-    content: {
-      body: `Your security code is ${otpCode}. Valid for 10 minutes. Never share this code.`,
-    },
-    category: 'SECURITY',
-    metadata: {
-      userId,
-      purpose: 'security_2fa_login',
-      ipAddress: '198.51.100.42',
-    },
-    idempotencyKey: `otp_${userId}_${Math.floor(Date.now() / 60000)}`,
-  });
+const accepted = await client.messages.send({
+  channel: Channel.SMS,
+  recipient: '+14155552671',
+  content: { body: 'Your order 10928 is confirmed.' },
+  priority: MessagePriority.HIGH,
+  userId: 'customer-42',
+  team: 'payments',
+  category: 'transactional',
+  country: 'US',
+  idempotencyKey: 'order-10928-sms',
+});
 
-  console.log(`Accepted OTP dispatch: ${response.publicId} (Status: ${response.status})`);
-  return response;
-}
+console.log(accepted.messageId, accepted.state);
 ```
-  </Tab>
 
-  <Tab value="cURL">
-```bash
-curl -X POST https://api.convey.internal/v1/messages/send \
-  -H "Authorization: Bearer cv_live_sec_key_99218" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: otp_usr_9918_29381" \
-  -d '{
-    "channel": "sms",
-    "recipient": "+14155552671",
-    "priority": "HIGH",
-    "content": {
-      "body": "Your security code is 849201. Valid for 10 minutes."
-    },
-    "routing": {
-      "strategy": "PRIMARY_FALLBACK",
-      "fallbackChain": ["twilio", "vonage", "infobip"]
-    }
-  }'
-```
-  </Tab>
-</Tabs>
+The SDK converts this ergonomic request to `recipients.phone` and an SMS channel with `content.text`. Use a stable key tied to the logical send. The accepted message ID is an opaque `msg_` identifier; acceptance does not establish delivery.
 
----
+## Inspect the raw delivery state
 
-## 2. Transactional Invoices with Dynamic Attachments
-
-This recipe dispatches branded transactional invoice emails with attachments and strict delivery tracking.
-
-<Tabs items={['TypeScript SDK', 'cURL']}>
-  <Tab value="TypeScript SDK">
-```typescript
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-async function sendInvoiceEmail(invoice: {
-  id: string;
-  customerEmail: string;
-  amount: string;
-  pdfBase64: string;
-}) {
-  return await convey.messages.send({
-    channel: 'EMAIL',
-    recipient: invoice.customerEmail,
-    priority: 'DEFAULT',
-    content: {
-      subject: `Receipt for Invoice #${invoice.id}`,
-      body: `Hello, thank you for your business. Your payment of ${invoice.amount} has been processed successfully.`,
-      attachments: [
-        {
-          filename: `invoice_${invoice.id}.pdf`,
-          contentType: 'application/pdf',
-          content: invoice.pdfBase64,
-        },
-      ],
-    },
-    category: 'BILLING',
-    idempotencyKey: `inv_${invoice.id}_dispatch`,
-  });
-}
-```
-  </Tab>
-
-  <Tab value="cURL">
-```bash
-curl -X POST https://api.convey.internal/v1/messages/send \
-  -H "Authorization: Bearer cv_live_sec_key_99218" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: inv_INV-2026-9918_dispatch" \
-  -d '{
-    "channel": "email",
-    "recipient": "billing@acmecorp.com",
-    "priority": "NORMAL",
-    "content": {
-      "subject": "Receipt for Invoice #INV-2026-9918",
-      "body": "Thank you for your payment of $1,450.00."
-    }
-  }'
-```
-  </Tab>
-</Tabs>
-
----
-
-## 3. WhatsApp Interactive Notifications
+The server returns `state` and per-channel summaries. This example reads that response directly, avoiding current SDK status type differences:
 
 ```typescript
-import { Convey } from '@convey/sdk';
+const response = await fetch(
+  `${client.baseUrl}/v1/messages/${encodeURIComponent(accepted.messageId)}?include=timeline`,
+  { headers: { Authorization: `Bearer ${process.env.CONVEY_API_KEY!}` } },
+);
 
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-async function sendOrderShippingUpdate(phone: string, orderId: string, trackingNumber: string) {
-  return await convey.messages.send({
-    channel: 'WHATSAPP',
-    recipient: phone,
-    content: {
-      templateId: 'shipping_notification_v2',
-      variables: {
-        orderId,
-        trackingNumber,
-      },
-    },
-    metadata: { orderId },
-  });
+if (!response.ok) {
+  throw new Error(`Status lookup failed: ${response.status}`);
 }
+
+const status = await response.json();
+console.log(status.state, status.channels, status.timeline);
 ```
 
----
+For sandbox messages, use the same sandbox-scoped key or include `X-Convey-Sandbox: true` in the lookup headers. The standalone timeline route is `/v1/messages/:messageId/timeline`; the trace route is `/v1/messages/:messageId/trace`.
 
-## 4. Mass Bulk Dispatches with Transactional Outbox
+## More repository examples
 
-```typescript
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-async function broadcastMarketingNewsletter(subscribers: string[], campaignId: string) {
-  const messages = subscribers.map((email, idx) => ({
-    channel: 'EMAIL' as const,
-    recipient: email,
-    priority: 'LOW' as const,
-    content: {
-      subject: 'Special Product Announcement — Convey v1.0',
-      body: '<p>Check out our new planetary-scale communication features.</p>',
-    },
-    category: 'MARKETING',
-    idempotencyKey: `camp_${campaignId}_sub_${idx}`,
-  }));
-
-  // Chunk into 500-message micro-batches for 1-RTT transactional ingestion
-  for (let i = 0; i < messages.length; i += 500) {
-    const chunk = messages.slice(i, i + 500);
-    const result = await convey.messages.sendBulk(chunk);
-    console.log(`Accepted chunk ${i / 500 + 1}: ${result.total} messages`);
-  }
-}
-```
-
----
-
-## 5. Slack Incident Alert Dispatch
-
-```typescript
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-async function sendSlackDeploymentNotification(deployId: string, gitSha: string, environment: string) {
-  return await convey.messages.send({
-    channel: 'SLACK',
-    recipient: 'C0891234567', // Slack channel ID
-    priority: 'CRITICAL',
-    content: {
-      body: `🚀 Deployment ${deployId} successfully rolled out to *${environment}* (Commit: \`${gitSha.slice(0, 7)}\`).`,
-    },
-  });
-}
-```
-
----
-
-## 6. Dead-Letter Queue (DLQ) Mutated Replay
-
-```typescript
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-async function fixAndReplayFailedMessage(messageId: string, correctedEmail: string) {
-  // 1. Dry run simulation
-  const dryRun = await convey.dlq.replayMutated({
-    messageIds: [messageId],
-    dryRun: true,
-    mutations: {
-      recipients: { email: correctedEmail },
-    },
-  });
-
-  console.log(`Dry run status:`, dryRun.messages);
-
-  // 2. Execute live mutated replay
-  const live = await convey.dlq.replayMutated({
-    messageIds: [messageId],
-    dryRun: false,
-    mutations: {
-      recipients: { email: correctedEmail },
-      metadata: { remediationReason: 'Customer corrected email typo in portal' },
-    },
-  });
-
-  console.log(`Replayed message: ${live.replayedCount} succeeded.`);
-}
-```
-
----
-
-## 7. Inbound Webhook Cryptographic Verification
-
-```typescript
-import { Convey, ConveySecurityError } from '@convey/sdk';
-
-const WEBHOOK_SECRET = process.env.CONVEY_WEBHOOK_SECRET!;
-
-export async function handleProviderDeliveryWebhook(req: Request) {
-  const signature = req.headers.get('x-convey-signature') || '';
-  const rawBody = await req.text();
-
-  try {
-    const event = await Convey.webhooks.constructEvent(rawBody, signature, WEBHOOK_SECRET);
-    console.log(`Verified webhook event ${event.id}: ${event.type}`);
-
-    return Response.json({ received: true });
-  } catch (err) {
-    if (err instanceof ConveySecurityError) {
-      return new Response('Unauthorized Signature', { status: 401 });
-    }
-    return new Response('Internal error', { status: 500 });
-  }
-}
-```
+- [TypeScript SDK examples](https://github.com/hamidrezakks/convey/tree/main/packages/sdk/examples): SDK usage samples; check their response assumptions against the current REST reference.
+- [Python SDK source](https://github.com/hamidrezakks/convey/tree/main/packages/sdk-py/convey): synchronous and asynchronous resource implementations.
+- [Go SDK source](https://github.com/hamidrezakks/convey/tree/main/packages/sdk-go): client options and typed resource methods.
+- [Cookbook](/docs/cookbook): scheduling, fallback rules, raw bulk results, and DLQ replay.
+- [Webhooks](/docs/webhooks): the current signed envelope and raw-body verification.
+- [V1 qualification](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-qualification.md): qualification scope and evidence, including remaining release requirements.

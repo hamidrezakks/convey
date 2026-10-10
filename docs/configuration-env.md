@@ -1,255 +1,90 @@
-# Convey Configuration & Environment Variables Guide
+# Configuration and environment variables
 
-This document is the authoritative engineering reference for configuring **Convey** across development, staging, and production environments.
+This reference describes settings consumed by the current implementation. Core parsing lives in `apps/server/src/config/env.ts`; encryption, webhook, console and plugin settings are read by their respective modules. Convey is pre-release. See [schema policy](operations/schema-baseline.md) before changing stores.
 
-Convey supports a **dual-tier configuration architecture**:
-1. **Core Infrastructure Configuration**: Bootstrapped via static Environment Variables (`.env`, Kubernetes ConfigMaps/Secrets).
-2. **Dynamic Provider & Policy Configuration**: Stored in PostgreSQL with real-time **`< 1ms`** hot-reloading across distributed worker clusters via Redis PubSub.
+## Core server settings
 
----
+| Variable | Default | Behavior |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP listener port; binds to `0.0.0.0`. |
+| `NODE_ENV` | `development` | `development`, `test`, `production`. Normal entrypoint skips listening in test mode. |
+| `LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`. |
+| `CONVEY_REQUIRE_AUTH` | `true` | Boolean or string `true`/`false`; production rejects disabled auth. |
+| `POSTGRES_DB` | `db-convey` | Explicit database name overrides the path in a valid `DATABASE_URL`. |
+| `DATABASE_URL` | `postgres://user:password@localhost:5432/db-convey` | PostgreSQL connection string; replace placeholder credentials. |
+| `DB_MAX_CONNECTIONS` | `20` | Maximum core database pool size per server process. |
+| `REDIS_URL` | `redis://localhost:6379` | Redis-compatible endpoint for BullMQ and shared state. |
+| `REDIS_KEY_PREFIX` | `convey` | Redis namespace and BullMQ prefix. |
+| `BULLMQ_SCHEDULING_HORIZON_SECONDS` | `1800` | Near-term scheduling horizon; distant schedules are promoted from PostgreSQL. |
+| `PAYLOAD_ENCRYPTION_KEY` | Optional outside production | Production requires a unique secret of at least 32 characters and rejects the development fallback. |
 
-## 1. Core Server & Runtime Variables
+When `POSTGRES_DB` is unset, the database name is taken from the URL path or defaults to `db-convey`. When the URL itself is absent, Convey constructs the placeholder connection URL above. The database client fixes `idleTimeout` at 30 seconds and `connectTimeout` at 10 seconds; neither is an environment knob.
 
-These variables control HTTP gateway behavior, runtime modes, and cluster identity.
+`HOST`, `CORS_ORIGIN`, `DB_NAME`, `DB_POOL_MIN`, `DB_POOL_MAX`, `DB_IDLE_TIMEOUT_MS`, `DB_STATEMENT_TIMEOUT_MS`, `REDIS_MAX_CONNECTIONS`, `BULLMQ_CONCURRENCY`, `OUTBOX_POLL_INTERVAL_MS` and `OUTBOX_BATCH_SIZE` are not supported core variables. CORS is fixed in `apps/server/src/index.ts`. Queue polling and concurrency are configured in source.
 
-| Variable | Type | Default | Allowed Values | Description |
-| :--- | :---: | :---: | :---: | :--- |
-| `PORT` | Number | `3000` | `1024` – `65535` | The TCP port the Elysia HTTP server listens on. In containerized environments (e.g. AWS ECS, GCP Cloud Run, Kubernetes), bind to `3000` or the port assigned by `$PORT`. |
-| `NODE_ENV` | Enum | `development` | `development`, `test`, `production` | Execution environment. In `production`, detailed error stack traces are suppressed, OpenAPI Swagger UI is guarded, and performance telemetry is enabled. |
-| `LOG_LEVEL` | Enum | `info` | `trace`, `debug`, `info`, `warn`, `error` | Granularity of structured JSON logs written to `stdout`. Set to `debug` or `trace` for deep local debugging or outbox relay profiling. |
-| `CONVEY_REQUIRE_AUTH` | Boolean | `false` | `true`, `false` | When `true`, enforces strict API key verification (`Authorization: Bearer <key>`) across all tenant endpoints. When `false`, requests default to internal dev tenant credentials. |
+Use a fresh database and Redis namespace when the pre-release schema or stored job format changes. Namespace isolation is not a substitute for persistence and restore testing. This configuration does not implement Redis Sentinel discovery.
 
----
+## Authentication and credential bootstrap
 
-## 2. Database & Connection Pool Configuration
+Authentication checks an active API key, active tenant, expiry and registered team owner on each request. Revocation and suspension therefore apply on the next request. Supply the key in `Authorization: Bearer <key>` or `x-api-key`; client role headers do not grant authority.
 
-Convey utilizes PostgreSQL 18+ with **Monthly Range Partitioning** for high-volume message ledgers, audit events, and delivery attempts.
+Provision an active row in `tenants` using your database administration process, then run:
 
-| Variable | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `DATABASE_URL` | String | `postgres://user:password@localhost:5432/db-convey` | Full PostgreSQL 18 connection URI. Supports standard connection strings, connection poolers (PgBouncer in transaction mode), and Unix socket paths. |
-| `POSTGRES_DB` | String | `db-convey` | Explicit database name override. If specified alongside `DATABASE_URL`, Convey dynamically rewrites the connection URI path to target this database. |
-| `DB_MAX_CONNECTIONS` | Number | `20` | Maximum size of the Postgres connection pool per instance. For high-concurrency worker clusters, size appropriately to prevent exhausting Postgres `max_connections`. |
-
-### Database Name Precedence & Resolution Logic
-Convey implements deterministic connection string normalization in `src/config/env.ts`:
-1. If `POSTGRES_DB` is explicitly provided, it takes precedence.
-2. If `DATABASE_URL` is provided without an explicit DB name override, the database name is extracted from the URL pathname.
-3. Fallbacks to `DEFAULT_POSTGRES_DB` (`db-convey`).
-
----
-
-## 3. In-Memory Store (DragonflyDB), Queues & Hybrid Dual-Layer Scheduling
-
-Convey uses DragonflyDB (or Redis 7+) for **1-RTT Idempotency Locks**, **BullMQ Worker Orchestration**, **Distributed Token-Bucket Rate Limiting**, and **Config Reloader PubSub**.
-
-| Variable | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `REDIS_URL` | String | `redis://localhost:6379` | DragonflyDB / Redis connection URI. Supports standalone DragonflyDB, Redis Sentinel, and AWS ElastiCache. |
-| `REDIS_KEY_PREFIX` | String | `convey` | Global namespace prefix for all Redis keys, preventing collisions when sharing Redis clusters with other services. |
-| `BULLMQ_SCHEDULING_HORIZON_SECONDS` | Number | `1800` (30 mins) | **Dual-Layer Hybrid Scheduling Threshold**. Notifications scheduled within this window are enqueued directly into BullMQ delayed queues. Notifications scheduled beyond this window (`> 30m`) are stored in partitioned PostgreSQL and promoted to BullMQ at $T-30$ minutes by `scheduled-promoter.worker.ts`. |
-
----
-
-## 4. Security, Cryptography & Envelope Encryption
-
-Convey enforces zero-trust privacy guarantees. Recipient PII and message bodies can be encrypted at rest before hitting PostgreSQL.
-
-| Variable | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `CONVEY_ENCRYPTION_KEY` | String | *(Auto-generated / Optional)* | 256-bit Hex-encoded or Base64 master key for AES-256-GCM envelope encryption of message payloads and credentials stored at rest. |
-| `CONVEY_WEBHOOK_SIGNING_SECRET` | String | *(Optional)* | Default HMAC-SHA256 secret key used to sign outgoing webhook delivery events to customer subscription endpoints. |
-
----
-
-## 5. Provider Environment Variable Resolution Matrix
-
-Convey supports all **88 Turnkey Providers**. You can configure providers directly via environment variables without requiring database records.
-
-Convey checks environment variables in two formats:
-1. **Canonical Vendor Name**: e.g., `SENDGRID_API_KEY`
-2. **Universal Prefixed Fallback**: `PROVIDER_<PROVIDER_ID>_<VARIABLE>`, e.g., `PROVIDER_SENDGRID_API_KEY`
-
-### 5.1 Email Channel (20 Providers)
-| Provider ID | Canonical Environment Variables |
-| :--- | :--- |
-| `ses` | `AWS_SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_FROM_EMAIL` |
-| `sendgrid` | `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_WEBHOOK_SECRET` |
-| `resend` | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET` |
-| `mailgun` | `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_BASE_URL`, `MAILGUN_FROM_EMAIL`, `MAILGUN_WEBHOOK_SECRET` |
-| `postmark` | `POSTMARK_SERVER_TOKEN`, `POSTMARK_FROM_EMAIL`, `POSTMARK_MESSAGE_STREAM`, `POSTMARK_WEBHOOK_SECRET` |
-| `brevo` | `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_WEBHOOK_SECRET` |
-| `mailjet` | `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_EMAIL` |
-| `sparkpost` | `SPARKPOST_API_KEY`, `SPARKPOST_ENDPOINT`, `SPARKPOST_FROM_EMAIL` |
-| `mandrill` | `MANDRILL_API_KEY`, `MANDRILL_FROM_EMAIL`, `MANDRILL_SUBACCOUNT`, `MANDRILL_WEBHOOK_KEY` |
-| `mailersend` | `MAILERSEND_API_KEY`, `MAILERSEND_FROM_EMAIL`, `MAILERSEND_WEBHOOK_SECRET` |
-| `nodemailer` | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_FROM_EMAIL` |
-| `plunk` | `PLUNK_API_KEY`, `PLUNK_FROM_EMAIL` |
-| `mailtrap` | `MAILTRAP_API_KEY`, `MAILTRAP_INBOX_ID`, `MAILTRAP_FROM_EMAIL` |
-| `anypost` | `ANYPOST_URL`, `ANYPOST_API_KEY`, `ANYPOST_FROM_EMAIL` |
-| `braze` | `BRAZE_API_KEY`, `BRAZE_INSTANCE_URL`, `BRAZE_APP_ID`, `BRAZE_FROM_EMAIL` |
-| `emailjs` | `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_USER_ID`, `EMAILJS_ACCESS_TOKEN` |
-| `infobip` | `INFOBIP_API_KEY`, `INFOBIP_BASE_URL`, `INFOBIP_FROM_EMAIL` |
-| `netcore` | `NETCORE_API_KEY`, `NETCORE_FROM_EMAIL` |
-| `outlook365` | `OUTLOOK_TENANT_ID`, `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, `OUTLOOK_FROM_EMAIL` |
-| `email-webhook`| `EMAIL_WEBHOOK_URL`, `EMAIL_WEBHOOK_SECRET`, `EMAIL_WEBHOOK_FROM` |
-
-### 5.2 SMS Channel (39 Providers)
-| Provider ID | Canonical Environment Variables |
-| :--- | :--- |
-| `twilio` | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` |
-| `nexmo` | `NEXMO_API_KEY`, `NEXMO_API_SECRET`, `NEXMO_FROM_NUMBER` |
-| `plivo` | `PLIVO_AUTH_ID`, `PLIVO_AUTH_TOKEN`, `PLIVO_FROM_NUMBER` |
-| `sinch` | `SINCH_SERVICE_PLAN_ID`, `SINCH_API_TOKEN`, `SINCH_FROM_NUMBER` |
-| `telnyx` | `TELNYX_API_KEY`, `TELNYX_FROM_NUMBER`, `TELNYX_PUBLIC_KEY` |
-| `sns` | `AWS_SNS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
-| `messagebird`| `MESSAGEBIRD_API_KEY`, `MESSAGEBIRD_FROM_NAME` |
-| `bandwidth` | `BANDWIDTH_ACCOUNT_ID`, `BANDWIDTH_API_TOKEN`, `BANDWIDTH_API_SECRET`, `BANDWIDTH_APPLICATION_ID`, `BANDWIDTH_FROM_NUMBER` |
-| `infobip` | `INFOBIP_API_KEY`, `INFOBIP_BASE_URL`, `INFOBIP_FROM_NUMBER` |
-| `azure-sms` | `AZURE_COMMUNICATION_CONNECTION_STRING`, `AZURE_SMS_FROM_NUMBER` |
-| `cequens` | `CEQUENS_API_KEY`, `CEQUENS_FROM_NAME` |
-| `unifonic` | `UNIFONIC_APP_SID`, `UNIFONIC_FROM_NAME` |
-| `maqsam` | `MAQSAM_ACCESS_KEY`, `MAQSAM_ACCESS_SECRET`, `MAQSAM_FROM_NUMBER` |
-| `imedia` | `IMEDIA_USER_NAME`, `IMEDIA_PASSWORD`, `IMEDIA_SENDER_ID` |
-| `eazy-sms` | `EAZY_SMS_API_KEY`, `EAZY_SMS_SENDER_ID` |
-| `mobishastra`| `MOBISHASTRA_USER`, `MOBISHASTRA_PASSWORD`, `MOBISHASTRA_SENDER_ID` |
-| `gupshup` | `GUPSHUP_USER_ID`, `GUPSHUP_PASSWORD`, `GUPSHUP_FROM_NAME` |
-| `termii` | `TERMII_API_KEY`, `TERMII_FROM_NAME` |
-| `africas-talking`| `AFRICAS_TALKING_USERNAME`, `AFRICAS_TALKING_API_KEY`, `AFRICAS_TALKING_FROM` |
-| `sendchamp` | `SENDCHAMP_PUBLIC_KEY`, `SENDCHAMP_FROM_NAME` |
-| `ruach-sms` | `RUACH_SMS_API_KEY`, `RUACH_SMS_SENDER_ID` |
-| `afro-sms` | `AFRO_SMS_API_KEY`, `AFRO_SMS_SENDER_ID` |
-| `clicksend` | `CLICKSEND_USERNAME`, `CLICKSEND_API_KEY`, `CLICKSEND_FROM` |
-| `clickatell` | `CLICKATELL_API_KEY`, `CLICKATELL_FROM` |
-| `burst-sms` | `BURST_SMS_API_KEY`, `BURST_SMS_API_SECRET`, `BURST_SMS_FROM` |
-| `sms-central`| `SMS_CENTRAL_USERNAME`, `SMS_CENTRAL_PASSWORD`, `SMS_CENTRAL_FROM` |
-| `bulk-sms` | `BULK_SMS_API_ID`, `BULK_SMS_PASSWORD`, `BULK_SMS_FROM` |
-| `cm-telecom` | `CM_TELECOM_API_KEY`, `CM_TELECOM_FROM` |
-| `brevo-sms` | `BREVO_SMS_API_KEY`, `BREVO_SMS_SENDER` |
-| `firetext` | `FIRETEXT_API_KEY`, `FIRETEXT_FROM` |
-| `forty-six-elks`| `FORTY_SIX_ELKS_USER`, `FORTY_SIX_ELKS_PASS`, `FORTY_SIX_ELKS_FROM` |
-| `isend-sms` | `ISEND_SMS_API_KEY`, `ISEND_SMS_SENDER` |
-| `isendpro-sms`| `ISENDPRO_API_KEY`, `ISENDPRO_SENDER` |
-| `sms77` | `SMS77_API_KEY`, `SMS77_FROM` |
-| `smsmode` | `SMSMODE_API_KEY`, `SMSMODE_FROM` |
-| `simpletexting`| `SIMPLETEXTING_API_KEY`, `SIMPLETEXTING_FROM` |
-| `ring-central`| `RINGCENTRAL_CLIENT_ID`, `RINGCENTRAL_CLIENT_SECRET`, `RINGCENTRAL_JWT`, `RINGCENTRAL_FROM` |
-| `kannel` | `KANNEL_HOST`, `KANNEL_PORT`, `KANNEL_USERNAME`, `KANNEL_PASSWORD`, `KANNEL_SENDER_ID` |
-| `generic-sms`| `GENERIC_SMS_URL`, `GENERIC_SMS_TOKEN`, `GENERIC_SMS_FROM` |
-
-### 5.3 Push Notification Channel (8 Providers)
-| Provider ID | Canonical Environment Variables |
-| :--- | :--- |
-| `fcm` | `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` |
-| `apns` | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_P8_CERT`, `APNS_BUNDLE_ID`, `APNS_IS_PRODUCTION` |
-| `one-signal` | `ONESIGNAL_APP_ID`, `ONESIGNAL_API_KEY` |
-| `expo` | `EXPO_ACCESS_TOKEN` |
-| `pusher-beams`| `PUSHER_BEAMS_INSTANCE_ID`, `PUSHER_BEAMS_SECRET_KEY` |
-| `pushpad` | `PUSHPAD_PROJECT_ID`, `PUSHPAD_AUTH_TOKEN` |
-| `appio` | `APPIO_API_KEY`, `APPIO_APP_ID` |
-| `push-webhook`| `PUSH_WEBHOOK_URL`, `PUSH_WEBHOOK_SECRET` |
-
-### 5.4 Chat & Instant Messaging Channel (17 Providers)
-| Provider ID | Canonical Environment Variables |
-| :--- | :--- |
-| `whatsapp-business`| `META_WHATSAPP_PHONE_NUMBER_ID`, `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `META_WHATSAPP_APP_SECRET` |
-| `twilio-whatsapp` | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
-| `cequens-whatsapp` | `CEQUENS_WHATSAPP_KEY`, `CEQUENS_WHATSAPP_SENDER` |
-| `slack` | `SLACK_BOT_TOKEN`, `SLACK_DEFAULT_CHANNEL`, `SLACK_SIGNING_SECRET` |
-| `discord` | `DISCORD_WEBHOOK_URL`, `DISCORD_BOT_TOKEN` |
-| `telegram` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
-| `msTeams` | `MSTEAMS_WEBHOOK_URL` |
-| `mattermost` | `MATTERMOST_WEBHOOK_URL`, `MATTERMOST_BOT_TOKEN` |
-| `line` | `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` |
-| `getstream` | `GETSTREAM_API_KEY`, `GETSTREAM_API_SECRET`, `GETSTREAM_APP_ID` |
-| `grafana-on-call` | `GRAFANA_ONCALL_WEBHOOK_URL` |
-| `rocket-chat` | `ROCKETCHAT_WEBHOOK_URL`, `ROCKETCHAT_USER_ID`, `ROCKETCHAT_AUTH_TOKEN` |
-| `ryver` | `RYVER_WEBHOOK_URL` |
-| `sendblue` | `SENDBLUE_API_KEY`, `SENDBLUE_API_SECRET` |
-| `webex-messaging` | `WEBEX_ACCESS_TOKEN`, `WEBEX_ROOM_ID` |
-| `zulip` | `ZULIP_BOT_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE_URL` |
-| `chat-webhook` | `CHAT_WEBHOOK_URL`, `CHAT_WEBHOOK_SECRET` |
-
-### 5.5 Tool & Infrastructure Alerting (4 Providers)
-| Provider ID | Canonical Environment Variables |
-| :--- | :--- |
-| `pagerduty` | `PAGERDUTY_ROUTING_KEY`, `PAGERDUTY_DEFAULT_SEVERITY` |
-| `opsgenie` | `OPSGENIE_API_KEY`, `OPSGENIE_REGION` |
-| `grafana` | `GRAFANA_ALERTMANAGER_URL`, `GRAFANA_ALERTMANAGER_TOKEN` |
-| `tool-webhook` | `TOOL_WEBHOOK_URL`, `TOOL_WEBHOOK_SECRET` |
-
----
-
-## 6. Complete `.env.example` Template
-
-Below is a production-ready configuration template:
-
-```ini
-# ==============================================================================
-# ⚡ CONVEY CORE RUNTIME & SERVER CONFIGURATION
-# ==============================================================================
-PORT=3000
-NODE_ENV=development
-LOG_LEVEL=info
-CONVEY_REQUIRE_AUTH=false
-
-# ==============================================================================
-# 🗄️ POSTGRESQL DATABASE & CONNECTION POOL
-# ==============================================================================
-POSTGRES_DB=db-convey
-DATABASE_URL=postgres://convey:convey@localhost:5432/db-convey
-DB_MAX_CONNECTIONS=20
-
-# ==============================================================================
-# 🔴 REDIS & BULLMQ DISTRIBUTED QUEUE TOPOLOGY
-# ==============================================================================
-REDIS_URL=redis://localhost:6379
-REDIS_KEY_PREFIX=convey
-BULLMQ_SCHEDULING_HORIZON_SECONDS=1800
-
-# ==============================================================================
-# 📧 PRIMARY EMAIL PROVIDERS (SAMPLE CONFIGURATIONS)
-# ==============================================================================
-# Resend
-RESEND_API_KEY=re_123456789_abcdefg
-RESEND_FROM_EMAIL=notifications@yourdomain.com
-
-# SendGrid
-SENDGRID_API_KEY=SG.1234567890abcdefghijklmnopqrstuvwxyz
-SENDGRID_FROM_EMAIL=alerts@yourdomain.com
-
-# AWS SES
-AWS_SES_REGION=us-east-1
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_SES_FROM_EMAIL=system@yourdomain.com
-
-# ==============================================================================
-# 📱 PRIMARY SMS & CHAT PROVIDERS (SAMPLE CONFIGURATIONS)
-# ==============================================================================
-# Twilio (SMS & WhatsApp)
-TWILIO_ACCOUNT_SID=AC1234567890abcdef1234567890abcdef
-TWILIO_AUTH_TOKEN=1234567890abcdef1234567890abcdef
-TWILIO_FROM_NUMBER=+14155552671
-
-# Meta WhatsApp Cloud API (with 24h Session Cost Optimization)
-META_WHATSAPP_PHONE_NUMBER_ID=109283746592837
-META_WHATSAPP_ACCESS_TOKEN=EAAxxxxxx...
-META_WHATSAPP_WEBHOOK_VERIFY_TOKEN=convey_wh_verify_secret_123
-META_WHATSAPP_APP_SECRET=1234567890abcdef
-
-# ==============================================================================
-# 🔔 PUSH & TOOL PROVIDERS (SAMPLE CONFIGURATIONS)
-# ==============================================================================
-# Firebase Cloud Messaging (FCM v1)
-FCM_PROJECT_ID=my-firebase-project
-FCM_CLIENT_EMAIL=firebase-adminsdk@my-firebase-project.iam.gserviceaccount.com
-FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----\n"
-
-# Slack Bot
-SLACK_BOT_TOKEN=xoxb-1234567890-1234567890123-abcdefghijklmnopqrstuvwx
-SLACK_DEFAULT_CHANNEL=#announcements
-
-# PagerDuty
-PAGERDUTY_ROUTING_KEY=1234567890abcdef1234567890abcdef
+```sh
+bun apps/server/scripts/create-api-key.ts TENANT_ID TEAM NAME ROLE SCOPE ENVIRONMENT
 ```
+
+`ROLE` is `ORG_ADMIN`, `DEVELOPER`, `SUPPORT_AGENT` or `AUDITOR`; `SCOPE` is `tenant` or `platform`; `ENVIRONMENT` is `sandbox` or `production`. Optional defaults are `DEVELOPER tenant production`. The script prints the secret once and stores its hash. An API-key trigger registers the team owner and rejects teams belonging to another tenant.
+
+The body `team` and SDK team must match the key's globally unique team. For application sends, use a tenant `DEVELOPER` credential. For console administration, explicitly create a platform credential, such as `ORG_ADMIN platform production`. Sandbox-only keys use the `/v1/sandbox` route group and cannot administer shared configuration. See [security boundaries](security.md) and [README setup](../README.md#local-setup).
+
+`CONVEY_REQUIRE_AUTH=false` is only an isolated non-production development bypass. Production rejects it.
+
+## Encryption and key versions
+
+| Variable | Behavior |
+| --- | --- |
+| `PAYLOAD_ENCRYPTION_KEYS` | Optional JSON object of positive integer versions to secrets, each at least 32 characters. |
+| `PAYLOAD_ENCRYPTION_KEY_VERSION` | Active version, default `1`, when a key ring is configured. Must exist in the ring. |
+
+Generate independent secrets with `openssl rand -hex 32`. `PAYLOAD_ENCRYPTION_KEY` is still required in production when the ring is configured. Keep the exact old secret associated with its version, deploy the complete ring to all server processes, then select the new version and restart consistently. Unknown versions fail closed. Keep old keys while records or backups require them. There is no automatic re-encryption command, production mock KMS is prohibited, and external tenant KMS encryption is not implemented.
+
+The supported master-key variable is `PAYLOAD_ENCRYPTION_KEY`; `CONVEY_ENCRYPTION_KEY` is not an alias. Durable recipient revocation denies application decryption; derived keys remain reproducible from the master and backups, so it is not cryptographic erasure.
+
+## Webhook ingress
+
+| Variable | Behavior |
+| --- | --- |
+| `CONVEY_WEBHOOK_SECRET` | Convey ingress HMAC secret; required for the Convey signed ingress path. |
+| `CONVEY_ALLOW_UNSIGNED_WEBHOOKS` | Exact string `true` permits unsigned ingress only outside production; otherwise disabled. |
+| `META_WEBHOOK_VERIFY_TOKEN` | Meta/WhatsApp GET challenge token, separate from POST signature verification. |
+
+Meta challenge fallback aliases, in order, are `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_VERIFY_TOKEN` and `META_VERIFY_TOKEN`. Incoming POSTs fail closed if they cannot be verified. Providers without a native verifier require a trusted gateway that validates the vendor and adds Convey's timestamped HMAC over the exact raw body. Provider secrets and replay rules are documented in [security](security.md).
+
+Outgoing customer webhook subscription secrets are stored per subscription. `CONVEY_WEBHOOK_SIGNING_SECRET` is not a global outgoing-webhook setting.
+
+## Console and optional plugins
+
+| Variable | Consumer | Default |
+| --- | --- | --- |
+| `CONVEY_API_INTERNAL_URL` | Console proxy and plugins authentication | `http://localhost:3000` |
+| `CONVEY_PLUGINS_INTERNAL_URL` | Console proxy | `http://localhost:3001` |
+| `VITE_API_URL` | Console browser code, at build time | Empty: same-origin core proxy |
+| `VITE_PLUGINS_URL` | Console browser code, at build time | Empty: same-origin plugin proxy |
+| `PLUGINS_PORT` | Plugins listener | `3001` |
+
+The production console's `apps/web/server.ts` proxies core and plugin requests to internal URLs. Vite development proxies use the same internal variables. Browser-visible Vite URLs are compiled into the bundle; the Dockerfile does not automatically take them as build arguments. The plugin database reads `DATABASE_URL` directly, so its path must agree with the core's effective `POSTGRES_DB`.
+
+## Container and Compose settings
+
+`AUTO_MIGRATE` is read by `docker-entrypoint.sh`, defaults to `true`, and runs schema initialization when equal to `true` or `1`. It is not a native API setting. Compose interpolation settings include `WEB_PORT` (`5173`), `POSTGRES_PORT` (`5432`), `REDIS_PORT` (`6379`), `MOCK_GATEWAY_PORT` (`4000`), `POSTGRES_USER` and `POSTGRES_PASSWORD` (both development default `convey`). Review [container deployment](deployment-docker.md) before using them.
+
+Bun loads `.env` for native commands. Compose uses `.env` for interpolation, and only its declared `environment` entries reach containers. Settings such as key rings and provider credentials not passed by an existing Compose file require an explicit environment override. Keep secrets outside source control.
+
+## Provider and policy configuration
+
+Provider bootstrap loads enabled database records and decrypts their credentials into explicit configuration. `normalizeProviderConfig` translates uppercase vendor field names inside configuration objects; it does not read `process.env`. Worker setup scans configured providers at startup, and provider changes can notify running workers through Redis PubSub. No propagation-time guarantee is implied.
+
+The root example contains simulator values for Resend, SendGrid, Twilio, Slack and PagerDuty. Those legacy example variables do not automatically configure current adapters; use the console or platform administration API for delivery configuration. Configuration field mappings are defined in `apps/server/src/modules/providers/core/provider-config.ts`; inspect the selected provider's adapter and [implementation audit](provider-porting-matrix.md), rather than assuming catalog presence means delivery is implemented. Passing legacy provider variables through Compose alone does not create a configured provider.
+
+Routing, budget and rate-limit policies are database-backed administrative configuration. See [budget accounting](operations/budget-enforcement.md) for enforcement and reconciliation behavior. The Go recipient-resolution gateway has its own [configuration and usage](../apps/gateway/USAGE.md).

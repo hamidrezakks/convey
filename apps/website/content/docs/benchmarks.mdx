@@ -1,57 +1,62 @@
 ---
-title: Benchmarks & SLA Verification
-description: Nanosecond-precision HDR percentile latency benchmarks, micro-engine throughput measurements, and planetary-scale chaos stress testing results on Bun 1.4.
+title: Benchmark Evidence & Limits
+description: Recorded mock-only acceptance measurements, benchmark methodology, and reproduction commands.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
-# Verified Performance Benchmarks
+# Benchmark Evidence & Limits
 
-All benchmarks are measured using HDR nanosecond-precision histograms running on **Bun 1.4**, **PostgreSQL 18**, and **DragonflyDB** under native hardware conditions.
+Convey's most explicitly scoped qualification measurements are recorded in [v1-qualification-evidence.json](https://github.com/hamidrezakks/convey/blob/main/docs/operations/v1-qualification-evidence.json), dated **2026-09-28**, for implementation commit `4a98ba2c3ce558ac98d02bbb5cff7c39d01f34e0`.
 
----
+<Callout type="info" title="Local acceptance measurements">
+  These runs used in-process `app.handle` requests, a local PostgreSQL 18 and Redis 7.4, Bun 1.4.2, and a macOS ARM64 host with mock providers. They exclude network/container latency and real vendor delivery. They do not establish a public latency SLA, sustained production capacity, or regional failover correctness.
+</Callout>
 
-## 1. Micro-Engine Throughput SLA Table
+## Recorded Qualification Results
 
-| Subsystem Component | Benchmark Category | Throughput (ops/s) | p50 Latency | p95 Latency | p99 Latency |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **`ConsistentHashShardRouter`** | SIMD Murmur32v3 Routing | **5,258,082 /s** | `< 0.001ms` | `< 0.001ms` | `< 0.001ms` |
-| **`TraceContext.extractOrCreate`**| W3C Distributed Tracing | **5,069,708 /s** | `< 0.001ms` | `< 0.001ms` | `0.001ms` |
-| **`GradualRampController`** | Stepped Probe Admission | **4,544,586 /s** | `< 0.001ms` | `< 0.001ms` | `0.001ms` |
-| **`BoundedLruCache.get & set`** | L1 In-Memory Cache | **3,080,555 /s** | `< 0.001ms` | `< 0.001ms` | `0.001ms` |
-| **`WhatsAppTemplateEngine`** | AST Pre-Compilation | **1,730,228 /s** | `< 0.001ms` | `0.001ms` | `0.002ms` |
-| **`ByteBufferPool.acquire`** | Pre-Allocated Arena | **1,285,195 /s** | `0.001ms` | `0.001ms` | `0.001ms` |
-| **`DlpScanner.sanitize`** | PII Regex Redaction | **656,886 /s** | `0.001ms` | `0.003ms` | `0.004ms` |
-| **`HedgedExecutor.execute`** | Speculative Parallel Race | **625,717 /s** | `0.001ms` | `0.003ms` | `0.008ms` |
-| **`DRR Priority Scheduler`** | Deficit Round Robin Queue | **519,244 /s** | `0.002ms` | `0.004ms` | `0.008ms` |
-| **`PayloadEncryptionManager`** | AES-256-GCM Envelope | **281,162 /s** | `0.003ms` | `0.007ms` | `0.015ms` |
-| **`IdempotencyService.reserve`** | DragonflyDB SET NX 1-RTT | **13,741 /s** | `0.062ms` | `0.082ms` | `0.148ms` |
+Both profiles sent a single short email payload per request.
 
----
+| Profile | Request count | Concurrency | Recorded duration | Acceptance p95 | Acceptance p99 | Maximum |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Burst | 200 | 10 | Not recorded in this profile | 27.76 ms | 51.43 ms | 59.15 ms |
+| Sustained, configured 50 requests/second | 1,000 | 5 | 20.525 s | 91.41 ms | 123.57 ms | 164.45 ms |
 
-## 2. Planetary Chaos & High-Concurrency Stress Results
+The configured qualification thresholds were p95 under 250 ms and p99 under 1,000 ms. Both recorded profiles passed those test gates. A test threshold is an internal qualification condition, not a customer SLA. The sustained run is short and does not establish a long-duration soak result.
 
-| Benchmark Scenario | Concurrency Level | Ops/sec | p50 Latency | p99 Latency | Result |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Thundering Herd Hot-Key Contention** | 100 Contenders / Key | 9.7 /s | 102.7ms | 106.3ms | **PASSED (0 Lock Leaks)** |
-| **DRR Multi-Tenant Saturation** | 3,000 Tasks across 300 Tenants | 2,765 /s | 0.35ms | 0.794ms | **PASSED (JFI &ge; 0.95)** |
-| **Circuit Breaker Avalanche Trip** | 100% Downstream Outage | 113,803 /s | 0.007ms | 0.046ms | **PASSED (Instant Failover)** |
-| **DragonflyDB Token Bucket Contention**| 100 Worker Threads | 501.8 /s | 1.65ms | 3.71ms | **PASSED (0 Overshoot)** |
-| **Webhook Micro-Batch Burst** | 1,000 Events / Burst | 253.8 /s | 3.93ms | 4.22ms | **PASSED (0 Dropped Events)** |
-| **AES-256 Key Derivations** | 100 Parallel Derivations | 2,713.8 /s | 0.358ms | 0.549ms | **PASSED (0 Failures)** |
-| **PostgreSQL 18 Outbox Virtual Shards**| 16 Shards FOR UPDATE SKIP LOCKED| 191.1 /s | 4.27ms | 20.12ms | **PASSED (0 Deadlocks)** |
+HTTP 202 records durable acceptance. Provider transport, retries, subsequent receipts, and recipient delivery require separate measurement. Query later message outcomes or consume verified customer events; acceptance timing cannot stand in for delivery timing.
 
----
+## Historical Micro-Engine Report
 
-## 3. Running Benchmarks Locally
+The repository's [historical benchmark report](https://github.com/hamidrezakks/convey/blob/main/docs/benchmarks.md) includes isolated operations such as shard hashing, tracing, template rendering, encryption, and Redis reservations. The landing's micro-engine table reproduces selected values from that report.
 
-Execute the automated benchmark harness directly on your machine:
+These operation rates cannot be added together or treated as message-delivery capacity. The historical report lacks complete hardware, commit, fixture, and repeatability metadata, and its figures are not current qualification claims. Results for mocked webhook handling do not measure a live provider's receipt throughput.
+
+The implementation in `apps/server/bench/bench-harness.ts` measures elapsed time with `performance.now()`, warms up each operation, records an array of durations, sorts it, and selects percentiles. It is not an HDR histogram implementation and does not establish nanosecond timing precision. Small sample counts and sub-millisecond rounding limit interpretation of the tail percentiles.
+
+## Reproduce Locally
+
+Prepare the database and Redis-compatible service as described in [quickstart](/docs/quickstart). Run commands from the repository root:
 
 ```bash
-# Run all benchmark suites
+# Algorithm and storage-operation harness
+bun run bench:engine
+
+# API, pipeline, and stress harnesses
+bun run bench:api
+bun run bench:pipeline
+bun run bench:stress
 bun run bench:all
 
-# Run specific engine micro-benchmarks
-bun run bench:engine
+# Automated benchmark and stress test gates
+bun run test:bench
+bun run test:stress
+
+# Explicitly scoped acceptance qualification profiles
+bun run qualification:load
+bun scripts/qualification/acceptance-load.ts --sustained
 ```
+
+Some suites need prepared local stores and configured test fixtures. Running a benchmark can create test data; use disposable stores and follow each harness's setup. A test or harness name containing “planetary” does not establish geographic scale.
+
+Record the tested commit, runtime versions, host architecture, fixture/provider mode, database state, payload size, concurrency, offered rate, duration, sample count, and output when sharing results. Use network and container paths plus sufficiently long runs to assess an intended deployment. Never infer a live delivery guarantee from offline acceptance fixtures.

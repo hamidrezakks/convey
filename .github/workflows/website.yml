@@ -1,0 +1,114 @@
+name: Website
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/website/**'
+      - 'packages/shared/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'tsconfig.json'
+      - '.dockerignore'
+      - 'deploy/website/**'
+      - 'docker-compose.website.yml'
+      - 'scripts/deploy-website'
+      - 'scripts/extract-website.py'
+      - 'scripts/tests/test_*website.py'
+      - 'scripts/patch-openapi.ts'
+      - '.github/workflows/website.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/website/**'
+      - 'packages/shared/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'tsconfig.json'
+      - '.dockerignore'
+      - 'deploy/website/**'
+      - 'docker-compose.website.yml'
+      - 'scripts/deploy-website'
+      - 'scripts/extract-website.py'
+      - 'scripts/tests/test_*website.py'
+      - 'scripts/patch-openapi.ts'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment helpers and Compose
+        run: |
+          bash -n scripts/deploy-website
+          python3 -m unittest discover -s scripts/tests -p 'test_*website.py' -v
+          docker compose -f docker-compose.website.yml config --quiet
+          WEBSITE_IMAGE_TAG="$GITHUB_SHA" docker compose -f deploy/website/compose.yaml config --quiet
+      - name: Build and typecheck the website
+        run: docker build --target builder -f apps/website/Dockerfile -t convey-website-builder .
+      - name: Package Linux standalone output
+        run: |
+          container=$(docker create convey-website-builder)
+          trap 'docker rm -f "$container" >/dev/null' EXIT
+          mkdir -p standalone
+          docker cp "$container:/app/apps/website/.next/standalone/." standalone/
+          tar --dereference --hard-dereference -czf website.tar.gz -C standalone .
+      - name: Smoke test the production container
+        run: |
+          mkdir smoke
+          cp deploy/website/Dockerfile.runtime smoke/Dockerfile.runtime
+          mv standalone smoke/standalone
+          docker build -f smoke/Dockerfile.runtime -t convey-website:test smoke
+          docker run -d --name convey-website-test --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --tmpfs /tmp \
+            --tmpfs /app/apps/website/.next/cache:uid=1000,gid=1000 \
+            -p 127.0.0.1:5174:3000 convey-website:test
+          trap 'docker logs convey-website-test; docker rm -f convey-website-test' EXIT
+          curl --fail --retry 20 --retry-delay 2 --retry-all-errors http://127.0.0.1:5174/healthz
+          curl --fail --silent http://127.0.0.1:5174/ | grep -q Convey
+          curl --fail --silent http://127.0.0.1:5174/docs/gateway | grep -q 'Recipient Gateway'
+          curl --fail --silent 'http://127.0.0.1:5174/api/search?query=gateway' | python3 -c 'import json,sys; assert len(json.load(sys.stdin)) > 0'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: convey-website-${{ github.sha }}
+          path: website.tar.gz
+          retention-days: 7
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: convey-website-${{ github.sha }}
+      - name: Deploy through restricted SSH command
+        env:
+          WEBSITE_DEPLOY_KEY: ${{ secrets.WEBSITE_DEPLOY_KEY }}
+          WEBSITE_DEPLOY_KNOWN_HOSTS: ${{ secrets.WEBSITE_DEPLOY_KNOWN_HOSTS }}
+          WEBSITE_DEPLOY_HOST: ${{ vars.WEBSITE_DEPLOY_HOST || '204.168.246.189' }}
+          WEBSITE_DEPLOY_USER: ${{ vars.WEBSITE_DEPLOY_USER || 'root' }}
+        run: |
+          set -euo pipefail
+          test -n "$WEBSITE_DEPLOY_KEY"
+          test -n "$WEBSITE_DEPLOY_KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$WEBSITE_DEPLOY_KEY" > "$HOME/.ssh/convey-website"
+          printf '%s\n' "$WEBSITE_DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/convey-website" "$HOME/.ssh/known_hosts"
+          trap 'rm -f "$HOME/.ssh/convey-website"' EXIT
+          ssh -i "$HOME/.ssh/convey-website" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+            "$WEBSITE_DEPLOY_USER@$WEBSITE_DEPLOY_HOST" "deploy $GITHUB_SHA" < website.tar.gz
+      - name: Verify public Cloudflare endpoint
+        run: |
+          curl --fail --retry 5 --retry-delay 5 --retry-all-errors https://convey.barnamekon.com/healthz
+          curl --fail --silent https://convey.barnamekon.com/docs/gateway | grep -q 'Recipient Gateway'

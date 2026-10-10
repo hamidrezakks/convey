@@ -1,141 +1,75 @@
 ---
-title: System Architecture & Core Guarantees
-description: Deep-dive into Convey's distributed systems architecture, transactional outbox pattern, monthly partitioning, AES-256-GCM envelope encryption, DRR scheduling, and stepped circuit breakers.
+title: System Architecture & Contract Boundaries
+description: Durable acceptance, transactional outbox, encrypted payloads, queue processing, and provider outcomes in the pre-release service.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 # Convey System Architecture
 
-Convey is designed from first principles to guarantee **sub-15ms synchronous send acceptance**, **zero data loss under hardware failure**, and **zero vendor lock-in**.
+Convey separates synchronous acceptance from asynchronous delivery. The supported qualification target is one regional deployment with PostgreSQL 18, a Redis-compatible store, server workers, the web console, and optional plugins. Local ARM64 tests do not establish AMD64 support, active-active correctness, geographic failover, or production throughput.
 
----
+<Callout type="info" title="Acceptance is not delivery">
+  A successful send returns HTTP 202 and an opaque `msg_<ULID>` message ID after durable acceptance. Provider calls, retries, receipt processing, and recipient delivery happen later. No public latency or availability SLA is implied.
+</Callout>
 
-## 1. Fast-Path Ingestion Pipeline
+## Fast-Path Ingestion
 
-To guarantee sub-15ms synchronous acceptance during thundering herd traffic, Convey executes exactly **one 1-RTT DragonflyDB command** and **one atomic PostgreSQL 18 transaction**:
+1. Authentication resolves the stored role, tenant, team, and sandbox scope. Request headers cannot elevate that identity.
+2. A Redis-compatible `SET NX` reserves an idempotency key scoped to team and sandbox/production, with a canonical request hash.
+3. A PostgreSQL transaction inserts the encrypted message and its outbox work.
+4. The response records acceptance; workers process the durable work asynchronously.
 
-1. **DragonflyDB 1-RTT Idempotency Lease**:
-   An atomic `SET idempotency:<teamId>:<key> <pending_payload> NX PX 120000` evaluates whether the request is novel. With DragonflyDB's multi-threaded shared-nothing architecture, duplicate submissions return the original `202 Accepted` response in `< 0.05ms` with zero lock contention.
-2. **PostgreSQL 18 Dual Insert**:
-   A single transaction inserts into `messages` (the immutable partitioned audit record) and `outbox` (the ephemeral delivery buffer).
-3. **HTTP 202 Immediate Return**:
-   The API returns `msg_<ULID>` to the client immediately. Heavy dispatch is asynchronously handed off to BullMQ workers.
+The default idempotency retention is 24 hours. A completed identical request replays its saved response. A different payload or a request still processing returns a conflict. Expiration can permit new work under a reused key, and queue-store loss invalidates retained-key assumptions. Retries across a third-party network cannot guarantee exactly one delivery.
 
----
+See [API reference](/docs/api-reference) for the full wire payload. The SDK shorthand `channel`, `recipient`, and `content` is normalized by the client into the API's `recipients` and `channels` arrays.
 
-## 2. Transactional Outbox & SIMD Murmur32v3 Sharded Polling
+## Transactional Outbox
 
-Convey eliminates polling lock contention through virtual sharding:
+The default shard router computes a Murmur32v3 hash from `tenantId:messageId` across 16 virtual shards. The relay claims ready outbox rows using `FOR UPDATE SKIP LOCKED`, publishes deterministic jobs, then marks claimed rows processed after enqueueing. Expired claims are eligible for recovery.
 
-```
-[ Ingestion API ] ───▶ [ PostgreSQL 18 Outbox (16 Virtual Shards) ]
-                                │
-         ┌──────────────────────┼──────────────────────┐
-         ▼                      ▼                      ▼
- [ Poller Shard 0-3 ]   [ Poller Shard 4-7 ]   [ Poller Shard 8-15 ]
-         │                      │                      │
-         ▼                      ▼                      ▼
- [ BullMQ High-Pri ]    [ BullMQ Default ]     [ BullMQ Batch ]
+```text
+API acceptance -> PostgreSQL messages + outbox transaction
+              -> outbox relay -> BullMQ jobs -> dispatch workers
+              -> provider response / signed receipt -> later outcome
 ```
 
-- Outbox rows are partitioned into 16 virtual shards: `shard_id = Murmur32v3(team_id + recipient) % 16`
-- Workers execute non-blocking row acquisition:
-  ```sql
-  SELECT * FROM outbox
-  WHERE shard_id = $1 AND status = 'PENDING'
-  ORDER BY created_at ASC
-  LIMIT 100
-  FOR UPDATE SKIP LOCKED;
-  ```
-- **SIMD Shard Routing**: Murmur32v3 hash is computed in `< 1 µs` using native SIMD instructions on Bun 1.4 (5.25M ops/sec).
+The outbox uses `state`, `available_at`, `locked_at`, and `processed_at` fields. `SKIP LOCKED` lets other pollers skip claimed rows; it does not remove database locking or prove loss-free operation under every store failure. Restore and replay need deployment-specific recovery procedures.
 
----
+## PostgreSQL Storage & Retention
 
-## 3. PostgreSQL 18 Monthly Range Partitioning & Pruning Windows
+The canonical `messages` definition uses range partitioning on `created_at`. Maintenance manages partitions and retention, and time-bound queries can benefit from partition pruning. Partition creation and removal still require PostgreSQL locks and operational planning.
 
-The `messages` table uses PostgreSQL 18 monthly range partitioning by `created_at`:
+Before the first release, the repository edits canonical CREATE definitions instead of adding upgrade patches. A changed baseline requires explicitly fresh disposable stores. Once the first release is published, schema changes need a versioned migration ledger and tested upgrade paths. See [deployment](/docs/deployment) for operational boundaries.
 
-```sql
-CREATE TABLE messages (
-  id VARCHAR(32) NOT NULL,
-  team_id VARCHAR(32) NOT NULL,
-  channel VARCHAR(16) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  ...
-) PARTITION BY RANGE (created_at);
+## Zero-Trust Encryption
 
--- Monthly Range Partitions
-CREATE TABLE messages_y2026m08 PARTITION OF messages
-  FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
-```
+`PayloadEncryptionManager` uses AES-256-GCM, HKDF derivation, random IVs, authenticated ciphertext, key versioning, and a pluggable key-provider boundary. Provider credentials use separate encrypted storage. Production requires an operator-supplied payload key.
 
-- **PostgreSQL 18 Query Pruning**: Queries filtering on `created_at >= now() - interval '7 days'` scan only active month partitions, avoiding global B-Tree index degradation.
-- **Instant Data Retention**: Expired partitions older than 90 days are dropped in `O(1)` time via `DROP TABLE messages_y2026m05;` without table lock or vacuum overhead.
+Authorized APIs and workers decrypt data when needed; plaintext is not confined exclusively to provider socket transport. The included mock KMS provider is a test implementation. Logical recipient revocation prevents permitted service reads but is not cryptographic erasure: HKDF keys remain derivable from a retained master key. Encryption alone does not certify regulatory compliance.
 
----
+See [payload key management](https://github.com/hamidrezakks/convey/blob/main/docs/operations/payload-key-management.md) for configuration, rotation, and recovery.
 
-## 4. Zero-Trust AES-256-GCM Envelope Encryption
+## Fairness Scheduler
 
-All sensitive customer data (recipients, message bodies, template parameters) is encrypted before storage in PostgreSQL 18:
+The repository includes priority queues and a Deficit Round Robin scheduler with configurable tenant weights. Scheduler tests exercise fairness under defined workloads. These tests do not guarantee a universal fairness index or exact delivery deadlines when capacity, providers, or tenant traffic differ.
 
-- **Key Derivation**: High-entropy 256-bit Master Key derived using HKDF-SHA256.
-- **Unique IV per Record**: 96-bit random IV generated for every ciphertext block.
-- **Authenticated Encryption**: 128-bit GCM authentication tag guarantees ciphertext integrity against bit-flipping attacks.
-- **In-Memory Decryption**: Plaintext data exists solely in worker memory during active HTTP transport to the provider.
+Near-term execution within 30 minutes uses BullMQ. Longer schedules remain in PostgreSQL until promotion. Scheduling accepts future processing, not exact delivery at the requested time.
 
----
+## Provider Routing, Retries & Receipts
 
-## 5. Deficit Round Robin (DRR) Multi-Tenant Scheduler
+Configured routes, health tracking, circuit breakers, and recovery ramps support dispatch decisions. Provider throttling and transient failures use bounded retries. A timeout can leave provider acceptance uncertain; automatic retry or intentional replay may produce another delivery and charge.
 
-To prevent bulk marketing blasts from starving critical one-time passwords (OTP), Convey implements a **Deficit Round Robin** priority scheduler in DragonflyDB queues:
+Webhook signature schemes and receipt types are vendor-specific. Customer event consumers must verify the exact signed bytes, deduplicate event IDs, and tolerate out-of-order events. Adapter listings are separate from certification; see [provider readiness](/docs/providers).
 
-- **Enterprise Tier**: Quantum = 200 tasks / round
-- **Pro Tier**: Quantum = 50 tasks / round
-- **Free Tier**: Quantum = 10 tasks / round
+## WhatsApp Cost Optimization
 
-Convey guarantees a **Jain's Fairness Index** `JFI >= 0.95` under 100x traffic skew across tenants.
+Session conversion is optional and enabled in provider configuration. It requires a tracked inbound user reply, an active session, and available template body text. Eligible templates can then be rendered as text; otherwise the original template remains.
 
----
+Savings metadata is a configured estimate. Actual eligibility, vendor fees, and invoice reconciliation require separate evidence. The landing calculator is illustrative and uses user-selected assumptions.
 
-## 6. Stepped Half-Open Circuit Breakers & Hedging
+## Go Recipient Gateway
 
-When downstream providers (e.g., Twilio, AWS SES) degrade:
+The [independent Go gateway](/docs/gateway) accepts a `userId`, verifies caller scope with Convey, resolves missing channel addresses through a customer resolver, and forwards the request to the existing service. Explicit recipient overrides take precedence. Native bulk lookup can coalesce concurrent requests.
 
-- **Sliding-Window Failure Detection**: 100-request sliding ring buffer trips to `OPEN` if error rate exceeds 50% or p95 latency exceeds 2,000ms.
-- **Stepped Probe Admission**: When transitioning from `HALF_OPEN` to `CLOSED`, probe traffic is admitted in calibrated steps:
-  - Phase 1: 5% probe traffic
-  - Phase 2: 20% probe traffic
-  - Phase 3: 50% probe traffic
-  - Phase 4: 100% full recovery
-- **Speculative Hedged Requests**: For critical SLA messages, if a primary provider request does not acknowledge within the p95 latency window (250ms), Convey speculatively fires a concurrent hedged request to a secondary fallback provider. The first response cancels the pending sibling.
-
----
-
-## 7. Autonomous WhatsApp 24h Session Cost Optimization
-
-Meta charges business-initiated WhatsApp messages based on template category fees ($0.03 - $0.08 per message). However, messages sent within 24 hours of a user's reply are free session messages ($0.00).
-
-```
-[ Inbound User Reply ] ───▶ [ Convey Ingestion Webhook ]
-                                    │
-                                    ▼
-              [ DragonflyDB 24h Session Window Leased ]
-                                    │
- [ Outbound Dispatch ] ───▶ [ Session Lease Valid? ]
-                                    │
-                    ┌────────────────┴────────────────┐
-                    ▼                                 ▼
-            [ YES: Free $0.00 ]             [ NO: Template HSM ]
-           (Plain-Text Session Msg)        (Standard Meta Rate)
-```
-
-- Inbound replies automatically register an active session key in DragonflyDB with a 24-hour TTL: `whatsapp:session:<team_id>:<phone>`.
-- When an outbound dispatch is requested, Convey checks the lease. If active, it seamlessly transforms the message into a $0.00 plain-text payload, reducing WhatsApp expenditure by **40% to 75%**.
-
----
-
-## 8. W3C Distributed Tracing
-
-Convey natively propagates standard `traceparent` headers (`00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`) across all ingestion, database, BullMQ queues, and outbound HTTP requests. Zero allocation parsing sustains over **5.06M ops/sec**.
+Its customer HTTP adapter is a reference contract that must be adapted to the real customer service. The gateway has no database, Redis dependency, schema migrations, or cross-request customer cache. It does not add a transaction across customer lookup and downstream acceptance.

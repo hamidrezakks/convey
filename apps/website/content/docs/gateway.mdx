@@ -1,0 +1,108 @@
+---
+title: Recipient Gateway
+description: Resolve user IDs into delivery addresses with the optional Go gateway, scoped customer lookups, and bounded batching.
+---
+
+## Send by user ID
+
+The optional `apps/gateway` service resolves missing recipient addresses through a customer directory, then forwards the original message to Convey. Convey owns acceptance, routing, budgets, retries and delivery status. The gateway needs no database, Redis instance or migrations.
+
+The included HTTP customer adapter is a reference contract. The real customer-service endpoint has not been agreed; adapt the resolver before connecting your directory. The gateway is also separate from a trusted webhook signing gateway: it preserves callbacks, but does not validate vendor signatures or add Convey signatures.
+
+## Try the local simulator
+
+From the repository root:
+
+```sh
+bun run mock:gateway
+```
+
+Use the printed gateway URL and fake token `demo-key`. The synthetic users include `alice` (all supported recipient fields), `bob` (email and phone), and `email-only`. This simulator returns mock acceptance and does not deliver notifications.
+
+```sh
+export GATEWAY_URL=http://127.0.0.1:REPLACE_WITH_PRINTED_PORT
+export CONVEY_API_KEY=demo-key
+
+curl "$GATEWAY_URL/v1/messages" \
+  -H "Authorization: Bearer $CONVEY_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "userId": "alice",
+    "idempotencyKey": "order-482-email-v1",
+    "category": "transactional",
+    "country": "US",
+    "channels": [{
+      "channel": "email",
+      "content": {"subject": "Order confirmed", "text": "Thank you!"}
+    }]
+  }'
+```
+
+Save the returned `messageId` and query `GET /v1/messages/{messageId}` through the same gateway. HTTP 202 means accepted, not delivered.
+
+## Connect Convey and a customer directory
+
+```sh
+cd apps/gateway
+CONVEY_URL=http://localhost:3000 \
+CUSTOMER_URL=http://localhost:4000 \
+go run ./cmd/gateway
+```
+
+Convey must have authentication enabled. Use the caller's existing tenant `DEVELOPER` or `ORG_ADMIN` API key. The gateway verifies the credential against `/v1/auth/session` before customer lookup, fills a missing team from that identity, and rejects a different team. Read-only roles cannot trigger lookup. It forwards caller credentials only to Convey; the directory gets its own `CUSTOMER_TOKEN` and verified tenant/team/sandbox scope.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CONVEY_URL` | Required | Convey API origin |
+| `CUSTOMER_URL` | Required | Customer API origin |
+| `CUSTOMER_TOKEN` | Unset | Dedicated directory bearer credential |
+| `CUSTOMER_LOOKUP_MODE` | `bulk` | Bulk POST or `single` GET adapter |
+| `CUSTOMER_LOOKUP_PATH` | Mode-dependent | `/v1/customers/resolve` or `/v1/customers/{userId}` |
+| `CUSTOMER_BATCH_WAIT` | `300ms` | Collection delay between `0s` and `1s` |
+| `GATEWAY_LISTEN` | `:8080` | Gateway listener |
+
+Origins must not contain credentials, base paths, queries or fragments. The process reads environment variables directly; it does not load `.env` automatically. Use HTTPS or a trusted private network for remote services.
+
+## Recipient resolution and bulk requests
+
+| Channel | Required recipient field |
+| --- | --- |
+| `email` | `email` |
+| `sms` | `phone` |
+| `whatsapp` | `whatsapp` |
+| `telegram` | `telegramChatId` |
+| `slack` | `slack.channelId` |
+| `fcm` | `fcmTokens` |
+| `apns` | `apnsTokens` |
+
+Explicit nonempty recipients take precedence; fully supplied addresses skip lookup. `userId` remains required. The gateway resolves fields for initial channels and fallback/cascade steps. It does not infer a WhatsApp address from `phone` or copy unrelated profile attributes.
+
+`POST /v1/messages/bulk` accepts an object with a `messages` array or a bare array, up to 500 messages. All required recipients must resolve before that submission is forwarded. A missing customer or address returns 422 without forwarding the submission. Inspect Convey's per-item results after forwarding; this is not a cross-service transaction guarantee.
+
+The default batcher groups lookups by verified tenant, team and sandbox, flushing at 100 requests, 100 unique users, or 300 ms from the first request. It uses eight workers and admits at most 1,024 outstanding lookup submissions. Overload returns `503 CUSTOMER_BUSY` with `Retry-After: 1`. Larger submissions use chunks of at most 100 users. Each notification submission is forwarded separately.
+
+A lone unresolved request can wait the full collection interval plus queue and network time. Use `CUSTOMER_BATCH_WAIT=25ms` for a shorter window or `0s` to remove intentional waiting. Batches are local to each gateway process; there is no cross-request customer cache.
+
+## Forwarding, failures and retries
+
+The explicit allowlist covers non-admin Convey APIs, including messages, templates, batches, suppressions, receipts, sandbox, DLQ, subscriptions, signed callbacks and tracking links. Only single/bulk message creation gets enrichment. Replay uses stored recipients. Admin APIs, metrics, Swagger and optional plugin APIs are not exposed.
+
+Requests have a 15-second end-to-end deadline, a 4 MiB incoming body limit and bounded outbound connections. The gateway neither automatically retries nor follows upstream redirects. `/healthz` and `/readyz` describe its listener, not remote dependency health.
+
+Reuse the original payload and idempotency key for retries. Fresh customer lookup may observe changed contact information and produce an upstream idempotency conflict. Investigate that conflict or query the saved message; changing the key can create a duplicate send. Persist explicit recipient snapshots in a trusted backend when exact payload replay is required.
+
+## Deployment and evidence
+
+```sh
+# Run from the repository root.
+docker build -t convey-gateway apps/gateway
+bun run test:gateway
+bun run simulate:gateway
+```
+
+The standalone image runs as UID 10001 and can use a read-only filesystem. It must be connected to your existing service network and configured with the two remote origins. Mock and container qualification does not establish compatibility with a real directory or live delivery provider.
+
+- [Usage, multi-channel, cascade and Docker examples](https://github.com/hamidrezakks/convey/blob/main/apps/gateway/USAGE.md)
+- [Customer adapter contract and proxy boundary](https://github.com/hamidrezakks/convey/blob/main/apps/gateway/README.md)
+- [Batching limits and measured local performance](https://github.com/hamidrezakks/convey/blob/main/apps/gateway/PERFORMANCE.md)
+- [Simulator scenarios and recorded verification](https://github.com/hamidrezakks/convey/blob/main/apps/gateway/SIMULATOR.md)

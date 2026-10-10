@@ -6,50 +6,50 @@ export function FeatureGrid() {
     {
       icon: ShieldCheck,
       color: 'emerald',
-      title: 'Zero-Trust AES-256-GCM Envelope Encryption',
-      tag: 'Security at Rest',
+      title: 'AES-256-GCM Payload Encryption',
+      tag: 'Storage Security',
       description:
-        'All recipient handles, message bodies, and template variables are encrypted with unique IVs before hitting PostgreSQL 18. In-memory decryption happens strictly in isolated worker threads.',
+        'Recipient handles and message payloads use authenticated encryption before database storage. Authorized API reads and workers decrypt payloads when needed; key management is an operator responsibility.',
     },
     {
       icon: Zap,
       color: 'sky',
-      title: '1-RTT DragonflyDB Idempotency Lease',
-      tag: 'Sub-Millisecond Guard',
+      title: 'Scoped Idempotency Reservations',
+      tag: '24h Default Retention',
       description:
-        'Atomic SET NX leases on multi-threaded DragonflyDB eliminate database row-level locking during traffic spikes. Duplicate submissions receive identical 202 Accepted responses in under 0.05ms.',
+        'Team and sandbox scope isolate retained keys. Completed identical requests replay the saved acceptance response; different payloads and requests still processing return a conflict.',
     },
     {
       icon: Scale,
       color: 'amber',
-      title: 'Deficit Round Robin Multi-Tenant Scheduler',
-      tag: 'Noisy Neighbor Elimination',
+      title: 'Multi-Tenant Dispatch Scheduling',
+      tag: 'Queue Control',
       description:
-        'Quantum bandwidth arbitration (Enterprise = 200, Pro = 50, Free = 10) guarantees high-priority OTP delivery is never starved by bulk marketing campaigns (JFI >= 0.95).',
+        'Priority queues and Deficit Round Robin scheduling support configured tenant weights. Local fairness tests exercise the scheduler; delivery timing depends on the deployment and providers.',
     },
     {
       icon: RotateCcw,
       color: 'rose',
-      title: 'Blast-Radius Controlled DLQ & Mutated Replay',
-      tag: 'Zero Data Loss',
+      title: 'Dead-Letter Inspection & Replay',
+      tag: 'Operator Recovery',
       description:
-        'Categorize failures by root-cause (Rate Limits, Auth Expired, Provider 5xx). Dry-run blast-radius impact and replay with mutated providers or throttled rate-limits.',
+        'Inspect failed work, preview replay impact, and intentionally create a new execution. Replaying an uncertain delivery may produce another message and charge.',
     },
     {
       icon: Activity,
       color: 'purple',
-      title: 'Autonomous Synthetic Canaries & Stepped Half-Open Ramps',
-      tag: 'Resilience',
+      title: 'Circuit Breakers & Recovery Ramps',
+      tag: 'Provider Resilience',
       description:
-        'Background synthetic probes evaluate degraded provider health. Once stable, probe traffic is admitted in stepped increments (5% ➔ 20% ➔ 50% ➔ 100%) to safely restore routes.',
+        'Health tracking and bounded retries respond to transient errors and throttling. Half-open admission tests support recovery; third-party networks can leave acceptance uncertain.',
     },
     {
       icon: Globe,
       color: 'cyan',
-      title: 'Active-Active Cross-Region Multi-Cluster Heartbeats',
-      tag: 'Geo-Replication',
+      title: 'Optional Go Recipient Gateway',
+      tag: 'Recipient Delivery',
       description:
-        'Redis-backed distributed heartbeat mesh tracks regional availability. Automatic cross-datacenter failover ensures zero downtime during cloud provider regional outages.',
+        'The independent Go gateway resolves missing delivery addresses from your customer service using a userId, verifies caller scope with Convey, and forwards single or bulk submissions.',
     },
   ];
 
@@ -60,13 +60,14 @@ export function FeatureGrid() {
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Staff-Level Distributed Systems Engineering</span>
+            <span>Communication Service Building Blocks</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            Engineered for Extreme Reliability & Scale
+            Durable Acceptance & Configurable Dispatch
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Convey solves distributed systems bottlenecks from first principles with zero external vendor dependencies.
+            Convey combines PostgreSQL, Redis-compatible queues, workers, and provider transports. Current qualification
+            is local and mock-only.
           </p>
         </div>
 
