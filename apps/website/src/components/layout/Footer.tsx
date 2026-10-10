@@ -106,37 +106,25 @@ export function Footer() {
             <h4 className="font-semibold text-slate-200 text-xs uppercase tracking-wider font-mono">Ecosystem</h4>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="http://localhost:5173"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
+                <Link
+                  href="/docs/quickstart#start-the-operator-console"
+                  className="hover:text-sky-400 transition-colors block py-0.5"
                 >
-                  <span>Mission Control App</span>
-                  <ExternalLink className="w-3 h-3 text-slate-500" />
-                </a>
+                  Operator Console Setup
+                </Link>
               </li>
               <li>
-                <a
-                  href="http://localhost:3000/swagger"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
-                >
-                  <span>Swagger / OpenAPI UI</span>
-                  <ExternalLink className="w-3 h-3 text-slate-500" />
-                </a>
+                <Link href="/docs/api-reference" className="hover:text-sky-400 transition-colors block py-0.5">
+                  API Reference
+                </Link>
               </li>
               <li>
-                <a
-                  href="http://localhost:3000/metrics"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-sky-400 transition-colors inline-flex items-center gap-1 py-0.5"
+                <Link
+                  href="/docs/deployment#health-and-monitoring"
+                  className="hover:text-sky-400 transition-colors block py-0.5"
                 >
-                  <span>Prometheus Metrics (local)</span>
-                  <ExternalLink className="w-3 h-3 text-slate-500" />
-                </a>
+                  Health & Monitoring
+                </Link>
               </li>
               <li>
                 <a

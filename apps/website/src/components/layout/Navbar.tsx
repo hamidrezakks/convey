@@ -94,16 +94,14 @@ export function Navbar() {
 
         {/* Right CTA Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <a
-            href="http://localhost:5173"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/docs/quickstart#start-the-operator-console"
             className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-xs font-medium text-slate-200 transition-colors"
           >
             <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Mission Control</span>
+            <span>Console Setup</span>
             <ArrowUpRight className="w-3 h-3 text-slate-500" />
-          </a>
+          </Link>
 
           <a
             href="https://github.com/hamidrezakks/convey"
@@ -135,6 +133,8 @@ export function Navbar() {
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
             className="lg:hidden p-2 rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:text-white hover:border-slate-700 transition-colors cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
           >
             {mobileMenuOpen ? <X className="w-5 h-5 text-sky-400" /> : <Menu className="w-5 h-5" />}
@@ -144,10 +144,16 @@ export function Navbar() {
 
       {/* Mobile Drawer Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-50 bg-[#070b12]/95 backdrop-blur-2xl border-b border-slate-800 p-5 overflow-y-auto space-y-6 animate-in fade-in slide-in-from-top-4 duration-200">
+        <nav
+          id="mobile-navigation"
+          aria-label="Mobile navigation"
+          className="lg:hidden absolute inset-x-0 top-full max-h-[calc(100dvh-4rem-1px)] z-50 bg-[#070b12] border-b border-slate-800 p-4 overflow-y-auto overscroll-contain space-y-4 shadow-xl"
+        >
           {/* Main Navigation Links */}
-          <div className="space-y-1">
-            <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 px-3 pb-1">Navigation</div>
+          <div className="grid grid-cols-2 gap-1">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 px-3 pb-1 col-span-2">
+              Navigation
+            </div>
             {navLinks.map((link) => {
               const Icon = link.icon;
               if (link.href.startsWith('/')) {
@@ -180,35 +186,31 @@ export function Navbar() {
           {/* Quick External Tools */}
           <div className="space-y-2 pt-2 border-t border-slate-800/80">
             <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 px-3 pb-1">
-              Mission Control & Tools
+              Setup & Resources
             </div>
-            <a
-              href="http://localhost:5173"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/docs/quickstart#start-the-operator-console"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-200 hover:border-slate-700 text-sm font-medium"
             >
               <div className="flex items-center gap-2.5">
                 <Sliders className="w-4 h-4 text-cyan-400" />
-                <span>Mission Control Admin UI</span>
+                <span>Operator Console Setup</span>
               </div>
               <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
-            </a>
+            </Link>
 
-            <a
-              href="http://localhost:3000/swagger"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/docs/api-reference"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-200 hover:border-slate-700 text-sm font-medium"
             >
               <div className="flex items-center gap-2.5">
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                <span>OpenAPI / Swagger Spec</span>
+                <span>API Reference</span>
               </div>
               <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
-            </a>
+            </Link>
 
             <a
               href="https://github.com/hamidrezakks/convey"
@@ -242,7 +244,7 @@ export function Navbar() {
               <ArrowUpRight className="w-4 h-4" />
             </Link>
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );
