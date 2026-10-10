@@ -2,7 +2,9 @@
 
 This runbook covers the Next.js documentation website at `https://convey.barnamekon.com`. It is a separate deployment from the Convey API, gateway, workers, and databases. Its deployment target is the existing production VM at `204.168.246.189`, under `/opt/convey-website`.
 
-Initial live website verification is pending. During setup, the proxied DNS record, Full (strict) mode, and Let's Encrypt origin certificate were verified. Record the container and hosted-page checks below after deployment.
+Deployment verified on 2026-10-10 for website release `9c23c627abc7684ecce3d6cd826f4f3bb77d5fa5`. The Cloudflare-proxied hostname uses Full (strict) and a valid Let's Encrypt origin certificate. The non-root, read-only container passed health checks; all documentation routes, search, and homepage static assets were checked over public HTTPS. Existing Flare and Traefik containers remained healthy.
+
+Automatic deployment is intentionally limited to `main` after merge. The workflow and its restricted SSH credentials are configured; this first release was deployed manually through the same forced SSH command. Hosted deployment CI has not been run from this feature branch.
 
 ## Deployment files and runtime
 
