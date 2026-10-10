@@ -158,10 +158,6 @@ export function Footer() {
           <div>
             &copy; {new Date().getFullYear()} Convey Engineering. High-Performance Communication Infrastructure.
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            <span>Powered by Bun 1.4 & Elysia</span>
-            <span>PostgreSQL & Redis-Compatible Queues</span>
-          </div>
         </div>
       </div>
     </footer>
