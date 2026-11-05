@@ -1,83 +1,84 @@
 ---
 title: Environment Configuration Reference
-description: Complete .env variable dictionary, PostgreSQL 18 connection tuning, DragonflyDB concurrency limits, and zero-downtime AES key rotation runbooks.
+description: Supported server variables, authentication defaults, encryption keys, web proxies, and provider configuration.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+Convey reads core settings from environment variables. Bun loads `.env` during native development. Compose uses `.env` for interpolation and passes only the variables listed in its `environment` sections; adding a variable to `.env` alone does not inject it into every container.
 
-# Configuration Reference
+## Server and infrastructure
 
-Convey uses environment variables for all operational tuning. You can specify variables in `.env` or inject them directly via Kubernetes ConfigMaps and Secrets.
+These defaults come from `apps/server/src/config/env.ts`.
 
----
+| Variable | Default | Behavior |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP listener port; the server binds to `0.0.0.0`. |
+| `NODE_ENV` | `development` | `development`, `test` or `production`; test mode does not start the listener through the normal entrypoint. |
+| `LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn` or `error`. |
+| `CONVEY_REQUIRE_AUTH` | `true` | Accepts `true` or `false`; disabling auth is rejected in production. |
+| `POSTGRES_DB` | `db-convey` | An explicit value overrides the path in a valid `DATABASE_URL`. Otherwise the URL path supplies the database name. |
+| `DATABASE_URL` | `postgres://user:password@localhost:5432/db-convey` | Core PostgreSQL connection string; set real credentials. |
+| `DB_MAX_CONNECTIONS` | `20` | Core database pool maximum per server process. Idle and connection timeouts are fixed in the database client. |
+| `REDIS_URL` | `redis://localhost:6379` | Redis-compatible endpoint for queues, idempotency and shared state. |
+| `REDIS_KEY_PREFIX` | `convey` | Namespace for Convey Redis keys and BullMQ prefixes; use a fresh isolated namespace after queue-format changes. |
+| `BULLMQ_SCHEDULING_HORIZON_SECONDS` | `1800` | Scheduling horizon in seconds. More distant messages remain in PostgreSQL until promotion. |
 
-## Core Server & Network Configuration
+`HOST`, `CORS_ORIGIN`, `DB_POOL_MIN`, `DB_POOL_MAX`, `DB_IDLE_TIMEOUT_MS`, `DB_STATEMENT_TIMEOUT_MS`, `REDIS_MAX_CONNECTIONS`, `BULLMQ_CONCURRENCY`, `OUTBOX_POLL_INTERVAL_MS` and `OUTBOX_BATCH_SIZE` are not supported server environment settings. The API's CORS configuration is currently fixed in source; worker tuning is defined in worker code.
 
-| Variable | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `PORT` | `number` | `3000` | HTTP port for Elysia.js server |
-| `HOST` | `string` | `0.0.0.0` | Bind IP interface |
-| `NODE_ENV` | `string` | `development` | Runtime environment (`development`, `production`, `test`) |
-| `LOG_LEVEL` | `string` | `info` | Structured logging verbosity (`debug`, `info`, `warn`, `error`) |
-| `CORS_ORIGIN` | `string` | `*` | Allowed CORS origins for browser web apps |
+## Authentication and webhooks
 
----
+Provision an active tenant and create credentials with `apps/server/scripts/create-api-key.ts`, as shown in [quickstart](/docs/quickstart). Send `Authorization: Bearer <key>` or `x-api-key`. Authentication checks the active tenant, key, expiry and registered team owner on each request. Message teams must match the key's team. Console administration requires a platform credential with an appropriate database-backed role.
 
-## Database Configuration (PostgreSQL 18)
+| Variable | Default | Behavior |
+| --- | --- | --- |
+| `CONVEY_WEBHOOK_SECRET` | Unset | Convey ingress HMAC secret for authenticated provider callbacks; missing required signatures fail closed. |
+| `CONVEY_ALLOW_UNSIGNED_WEBHOOKS` | Disabled | Only the exact value `true` enables unsigned callbacks outside production. Production still verifies signatures. |
+| `META_WEBHOOK_VERIFY_TOKEN` | Unset | Token for Meta/WhatsApp GET challenge verification; separate from POST signature verification. |
 
-| Variable | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | `string` | `postgresql://convey:convey@localhost:5432/convey` | PostgreSQL 18 connection string |
-| `DB_POOL_MIN` | `number` | `5` | Minimum connection pool size |
-| `DB_POOL_MAX` | `number` | `25` | Maximum connection pool size |
-| `DB_IDLE_TIMEOUT_MS` | `number` | `30000` | Idle connection timeout in milliseconds |
-| `DB_STATEMENT_TIMEOUT_MS`| `number`| `5000` | Maximum SQL statement execution timeout |
+Meta handshake aliases are also recognized: `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_VERIFY_TOKEN` and `META_VERIFY_TOKEN`, in that fallback order. Providers without a native verifier need a trusted ingress gateway that verifies the vendor and signs Convey's exact raw body. See [webhooks](/docs/webhooks) for the protocol and provider-specific requirements.
 
-### Database Migrations
+## Payload encryption
 
-Convey uses Drizzle ORM models and one canonical pre-release SQL baseline:
+| Variable | Default | Behavior |
+| --- | --- | --- |
+| `PAYLOAD_ENCRYPTION_KEY` | Development fallback outside production | Production requires a unique secret of at least 32 characters and rejects the built-in development secret. |
+| `PAYLOAD_ENCRYPTION_KEYS` | Unset | JSON object mapping positive integer key versions to secrets of at least 32 characters. |
+| `PAYLOAD_ENCRYPTION_KEY_VERSION` | `1` | Active version when a key ring is configured; it must exist in the ring. |
 
-```bash
-# Validate the canonical CREATE definitions
-bun run db:check
-
-# Initialize an empty database with the current baseline
-bun run db:migrate
-```
-
----
-
-## In-Memory Cache & Queue Configuration (DragonflyDB & BullMQ)
-
-| Variable | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `REDIS_URL` | `string` | `redis://localhost:6379` | DragonflyDB / Redis-compatible connection string |
-| `REDIS_MAX_CONNECTIONS`| `number` | `50` | Maximum connection pool size |
-| `BULLMQ_CONCURRENCY` | `number` | `25` | Worker thread concurrency per process |
-| `OUTBOX_POLL_INTERVAL_MS`| `number`| `100` | Milliseconds between Outbox shard scans |
-| `OUTBOX_BATCH_SIZE` | `number` | `100` | Batch limit for FOR UPDATE SKIP LOCKED |
-
----
-
-## Cryptography & Zero-Trust Security
-
-| Variable | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `PAYLOAD_ENCRYPTION_KEY` | `string` | **Production** | Unique high-entropy secret of at least 32 characters |
-| `PAYLOAD_ENCRYPTION_KEYS` | `string` | Optional | JSON object mapping integer key versions to secrets |
-| `PAYLOAD_ENCRYPTION_KEY_VERSION` | `integer` | `1` | Active version from the configured ring |
-
-### Generating an encryption secret
+Generate an independent secret for encryption and another for webhook ingress:
 
 ```bash
 openssl rand -hex 32
 ```
 
-### Key rotation
+Production still requires `PAYLOAD_ENCRYPTION_KEY` when a ring is supplied. Preserve the old version's secret in the ring, distribute the complete ring to every server, then select the new active version and restart consistently. Unknown versions fail closed. Retain old keys while ciphertext or backups need them; no automatic re-encryption command is provided. Mock KMS is prohibited in production, and external tenant KMS encryption is not implemented.
 
-Deploy the complete key ring to every process before selecting the new active version. Retain previous encryption keys until their ciphertext and backups have expired. Unknown versions fail closed. There is no automatic re-encryption command.
+## Console, plugins and containers
 
-### Pre-release database changes
+| Variable | Consumer | Default or behavior |
+| --- | --- | --- |
+| `CONVEY_API_INTERNAL_URL` | Console proxy and plugins auth | `http://localhost:3000`; Compose uses `http://convey-server:3000`. |
+| `CONVEY_PLUGINS_INTERNAL_URL` | Console proxy | `http://localhost:3001`; Compose uses `http://convey-plugins:3001`. |
+| `VITE_API_URL` | Console build | Optional browser-visible core origin; empty uses the same-origin proxy. |
+| `VITE_PLUGINS_URL` | Console build | Optional browser-visible plugin origin; empty uses the same-origin proxy. |
+| `PLUGINS_PORT` | Optional plugins | `3001`. |
+| `AUTO_MIGRATE` | Server container entrypoint | `true`; `true` or `1` runs canonical schema initialization before the command. |
+| `WEB_PORT`, `POSTGRES_PORT`, `REDIS_PORT`, `MOCK_GATEWAY_PORT` | Compose host mapping | `5173`, `5432`, `6379`, `4000`; these are Compose variables, not core server tuning. |
 
-Convey has not had its first release. Update complete CREATE definitions in the canonical schema, validate with `bun run db:check`, and initialize a fresh disposable database with `bun run db:migrate`. The initializer rejects changed baselines without modifying existing data. Do not add upgrade-only ALTER patches or compatibility readers for old development records. Freeze the baseline and introduce forward migrations at the first release.
+Plugin storage reads its own `DATABASE_URL` directly. Make the URL path agree with `POSTGRES_DB` so the core and plugins connect to the same database. Vite variables are build-time settings; the Dockerfile does not automatically accept them as build arguments. Runtime internal URLs are service addresses reachable from the console process.
+
+## Providers and policies
+
+Provider configuration comes from enabled database records or explicit adapter configuration. `normalizeProviderConfig` translates uppercase vendor field names supplied in configuration objects; it does not read `process.env`. Persisted credentials are encrypted; administration responses mask them. Provider updates can notify running workers through Redis PubSub, without a guaranteed propagation latency.
+
+Examples in the root `.env.example` include `RESEND_API_KEY` / `RESEND_FROM_EMAIL`, `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL`, `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER`, `SLACK_BOT_TOKEN` / `SLACK_DEFAULT_CHANNEL` and `PAGERDUTY_ROUTING_KEY`. These are legacy simulator values; setting them in the environment does not automatically configure the current adapters. Configure providers through the console or platform administration API. Check [providers](/docs/providers) for implementation status and adapter-specific fields. Catalog entries do not establish delivery support.
+
+Budget, routing, rate-limit and other policies are configured through the platform administration APIs and database-backed configuration. Use the documented operational contracts when selecting limits. The [Go gateway](/docs/gateway) has a separate configuration surface.
+
+## Pre-release schema initialization
+
+```bash
+bun run db:check
+bun run db:migrate
+```
+
+Canonical per-table SQL files define the complete current schema. Initialization records a content fingerprint; repeating the same baseline is safe, but changed fingerprints or nonempty unmarked schemas are rejected without modifying data. After a baseline or queue-format change, stop producers and workers and explicitly provision fresh disposable stores. Forward migrations begin with the first release.

@@ -11,9 +11,9 @@ export function HeroSection() {
   const [activeInstallTab, setActiveInstallTab] = useState<'docker' | 'bun' | 'curl'>('docker');
 
   const installCommands = {
-    docker: 'docker compose up -d',
-    bun: 'bun add @convey/sdk',
-    curl: 'curl -X POST http://localhost:3000/v1/messages/send -H "Authorization: Bearer cv_live_..."',
+    docker: 'docker compose up -d postgres redis',
+    bun: 'bun install --frozen-lockfile',
+    curl: 'curl http://localhost:3000/health',
   };
 
   const handleCopy = async (cmd: string) => {
@@ -33,13 +33,13 @@ export function HeroSection() {
         {/* Top Tagline Badge */}
         <div className="inline-flex items-center gap-1.5 sm:gap-2 p-1 pl-2.5 pr-3 sm:pl-3 sm:pr-4 rounded-full border border-sky-500/30 bg-sky-500/10 backdrop-blur-md text-[11px] sm:text-xs font-medium text-sky-300 shadow-[0_0_20px_rgba(56,189,248,0.2)] max-w-full">
           <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-          <span className="truncate">Convey v1.0 Enterprise Engine — Bun 1.4 & Elysia</span>
+          <span className="truncate">Convey pre-release — Bun, Elysia & Go gateway</span>
           <ChevronRight className="w-3 h-3 text-sky-400 shrink-0" />
         </div>
 
         {/* Hero Title */}
         <h1 className="text-3xl sm:text-5xl lg:text-7xl font-extrabold text-white tracking-tight font-display max-w-4xl mx-auto leading-[1.15] sm:leading-[1.1]">
-          Planetary-Scale, Fault-Tolerant{' '}
+          Self-Hosted{' '}
           <span className="bg-gradient-to-r from-sky-400 via-cyan-300 to-indigo-400 bg-clip-text text-transparent">
             Communication Infrastructure
           </span>
@@ -47,11 +47,11 @@ export function HeroSection() {
 
         {/* Subtitle */}
         <p className="text-sm sm:text-lg lg:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed font-normal">
-          Engineered for mission-critical enterprise workloads. Featuring{' '}
-          <strong className="text-white font-semibold">sub-15ms synchronous send acceptance</strong>,{' '}
-          <strong className="text-white font-semibold">zero-trust envelope encryption at rest</strong>,{' '}
-          <strong className="text-white font-semibold">autonomous WhatsApp 24h session cost optimization</strong>, and{' '}
-          <strong className="text-white font-semibold">88 turnkey provider integrations</strong>.
+          A communication service for one regional deployment. Featuring{' '}
+          <strong className="text-white font-semibold">durable HTTP 202 acceptance</strong>,{' '}
+          <strong className="text-white font-semibold">AES-256-GCM payload encryption</strong>,{' '}
+          <strong className="text-white font-semibold">optional WhatsApp session conversion</strong>, and{' '}
+          <strong className="text-white font-semibold">a provider catalog with explicit readiness gates</strong>.
         </p>
 
         {/* Action Buttons */}
@@ -74,7 +74,7 @@ export function HeroSection() {
               className="w-full sm:w-auto"
               leftIcon={<Terminal className="w-4 h-4 text-purple-400" />}
             >
-              Interactive API Playground
+              Illustrative API Playground
             </Button>
           </a>
           <a href="#architecture" className="w-full sm:w-auto">
@@ -149,15 +149,17 @@ export function HeroSection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto pt-4 sm:pt-6 text-left">
           <div className="p-3.5 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/40 backdrop-blur-sm space-y-1">
             <div className="text-xl sm:text-2xl font-bold text-white font-mono flex items-center gap-1.5">
-              <span className="text-sky-400">&lt; 15ms</span>
-              <span className="text-xs text-slate-400 font-normal">p99</span>
+              <span className="text-sky-400">202</span>
+              <span className="text-xs text-slate-400 font-normal">Accepted</span>
             </div>
-            <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">Synchronous Hot-Path Send</div>
+            <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">
+              Accepted for Asynchronous Processing
+            </div>
           </div>
 
           <div className="p-3.5 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/40 backdrop-blur-sm space-y-1">
             <div className="text-xl sm:text-2xl font-bold text-white font-mono flex items-center gap-1.5">
-              <span className="text-cyan-400">88+</span>
+              <span className="text-cyan-400">Catalog</span>
               <span className="text-xs text-slate-400 font-normal">Adapters</span>
             </div>
             <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">Email, SMS, Push, WhatsApp</div>
@@ -168,15 +170,17 @@ export function HeroSection() {
               <span className="text-emerald-400">AES-256</span>
               <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
             </div>
-            <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">Zero-Trust Envelope Encryption</div>
+            <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">Encrypted Payload Storage</div>
           </div>
 
           <div className="p-3.5 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/40 backdrop-blur-sm space-y-1">
             <div className="text-xl sm:text-2xl font-bold text-white font-mono flex items-center gap-1.5">
-              <span className="text-purple-400">5.2M</span>
-              <span className="text-xs text-slate-400 font-normal">ops/s</span>
+              <span className="text-purple-400">Go</span>
+              <span className="text-xs text-slate-400 font-normal">Gateway</span>
             </div>
-            <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">SIMD Murmur32v3 Router</div>
+            <div className="text-[11px] sm:text-xs text-slate-400 leading-tight">
+              Resolve Recipients from Your Customer Service
+            </div>
           </div>
         </div>
       </div>

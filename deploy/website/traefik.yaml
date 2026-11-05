@@ -1,0 +1,18 @@
+# Install as /opt/traefik/dynamic/convey.yaml; existing Traefik watches this directory.
+http:
+  routers:
+    convey-website:
+      rule: 'Host(`convey.barnamekon.com`)'
+      entryPoints: [websecure]
+      service: convey-website
+      tls:
+        certResolver: letsencrypt
+  services:
+    convey-website:
+      loadBalancer:
+        servers:
+          - url: http://convey-website:3000
+        healthCheck:
+          path: /healthz
+          interval: 15s
+          timeout: 3s

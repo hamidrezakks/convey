@@ -34,350 +34,483 @@ interface Recipe {
 const recipes: Recipe[] = [
   {
     id: 'otp-fallback',
-    title: '1. High-Security 2FA / OTP with Dynamic Omnichannel Fallback',
-    shortTitle: '2FA OTP Fallback',
-    category: 'Security & Auth',
+    title: '1. Idempotent OTP Acceptance',
+    shortTitle: 'OTP Acceptance',
+    category: 'API Example',
     icon: ShieldAlert,
     color: 'sky',
-    badge: 'Zero Dropped OTPs',
-    slaBenefit: 'p99 < 1.4ms acceptance • Automatic carrier fallback',
+    badge: 'Pre-release contract',
+    slaBenefit: 'Reusing the key requires the same payload within retention.',
     description:
-      'Dispatches an authentication code via SMS, and automatically falls back to WhatsApp and Voice if the primary SMS provider encounters carrier rate limits or delivery degradation.',
-    languages: {
-      ts: `import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-export async function dispatchTwoFactorOtp(userId: string, phone: string, code: string) {
-  return await convey.messages.send({
-    channel: 'SMS',
-    recipient: phone,
-    priority: 'CRITICAL',
-    content: {
-      body: \`Your security verification code is \${code}. Valid for 10 minutes.\`,
-    },
-    category: 'SECURITY',
-    idempotencyKey: \`otp_\${userId}_\${Math.floor(Date.now() / 60000)}\`,
-  });
-}`,
-      curl: `curl -X POST https://api.convey.internal/v1/messages/send \\
-  -H "Authorization: Bearer cv_live_sec_key_99218" \\
-  -H "Content-Type: application/json" \\
-  -H "Idempotency-Key: otp_usr_9921_178759" \\
-  -d '{
-    "channel": "sms",
-    "recipient": "+14155552671",
-    "priority": "HIGH",
-    "content": { "body": "Your verification code is 849201. Valid for 10 minutes." },
-    "routing": {
-      "strategy": "PRIMARY_FALLBACK",
-      "fallbackChain": ["twilio", "vonage", "infobip"]
-    }
-  }'`,
-      py: `from convey import ConveyClient, MessagePriority
-
-convey = ConveyClient(api_key="cv_live_sec_key_99218")
-
-async def send_2fa_otp(user_id: str, phone: str, code: str):
-    return await convey.messages.send(
-        channel="sms",
-        recipient=phone,
-        priority=MessagePriority.HIGH,
-        content={"body": f"Your verification code is {code}."},
-        routing={"strategy": "PRIMARY_FALLBACK", "fallback_chain": ["twilio", "vonage"]}
-    )`,
-    },
-    expectedResponse: {
-      status: '202 ACCEPTED',
-      latency: '1.2ms',
-      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
-      body: '{\n  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",\n  "status": "ACCEPTED",\n  "channel": "sms",\n  "recipient": "+14155552671"\n}',
-    },
-  },
-  {
-    id: 'whatsapp-cost-saver',
-    title: '2. WhatsApp 24h Session Cost Autopilot ($0.00 Text Transform)',
-    shortTitle: 'WhatsApp Cost Saver',
-    category: 'Cost Optimization',
-    icon: DollarSign,
-    color: 'emerald',
-    badge: '40% - 75% Cost Reduction',
-    slaBenefit: 'Auto $0.00 session conversion during active 24h window',
-    description:
-      'Convey checks DragonflyDB for an active 24h user reply session. If valid, expensive Meta marketing templates ($0.05) are transformed into $0.00 plain-text session messages automatically.',
-    languages: {
-      ts: `import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-export async function sendShippingUpdate(phone: string, orderId: string, url: string) {
-  return await convey.messages.send({
-    channel: 'WHATSAPP',
-    recipient: phone,
-    content: {
-      templateId: 'shipping_update_v2',
-      variables: { orderId, trackingUrl: url },
-    },
-    metadata: { orderId, costOptimization: 'AUTOPILOT_ENABLED' },
-  });
-}`,
-      curl: `curl -X POST https://api.convey.internal/v1/messages/send \\
-  -H "Authorization: Bearer cv_live_sec_key_99218" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "channel": "whatsapp",
-    "recipient": "+14155552671",
-    "content": {
-      "body": "Your order has shipped!",
-      "template": { "name": "shipping_update_v2", "language": "en_US" }
-    }
-  }'`,
-      py: `from convey import ConveyClient
-
-convey = ConveyClient(api_key="cv_live_sec_key_99218")
-
-async def send_whatsapp_update(phone: str, order_id: str, url: str):
-    return await convey.messages.send(
-        channel="whatsapp",
-        recipient=phone,
-        content={"template": {"name": "shipping_update_v2"}},
-        metadata={"order_id": order_id}
-    )`,
-    },
-    expectedResponse: {
-      status: '202 ACCEPTED',
-      latency: '1.8ms',
-      trace: '00-99e8a7b6c5d4e3f2a1b0c9d8e7f6a5b4-00f067aa0ba902b7-01',
-      body: '{\n  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",\n  "status": "ACCEPTED",\n  "costUsd": 0.0,\n  "sessionTransformed": true\n}',
-    },
-  },
-  {
-    id: 'drr-bulk-broadcast',
-    title: '3. Mass Marketing Campaign with Deficit Round Robin (DRR) Pacing',
-    shortTitle: 'DRR Bulk Broadcast',
-    category: 'High Throughput',
-    icon: Flame,
-    color: 'amber',
-    badge: 'JFI >= 0.95 Fairness',
-    slaBenefit: '500-item micro-batches • Zero OTP queue starvation',
-    description:
-      'Broadcast 100,000+ marketing emails without starving critical transactional OTPs. Deficit Round Robin quantum scheduling prioritizes high-priority traffic.',
-    languages: {
-      ts: `import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
-
-export async function broadcastNewsletter(subscribers: string[], campaignId: string) {
-  const items = subscribers.map((email, idx) => ({
-    channel: 'EMAIL' as const,
-    recipient: email,
-    priority: 'LOW' as const,
-    content: { subject: 'Product Update', body: 'Convey v1.0 is live!' },
-    idempotencyKey: \`camp_\${campaignId}_\${idx}\`,
-  }));
-
-  // Chunk into 500-message atomic micro-batches for 1-RTT outbox ingestion
-  for (let i = 0; i < items.length; i += 500) {
-    const chunk = items.slice(i, i + 500);
-    await convey.messages.sendBulk(chunk);
-  }
-}`,
-      curl: `curl -X POST https://api.convey.internal/v1/messages/bulk \\
-  -H "Authorization: Bearer cv_live_sec_key_99218" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "channel": "email",
-    "priority": "LOW",
-    "messages": [
-      { "recipient": "sub1@domain.com", "content": { "subject": "Update", "body": "Hello 1" } },
-      { "recipient": "sub2@domain.com", "content": { "subject": "Update", "body": "Hello 2" } }
-    ]
-  }'`,
-      py: `from convey import ConveyClient, MessagePriority
-
-convey = ConveyClient(api_key="cv_live_sec_key_99218")
-
-async def send_bulk_newsletter(subscribers: list[str]):
-    chunk = [{"recipient": email, "content": {"subject": "News", "body": "Hi"}} for email in subscribers[:500]]
-    return await convey.messages.send_bulk(channel="email", priority=MessagePriority.LOW, messages=chunk)`,
-    },
-    expectedResponse: {
-      status: '202 ACCEPTED',
-      latency: '4.8ms',
-      trace: '00-33fa81028ba9012a98dca71822e14ef6-00f067aa0ba902b7-01',
-      body: '{\n  "batchId": "batch_01JB61ZZ89901AA223344",\n  "totalSubmitted": 500,\n  "totalAccepted": 500,\n  "totalRejected": 0\n}',
-    },
-  },
-  {
-    id: 'zero-trust-encryption',
-    title: '4. Zero-Trust AES-256-GCM Envelope Encryption (HIPAA / GDPR)',
-    shortTitle: 'Zero-Trust Encryption',
-    category: 'Privacy & Security',
-    icon: Lock,
-    color: 'purple',
-    badge: 'AES-256-GCM Encrypted',
-    slaBenefit: '281k encryptions/s • In-memory decryption only',
-    description:
-      'All recipient handles, message bodies, and sensitive variables are encrypted with unique IVs before storage in PostgreSQL 18. Plaintext exists only during active provider socket transport.',
+      'Submit one critical SMS request with a stable key for this challenge. Configure provider fallback on the server; acceptance does not establish delivery.',
     languages: {
       ts: `import { Convey } from '@convey/sdk';
 
 const convey = new Convey({
   apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'http://localhost:3000',
+  teamId: 'orders', // Must match the authenticated key
 });
 
-export async function sendMedicalPrescriptionNotice(patientPhone: string, rxId: string) {
-  return await convey.messages.send({
-    channel: 'SMS',
-    recipient: patientPhone, // Encrypted at rest
-    content: {
-      body: \`Your prescription #\${rxId} is ready for pickup at Main Pharmacy.\`,
-    },
-    metadata: { hipaaCompliance: true, encryptionVersion: 'v2' },
-  });
-}`,
-      curl: `curl -X POST https://api.convey.internal/v1/messages/send \\
-  -H "Authorization: Bearer cv_live_sec_key_99218" \\
+const response = await convey.messages.send({
+  "channel": "SMS",
+  "recipient": "+12025550123",
+  "priority": "CRITICAL",
+  "category": "SECURITY",
+  "content": {
+    "body": "Your verification code is 849201."
+  },
+  "idempotencyKey": "otp-challenge-482"
+});
+console.log(response.messageId, response.state);`,
+      curl: `curl -X POST http://localhost:3000/v1/messages \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "channel": "sms",
-    "recipient": "+14155552671",
-    "content": { "body": "Your prescription is ready for pickup." },
-    "metadata": { "hipaaCompliance": true }
-  }'`,
-      py: `from convey import ConveyClient
+  "idempotencyKey": "otp-challenge-482",
+  "userId": "customer-482",
+  "team": "orders",
+  "category": "SECURITY",
+  "country": "US",
+  "priority": "critical",
+  "recipients": {
+    "phone": "+12025550123"
+  },
+  "channels": [
+    {
+      "channel": "sms",
+      "content": {
+        "text": "Your verification code is 849201."
+      }
+    }
+  ]
+}'`,
+      py: `import os
+from convey import Convey
 
-convey = ConveyClient(
-    api_key="cv_live_sec_key_99218",
-    encryption_key="master_aes_256_hex_key"
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
 )
 
-async def send_hipaa_notification(phone: str, rx_id: str):
-    return await convey.messages.send(
-        channel="sms",
-        recipient=phone,
-        content={"body": f"Prescription #{rx_id} is ready."},
-        metadata={"hipaaCompliance": True}
-    )`,
+response = client.messages.send(
+    channel='SMS',
+    recipient='+12025550123',
+    priority='CRITICAL',
+    category='SECURITY',
+    content={'body': 'Your verification code is 849201.'},
+    idempotency_key='otp-challenge-482',
+)
+print(response.message_id, response.state)`,
     },
     expectedResponse: {
       status: '202 ACCEPTED',
-      latency: '1.4ms',
-      trace: '00-77a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2-11e2b4d5e6f7a8b9-01',
-      body: '{\n  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",\n  "status": "ACCEPTED",\n  "encryptedAtRest": true,\n  "keyVersion": "v2"\n}',
+      latency: 'Variable',
+      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      body: '{\n  "messageId": "msg_01ARZ3NDEKTSV4RRFFQ69G5FAV",\n  "state": "accepted",\n  "createdAt": "2026-10-10T09:00:00.000Z"\n}',
+    },
+  },
+  {
+    id: 'whatsapp-cost-saver',
+    title: '2. WhatsApp Template Submission',
+    shortTitle: 'WhatsApp Template',
+    category: 'API Example',
+    icon: DollarSign,
+    color: 'emerald',
+    badge: 'Pre-release contract',
+    slaBenefit: 'Provider eligibility and actual fees require separate verification.',
+    description:
+      'Submit a template for a configured WhatsApp provider. Optional session conversion needs enabled provider configuration, a tracked reply, and available template body text.',
+    languages: {
+      ts: `import { Convey } from '@convey/sdk';
+
+const convey = new Convey({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'http://localhost:3000',
+  teamId: 'orders', // Must match the authenticated key
+});
+
+const response = await convey.messages.send({
+  "channel": "WHATSAPP",
+  "recipient": "+12025550123",
+  "content": {
+    "templateId": "shipping_update_v2",
+    "variables": {
+      "orderId": "482"
+    }
+  },
+  "idempotencyKey": "shipping-482"
+});
+console.log(response.messageId, response.state);`,
+      curl: `curl -X POST http://localhost:3000/v1/messages \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+  "idempotencyKey": "shipping-482",
+  "userId": "customer-482",
+  "team": "orders",
+  "category": "TRANSACTIONAL",
+  "country": "US",
+  "priority": "transactional",
+  "recipients": {
+    "whatsapp": "+12025550123"
+  },
+  "channels": [
+    {
+      "channel": "whatsapp",
+      "content": {
+        "template": "shipping_update_v2",
+        "variables": {
+          "orderId": "482"
+        }
+      }
+    }
+  ]
+}'`,
+      py: `import os
+from convey import Convey
+
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
+)
+
+response = client.messages.send(
+    channel='WHATSAPP',
+    recipient='+12025550123',
+    content={'templateId': 'shipping_update_v2', 'variables': {'orderId': '482'}},
+    idempotency_key='shipping-482',
+)
+print(response.message_id, response.state)`,
+    },
+    expectedResponse: {
+      status: '202 ACCEPTED',
+      latency: 'Variable',
+      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      body: '{\n  "messageId": "msg_01ARZ3NDEKTSV4RRFFQ69G5FAV",\n  "state": "accepted",\n  "createdAt": "2026-10-10T09:00:00.000Z"\n}',
+    },
+  },
+  {
+    id: 'drr-bulk-broadcast',
+    title: '3. Bulk Email Acceptance',
+    shortTitle: 'Bulk Email',
+    category: 'API Example',
+    icon: Flame,
+    color: 'amber',
+    badge: 'Pre-release contract',
+    slaBenefit: 'Bulk responses contain total and items; each item is an acceptance result.',
+    description:
+      'Submit up to 500 message requests per bulk call. Every item has its own channel content, recipients, and idempotency key. Queue processing and provider delivery happen later.',
+    languages: {
+      ts: `import { Convey } from '@convey/sdk';
+
+const convey = new Convey({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'http://localhost:3000',
+  teamId: 'orders', // Must match the authenticated key
+});
+
+const response = await convey.messages.sendBulk([
+  {
+    "channel": "EMAIL",
+    "recipient": "one@example.test",
+    "priority": "LOW",
+    "content": {
+      "subject": "Product Update",
+      "body": "Here is our latest update."
+    },
+    "idempotencyKey": "newsletter-0"
+  },
+  {
+    "channel": "EMAIL",
+    "recipient": "two@example.test",
+    "priority": "LOW",
+    "content": {
+      "subject": "Product Update",
+      "body": "Here is our latest update."
+    },
+    "idempotencyKey": "newsletter-1"
+  }
+]);
+console.log(response.total, response.items);`,
+      curl: `curl -X POST http://localhost:3000/v1/messages/bulk \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+  "messages": [
+    {
+      "idempotencyKey": "newsletter-0",
+      "userId": "customer-482",
+      "team": "orders",
+      "category": "TRANSACTIONAL",
+      "country": "US",
+      "priority": "marketing",
+      "recipients": {
+        "email": "one@example.test"
+      },
+      "channels": [
+        {
+          "channel": "email",
+          "content": {
+            "subject": "Product Update",
+            "text": "Here is our latest update."
+          }
+        }
+      ]
+    },
+    {
+      "idempotencyKey": "newsletter-1",
+      "userId": "customer-482",
+      "team": "orders",
+      "category": "TRANSACTIONAL",
+      "country": "US",
+      "priority": "marketing",
+      "recipients": {
+        "email": "two@example.test"
+      },
+      "channels": [
+        {
+          "channel": "email",
+          "content": {
+            "subject": "Product Update",
+            "text": "Here is our latest update."
+          }
+        }
+      ]
+    }
+  ]
+}'`,
+      py: `import os
+from convey import Convey
+
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
+)
+
+response = client.messages.send_bulk([{'channel': 'EMAIL', 'recipient': 'one@example.test', 'priority': 'LOW', 'content': {'subject': 'Product Update', 'body': 'Here is our latest update.'}, 'idempotency_key': 'newsletter-0'}, {'channel': 'EMAIL', 'recipient': 'two@example.test', 'priority': 'LOW', 'content': {'subject': 'Product Update', 'body': 'Here is our latest update.'}, 'idempotency_key': 'newsletter-1'}])
+print(response.total)`,
+    },
+    expectedResponse: {
+      status: '202 ACCEPTED',
+      latency: 'Variable',
+      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      body: '{\n  "total": 2,\n  "items": [\n    {\n      "messageId": "msg_01ARZ3NDEKTSV4RRFFQ69G5FAV",\n      "state": "accepted",\n      "createdAt": "2026-10-10T09:00:00.000Z"\n    },\n    {\n      "messageId": "msg_01ARZ3NDEKTSV4RRFFQ69G5FAW",\n      "state": "accepted",\n      "createdAt": "2026-10-10T09:00:00.000Z"\n    }\n  ]\n}',
+    },
+  },
+  {
+    id: 'zero-trust-encryption',
+    title: '4. Encrypted Payload Storage',
+    shortTitle: 'Payload Encryption',
+    category: 'API Example',
+    icon: Lock,
+    color: 'purple',
+    badge: 'Pre-release contract',
+    slaBenefit: 'Configure and protect the server payload encryption key.',
+    description:
+      'Submit a message normally. Server-side encryption protects stored recipients and content; client metadata cannot enable compliance or change server encryption policy.',
+    languages: {
+      ts: `import { Convey } from '@convey/sdk';
+
+const convey = new Convey({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'http://localhost:3000',
+  teamId: 'orders', // Must match the authenticated key
+});
+
+const response = await convey.messages.send({
+  "channel": "SMS",
+  "recipient": "+12025550123",
+  "content": {
+    "body": "Your order is confirmed."
+  },
+  "idempotencyKey": "example-order-482"
+});
+console.log(response.messageId, response.state);`,
+      curl: `curl -X POST http://localhost:3000/v1/messages \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+  "idempotencyKey": "example-order-482",
+  "userId": "customer-482",
+  "team": "orders",
+  "category": "TRANSACTIONAL",
+  "country": "US",
+  "priority": "transactional",
+  "recipients": {
+    "phone": "+12025550123"
+  },
+  "channels": [
+    {
+      "channel": "sms",
+      "content": {
+        "text": "Your order is confirmed."
+      }
+    }
+  ]
+}'`,
+      py: `import os
+from convey import Convey
+
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
+)
+
+response = client.messages.send(
+    channel='SMS',
+    recipient='+12025550123',
+    content={'body': 'Your order is confirmed.'},
+    idempotency_key='example-order-482',
+)
+print(response.message_id, response.state)`,
+    },
+    expectedResponse: {
+      status: '202 ACCEPTED',
+      latency: 'Variable',
+      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      body: '{\n  "messageId": "msg_01ARZ3NDEKTSV4RRFFQ69G5FAV",\n  "state": "accepted",\n  "createdAt": "2026-10-10T09:00:00.000Z"\n}',
     },
   },
   {
     id: 'hedged-ops-alert',
-    title: '5. Critical Ops Incident Escalation with Speculative Hedging',
-    shortTitle: 'Hedged Ops Alerts',
-    category: 'Resilience & Ops',
+    title: '5. Critical Operations Alert',
+    shortTitle: 'Operations Alert',
+    category: 'API Example',
     icon: Zap,
     color: 'rose',
-    badge: 'Tail-Latency Drop',
-    slaBenefit: 'Speculative race at 200ms • Automatic cancellation',
+    badge: 'Pre-release contract',
+    slaBenefit: 'No client routing or hedging field is implied by this example.',
     description:
-      'When an infrastructure alert triggers, Convey speculatively fires a concurrent hedged request to a secondary provider if the primary does not acknowledge within 200ms.',
+      'Submit a Slack alert to a configured channel. Routing, retries, and circuit behavior depend on server configuration and provider readiness.',
     languages: {
       ts: `import { Convey } from '@convey/sdk';
 
-const convey = new Convey({ apiKey: process.env.CONVEY_API_KEY! });
+const convey = new Convey({
+  apiKey: process.env.CONVEY_API_KEY!,
+  baseUrl: 'http://localhost:3000',
+  teamId: 'orders', // Must match the authenticated key
+});
 
-export async function triggerPagerDutyP1Alert(incidentId: string, title: string) {
-  return await convey.messages.send({
-    channel: 'SLACK',
-    recipient: 'C0891234567',
-    priority: 'CRITICAL',
-    content: {
-      body: \`🚨 P1 CRITICAL INCIDENT #\${incidentId}: \${title}\`,
-    },
-    metadata: { incidentId, severity: 'P1' },
-  });
-}`,
-      curl: `curl -X POST https://api.convey.internal/v1/messages/send \\
-  -H "Authorization: Bearer cv_live_sec_key_99218" \\
+const response = await convey.messages.send({
+  "channel": "SLACK",
+  "recipient": "C0123456789",
+  "priority": "CRITICAL",
+  "content": {
+    "body": "Operations alert: inspect database connection usage."
+  },
+  "idempotencyKey": "ops-alert-482"
+});
+console.log(response.messageId, response.state);`,
+      curl: `curl -X POST http://localhost:3000/v1/messages \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "channel": "chat",
-    "recipient": "pagerduty:service_key_prd_991",
-    "priority": "HIGH",
-    "content": { "body": "🚨 P1 Incident: Database pool saturation" },
-    "routing": {
-      "strategy": "HEDGED_SPECULATIVE",
-      "hedgedDelayMs": 200,
-      "fallbackChain": ["pagerduty", "slack_ops", "twilio_voice"]
+  "idempotencyKey": "ops-alert-482",
+  "userId": "customer-482",
+  "team": "orders",
+  "category": "TRANSACTIONAL",
+  "country": "US",
+  "priority": "critical",
+  "recipients": {
+    "slack": {
+      "channelId": "C0123456789"
     }
-  }'`,
-      py: `from convey import ConveyClient, MessagePriority
+  },
+  "channels": [
+    {
+      "channel": "slack",
+      "content": {
+        "text": "Operations alert: inspect database connection usage."
+      }
+    }
+  ]
+}'`,
+      py: `import os
+from convey import Convey
 
-convey = ConveyClient(api_key="cv_live_sec_key_99218")
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
+)
 
-async def send_p1_alert(incident_id: str, desc: str):
-    return await convey.messages.send(
-        channel="chat",
-        recipient="pagerduty:service_key_prd_991",
-        priority=MessagePriority.HIGH,
-        content={"body": f"🚨 P1: {desc}"},
-        routing={"strategy": "HEDGED_SPECULATIVE", "hedged_delay_ms": 200}
-    )`,
+response = client.messages.send(
+    channel='SLACK',
+    recipient='C0123456789',
+    priority='CRITICAL',
+    content={'body': 'Operations alert: inspect database connection usage.'},
+    idempotency_key='ops-alert-482',
+)
+print(response.message_id, response.state)`,
     },
     expectedResponse: {
       status: '202 ACCEPTED',
-      latency: '0.8ms',
-      trace: '00-00f067aa0ba902b74bf92f3577b34da6-a3ce929d0e0e4736-01',
-      body: '{\n  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",\n  "status": "ACCEPTED",\n  "strategy": "HEDGED_SPECULATIVE",\n  "hedgedDelayMs": 200\n}',
+      latency: 'Variable',
+      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      body: '{\n  "messageId": "msg_01ARZ3NDEKTSV4RRFFQ69G5FAV",\n  "state": "accepted",\n  "createdAt": "2026-10-10T09:00:00.000Z"\n}',
     },
   },
   {
     id: 'webhook-dlr-ingestion',
-    title: '6. Inbound Webhook Delivery Receipt Ingestion (HMAC Verification)',
-    shortTitle: 'Webhook DLR Ingestion',
-    category: 'Telemetry & Tracking',
+    title: '6. Signed Customer Webhook Verification',
+    shortTitle: 'Webhook Verification',
+    category: 'API Example',
     icon: Activity,
     color: 'cyan',
-    badge: '52,000 DLR/s Buffer',
-    slaBenefit: 'HMAC-SHA256 verified • Micro-batch database commit',
+    badge: 'Pre-release contract',
+    slaBenefit: 'The cURL tab creates a subscription; SDK tabs illustrate receiver verification.',
     description:
-      'Verify cryptographic signatures for inbound carrier webhooks (SendGrid, Twilio, WhatsApp). Micro-batch pipeline buffers up to 52,000 events/s with zero dropped receipts.',
+      'Verify the exact raw bytes of Convey customer events before parsing. Deduplicate event IDs and handle out-of-order outcomes. Provider ingress uses vendor-specific signature schemes.',
     languages: {
       ts: `import { Convey } from '@convey/sdk';
 
-export async function handleDeliveryWebhook(req: Request) {
-  const signature = req.headers.get('x-convey-signature') || '';
-  const rawBody = await req.text();
-
-  // 1. Constant-time cryptographic HMAC-SHA256 signature verification & deserialization
+export async function POST(request: Request) {
+  const rawBody = await request.text();
+  const signature = request.headers.get('x-convey-signature') || '';
   const event = await Convey.webhooks.constructEvent(
-    rawBody,
-    signature,
-    process.env.CONVEY_WEBHOOK_SECRET!,
+    rawBody, signature, process.env.CONVEY_WEBHOOK_SECRET!,
   );
-
-  console.log(\`Delivery receipt for \${event.id}: status = \${event.type}\`);
+  // Persist event.id before acting; duplicate IDs must be skipped.
+  console.log(event.id, event.type);
   return Response.json({ received: true });
 }`,
-      curl: `curl -X POST http://localhost:3000/v1/webhooks/generic \\
+      curl: `curl -X POST http://localhost:3000/v1/webhook-subscriptions \\
+  -H "Authorization: Bearer $CONVEY_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -H "x-convey-signature: sha256=9f8a3c1e2b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f" \\
   -d '{
-    "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",
-    "status": "DELIVERED",
-    "deliveredAt": "2026-08-24T19:50:01.142Z"
-  }'`,
-      py: `from convey.webhooks import WebhookVerifier
+  "url": "https://your-service.example/convey-events",
+  "events": [
+    "message.delivered",
+    "message.failed"
+  ],
+  "secret": "replace-with-a-strong-secret"
+}'`,
+      py: `import os
+from convey import Convey
 
-verifier = WebhookVerifier(secret_key="your_webhook_secret")
+client = Convey(
+    api_key=os.environ["CONVEY_API_KEY"],
+    base_url="http://localhost:3000",
+    team_id="orders",
+)
 
-def process_webhook(raw_payload: bytes, signature_header: str):
-    if not verifier.verify(raw_payload, signature_header):
-        raise PermissionError("Invalid Webhook Signature")
-    return {"status": "verified"}`,
+def verify_event(raw_body: bytes, signature: str):
+    event = client.webhooks.construct_event(
+        raw_body, signature, os.environ["CONVEY_WEBHOOK_SECRET"],
+    )
+    # Persist and deduplicate event.id before applying the event.
+    return event`,
     },
     expectedResponse: {
-      status: '200 OK',
-      latency: '0.2ms',
-      trace: '00-55a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2-33e2b4d5e6f7a8b9-01',
-      body: '{\n  "received": true,\n  "buffered": true,\n  "batchQueue": "flushed_20ms"\n}',
+      status: '200 OK (receiver)',
+      latency: 'Variable',
+      trace: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      body: '{\n  "received": true\n}',
     },
   },
 ];
@@ -405,14 +538,14 @@ export function CodeRecipesSection() {
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            <span>Staff-Level Architecture Recipes</span>
+            <span>Message API Examples</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            Production-Grade Architectural Recipes
+            Examples from the Pre-release Contract
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Copy-pasteable, battle-tested implementation patterns for high-security 2FA OTP, zero-trust HIPAA
-            encryption, WhatsApp cost downgrades, and hedged ops alerts.
+            Examples use repository SDKs and the current message API. Replace local URLs, keys, team IDs, and provider
+            configuration before running; shown responses are illustrative.
           </p>
         </div>
 
@@ -462,21 +595,21 @@ export function CodeRecipesSection() {
               <div className="p-2.5 sm:p-3 rounded-xl bg-sky-500/5 border border-sky-500/20 flex items-start gap-2.5">
                 <Zap className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                 <div className="text-[11px] sm:text-xs text-sky-300 font-mono leading-tight">
-                  <span className="font-bold text-white">SLA Guarantee:</span> {activeRecipe.slaBenefit}
+                  <span className="font-bold text-white">Contract note:</span> {activeRecipe.slaBenefit}
                 </div>
               </div>
 
               {/* Simulated Synchronous Response Box */}
               <div className="space-y-2 pt-2 border-t border-slate-800/80">
                 <div className="flex items-center justify-between text-[11px] font-mono">
-                  <span className="text-slate-400">Synchronous Response:</span>
+                  <span className="text-slate-400">Illustrative Response:</span>
                   <span className="text-emerald-400 font-bold">{activeRecipe.expectedResponse.status}</span>
                 </div>
 
                 <div className="p-2.5 sm:p-3 rounded-xl bg-slate-950 border border-slate-800/80 font-mono text-[11px] space-y-2">
                   <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800/60 pb-1.5">
                     <span>
-                      Latency: <strong className="text-sky-400">{activeRecipe.expectedResponse.latency}</strong>
+                      Timing: <strong className="text-sky-400">{activeRecipe.expectedResponse.latency}</strong>
                     </span>
                     <span className="text-slate-400 truncate ml-2">
                       Trace: {activeRecipe.expectedResponse.trace.slice(0, 14)}...

@@ -51,6 +51,6 @@ The queue uses a deterministic identifier derived from provider, flow and body, 
 
 The production structured logger recursively masks recognized credential and recipient metadata keys. This does not sanitize every possible free-form error string or arbitrary field name. Keep secrets out of log messages.
 
-The repository has payload encryption and DLP utilities. Their presence is not a guarantee that every table, queue, vendor credential or log is encrypted or redacted. `PAYLOAD_ENCRYPTION_KEY` currently has a development fallback: explicitly configure and securely preserve your own key. Key loss may make stored envelopes unreadable. Audit actual storage paths and backups for your deployment rather than relying on the older “zero plaintext” claims.
+The repository has payload encryption and DLP utilities. Their presence is not a guarantee that every table, queue, vendor credential or log is encrypted or redacted. `PAYLOAD_ENCRYPTION_KEY` has a development fallback, but production startup rejects missing, short or default keys. Configure a unique secret of at least 32 characters and securely preserve it; see [payload key management](operations/payload-key-management.md) for versioned key rings and rotation. Key loss may make stored envelopes unreadable. Audit actual storage paths and backups for your deployment rather than relying on the older “zero plaintext” claims.
 
 No legal or regulatory certification is asserted by this project.

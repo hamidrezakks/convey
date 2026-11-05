@@ -10,23 +10,15 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  output: 'standalone',
+  outputFileTracingRoot: path.resolve(__dirname, '../..'),
   transpilePackages: ['@convey/shared'],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  webpack: (config, { webpack }) => {
+  webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': path.resolve(__dirname, 'src'),
       '.source': path.resolve(__dirname, '.source'),
     };
-    config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/^react$/, (resource) => {
-        if (!resource.context.includes('react-shim.js')) {
-          resource.request = path.resolve(__dirname, 'src/lib/react-shim.js');
-        }
-      }),
-    );
     return config;
   },
 };

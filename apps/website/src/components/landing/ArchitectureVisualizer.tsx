@@ -35,133 +35,185 @@ interface StageInfo {
 const stages: StageInfo[] = [
   {
     id: 1,
-    name: '1. Client API Ingestion',
-    shortName: 'Client Ingestion',
+    name: '1. Authenticated Message Ingestion',
+    shortName: 'API Ingestion',
     icon: Server,
     color: 'sky',
-    badge: 'Synchronous Fast-Path',
-    latency: '0.4ms',
+    badge: 'Request Validation',
+    latency: 'Varies',
     description:
-      'Client issues an HTTP POST with W3C traceparent header and Idempotency-Key. Elysia.js performs sub-millisecond TypeBox schema validation and DLP redaction for sensitive fields.',
-    codeSnippet: `POST /v1/messages/send
-Idempotency-Key: ord_99218_dispatch
-traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+      'The API verifies stored credential scope and validates the full message request. This schematic omits implementation detail; stage timings are not measurements.',
+    codeSnippet: `POST /v1/messages
+Authorization: Bearer <CONVEY_API_KEY>
+Content-Type: application/json
 
 {
-  "channel": "sms",
-  "recipient": "+14155552671",
-  "content": { "body": "Auth code: 849201" }
+  "idempotencyKey": "order-482",
+  "userId": "customer-482",
+  "team": "orders",
+  "category": "TRANSACTIONAL",
+  "country": "US",
+  "priority": "normal",
+  "recipients": {
+    "phone": "+12025550123"
+  },
+  "channels": [
+    {
+      "channel": "sms",
+      "content": {
+        "text": "Order confirmed."
+      }
+    }
+  ]
 }`,
     metrics: [
-      { label: 'Schema Validation', value: '< 0.05ms' },
-      { label: 'DLP Redaction', value: '656k ops/s' },
+      {
+        label: 'Scope',
+        value: 'Stored identity',
+      },
+      {
+        label: 'Contract',
+        value: 'Full wire payload',
+      },
     ],
   },
   {
     id: 2,
-    name: '2. 1-RTT DragonflyDB Idempotency',
-    shortName: 'DragonflyDB 1-RTT',
+    name: '2. Scoped Idempotency Reservation',
+    shortName: 'Idempotency',
     icon: Zap,
     color: 'cyan',
-    badge: 'Multi-Threaded SET NX',
-    latency: '0.05ms',
+    badge: '24h Default Retention',
+    latency: 'Varies',
     description:
-      'IdempotencyService executes an atomic DragonflyDB SET key value EX 86400 NX call across shared-nothing worker threads. Concurrent requests receive the cached 202 response with sub-millisecond p99 latency.',
-    codeSnippet: `// 1-RTT Fast Path on DragonflyDB (Multi-Threaded Shared-Nothing)
-const acquired = await redis.set(
-  \`idemp:\${teamId}:\${idempotencyKey}\`,
-  JSON.stringify({ status: 'ACCEPTED', publicId }),
-  'EX', 86400,
-  'NX'
-);`,
+      'An atomic Redis-compatible SET NX reserves a team and sandbox-scoped key with a payload hash. Completed matching requests replay the saved response; in-progress or conflicting requests return 409.',
+    codeSnippet: `// Schematic: scope and hash are computed by the service.
+SET <team + sandbox + key> <processing record> EX 86400 NX
+
+// After durable acceptance, save the original response.
+// Key-store loss or TTL expiration changes replay guarantees.`,
     metrics: [
-      { label: 'DragonflyDB Rate', value: '501k ops/s' },
-      { label: 'Race Contention', value: 'Zero Lock Jitter' },
+      {
+        label: 'Identical completed request',
+        value: 'Saved response',
+      },
+      {
+        label: 'Different / pending request',
+        value: '409 conflict',
+      },
     ],
   },
   {
     id: 3,
-    name: '3. PostgreSQL 18 Range Partition',
-    shortName: 'Postgres 18 Partition',
+    name: '3. PostgreSQL Message & Outbox Transaction',
+    shortName: 'PostgreSQL Commit',
     icon: Database,
     color: 'emerald',
-    badge: 'ACID Transaction',
-    latency: '1.4ms',
+    badge: 'Durable Acceptance',
+    latency: 'Varies',
     description:
-      'A single ACID transaction inserts the AES-256-GCM encrypted record into messages and enqueues a row in the outbox ledger. PostgreSQL 18 monthly range partitioning avoids table lock contention.',
-    codeSnippet: `await db.transaction(async (tx) => {
-  // 1. Insert immutable encrypted message in PostgreSQL 18
-  await tx.insert(messages).values({ publicId, ...envelope });
-  // 2. Insert transactional outbox record
-  await tx.insert(outbox).values({ publicId, shardId, status: 'PENDING' });
-});`,
+      'Message acceptance commits the encrypted payload and outbox row in one PostgreSQL transaction. HTTP 202 identifies accepted work; it does not certify provider acceptance or recipient delivery.',
+    codeSnippet: `// Schematic transaction, not a complete SQL statement.
+BEGIN;
+  INSERT INTO messages (...);
+  INSERT INTO outbox (...);
+COMMIT;
+
+// Return { messageId: "msg_<ULID>", state, createdAt }`,
     metrics: [
-      { label: 'Transaction Time', value: '1.2ms - 2.1ms' },
-      { label: 'Partition Engine', value: 'PostgreSQL 18' },
+      {
+        label: 'Storage',
+        value: 'Messages + outbox',
+      },
+      {
+        label: 'Response',
+        value: '202 accepted',
+      },
     ],
   },
   {
     id: 4,
-    name: '4. SIMD Sharded Outbox Relay',
-    shortName: 'SIMD Shard Relay',
+    name: '4. Sharded Outbox Relay',
+    shortName: 'Outbox Relay',
     icon: Cpu,
     color: 'purple',
-    badge: '5.2M ops/s',
-    latency: '0.001ms',
+    badge: 'SKIP LOCKED',
+    latency: 'Varies',
     description:
-      'Outbox Relay worker polls virtual shards using native SIMD Murmur32v3 hashing and FOR UPDATE SKIP LOCKED. Multiple worker pods process disjoint partitions without row locks.',
-    codeSnippet: `// SIMD Murmur32v3 Fast Sharding
-const shard = (Bun.hash.murmur32v3(publicId) >>> 0) % 16;
+      'The relay claims ready rows by virtual shard, publishes deterministic jobs, and marks rows processed after enqueueing. Expired claims can be retried; locking and recovery still depend on the stores.',
+    codeSnippet: `// Shard key uses tenant and message identifiers.
+const shard = (Bun.hash.murmur32v3(\`\${tenantId}:\${messageId}\`) >>> 0) % 16;
 
-SELECT * FROM outbox 
-WHERE shard_id = $1 AND status = 'PENDING'
-ORDER BY created_at ASC LIMIT 100 
-FOR UPDATE SKIP LOCKED;`,
+// Simplified selection; recovery also considers expired claims.
+SELECT * FROM outbox
+WHERE shard_id = $1 AND state = 'pending'
+  AND available_at <= now()
+ORDER BY available_at ASC
+LIMIT 250 FOR UPDATE SKIP LOCKED;`,
     metrics: [
-      { label: 'Shard Hashing', value: '5,258,082 ops/s' },
-      { label: 'Lock Contention', value: '0% (SKIP LOCKED)' },
+      {
+        label: 'Virtual shards',
+        value: '16 by default',
+      },
+      {
+        label: 'Row claims',
+        value: 'Bounded batches',
+      },
     ],
   },
   {
     id: 5,
-    name: '5. BullMQ Multi-Tenant DRR',
-    shortName: 'BullMQ DRR Queue',
+    name: '5. Asynchronous Queue Processing',
+    shortName: 'Queue Processing',
     icon: Activity,
     color: 'amber',
-    badge: 'JFI >= 0.95',
-    latency: '1.2ms',
+    badge: 'BullMQ Workers',
+    latency: 'Varies',
     description:
-      'Messages enter Deficit Weighted Round Robin queues. Enterprise tenants (quantum = 200) receive guaranteed bandwidth without starvation from high-volume Free tier tenants.',
-    codeSnippet: `// Deficit Round Robin Arbitration
-while (deficit[tenantId] >= messageSize) {
-  const job = queue.dequeue(tenantId);
-  await dispatchWorker.process(job);
-  deficit[tenantId] -= messageSize;
-}`,
+      'Workers process accepted jobs with priority, scheduling, policy checks, and bounded retries. Near-term work uses BullMQ; longer schedules remain in PostgreSQL until promotion.',
+    codeSnippet: `// Schematic scheduling boundary
+execution within 30 minutes -> BullMQ
+execution beyond 30 minutes -> PostgreSQL schedule
+
+// Scheduling accepts future work.
+// It is not an exact delivery-time promise.`,
     metrics: [
-      { label: 'Fairness Index', value: 'JFI = 0.982' },
-      { label: 'Max Concurrency', value: 'Backlog-adaptive' },
+      {
+        label: 'Delivery timing',
+        value: 'Deployment dependent',
+      },
+      {
+        label: 'Retry behavior',
+        value: 'Bounded',
+      },
     ],
   },
   {
     id: 6,
-    name: '6. Provider Hedged Dispatch',
-    shortName: 'Hedged Provider Wire',
+    name: '6. Provider Dispatch & Subsequent Outcomes',
+    shortName: 'Provider Dispatch',
     icon: Radio,
     color: 'rose',
-    badge: 'Stepped Half-Open',
-    latency: '120ms',
+    badge: 'Adapter Readiness',
+    latency: 'Varies',
     description:
-      'Payload is decrypted in-memory. Stepped half-open circuit breaker evaluates provider health (5% ➔ 20% ➔ 50% ➔ 100%). Speculative hedged requests drop p99 tail-latency.',
-    codeSnippet: `// Dynamic Speculative Hedged Request
-const result = await hedgedExecutor.execute({
-  primary: () => twilio.send(payload),
-  fallback: () => vonage.send(payload),
-  hedgeDelayMs: 250 // Fire sibling if primary p95 exceeded
-});`,
+      'A configured, available adapter sends to the provider. Signed receipts and status queries record subsequent outcomes where supported. Timeouts can leave acceptance uncertain, and retries may duplicate delivery.',
+    codeSnippet: `// Schematic lifecycle
+accepted -> queued -> sending
+
+provider response / receipt -> subsequent outcome
+
+// Adapter presence is not live certification.
+// Query status or verify signed customer events.`,
     metrics: [
-      { label: 'Tail Latency Drop', value: '-65% p99' },
-      { label: 'Circuit Breaker', value: 'Stepped Ramp' },
+      {
+        label: 'Provider availability',
+        value: 'Readiness gated',
+      },
+      {
+        label: 'Delivery evidence',
+        value: 'Provider specific',
+      },
     ],
   },
 ];
@@ -193,11 +245,11 @@ export function ArchitectureVisualizer() {
             <span>Interactive Dataflow Simulator</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            How Convey Guarantees Sub-15ms Ingestion & Zero Message Loss
+            From Durable Acceptance to Provider Outcomes
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Step through Convey’s 6-stage distributed pipeline from synchronous client ingestion to hedged provider wire
-            delivery.
+            Step through a schematic of the service pipeline. This animation does not execute work or measure timing;
+            qualification currently covers one regional deployment with mock providers.
           </p>
         </div>
 
@@ -268,7 +320,7 @@ export function ArchitectureVisualizer() {
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                   <Clock className="w-3.5 h-3.5 text-sky-400" />
                   <span>
-                    Execution Time: <strong className="text-slate-200">{current.latency}</strong>
+                    Stage Timing: <strong className="text-slate-200">{current.latency}</strong>
                   </span>
                 </div>
               </div>
@@ -357,9 +409,9 @@ export function ArchitectureVisualizer() {
           {/* Right Code / Execution Block */}
           <div className="lg:col-span-6 rounded-xl border border-slate-800 bg-[#070b12] overflow-hidden flex flex-col shadow-inner">
             <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
-              <span className="text-slate-300 font-medium text-xs">Stage Implementation</span>
+              <span className="text-slate-300 font-medium text-xs">Schematic Implementation</span>
               <Badge variant="outline" size="sm" className="text-[10px]">
-                Bun 1.4 Native
+                Illustrative Flow
               </Badge>
             </div>
             <pre className="p-3 sm:p-4 text-[11px] sm:text-xs font-mono text-slate-200 overflow-x-auto touch-scroll leading-relaxed m-0 flex-1">

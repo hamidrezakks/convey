@@ -10,56 +10,50 @@ interface ProviderItem {
   channel: 'email' | 'sms' | 'whatsapp' | 'push' | 'chat' | 'tool';
   authType: string;
   capabilities: string[];
-  latencyP95: string;
-  status: 'ACTIVE' | 'CIRCUIT_CLOSED' | 'SANDBOX_READY';
+  status: string;
 }
 
 const featuredProviders: ProviderItem[] = [
   // Email
   {
-    id: 'aws-ses',
+    id: 'ses',
     name: 'AWS SES v2',
     channel: 'email',
     authType: 'IAM SigV4',
-    capabilities: ['Templates', 'Dedicated IPs', 'Open Tracking', 'DKIM/SPF'],
-    latencyP95: '45ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'resend',
     name: 'Resend',
     channel: 'email',
     authType: 'API Key',
-    capabilities: ['React Email', 'Webhooks', 'Batching', 'Analytics'],
-    latencyP95: '38ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'sendgrid',
     name: 'Twilio SendGrid',
     channel: 'email',
     authType: 'Bearer Token',
-    capabilities: ['Dynamic Templates', 'Inbound Parse', 'Warmup Curves'],
-    latencyP95: '52ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'postmark',
     name: 'Postmark',
     channel: 'email',
     authType: 'Server Token',
-    capabilities: ['Transactional Fast-Path', 'Templates', 'Webhooks'],
-    latencyP95: '28ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'mailgun',
     name: 'Mailgun',
     channel: 'email',
     authType: 'Basic Auth',
-    capabilities: ['Validation API', 'Mailing Lists', 'Templates'],
-    latencyP95: '58ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   // SMS
   {
@@ -67,64 +61,57 @@ const featuredProviders: ProviderItem[] = [
     name: 'Twilio SMS',
     channel: 'sms',
     authType: 'Basic SID/AuthToken',
-    capabilities: ['GSM-7 / UCS-2', 'Alphanumeric Sender', 'Delivery Receipts'],
-    latencyP95: '120ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
-    id: 'vonage',
+    id: 'nexmo',
     name: 'Vonage (Nexmo)',
     channel: 'sms',
     authType: 'API Key/Secret',
-    capabilities: ['Adaptive Routing', 'Global Carrier Binding', '2-Way SMS'],
-    latencyP95: '115ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'plivo',
     name: 'Plivo SMS',
     channel: 'sms',
     authType: 'Auth ID/Token',
-    capabilities: ['Powerpack Pool', 'MMS Media', 'Auto-Shortening'],
-    latencyP95: '135ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'messagebird',
     name: 'MessageBird (Bird)',
     channel: 'sms',
     authType: 'Access Key',
-    capabilities: ['Conversations API', 'Omnichannel Ingress', 'Shortcodes'],
-    latencyP95: '140ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'infobip',
     name: 'Infobip',
     channel: 'sms',
     authType: 'API Key',
-    capabilities: ['Enterprise High-Throughput', 'Flash SMS', 'HLR Lookup'],
-    latencyP95: '110ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   // WhatsApp
   {
-    id: 'meta-whatsapp',
+    id: 'whatsapp-business',
     name: 'Meta WhatsApp Cloud API',
     channel: 'whatsapp',
     authType: 'Graph API Bearer',
-    capabilities: ['24h Session Optimization ($0.00)', 'Interactive Buttons', 'HSM Templates'],
-    latencyP95: '95ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'twilio-whatsapp',
     name: 'Twilio WhatsApp',
     channel: 'whatsapp',
     authType: 'Basic SID/AuthToken',
-    capabilities: ['Content Templates', 'Location Messages', 'Media Attachments'],
-    latencyP95: '145ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   // Push
   {
@@ -132,27 +119,24 @@ const featuredProviders: ProviderItem[] = [
     name: 'Firebase Cloud Messaging (FCM v1)',
     channel: 'push',
     authType: 'Google Service Account',
-    capabilities: ['HTTP v1 Protocol', 'Data Payloads', 'Topic Multicast'],
-    latencyP95: '65ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'apns',
     name: 'Apple APNs',
     channel: 'push',
     authType: 'JWT Token (P8)',
-    capabilities: ['HTTP/2 Direct', 'Live Activities', 'VoIP Push'],
-    latencyP95: '48ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
-    id: 'onesignal',
+    id: 'one-signal',
     name: 'OneSignal',
     channel: 'push',
     authType: 'REST API Key',
-    capabilities: ['Cross-Platform Push', 'In-App Messages', 'Segmentation'],
-    latencyP95: '85ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   // Chat
   {
@@ -160,27 +144,24 @@ const featuredProviders: ProviderItem[] = [
     name: 'Slack',
     channel: 'chat',
     authType: 'OAuth2 Bot Token',
-    capabilities: ['Block Kit Visuals', 'Interactive Modals', 'Threads'],
-    latencyP95: '80ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'discord',
     name: 'Discord Webhooks',
     channel: 'chat',
     authType: 'Webhook Token',
-    capabilities: ['Embed Cards', 'TTS Messages', 'File Uploads'],
-    latencyP95: '75ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
   {
     id: 'telegram',
     name: 'Telegram Bot API',
     channel: 'chat',
     authType: 'Bot Token',
-    capabilities: ['MarkdownV2', 'Inline Keyboards', 'Voice & Audio'],
-    latencyP95: '62ms',
-    status: 'ACTIVE',
+    capabilities: ['Adapter entry', 'See readiness and contract coverage'],
+    status: 'Catalog',
   },
 ];
 
@@ -204,14 +185,14 @@ export function ProviderMatrixSection() {
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <Badge variant="primary" size="md">
             <Radio className="w-3.5 h-3.5" />
-            <span>Turnkey Ecosystem</span>
+            <span>Provider Catalog</span>
           </Badge>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white font-display tracking-tight">
-            88+ Turnkey Providers with Smart Fallbacks
+            Provider Adapters & Readiness Gates
           </h2>
           <p className="text-xs sm:text-base text-slate-400">
-            Plug-and-play integrations across Email, SMS, WhatsApp, Push, and Chat. Automated stepped half-open circuit
-            breakers protect your infrastructure during upstream outages.
+            Browse selected adapter entries across Email, SMS, WhatsApp, Push, and Chat. Catalog presence does not
+            certify live delivery or optional features; 20 incomplete native adapters remain unavailable.
           </p>
         </div>
 
@@ -276,7 +257,7 @@ export function ProviderMatrixSection() {
 
                 <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span>p95 {provider.latencyP95}</span>
+                  <span>{provider.status}</span>
                 </div>
               </div>
 
@@ -296,7 +277,7 @@ export function ProviderMatrixSection() {
                   <Lock className="w-3 h-3 text-slate-500 shrink-0" />
                   <span className="truncate">Auth: {provider.authType}</span>
                 </span>
-                <span className="text-sky-400 font-medium shrink-0">Circuit: CLOSED</span>
+                <span className="text-sky-400 font-medium shrink-0">Live state unavailable</span>
               </div>
             </div>
           ))}

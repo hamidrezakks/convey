@@ -1,478 +1,238 @@
-# Convey REST API Specification & Master Reference Manual
+# Convey REST API Reference
 
-The Convey REST API provides sub-15ms synchronous message acceptance, high-throughput bulk dispatch, real-time message status lookups, audit timelines, customer webhook subscriptions, suppression management, dead-letter queue (DLQ) operations, provider webhook ingestion, admin mission control management, and Kubernetes/Prometheus observability probes.
+This reference describes the current pre-release server. Acceptance is durable enqueueing, not delivery, and no public latency SLA or hosted API availability is implied. See the [V1 contract candidate](operations/v1-contracts.md), [access matrix](operations/api-access-matrix.md), and [qualification evidence](operations/v1-qualification.md).
 
----
+The local server defaults to `http://localhost:3000`; change the origin for your deployment. API routes start with `/v1`. Interactive OpenAPI documentation is at `/swagger`. SDKs receive the server origin as their base URL and append resource paths themselves.
 
-## Authorization & Standard Headers
-
-All tenant API endpoints require standard JSON headers and Bearer token authentication (when `CONVEY_REQUIRE_AUTH=true`):
+## Authentication and request scope
 
 ```http
+Authorization: Bearer <api-key>
 Content-Type: application/json
-Authorization: Bearer <api_key>
-X-Idempotency-Key: <unique_client_key>  (Optional, recommended on all POST endpoints)
-traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01  (Optional, W3C TraceContext)
+traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 ```
 
-### Rate-Limiting & Telemetry Headers
-Every response includes standard rate-limiting and tracing metadata:
-- `traceparent`: W3C Distributed TraceContext header.
-- `X-RateLimit-Limit`: Maximum requests permitted per window.
-- `X-RateLimit-Remaining`: Remaining requests in current window.
-- `X-RateLimit-Reset`: UNIX epoch timestamp when window resets.
+`traceparent` is optional. Tenant credentials carry stored tenant, team, role, and sandbox scope. A request cannot grant itself access by setting a team header or body field. Production requires authentication; local development can bypass it only when configured. Admin platform writes require appropriate platform scope. `GET /v1/auth/session` returns the authenticated session's scope.
 
----
+Sandbox-only credentials always select sandbox execution. An authorized key can also request it with `X-Convey-Sandbox: true` or `X-Convey-Environment: sandbox`. Sandbox is derived from authentication and headers, not from an `isSandbox` field in the send body. Sandbox keys cannot access shared configuration resources.
 
-## 1. Messaging Endpoints (`/v1/messages`)
+Message idempotency uses the required `idempotencyKey` **body field**. Within retained evidence (24 hours by default), the same scoped key and payload replay the saved response; different payloads conflict. In-progress reservations also conflict. Retention expiry or queue-store loss can invalidate retained evidence. There is no exactly-once guarantee across third-party provider networks.
 
-### 1.1 Ingest Single Message (`POST /v1/messages`)
-Accepts a multi-channel notification request into the transactional outbox pipeline within **`< 15ms`**.
+## Messages
 
-#### Request Body (`SendMessageRequestSchema`)
+### Send: `POST /v1/messages`
+
 ```json
 {
-  "idempotencyKey": "order_conf_10928",
-  "userId": "usr_99182",
+  "idempotencyKey": "order-10928-confirmation",
+  "userId": "customer-42",
   "team": "payments",
   "category": "transactional",
-  "country": "AE",
-  "priority": "critical",
-  "scheduledAt": "2026-08-16T23:00:00.000Z",
-  "expiresAt": "2026-08-17T00:00:00.000Z",
-  "isSandbox": false,
-  "recipients": {
-    "email": "customer@example.com",
-    "phone": "+971501234567",
-    "whatsapp": "+971501234567",
-    "fcmTokens": ["fcm_device_token_abc123"]
-  },
-  "channels": [
-    {
-      "channel": "whatsapp",
-      "content": {
-        "template": "payment_confirmed",
-        "variables": { "amount": "250.00 AED", "orderId": "ORD-10928" }
-      }
-    },
-    {
-      "channel": "email",
-      "content": {
-        "subject": "Payment Confirmation - Order #ORD-10928",
-        "html": "<h1>Thank you for your order!</h1><p>Your payment of 250.00 AED was successful.</p>",
-        "text": "Your payment of 250.00 AED for order #ORD-10928 was successful."
-      }
+  "country": "US",
+  "priority": "transactional",
+  "recipients": { "email": "customer@example.com" },
+  "channels": [{
+    "channel": "email",
+    "content": {
+      "subject": "Order confirmed",
+      "text": "Your order 10928 is confirmed."
     }
-  ],
-  "fallback": {
-    "enabled": true,
-    "strategy": "waterfall",
-    "rules": [
-      {
-        "when": { "channel": "whatsapp", "event": "failed" },
-        "send": [{ "channel": "sms", "provider": "twilio" }]
-      }
-    ]
-  },
-  "metadata": {
-    "orderId": "10928",
-    "internalCustomerId": "cust_881273"
+  }],
+  "metadata": { "orderId": "10928" }
+}
+```
+
+Required fields: nonempty `idempotencyKey`, `userId`, `team`, `category`, a two-character `country`, `recipients`, and at least one entry in `channels`. Priority defaults to `normal`; accepted wire priorities are `critical`, `transactional`, `normal`, and `marketing`. Recipient validity and routing configuration must fit the selected channel.
+
+| Channel | Recipient | Content |
+| :--- | :--- | :--- |
+| `email` | `recipients.email` | Required `subject`; optional `html`, `text`, `render` |
+| `sms` | `recipients.phone` | Required `text` |
+| `whatsapp` | `recipients.whatsapp` | Optional `text`, `template`, `language`, `variables`; usable payload depends on the provider |
+| `telegram` | `recipients.telegramChatId` | Required `text`; optional `parseMode` (`HTML`, `MarkdownV2`) |
+| `slack` | `recipients.slack.channelId` | Required `text`; optional `blocks` |
+| `fcm` | `recipients.fcmTokens` | Required `title`, `body`; optional string-valued `data` |
+| `apns` | `recipients.apnsTokens` | Required `title`, `body`; optional `badge`, `sound`, `data` |
+
+These are accepted send channel discriminators. A provider catalog entry or SDK enum does not add another accepted REST channel. Check [provider capability evidence](operations/provider-capability-matrix.md) separately from the schema.
+
+Optional message fields include `campaignId`, `scheduledAt`, `expiresAt`, `template`, `variables`, `fallback`, `cascade`, and `metadata`. Scheduling and expiry use ISO timestamps. `template` is an inline object with fields such as `subject`, `html`, or `text`; email `content.render` uses a registered template name plus optional version, locale, and props.
+
+Successful immediate acceptance returns `202`:
+
+```json
+{
+  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
+  "state": "accepted",
+  "createdAt": "2026-10-10T12:00:00.000Z"
+}
+```
+
+Explicitly future-scheduled requests return `state: "scheduled"` and `scheduledAt`. They are accepted for future processing, without a promise of exact delivery time. Public message identifiers are opaque `msg_<ULID>` values.
+
+### Bulk: `POST /v1/messages/bulk`
+
+The body is `{ "messages": [<complete send request>, ...] }`, with **1–500 items**. The controller also accepts a top-level array. Each message needs its own idempotency key and all required send fields. There is no shared top-level channel or priority.
+
+The `202` envelope contains each item's outcome, including errors:
+
+```json
+{
+  "total": 1,
+  "items": [{
+    "index": 0,
+    "statusCode": 202,
+    "body": {
+      "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
+      "state": "accepted",
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  }]
+}
+```
+
+Inspect each `statusCode` and `body`; the outer HTTP status is not proof that every item was accepted. Invalid request schemas fail before processing. SDK bulk wrappers currently normalize these outcomes and may discard error details; use raw REST responses when partial failure reporting matters.
+
+### Inspect a message
+
+- `GET /v1/messages/:messageId`: aggregate state plus channel summaries.
+- `GET /v1/messages/:messageId?include=timeline`: include chronological events. The current query check is exactly `include=timeline`.
+- `GET /v1/messages/:messageId/timeline`: return `{ messageId, timeline }`.
+- `GET /v1/messages/:messageId/trace`: return the delivery summary and `waterfall` spans.
+
+An initial status response can look like:
+
+```json
+{
+  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
+  "state": "accepted",
+  "userId": "customer-42",
+  "team": "payments",
+  "category": "transactional",
+  "country": "US",
+  "createdAt": "2026-10-10T12:00:00.000Z",
+  "channels": [{ "channel": "email", "state": "accepted", "providerAttempts": 0 }]
+}
+```
+
+Channel summaries can add `provider`, `acceptedAt`, `deliveredAt`, `openedAt`, `readAt`, and `lastError: { code, category }`. Timeline entries contain `channel`, `event`, and `at`. Trace responses contain `messageId`, `state`, `team`, `category`, `totalDurationMs`, `summary`, and `waterfall`; span fields include `spanId`, `name`, `status`, `startOffsetMs`, `durationMs`, and optional `details`.
+
+### Template preview: `POST /v1/messages/templates/preview`
+
+```json
+{
+  "template": { "subject": "Hello {{name}}", "text": "Order {{orderId}} is ready." },
+  "variables": { "name": "Alex", "orderId": "10928" }
+}
+```
+
+### Client receipts: `POST /v1/receipts`
+
+```json
+{
+  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
+  "channel": "fcm",
+  "event": "read"
+}
+```
+
+The message must be visible to the authenticated scope. Acceptance returns `202` with `{ "status": "accepted", "received": true }`. Use `event`, rather than `receiptType`, for the receipt kind.
+
+## Failed-message replay
+
+`GET /v1/dlq` lists failed messages with `limit` (default 50, maximum 200) and `offset` (default 0). Team and sandbox visibility follow authentication; a caller cannot broaden its team with a query parameter.
+
+`POST /v1/dlq/replay` accepts `{ "messageIds": [...] }` and returns `{ "replayedCount": ..., "messageIds": [...] }` for eligible replayed failures.
+
+`POST /v1/dlq/replay-mutated` supports:
+
+```json
+{
+  "messageIds": ["msg_01J0N7C0W7X2R6S8V9Q9B1E4G3"],
+  "dryRun": true,
+  "mutations": {
+    "recipients": { "email": "corrected@example.com" },
+    "metadata": { "remediationReason": "Recipient correction" }
   }
 }
 ```
 
-#### Response (`202 Accepted`):
+Mutations can contain `recipients`, `channels`, and `metadata`. Dry runs add `dryRunResults` and do not dispatch or test an actual provider route; the reported `simulatedProvider` is currently a placeholder. The schema also accepts `isSandbox`, but authenticated scope takes precedence. Review dry-run output before intentional replay; another execution can incur another charge. Provider overrides and arbitrary payload patches are not fields in the current replay schema.
+
+## Batches, sandbox, and suppressions
+
+| Method and route | Current request/behavior |
+| :--- | :--- |
+| `POST /v1/batches` | `{ totalCount, metadata? }`; returns `201` with `{ success, batch }` |
+| `GET /v1/batches` | List authenticated tenant/team batches |
+| `GET /v1/batches/:batchId` | Inspect one batch context |
+| `POST /v1/batches/:batchId/pause` | Pause an eligible batch |
+| `POST /v1/batches/:batchId/resume` | Resume an eligible paused batch |
+| `POST /v1/batches/:batchId/cancel` | Cancel an eligible batch |
+| `GET /v1/sandbox/messages` | Up to 100 recent team sandbox records from the last 30 days |
+| `DELETE /v1/sandbox/messages` | Delete team sandbox records in that 30-day window |
+| `POST /v1/suppressions` | `{ identifier, reason, identifierType?, category?, country?, channel?, startsAt?, endsAt? }` |
+| `POST /v1/suppressions/bulk` | `{ items: [<suppression>, ...] }` |
+| `GET /v1/suppressions` | Filters: `limit`, `offset`, `channel`, `category`, `reason`, `search` |
+| `DELETE /v1/suppressions/:id` | Remove a suppression visible to the key's team |
+
+Suppression requests use `identifier`, not `recipient`. See the controllers for route-specific response objects; response envelopes are not uniform across these resources.
+
+## Customer webhook subscriptions
+
+`POST /v1/webhook-subscriptions` accepts `{ url, events, secret? }` and returns `{ success: true, subscription }`, including a generated secret when omitted. Destinations must use HTTPS on port 443 without credentials/fragments and resolve exclusively to public addresses. Redirects are not followed.
+
+- `GET /v1/webhook-subscriptions`: `{ subscriptions }` for the authenticated tenant/team.
+- `DELETE /v1/webhook-subscriptions/:id`: delete a scoped subscription.
+- `POST /v1/webhook-subscriptions/:id/test`: queue `ping.test` for matching subscriptions in the authenticated tenant/team. The current implementation does not select only the path's subscription ID. Subscribe to `ping.test` or `*` to receive it.
+
+The current callback envelope is:
+
 ```json
 {
-  "success": true,
-  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-  "status": "accepted",
-  "acceptedAt": "2026-08-16T22:42:00.000Z",
-  "channels": ["whatsapp", "email"],
-  "recipientsCount": 1
+  "event": "message.delivered",
+  "timestamp": "2026-10-10T12:00:01.000Z",
+  "data": {
+    "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
+    "channel": "email",
+    "status": "delivered",
+    "timestamp": "2026-10-10T12:00:00.000Z"
+  }
 }
 ```
 
----
+Workers emit `message.sent`, receipt-derived `message.<state>` events, and `inbound.message_received`; the test event is `ping.test`. Receipt availability depends on provider support. The outer timestamp is dispatch time; `data` is event-specific. The current envelope does not include a stable event ID.
 
-### 1.2 High-Throughput Bulk Message Ingestion (`POST /v1/messages/bulk`)
-Accepts up to 5,000 individualized message items in a single HTTP payload.
+`X-Convey-Signature` is `t=<unix-seconds>,v1=<hex-hmac>`, signing `timestamp.rawBody` using HMAC-SHA256 and the subscription secret. Verify the exact raw body before parsing and enforce timestamp tolerance. The TypeScript SDK exports `verifyWebhookSignature`; its typed event envelope and framework routing adapters currently expect different field names, so parse the actual `event`, `timestamp`, and `data` fields explicitly.
 
-#### Request Body (`BulkSendMessageRequestSchema`):
-```json
-{
-  "messages": [
-    {
-      "idempotencyKey": "bulk_promo_usr_001",
-      "userId": "usr_001",
-      "team": "marketing",
-      "category": "promotional",
-      "recipients": { "phone": "+14155550001" },
-      "channels": [
-        { "channel": "sms", "content": { "text": "Flash Sale: 20% off today!" } }
-      ]
-    },
-    {
-      "idempotencyKey": "bulk_promo_usr_002",
-      "userId": "usr_002",
-      "team": "marketing",
-      "category": "promotional",
-      "recipients": { "phone": "+14155550002" },
-      "channels": [
-        { "channel": "sms", "content": { "text": "Flash Sale: 20% off today!" } }
-      ]
-    }
-  ]
-}
-```
+Delivery uses a 10-second timeout and up to three total attempts for network errors, `429`, or `5xx`, with jitter. Other non-`2xx` responses fail without transient retry. Retry dispatch timestamps/signatures change. Consumers must tolerate duplicates and out-of-order events and make business updates idempotent.
 
-#### Response (`202 Accepted`):
-```json
-{
-  "total": 2,
-  "items": [
-    { "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3", "status": "accepted", "idempotencyKey": "bulk_promo_usr_001" },
-    { "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G4", "status": "accepted", "idempotencyKey": "bulk_promo_usr_002" }
-  ]
-}
-```
+## Provider ingress and administration
 
----
+`POST /v1/webhooks/:provider` accepts vendor callbacks with provider-specific signature handling. Dedicated status/incoming routes exist at `/v1/webhooks/:provider/status` and `/v1/webhooks/:provider/incoming`; supported verification handshakes use corresponding GET routes. `GET /v1/t/:token` serves an email-open tracking pixel. Do not infer live certification or signature coverage from the provider catalog; consult [provider capabilities](provider-capabilities.md).
 
-### 1.3 Get Message Status (`GET /v1/messages/:messageId`)
-Queries real-time aggregate status, per-channel status, and provider attempt history.
+`/v1/admin` powers the web console: overview, telemetry, messages, provider configuration, policies, access administration, and reporting. Use [Mission Control documentation](web-ui-mission-control.md), the [access matrix](operations/api-access-matrix.md), and the [admin controller](../apps/server/src/modules/admin/admin.controller.ts) for exact routes and permissions. Tenant and sandbox keys cannot perform platform writes.
 
-#### Query Parameters:
-- `include`: Comma-separated relationships (`timeline`, `attempts`).
+## Health and errors
 
-#### Response (`200 OK`):
-```json
-{
-  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-  "state": "delivered",
-  "userId": "usr_99182",
-  "team": "payments",
-  "category": "transactional",
-  "country": "AE",
-  "createdAt": "2026-08-16T22:42:00.000Z",
-  "completedAt": "2026-08-16T22:42:01.200Z",
-  "channels": [
-    {
-      "channel": "whatsapp",
-      "state": "delivered",
-      "provider": "whatsapp-business",
-      "attempts": 1,
-      "deliveredAt": "2026-08-16T22:42:01.200Z"
-    }
-  ]
-}
-```
+| Route | Behavior |
+| :--- | :--- |
+| `GET /health` | Database/Redis checks and readiness information; `200` when healthy and ready, otherwise `503` |
+| `GET /health/readiness` | Readiness, dependency/partition checks, worker and provider information; `200` or `503` |
+| `GET /health/liveness` | `{ status: "alive", uptime, timestamp }` |
+| `GET /metrics` | Prometheus text metrics |
+| `GET /swagger` | Interactive OpenAPI documentation |
 
----
+Messaging errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`, where details are optional. Other route families can return different envelopes. There is no universal RFC 7807 error body or guaranteed rate-limit header set.
 
-### 1.4 Get Message Audit Timeline (`GET /v1/messages/:messageId/timeline`)
-Retrieves chronological append-only lifecycle events.
-
-#### Response (`200 OK`):
-```json
-{
-  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-  "timeline": [
-    { "type": "message.accepted", "occurredAt": "2026-08-16T22:42:00.000Z" },
-    { "type": "provider.dispatch", "providerId": "whatsapp-business", "occurredAt": "2026-08-16T22:42:00.450Z" },
-    { "type": "message.delivered", "providerId": "whatsapp-business", "occurredAt": "2026-08-16T22:42:01.200Z" },
-    { "type": "message.read", "occurredAt": "2026-08-16T22:45:30.000Z" }
-  ]
-}
-```
-
----
-
-### 1.5 Query User Message History (`GET /v1/messages/user/:userId`)
-Queries message history for a specific recipient user.
-
-#### Query Parameters:
-- `limit` *(default: 50)*: Number of records.
-- `offset` *(default: 0)*: Pagination offset.
-- `team` *(optional)*: Tenant boundary filter.
-
----
-
-### 1.6 Ingest Client Receipts (`POST /v1/receipts`)
-Ingests delivery and read confirmations directly from client mobile applications or SDKs.
-
-#### Request Body (`ClientReceiptSchema`):
-```json
-{
-  "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-  "receiptType": "read",
-  "timestamp": "2026-08-16T22:45:30.000Z",
-  "deviceId": "device_ios_98234",
-  "metadata": { "batteryLevel": 0.85, "network": "WiFi" }
-}
-```
-
-#### Response (`202 Accepted`):
-```json
-{ "status": "accepted" }
-```
-
----
-
-## 2. Batches & Campaigns Endpoints (`/v1/batches`)
-
-### 2.1 Initialize Batch Context (`POST /v1/batches`)
-```json
-{
-  "totalCount": 10000,
-  "metadata": { "campaignId": "camp_reactivate_2026", "campaignName": "Summer Promo" }
-}
-```
-**Response (`201 Created`)**: Returns `{ "success": true, "batch": { "id": "batch_01J0N...", ... } }`.
-
-### 2.2 List & Control Batches
-- `GET /v1/batches`: List team batches with live Redis stats.
-- `GET /v1/batches/:batchId`: Query batch completion %, throughput msg/sec, and ETA.
-- `POST /v1/batches/:batchId/pause`: Pauses processing of remaining queue jobs in batch.
-- `POST /v1/batches/:batchId/resume`: Resumes paused batch execution.
-- `POST /v1/batches/:batchId/cancel`: Cancels all pending messages in batch.
-
----
-
-## 3. Dead-Letter Queue (DLQ) Operations (`/v1/dlq`)
-
-### 3.1 List DLQ Failed Messages (`GET /v1/dlq`)
-#### Query Parameters:
-- `team` *(optional)*: Filter by tenant.
-- `limit` *(default: 50, max: 200)*.
-- `offset` *(default: 0)*.
-
-#### Response (`200 OK`):
-```json
-{
-  "total": 1,
-  "messages": [
-    {
-      "messageId": "msg_01J0N7C0W7X2R6S8V9Q9B1E4G3",
-      "team": "payments",
-      "userId": "usr_99182",
-      "failedAt": "2026-08-16T22:42:15.000Z",
-      "lastError": {
-        "code": "PROVIDER_TIMEOUT",
-        "category": "transient",
-        "message": "Gateway timed out waiting for upstream response",
-        "providerId": "twilio",
-        "attemptNo": 3
-      }
-    }
-  ]
-}
-```
-
-### 3.2 Replay Failed Messages (`POST /v1/dlq/replay`)
-Resets message state to `accepted` and re-inserts into transactional outbox.
-```json
-{
-  "messageIds": ["msg_01J0N7C0W7X2R6S8V9Q9B1E4G3"]
-}
-```
-
-### 3.3 Mutated DLQ Replay (`POST /v1/dlq/replay-mutated`)
-Replays messages with modified payload or provider override.
-```json
-{
-  "messageIds": ["msg_01J0N7C0W7X2R6S8V9Q9B1E4G3"],
-  "overrideProvider": "resend",
-  "payloadPatch": { "content": { "subject": "Updated Subject" } }
-}
-```
-
----
-
-## 4. Sandbox Mode API (`/v1/sandbox`)
-
-### 4.1 Inspect Sandbox Messages (`GET /v1/sandbox/messages`)
-Queries messages dispatched with `isSandbox: true`. External provider APIs are never called; payloads are recorded in memory/database for end-to-end integration testing.
-
-### 4.2 Purge Sandbox Messages (`DELETE /v1/sandbox/messages`)
-Clears all mock sandbox records for the authenticated team.
-
----
-
-## 5. Suppression List Management (`/v1/suppressions`)
-
-Convey maintains high-speed normalized SHA-256 hashed suppression lists to prevent compliance violations (CAN-SPAM, GDPR) and protect provider sender reputation.
-
-### 5.1 Add Single Suppression (`POST /v1/suppressions`)
-```json
-{
-  "identifier": "unsubscribed_user@example.com",
-  "identifierType": "email",
-  "reason": "unsubscribe",
-  "channel": "email",
-  "category": "marketing"
-}
-```
-
-### 5.2 Bulk Add Suppressions (`POST /v1/suppressions/bulk`)
-```json
-{
-  "items": [
-    { "identifier": "bounce1@example.com", "reason": "hard_bounce", "channel": "email" },
-    { "identifier": "+14155550199", "reason": "spam_complaint", "channel": "sms" }
-  ]
-}
-```
-
-### 5.3 Query & Remove Suppressions
-- `GET /v1/suppressions`: List suppressions with filters (`limit`, `offset`, `channel`, `reason`, `search`).
-- `DELETE /v1/suppressions/:id`: Permanently removes suppression record.
-
----
-
-## 6. Customer Webhook Subscriptions (`/v1/webhook-subscriptions`)
-
-Clients can subscribe to real-time message delivery events signed with HMAC-SHA256 (`X-Convey-Signature`).
-
-### 6.1 Create Webhook Subscription (`POST /v1/webhook-subscriptions`)
-```json
-{
-  "url": "https://api.merchant.com/webhooks/convey",
-  "events": ["message.delivered", "message.failed", "message.opened", "message.read"],
-  "secret": "whsec_981273918273918273"
-}
-```
-
-### 6.2 Subscription Management
-- `GET /v1/webhook-subscriptions`: List active subscriptions.
-- `DELETE /v1/webhook-subscriptions/:id`: Delete subscription.
-- `POST /v1/webhook-subscriptions/:id/test`: Trigger a synthetic test ping event.
-
----
-
-## 7. Inbound Provider Webhooks & Tracking (`/v1/webhooks`, `/v1/t`)
-
-### 7.1 Provider Webhook Ingestion (`POST /v1/webhooks/:provider`)
-Ingests delivery receipts, bounces, complaints, and inbound chat messages from 88 upstream providers with automatic cryptographic signature validation.
-
-```bash
-curl -X POST http://localhost:3000/v1/webhooks/sendgrid \
-  -H "Content-Type: application/json" \
-  -H "X-Twilio-Email-Event-Webhook-Signature: ..." \
-  -H "X-Twilio-Email-Event-Webhook-Timestamp: ..." \
-  -d '[
-    {
-      "email": "user@example.com",
-      "event": "delivered",
-      "sg_message_id": "sg_10928312.filter",
-      "timestamp": 1786500600
-    }
-  ]'
-```
-
-### 7.2 WhatsApp Dedicated Status Update Webhook (`POST /v1/webhooks/whatsapp/status` or `/v1/webhooks/:provider/status`)
-Dedicated webhook endpoint for WhatsApp delivery and read receipts (`delivered`, `read`, `failed`). Progresses message attempt timestamps, transitions message state in PostgreSQL, triggers cascade step cancellation, and logs telemetry.
-
-### 7.3 WhatsApp Dedicated Incoming Message Webhook (`POST /v1/webhooks/whatsapp/incoming` or `/v1/webhooks/:provider/incoming`)
-Dedicated webhook endpoint for customer-initiated WhatsApp inbound messages.
-- **Directly drives the 24-Hour Cost Optimization Engine**: Atomically sets/refreshes the 24-hour service window in Redis (`wa:session:<providerId>:<phone>`).
-- Automatically intercepts future outbound messages to send plain-text session messages at **$0.00 Meta template fee** instead of paid templates ($0.015+ saved per message).
-- Automatically handles compliance keyword suppressions (`STOP`, `UNSUBSCRIBE`, `START`).
-- Dispatches `inbound.message_received` events to customer webhook subscribers.
-
-### 7.4 Meta / WhatsApp Webhook Handshake Verification (`GET /v1/webhooks/:provider*`)
-Responds to Meta WhatsApp Cloud API / Facebook Developer verification requests:
-- Validates `hub.mode=subscribe` and `hub.verify_token`.
-- Returns raw `hub.challenge` string with HTTP `200 OK` (or `403 Forbidden` on invalid tokens).
-- Supported on `/v1/webhooks/:provider`, `/v1/webhooks/:provider/status`, and `/v1/webhooks/:provider/incoming`.
-
-### 7.5 Email Open Tracking Pixel (`GET /v1/t/:token`)
-Zero-footprint 1x1 transparent GIF endpoint for email open telemetry.
-- Returns `image/gif` with `Cache-Control: no-cache, no-store, must-revalidate`.
-
----
-
-## 8. Admin & Mission Control Endpoints (`/v1/admin`)
-
-These endpoints power the Staff-level React 19 + Base UI Mission Control console and DevOps automation.
-
-### 8.1 Telemetry & Overview
-- `GET /v1/admin/overview`: Summary KPIs, 24h volume, delivery rate, channel distribution, and p95 latency sparklines.
-- `GET /v1/admin/telemetry/live`: Live telemetry snapshot including V8 heap memory saturation, event-loop lag, and BullMQ queue depths.
-
-### 8.2 Message Explorer & Trace Waterfall
-- `GET /v1/admin/messages`: Search and filter messages by channel, status, date range, sandbox mode, and text search.
-- `GET /v1/admin/messages/:id`: Message details with full W3C Gantt trace waterfall from HTTP ingestion to provider wire delivery.
-- `GET /v1/admin/audit-logs`: Query immutable administrative audit trail logs.
-
-### 8.3 Provider Matrix & Circuit Breaker Cockpit
-- `GET /v1/admin/providers`: List all 88 providers with live circuit breaker states (`CLOSED`, `HALF_OPEN`, `OPEN`), failure counts, and latency percentiles.
-- `POST /v1/admin/providers/:providerId/circuit`: Manual circuit breaker override.
-  ```json
-  { "action": "FORCE_HALF_OPEN", "rampPercentage": 20 }
-  ```
-- `POST /v1/admin/providers/:providerId/canary`: Trigger an on-demand synthetic canary probe against a provider.
-
-### 8.4 DLQ Replay Simulator
-- `POST /v1/admin/dlq/replay`: Execute or dry-run DLQ batch replay.
-  ```json
-  { "dryRun": true }
-  ```
-
-### 8.5 Provider Setup & Registration Studio
-- `GET /v1/admin/providers/catalog`: Full 88-provider catalog with required env vars, labels, and schemas.
-- `GET /v1/admin/providers/configured`: List active configured providers from database and memory.
-- `POST /v1/admin/providers/register`: Register or update provider credentials and configuration in PostgreSQL with instant Redis PubSub hot-reloading.
-- `DELETE /v1/admin/providers/configured/:id`: Remove configured provider.
-- `POST /v1/admin/providers/test-connection`: Validate provider credentials against upstream vendor API.
-- `POST /v1/admin/providers/seed-all`: Seed all 88 providers with default test credentials.
-- `GET /v1/admin/providers/env-export`: Export sample `.env` formatted variables for all providers.
-
----
-
-## 9. System Health & Observability Probes
-
-### 9.1 Comprehensive Health Status (`GET /health`)
-Evaluates database connection, Redis ping, active monthly partitions, circuit breaker status for all 88 providers, and memory footprint.
-
-#### Response (`200 OK`):
-```json
-{
-  "status": "ok",
-  "ready": true,
-  "uptime": 86400.25,
-  "db": "connected",
-  "redis": "connected",
-  "partitions": "ready",
-  "circuitBreakers": { "closed": 88, "open": 0, "halfOpen": 0 },
-  "configuredProvidersCount": 88,
-  "timestamp": "2026-08-16T22:42:00.000Z"
-}
-```
-
-### 9.2 Kubernetes Probes
-- **Readiness Probe (`GET /health/readiness`)**: Returns `200 OK` when ready; returns `503 Service Unavailable` during startup or graceful shutdown.
-- **Liveness Probe (`GET /health/liveness`)**: Returns `200 OK` while process event loop is responsive.
-
-### 9.3 Prometheus Metrics (`GET /metrics`)
-Exposes all system metrics in standard Prometheus text format (`convey_http_requests_total`, `convey_messages_accepted_total`, `convey_whatsapp_session_cost_saved_usd_total`, etc.).
-
-### 9.4 OpenAPI Swagger UI (`GET /swagger`)
-Interactive OpenAPI 3.1 documentation and live API playground.
-
----
-
-## 10. Error Code Taxonomy & HTTP Status Matrix
-
-| Error Code | HTTP Status | Root Cause & Resolution |
+| Messaging code | HTTP status | Meaning |
 | :--- | :--- | :--- |
-| `VALIDATION_ERROR` | `400` | Malformed JSON schema or missing required fields. Inspect `details` array in error response. |
-| `IDEMPOTENCY_CONFLICT` | `409` | Same `X-Idempotency-Key` submitted with a different payload hash. Check client retry logic. |
-| `UNAUTHORIZED` | `401` | Missing or invalid Bearer API key or failed webhook signature verification. |
-| `FORBIDDEN` | `403` | API key lacks permission for requested team or operation. |
-| `NOT_FOUND` | `404` | Message ID, batch ID, or subscription ID does not exist in partition window. |
-| `RATE_LIMIT_EXCEEDED` | `429` | Tenant request rate limit exceeded. Back off using `X-RateLimit-Reset`. |
-| `SUPPRESSED_RECIPIENT` | `422` | Recipient is on suppression list (bounced/unsubscribed). |
-| `NO_PROVIDER_CONFIGURED`| `503` | No enabled provider available for requested channel. |
-| `PROVIDER_TIMEOUT` | `504` | Upstream provider connection timed out. |
-| `INTERNAL_ERROR` | `500` | Unhandled server exception. Transaction rolled back safely. |
+| `VALIDATION_ERROR` | `400` | Invalid schema or domain payload |
+| `IDEMPOTENCY_CONFLICT` | `409` | Payload conflict or reservation in progress |
+| `NOT_FOUND` | `404` | Message unavailable to the requested scope |
+| `SERVICE_UNAVAILABLE` | `503` | Acceptance rejected under overload; includes `Retry-After` |
+| `SERVER_ERROR` | `500` | Unexpected single-send failure |
+
+Authentication failures use `401`; access policy rejection uses `403`. Provider delivery failures are asynchronous outcomes after successful acceptance, not a synchronous send HTTP error taxonomy.
+
+The implementation sources are [message schemas](../apps/server/src/modules/messaging/messaging.types.ts), [message controller](../apps/server/src/modules/messaging/messaging.controller.ts), [message service](../apps/server/src/modules/messaging/messaging.service.ts), [customer dispatcher](../apps/server/src/queues/workers/customer-webhook-dispatch.worker.ts), and [server route registration](../apps/server/src/index.ts). Check installed SDK behavior against these contracts until qualification is complete.

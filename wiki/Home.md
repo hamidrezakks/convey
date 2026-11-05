@@ -1,53 +1,40 @@
-# Convey Developer & Architecture Wiki
+# Convey developer and architecture wiki
 
-Welcome to the **Convey Engineering Wiki**. Convey is a planetary-scale, fault-tolerant communication engine and notification gateway engineered on **Bun 1.4**, **Elysia.js**, **Drizzle ORM**, **PostgreSQL 15+ (Range Partitioned)**, **BullMQ (Redis 7+)**, and **Prometheus**.
+Convey is a pre-release communication service built with Bun, Elysia, PostgreSQL 18 and BullMQ with a Redis-compatible queue store. The repository includes an operator console, optional inbox/preferences plugins, TypeScript/Go/Python SDKs, and an optional Go recipient gateway.
 
----
+Start with the [root README](../README.md) for authenticated setup and the [V1 contract candidate](../docs/operations/v1-contracts.md) for supported claims and limitations. Acceptance is not delivery. Provider catalog entries and local benchmark results do not establish live-provider certification, a production SLA or multi-region correctness.
 
-## 🧭 Core Developer Guides
+## Guides
 
-- 📨 **[Per-Channel Request Payloads & Examples](./Per-Channel-Examples-and-Payloads.md)**: Concrete JSON payload examples, multi-channel waterfall fallback rules, dynamic template variables, and envelope encryption visualizations across Email, SMS, Push, Chat, and Tool channels.
-- 🌐 **[Planetary-Scale Resilience Architecture](./Planetary-Scale-Resilience-Architecture.md)**: Multi-region active-active geo-replication, chaos injection testing, anti-entropy quorum consensus auditing, and operational CLI benchmark tools (`bun run benchmark:report`, `bun run jobs:dump`).
-- 🔒 **[Zero-Trust Security & Envelope Encryption](./Zero-Trust-Security-and-Encryption.md)**: In-depth technical specification of AES-256-GCM envelope payload encryption at rest, key lifecycle management, DLP regex scanning, API key hashing, and regulatory compliance (GDPR/HIPAA).
+- [Per-channel request examples](Per-Channel-Examples-and-Payloads.md)
+- [Security and payload encryption](Zero-Trust-Security-and-Encryption.md)
+- [Resilience and operational tools](Planetary-Scale-Resilience-Architecture.md)
+- [Recipient gateway usage](../apps/gateway/USAGE.md): user-ID resolution, overrides, bulk requests and Docker setup.
+- [Gateway batching and measured performance](../apps/gateway/PERFORMANCE.md)
 
----
+## Implementation references
 
-## 📚 Deep-Dive System Specifications
+| Reference | Scope |
+| --- | --- |
+| [Architecture](../docs/architecture.md) | API, persistence and workers |
+| [REST API](../docs/api.md) | Message payloads and routes |
+| [Database schema](../docs/database-schema.md) | Persistence model |
+| [Queue topology](../docs/queue-topology.md) | Dispatch and background processing |
+| [Provider certification](../docs/operations/provider-certification.md) | Evidence and qualification limits |
+| [Budget enforcement](../docs/operations/budget-enforcement.md) | Reservations, caps and reconciliation |
+| [Security contract](../docs/security.md) | Credentials, scope and signed ingress |
+| [Operational metrics](../docs/operations/metrics.md) | Metrics used for alerting |
+| [Schema baseline policy](../docs/operations/schema-baseline.md) | Fresh stores for changed pre-release baselines |
+| [Release management](../docs/RELEASE_MANAGEMENT.md) | Validation and publication |
 
-| Specification Document | Focus Area |
-| :--- | :--- |
-| **[Root README](../README.md)** | Executive overview, architecture topology, quickstart, and benchmark SLA tables. |
-| **[System Architecture](../docs/architecture.md)** | 4-stage transactional outbox pipeline, fast path, and 4-stage graceful shutdown. |
-| **[REST API Reference](../docs/api.md)** | Complete OpenAPI 3.1 endpoint reference, JSON schemas, headers, and error taxonomy. |
-| **[Database Schema & Partitioning](../docs/database-schema.md)** | 16 Drizzle table schemas, composite primary keys, and monthly declarative range partitions. |
-| **[Queue Topology & Workers](../docs/queue-topology.md)** | BullMQ queues, 8 background worker loops, Deficit Round Robin scheduling, and Redis hash tags. |
-| **[Provider Capabilities Matrix](../docs/provider-capabilities.md)** | Capability matrix and circuit breaker configurations for all 88 integrated providers. |
-| **[WhatsApp Session Cost Optimization](../docs/whatsapp-session-optimization.md)** | Meta 24h customer conversation window tracking, AST tokenizer, and $0.00 plain text transformations. |
-| **[Fallback & Failover State Machine](../docs/fallback-state-machine.md)** | Same-channel provider failover and cross-channel waterfall cascade decision trees. |
-| **[Message State Machine](../docs/message-state-machine.md)** | Complete 8-state transition matrix and lifecycle event rules. |
-| **[Zero-Trust Security Model](../docs/security.md)** | Cryptographic envelope encryption and threat model. |
-| **[Observability & Distributed Tracing](../docs/observability.md)** | Prometheus metrics catalog, W3C traceparent propagation, and structured Pino logging. |
-| **[Horizontal Scaling Guide](../docs/scaling.md)** | High-availability deployment, micro-batching pipelines, and capacity planning. |
-| **[Novu vs Convey Assessment](../docs/novu-assessment.md)** | Senior engineering comparative analysis and performance benchmarks. |
+## Local verification
 
----
-
-## ⚡ Quick Operational Commands
-
-```bash
-# Start local development server with hot-reloading
-bun run dev
-
-# Run automated unit, integration, and E2E test suites (886 tests)
-bun test
-
-# Execute Biome strict code quality and formatting checks
+```sh
 bun run biome:check
-bun run biome:format
-
-# Run 10,000-message benchmark load test with financial cost reporting
-bun run benchmark:report
-
-# Inspect real-time queue consumption across Redis and PostgreSQL
-bun run jobs:dump
+bun run typecheck
+bun run test:sdks
+bun run test:gateway
+bun run simulate:gateway
 ```
+
+Database-backed tests and benchmarks require isolated disposable stores. Follow the root README's test environment instructions before running them. The gateway simulator uses its own loopback mock services and does not send real notifications.

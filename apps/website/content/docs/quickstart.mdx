@@ -1,193 +1,114 @@
 ---
 title: Quickstart & Installation
-description: Get Convey running in under 2 minutes with Docker Compose or Bun 1.4. Includes service port maps, verification scripts, and first message dispatch.
+description: Run Convey locally, provision an authenticated team credential, and accept your first message.
 ---
-
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 ## Prerequisites
 
-Before running Convey, ensure your local or staging environment has the following installed:
+Use Bun `1.4.0` (the repository's `.bun-version`), PostgreSQL 18, and a Redis-compatible service such as DragonflyDB. Docker Compose is optional. Convey is pre-release: initialize a fresh disposable database and queue namespace when the canonical schema or persisted queue format changes.
 
-- **Bun**: `v1.4.0` or higher (`curl -fsSL https://bun.sh/install | bash`)
-- **Docker & Docker Compose**: `v24.0+` (optional for containerized setup)
-- **PostgreSQL**: `18.0+` (with `pgcrypto` extension enabled)
-- **DragonflyDB**: `latest` / `v1.20+` or Redis-compatible multi-threaded cache (with persistence enabled)
+## Start the API locally
 
----
-
-## 2-Minute Rapid Setup
-
-<Tabs items={['Docker Compose (Fastest)', 'Bun Monorepo Native', 'Kubernetes']}>
-  <Tab value="Docker Compose (Fastest)">
 ```bash
-# 1. Clone the repository
 git clone https://github.com/hamidrezakks/convey.git
 cd convey
-
-# 2. Launch PostgreSQL 18, DragonflyDB, Convey API Server, and Mission Control UI
-docker compose up -d
-
-# 3. Verify all containers are healthy
-docker compose ps
-```
-  </Tab>
-
-  <Tab value="Bun Monorepo Native">
-```bash
-# 1. Install all dependencies across workspaces
-bun install
-
-# 2. Configure environment variables
+bun install --frozen-lockfile
 cp .env.example .env
+```
 
-# 3. Execute database schema migrations
+Set `DATABASE_URL` and `REDIS_URL` in `.env` to your running services. `POSTGRES_DB`, when set, overrides the database path in `DATABASE_URL`. The example includes legacy mock provider values; current adapters use explicit database-backed provider configuration rather than automatically reading those variables. Configure a provider through the console or administration API for real delivery.
+
+```bash
+bun run db:check
 bun run db:migrate
-
-# 4. Start the API server, Web UI, and Developer Docs
-bun run dev
+bun run dev:server
 ```
-  </Tab>
 
-  <Tab value="Kubernetes">
+The API and background workers start together. There is no separate worker command. Confirm the listener and bootstrap state:
+
 ```bash
-# 1. Apply Kubernetes ConfigMaps & Secrets
-kubectl apply -f deploy/k8s/configmap.yaml
-kubectl apply -f deploy/k8s/secrets.yaml
-
-# 2. Deploy PostgreSQL 18 and DragonflyDB StatefulSets
-kubectl apply -f deploy/k8s/postgres-statefulset.yaml
-kubectl apply -f deploy/k8s/dragonfly-statefulset.yaml
-
-# 3. Deploy Convey API & Background Workers with HPA
-kubectl apply -f deploy/k8s/convey-deployment.yaml
-kubectl apply -f deploy/k8s/convey-hpa.yaml
+curl --fail http://localhost:3000/health/liveness
+curl --fail http://localhost:3000/health/readiness
 ```
-  </Tab>
-</Tabs>
 
----
+## Provision a team credential
 
-## Service Port Allocation Map
+Authentication is enabled by default. Through your database administration tool, create an active tenant in the initialized database. For a disposable local setup:
 
-| Service Name | Port | Description | Health Endpoint |
-| :--- | :--- | :--- | :--- |
-| **Convey API Server** | `3000` | Elysia.js REST API & Ingestion Gateway | `http://localhost:3000/health` |
-| **OpenAPI Docs (Swagger)** | `3000` | Interactive OpenAPI 3.1 Swagger UI | `http://localhost:3000/swagger` |
-| **Mission Control UI** | `5173` | React 19 Admin Operations Console | `http://localhost:5173` |
-| **Developer Documentation** | `5174` | Fumadocs Portal & API Playground | `http://localhost:5174` |
-| **PostgreSQL 18** | `5432` | Relational Storage & Range Partitions | `pg_isready -p 5432` |
-| **DragonflyDB** | `6379` | Multi-Threaded 1-RTT Idempotency & Rate Limiting | `redis-cli ping` |
-
----
-
-## Sending Your First Message
-
-Once the server is running, dispatch an omnichannel message using your preferred SDK or `cURL`:
-
-<Tabs items={['TypeScript', 'Python', 'Go', 'cURL']}>
-  <Tab value="TypeScript">
-```typescript
-import { Convey } from '@convey/sdk';
-
-const convey = new Convey({ apiKey: 'cv_live_dev_api_key_001' });
-
-const res = await convey.messages.send({
-  channel: 'SMS',
-  recipient: '+14155552671',
-  priority: 'HIGH',
-  content: {
-    body: 'Welcome to Convey! Your high-throughput notification gateway is active.',
-  },
-});
-
-console.log(`Accepted: ${res.publicId}`);
+```sql
+INSERT INTO tenants (id, name, status)
+VALUES ('local-tenant', 'Local development', 'active');
 ```
-  </Tab>
 
-  <Tab value="Python">
-```python
-from convey import Convey, Channel, MessagePriority
+In another terminal at the repository root, create a tenant credential:
 
-client = Convey(api_key="cv_live_dev_api_key_001")
-
-res = client.messages.send(
-    channel=Channel.SMS,
-    recipient="+14155552671",
-    priority=MessagePriority.HIGH,
-    content={"body": "Welcome to Convey! Your high-throughput notification gateway is active."},
-)
-
-print(f"Accepted: {res.public_id}")
-```
-  </Tab>
-
-  <Tab value="Go">
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-
-	"github.com/hamidrezakks/convey/packages/sdk-go"
-)
-
-func main() {
-	client := convey.NewClient("cv_live_dev_api_key_001")
-
-	res, err := client.Messages.Send(context.Background(), convey.SendMessageRequest{
-		Channel:   convey.ChannelSMS,
-		Recipient: "+14155552671",
-		Priority:  convey.PriorityHigh,
-		Content: &convey.MessageContent{
-			Body: "Welcome to Convey! Your high-throughput notification gateway is active.",
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("Accepted: %s\n", res.PublicID)
-}
-```
-  </Tab>
-
-  <Tab value="cURL">
 ```bash
-curl -X POST http://localhost:3000/v1/messages/send \
-  -H "Authorization: Bearer cv_live_dev_api_key_001" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test_dispatch_001" \
-  -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" \
-  -d '{
-    "channel": "sms",
-    "recipient": "+14155552671",
-    "priority": "HIGH",
-    "content": {
-      "body": "Welcome to Convey! Your high-throughput notification gateway is active."
-    }
+bun apps/server/scripts/create-api-key.ts local-tenant local-team application DEVELOPER tenant production
+```
+
+The database trigger registers `local-team` to `local-tenant`. Teams are globally unique across tenants; choose a new team name if it already belongs to another tenant. The command prints an `sk_live_` secret once and stores only its hash. Keep the secret outside source control and set `CONVEY_API_KEY` in your terminal to the printed value.
+
+The final argument selects the credential's environment. Use `sandbox` to create an `sk_test_` key; sandbox-only keys use `/v1/sandbox` APIs. The `production` argument above creates a credential for the regular API even when the local server uses `NODE_ENV=development`.
+
+## Accept your first message
+
+Configure an implemented provider for delivery using the operator console or the platform administration API. Review [providers](/docs/providers) before choosing an integration. Acceptance records a message; it does not confirm delivery.
+
+```bash
+curl --fail-with-body -X POST http://localhost:3000/v1/messages   -H "Authorization: Bearer $CONVEY_API_KEY"   -H 'Content-Type: application/json'   -d '{
+    "idempotencyKey": "quickstart-sms-001",
+    "userId": "local-user",
+    "team": "local-team",
+    "category": "transactional",
+    "country": "US",
+    "priority": "normal",
+    "recipients": { "phone": "+14155552671" },
+    "channels": [
+      { "channel": "sms", "content": { "text": "Hello from Convey" } }
+    ]
   }'
 ```
-  </Tab>
-</Tabs>
 
-### Expected Synchronous Response (`202 Accepted`)
+Replace the sample phone with your test recipient before sending through a real provider. `team` must match the credential's team, and `idempotencyKey` belongs in the JSON body. A first acceptance returns `202` with this shape:
 
 ```json
 {
-  "publicId": "msg_01JB61Z89F8A3C1E2B4D5E6F77",
-  "status": "ACCEPTED",
-  "channel": "sms",
-  "recipient": "+14155552671",
-  "priority": "HIGH",
-  "idempotencyKey": "test_dispatch_001",
-  "latencyMs": 1.42,
-  "createdAt": "2026-08-24T19:50:00.000Z"
+  "messageId": "msg_01K4N7GZQZ0000000000000000",
+  "state": "accepted",
+  "createdAt": "2026-10-10T10:00:00.000Z"
 }
 ```
 
-<Callout type="warn" title="Zero Provider Message ID Exposure">
-  Public API responses strictly expose opaque ULID IDs (`msg_<ULID>`). Internal provider message IDs (such as `SMxxxxxxxx` or `SES-xxxx`) are never leaked to external clients.
-</Callout>
+Use the returned `messageId` to poll `GET /v1/messages/:messageId` with the same credential. SDK clients also need an explicit base URL and the matching team; see [SDKs](/docs/sdks). To send user IDs through recipient resolution, see the [Go gateway](/docs/gateway).
+
+## Start the operator console
+
+Create a separate platform credential for administration:
+
+```bash
+bun apps/server/scripts/create-api-key.ts local-tenant local-team operator ORG_ADMIN platform production
+```
+
+Run each service in its own terminal:
+
+```bash
+bun run dev:plugins
+bun run dev:web
+bun run dev:website
+```
+
+Sign into the console with the platform key. The console keeps the key in tab memory and clears it on reload or sign-out. Platform credentials permit privileged administration; keep them out of client applications.
+
+| Service | Default local address | Check or purpose |
+| --- | --- | --- |
+| API | `http://localhost:3000` | `/health/liveness`, `/health/readiness`, `/health` |
+| OpenAPI UI | `http://localhost:3000/swagger` | API reference |
+| Operator console | `http://localhost:5173` | Platform-key sign-in |
+| Optional plugins | `http://localhost:3001` | `/health`; proxied by the console |
+| Documentation | `http://localhost:5174` | `bun run dev:website` |
+
+## Docker evaluation
+
+The checked-in Compose stack builds local images and includes provider simulation, development credentials and exposed infrastructure ports. Follow [deployment](/docs/deployment) to set container-network connection URLs, secrets and authentication. It is an evaluation setup, and signed callback verification may reject unsigned simulator callbacks.
+
+For an isolated non-production experiment only, `CONVEY_REQUIRE_AUTH=false` enables the development bypass. Production rejects this setting. Prefer the authenticated setup above.
